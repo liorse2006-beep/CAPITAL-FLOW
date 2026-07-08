@@ -37,14 +37,18 @@ COPY --from=builder /app/dist         ./dist
 COPY --from=builder /app/public       ./public
 COPY server.js tickers.js scanner.js monitor.js backup.js ./
 COPY server ./server
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
 
 # SQLite data + logs live on a volume — not baked into the image.
 RUN mkdir -p data logs && chown -R app:app /app
 
-USER app
 EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD node -e "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://localhost:'+(process.env.PORT||3001)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["node", "server.js"]
+# Stays root here — entrypoint.sh re-chowns the volume mount (which arrives
+# root-owned at container start, undoing the chown above) before dropping
+# to the unprivileged "app" user to actually run the server.
+CMD ["./entrypoint.sh"]
