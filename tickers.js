@@ -67,6 +67,25 @@ const NASDAQ100 = [
   "TSLA","TTD","TTWO","TXN","VRSK","VRTX","WBA","WBD","WDAY","XEL","ZS"
 ];
 
-const ALL_TICKERS = [...new Set([...SP500, ...NASDAQ100])];
+const SECTOR_TICKERS = {
+  "Technology": ["AAPL","MSFT","NVDA","AVGO","ADBE"],
+  "Financials": ["BRK.B","JPM","V","MA","BAC"],
+  "Health Care": ["LLY","UNH","JNJ","MRK","ABT"],
+  "Consumer Discretionary": ["AMZN","TSLA","HD","MCD","LOW"],
+  "Consumer Staples": ["PG","PEP","KO","COST","WMT"],
+  "Energy": ["XOM","CVX","COP","SLB","EOG"],
+  "Industrials": ["GE","CAT","HON","UNP","UPS"],
+  "Materials": ["LIN","APD","SHW","ECL","DD"],
+  "Real Estate": ["PLD","AMT","EQIX","CCI","PSA"],
+  "Utilities": ["NEE","SO","DUK","AEP","D"],
+  "Communication Services": ["META","GOOGL","GOOG","NFLX","DIS"],
+  "Semiconductors": ["NVDA","AVGO","AMD","INTC","QCOM"]
+};
 
-module.exports = { SP500, NASDAQ100, ALL_TICKERS };
+const ALL_TICKERS = [...new Set([
+  ...SP500,
+  ...NASDAQ100,
+  ...Object.values(SECTOR_TICKERS).flat(),
+])];
+
+module.exports = { SP500, NASDAQ100, ALL_TICKERS, SECTOR_TICKERS };

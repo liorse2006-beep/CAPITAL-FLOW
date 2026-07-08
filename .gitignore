@@ -1,1 +1,14 @@
 node_modules/
+dist/
+.env
+.env.*
+data/
+logs/
+*.log
+
+# Claude Code local/session state — never shared, can contain full worktree copies
+.claude/settings.local.json
+.claude/worktrees/
+
+# Marketing assets — not app source, keep them out of the deploy repo
+*.mp4
