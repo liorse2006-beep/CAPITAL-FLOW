@@ -1515,7 +1515,12 @@ tr:last-child .tier-table-cell-premium { border-radius: 0 0 var(--radius-xs) var
   .filter-strip { padding: 10px 14px; gap: 8px; row-gap: 8px; }
   .filter-chip { flex: 0 0 auto; }
   .filter-chip label { font-size: 8px; letter-spacing: 0.5px; }
-  .filter-chip input { width: 44px; }
+  /* iOS Safari auto-zooms the whole page on focus of any input with
+     font-size under 16px — bumping to 16px here (mobile only, desktop
+     keeps the tighter 12px) stops the zoom without changing how the chip
+     looks anywhere else. */
+  .filter-chip input { width: 44px; font-size: 16px; }
+  .scan-filter-input { font-size: 16px; }
   .filter-toggle { flex: 0 0 auto; }
   .search-box { max-width: 100%; flex: 1 1 100%; }
   .sector-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
