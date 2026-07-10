@@ -84,6 +84,12 @@ app.use(
     credentials: true,
   })
 );
+// Mounted BEFORE express.json() — Paddle webhook signature verification
+// must run over the exact raw bytes of the request body, which parsing
+// (and re-serializing) as JSON would not reproduce.
+app.use('/api/webhooks/paddle', express.raw({ type: 'application/json', limit: '256kb' }));
+app.use('/api', require('./routes/webhooks'));
+
 app.use(express.json({ limit: '256kb' }));
 app.use(
   session({
@@ -145,6 +151,8 @@ app.use('/api', require('./routes/maScanner'));
 app.use('/api', require('./routes/scanQuota'));
 app.use('/api', require('./routes/push'));
 app.use('/api', require('./routes/feedback'));
+app.use('/api', require('./routes/coupons'));
+app.use('/api', require('./routes/checkout'));
 app.use('/admin', adminLimiter); // admin router is mounted at "/", not "/api" — it needs its own floor
 app.use('/', require('./routes/admin'));
 

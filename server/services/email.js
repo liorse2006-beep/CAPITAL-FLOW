@@ -1,5 +1,14 @@
 const nodemailer = require('nodemailer');
+const path = require('path');
 const { GMAIL_USER, GMAIL_APP_PASSWORD } = require('../config');
+
+// Embedded via cid (not a hosted URL) so the logo renders regardless of
+// image-proxying/allow-listing in the recipient's mail client.
+const LOGO_ATTACHMENT = {
+  filename: 'logo-gold.jpeg',
+  path: path.join(__dirname, '../assets/logo-gold.jpeg'),
+  cid: 'capitalflow-logo',
+};
 
 function createTransport() {
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD) return null;
@@ -67,20 +76,30 @@ async function sendWelcomeEmail(email) {
     from: `"Capital Flow" <${GMAIL_USER}>`,
     to: email,
     subject: `Welcome to Capital Flow`,
+    attachments: [LOGO_ATTACHMENT],
     html: `
       <div style="background:#0A0A0A;padding:40px;font-family:sans-serif;color:#e4e4e7;max-width:480px;margin:0 auto;border-radius:8px;">
-        <div style="color:#F59E0B;font-size:13px;font-weight:700;letter-spacing:.12em;margin-bottom:24px;">CAPITAL FLOW</div>
-        <h2 style="font-size:22px;margin-bottom:8px;color:#fff;">You're in 🎉</h2>
-        <p style="color:#a0a0a8;font-size:14px;line-height:1.6;margin-bottom:24px;">
-          Your account is ready. Run your first scan to find unusual volume spikes across the S&amp;P 500,
-          NASDAQ 100, or any sector you pick.
+        <table role="presentation" width="100%" style="margin-bottom:24px;">
+          <tr>
+            <td style="color:#F59E0B;font-size:13px;font-weight:700;letter-spacing:.12em;vertical-align:middle;">CAPITAL FLOW</td>
+            <td style="text-align:right;vertical-align:middle;">
+              <img src="cid:capitalflow-logo" width="40" height="40" alt="Capital Flow" style="border-radius:50%;display:inline-block;" />
+            </td>
+          </tr>
+        </table>
+        <h2 style="font-size:22px;margin-bottom:4px;color:#fff;">You're in 🎉</h2>
+        <div style="font-size:12px;font-weight:700;letter-spacing:.08em;color:#F59E0B;margin-bottom:20px;">THANK YOU FOR CHOOSING US</div>
+        <p style="color:#a0a0a8;font-size:14px;line-height:1.6;margin-bottom:20px;">
+          We mean that — out of every scanner out there, you picked us, and we don't take that lightly.
+          We're genuinely glad to have you here.
         </p>
-        <ul style="color:#71717a;font-size:13px;line-height:2;margin:0 0 28px;padding-left:18px;">
-          <li>Every plan gets one free trial scan per tool</li>
-          <li>Star a ticker to add it to your Watchlist</li>
-          <li>Upgrade any time for higher scan limits and alerts</li>
-        </ul>
-        <p style="color:#525252;font-size:12px;">Questions or feedback? Just reply to this email, or use the feedback button in the app.</p>
+        <p style="color:#a0a0a8;font-size:14px;line-height:1.6;margin-bottom:24px;">
+          Your account is ready. Run your first scan to find unusual volume spikes.
+        </p>
+        <p style="color:#525252;font-size:12px;">
+          Questions or feedback? We'd love to hear from you — find us on Instagram
+          <a href="https://instagram.com/capital_flow67" style="color:#F59E0B;text-decoration:none;">@capital_flow67</a>.
+        </p>
       </div>
     `,
   });

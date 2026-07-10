@@ -84,6 +84,22 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at);
+
+  -- Discount coupons for the (not-yet-built) checkout flow. applies_to
+  -- scopes a coupon to one tier or both, since Premium/Elite are different
+  -- price points and may need different promo campaigns.
+  CREATE TABLE IF NOT EXISTS coupons (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    code             TEXT    NOT NULL UNIQUE,
+    discount_percent INTEGER NOT NULL CHECK(discount_percent BETWEEN 1 AND 100),
+    applies_to       TEXT    NOT NULL DEFAULT 'both' CHECK(applies_to IN ('both','premium','elite')),
+    active           INTEGER NOT NULL DEFAULT 1,
+    max_uses         INTEGER,
+    uses_count       INTEGER NOT NULL DEFAULT 0,
+    expires_at       INTEGER,
+    paddle_discount_id TEXT,
+    created_at       INTEGER NOT NULL DEFAULT (unixepoch())
+  );
 `);
 
 // Safe migrations — no-op if the column already exists
@@ -144,6 +160,11 @@ try {
 } catch (_) {}
 try {
   db.exec(`ALTER TABLE users ADD COLUMN premium_scan_window_start INTEGER`);
+} catch (_) {}
+// Links a coupon to a matching discount on Paddle's side — the price shown
+// in our UI must match what Paddle actually charges at checkout.
+try {
+  db.exec(`ALTER TABLE coupons ADD COLUMN paddle_discount_id TEXT`);
 } catch (_) {}
 
 // otp_codes has no natural cap — used and expired rows would otherwise

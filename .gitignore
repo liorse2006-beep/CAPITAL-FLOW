@@ -16,3 +16,8 @@ logs/
 
 # Personal reference docs — not app source
 payment-provider-guide.html
+
+# Raw asset uploads / drafts — the copy actually used by code lives under
+# server/assets/ (see server/services/email.js); these are not app source
+UPDATE LOGO.jpeg
+LANDING PAGE/

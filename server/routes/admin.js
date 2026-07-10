@@ -145,6 +145,70 @@ router.delete('/admin/api/feedback/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Admin API: coupons ──────────────────────────────────────────────────────
+const VALID_APPLIES_TO = new Set(['both', 'premium', 'elite']);
+// Excludes visually-ambiguous characters (0/O, 1/I/L) since codes are meant
+// to be typed by hand or read off a shared screenshot.
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+function generateCode() {
+  let code = '';
+  for (let i = 0; i < 8; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  return code;
+}
+
+router.get('/admin/api/coupons', (req, res) => {
+  if (!checkToken(req, res)) return;
+  const rows = db.prepare('SELECT * FROM coupons ORDER BY id DESC').all();
+  res.json(rows);
+});
+
+router.post('/admin/api/coupons', (req, res) => {
+  if (!checkToken(req, res)) return;
+  const { discountPercent, appliesTo, maxUses, expiresInDays, paddleDiscountId } = req.body;
+  let { code } = req.body;
+
+  const pct = parseInt(discountPercent, 10);
+  if (!(pct >= 1 && pct <= 100)) return res.status(400).json({ error: 'Discount must be between 1 and 100' });
+  const scope = VALID_APPLIES_TO.has(appliesTo) ? appliesTo : 'both';
+
+  code = code && String(code).trim() ? String(code).trim().toUpperCase() : generateCode();
+  if (!/^[A-Z0-9_-]{3,32}$/.test(code)) {
+    return res.status(400).json({ error: 'Code must be 3-32 letters/numbers/dashes' });
+  }
+
+  const max = maxUses != null && maxUses !== '' ? parseInt(maxUses, 10) : null;
+  const expiresAt =
+    expiresInDays != null && expiresInDays !== ''
+      ? Math.floor(Date.now() / 1000) + parseInt(expiresInDays, 10) * 86400
+      : null;
+
+  const paddleId = paddleDiscountId && String(paddleDiscountId).trim() ? String(paddleDiscountId).trim() : null;
+
+  try {
+    db.prepare(
+      'INSERT INTO coupons (code, discount_percent, applies_to, max_uses, expires_at, paddle_discount_id) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(code, pct, scope, max, expiresAt, paddleId);
+  } catch (err) {
+    if (String(err.message).includes('UNIQUE')) return res.status(409).json({ error: 'That code already exists' });
+    throw err;
+  }
+  res.json({ ok: true, code });
+});
+
+router.post('/admin/api/coupons/:code/toggle', (req, res) => {
+  if (!checkToken(req, res)) return;
+  const { active } = req.body;
+  db.prepare('UPDATE coupons SET active = ? WHERE code = ?').run(active ? 1 : 0, req.params.code.toUpperCase());
+  res.json({ ok: true });
+});
+
+router.delete('/admin/api/coupons/:code', (req, res) => {
+  if (!checkToken(req, res)) return;
+  db.prepare('DELETE FROM coupons WHERE code = ?').run(req.params.code.toUpperCase());
+  res.json({ ok: true });
+});
+
 // ── Admin UI ───────────────────────────────────────────────────────────────
 router.get('/admin', (req, res) => {
   if (!checkToken(req, res)) return;
@@ -233,6 +297,18 @@ router.get('/admin', (req, res) => {
   .pilot-chip button:hover { background: rgba(168,85,247,0.2); }
   .pilot-empty { padding: 4px 20px 16px; font-size: 12px; color: #555; }
   .actions    { display: flex; gap: 4px; flex-wrap: wrap; }
+  .coupon-add { display: flex; gap: 8px; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); flex-wrap: wrap; }
+  .coupon-add input, .coupon-add select { background: #1C1C1C; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;
+                      color: #E4E4E7; font-size: 13px; padding: 6px 12px; outline: none; }
+  .coupon-add button { background: rgba(249,115,22,0.14); color: #F97316; border: 1px solid rgba(249,115,22,0.3);
+                       border-radius: 6px; font-size: 12px; font-weight: 600; padding: 6px 16px; cursor: pointer; white-space: nowrap; }
+  .coupon-row { display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-bottom: 1px solid rgba(255,255,255,0.04); flex-wrap: wrap; }
+  .coupon-row:last-child { border-bottom: none; }
+  .coupon-code { font-family: monospace; font-size: 13px; color: #E4E4E7; font-weight: 700; min-width: 100px; }
+  .coupon-pct { font-size: 11px; background: rgba(249,115,22,0.12); color: #F97316; padding: 2px 8px; border-radius: 4px; }
+  .coupon-scope { font-size: 11px; color: #71717A; }
+  .coupon-meta { font-size: 11px; color: #71717A; margin-left: auto; }
+  .coupon-empty { padding: 20px; font-size: 12px; color: #555; text-align: center; }
   .refresh-btn { background: none; border: 1px solid rgba(255,255,255,0.1); color: #A0A0A8;
                  font-size: 12px; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
   .refresh-btn:hover { background: rgba(255,255,255,0.05); color: #E4E4E7; }
@@ -292,6 +368,30 @@ router.get('/admin', (req, res) => {
       <button class="refresh-btn" onclick="loadFeedback()">↻ Refresh</button>
     </div>
     <div id="feedback-wrap"><div class="loader">Loading…</div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-hdr">
+      <h2>Coupons</h2>
+      <span id="coupon-count" style="font-size:11px;color:#71717A"></span>
+    </div>
+    <div class="coupon-add">
+      <input id="coupon-code" placeholder="CODE (blank = auto)" style="text-transform:uppercase" />
+      <input id="coupon-pct" type="number" min="1" max="100" placeholder="% off" style="width:70px" />
+      <select id="coupon-scope">
+        <option value="both">Both tiers</option>
+        <option value="premium">Premium only</option>
+        <option value="elite">Elite only</option>
+      </select>
+      <input id="coupon-max-uses" type="number" min="1" placeholder="Max uses" style="width:90px" />
+      <input id="coupon-expires" type="number" min="1" placeholder="Expires (days)" style="width:110px" />
+      <input id="coupon-paddle-id" placeholder="Paddle discount ID (optional)" style="width:180px" />
+      <button onclick="createCoupon()">+ Create</button>
+    </div>
+    <div style="padding:0 20px 12px;font-size:11px;color:#71717A">
+      To actually charge the discounted price at checkout, create a matching discount in Paddle's dashboard and paste its ID here — otherwise this coupon only changes what's displayed, not what Paddle bills.
+    </div>
+    <div id="coupon-wrap"><div class="loader">Loading…</div></div>
   </div>
 
   <div class="card">
@@ -369,6 +469,87 @@ async function loadFeedback() {
 async function deleteFeedback(id) {
   const r = await fetch('/admin/api/feedback/' + id, { method: 'DELETE', headers: AUTH_HEADERS });
   if (r.ok) loadFeedback();
+}
+
+const SCOPE_LABEL = { both: 'Both tiers', premium: 'Premium only', elite: 'Elite only' };
+
+async function loadCoupons() {
+  try {
+    const r = await fetch('/admin/api/coupons', { headers: AUTH_HEADERS });
+    const rows = r.ok ? await r.json() : [];
+    document.getElementById('coupon-count').textContent = rows.filter(c => c.active).length + ' active';
+    const el = document.getElementById('coupon-wrap');
+    if (!rows.length) { el.innerHTML = '<div class="coupon-empty">No coupons yet — create one above.</div>'; return; }
+    el.innerHTML = rows.map(function(c) {
+      const uses = c.uses_count + (c.max_uses ? ' / ' + c.max_uses : '') + ' used';
+      const expired = c.expires_at && c.expires_at < Math.floor(Date.now() / 1000);
+      const status = !c.active
+        ? '<span class="badge badge-free">Disabled</span>'
+        : expired
+          ? '<span class="badge badge-no">Expired</span>'
+          : '<span class="badge badge-ok">Active</span>';
+      const toggleBtn = c.active
+        ? \`<button class="btn btn-pilot-off" onclick="toggleCoupon('\${c.code}', false)">Disable</button>\`
+        : \`<button class="btn btn-pilot-on" onclick="toggleCoupon('\${c.code}', true)">Enable</button>\`;
+      const paddleBadge = c.paddle_discount_id
+        ? \`<span class="badge badge-ok" title="\${escapeHtml(c.paddle_discount_id)}">Paddle linked</span>\`
+        : \`<span class="badge badge-no" title="Discount won't be reflected at actual checkout">No Paddle link</span>\`;
+      return \`<div class="coupon-row">
+        <span class="coupon-code">\${escapeHtml(c.code)}</span>
+        <span class="coupon-pct">\${c.discount_percent}% off</span>
+        <span class="coupon-scope">\${SCOPE_LABEL[c.applies_to] || c.applies_to}</span>
+        \${status}
+        \${paddleBadge}
+        <span class="coupon-meta">\${uses}</span>
+        <div class="actions">
+          \${toggleBtn}
+          <button class="btn btn-del" onclick="deleteCoupon('\${c.code}')">✕</button>
+        </div>
+      </div>\`;
+    }).join('');
+  } catch(e) {}
+}
+
+async function createCoupon() {
+  const code = document.getElementById('coupon-code').value.trim();
+  const discountPercent = document.getElementById('coupon-pct').value;
+  const appliesTo = document.getElementById('coupon-scope').value;
+  const maxUses = document.getElementById('coupon-max-uses').value;
+  const expiresInDays = document.getElementById('coupon-expires').value;
+  const paddleDiscountId = document.getElementById('coupon-paddle-id').value.trim();
+  if (!discountPercent) { toast('Enter a discount percentage', true); return; }
+  const r = await fetch('/admin/api/coupons', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
+    body: JSON.stringify({ code, discountPercent, appliesTo, maxUses, expiresInDays, paddleDiscountId })
+  });
+  const data = await r.json();
+  if (r.ok) {
+    toast('Coupon ' + data.code + ' created');
+    document.getElementById('coupon-code').value = '';
+    document.getElementById('coupon-pct').value = '';
+    document.getElementById('coupon-max-uses').value = '';
+    document.getElementById('coupon-expires').value = '';
+    document.getElementById('coupon-paddle-id').value = '';
+    loadCoupons();
+  } else {
+    toast(data.error || 'Error', true);
+  }
+}
+
+async function toggleCoupon(code, active) {
+  const r = await fetch('/admin/api/coupons/' + code + '/toggle', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
+    body: JSON.stringify({ active })
+  });
+  if (r.ok) loadCoupons();
+  else toast('Error', true);
+}
+
+async function deleteCoupon(code) {
+  if (!confirm('Delete coupon ' + code + '?')) return;
+  const r = await fetch('/admin/api/coupons/' + code, { method: 'DELETE', headers: AUTH_HEADERS });
+  if (r.ok) { toast('Coupon deleted'); loadCoupons(); }
+  else toast('Error', true);
 }
 
 async function loadPilotAllowlist() {
@@ -557,8 +738,10 @@ function toast(msg, err) {
 
 load();
 loadFeedback();
+loadCoupons();
 setInterval(load, 60000);
 setInterval(loadFeedback, 60000);
+setInterval(loadCoupons, 60000);
 </script>
 </body>
 </html>`);

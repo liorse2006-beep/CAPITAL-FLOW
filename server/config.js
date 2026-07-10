@@ -55,4 +55,12 @@ module.exports = {
   ADMIN_EMAIL: process.env.ADMIN_EMAIL || '',
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
   SENTRY_DSN: process.env.SENTRY_DSN || '',
+  // Paddle (checkout) — all opt-in, same pattern as Sentry: features that
+  // depend on these simply no-op until they're set. PADDLE_ENV controls
+  // which Paddle API host is used (sandbox vs live).
+  PADDLE_API_KEY: process.env.PADDLE_API_KEY || '',
+  PADDLE_WEBHOOK_SECRET: process.env.PADDLE_WEBHOOK_SECRET || '',
+  PADDLE_ENV: process.env.PADDLE_ENV === 'production' ? 'production' : 'sandbox',
+  PADDLE_PREMIUM_PRICE_ID: process.env.PADDLE_PREMIUM_PRICE_ID || '',
+  PADDLE_ELITE_PRICE_ID: process.env.PADDLE_ELITE_PRICE_ID || '',
 };

@@ -132,6 +132,14 @@ export function AuthProvider({ children }) {
     if (res.ok) await fetchMe(token);
   }
 
+  // Re-pulls /api/auth/me on demand — used after checkout completes, since
+  // the tier upgrade lands via a server-side webhook that may finish a
+  // moment after Paddle's client-side "payment succeeded" callback fires.
+  async function refreshUser() {
+    const token = getToken();
+    if (token) await fetchMe(token);
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -146,6 +154,7 @@ export function AuthProvider({ children }) {
         logout,
         getToken,
         acceptPilotTerms,
+        refreshUser,
       }}
     >
       {children}

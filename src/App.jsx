@@ -26,7 +26,6 @@ const ChartModal = lazy(() => import('./components/Chart/ChartModal'));
 const MAScannerPage = lazy(() => import('./components/MAScanner/MAScannerPage'));
 const PolicyPage = lazy(() => import('./pages/PolicyPage'));
 const AuthModal = lazy(() => import('./components/Auth/AuthModal'));
-const LandingPage = lazy(() => import('./pages/LandingPage'));
 
 /* ── Main App ── */
 function App() {
@@ -847,11 +846,6 @@ function App() {
         />
       )}
 
-      {location.pathname === '/' && !user ? (
-        <Suspense fallback={<div className="page-loading">Loading…</div>}>
-          <LandingPage onGetStarted={() => setShowAuthModal(true)} />
-        </Suspense>
-      ) : (
       <div className="app">
         <Topbar
           user={user}
@@ -1022,7 +1016,6 @@ function App() {
           </button>
         </footer>
       </div>
-      )}
 
       {chartOpen && (
         <Suspense fallback={null}>

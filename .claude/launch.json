@@ -12,6 +12,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["vite"],
       "port": 5173
+    },
+    {
+      "name": "landing-page",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "4173", "--directory", "LANDING PAGE"],
+      "port": 4173
     }
   ]
 }
