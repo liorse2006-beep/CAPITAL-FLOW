@@ -9,15 +9,15 @@ function getTimeOfDayCumPct(etMinutes) {
   if (etMinutes <= 570) return 0;
   if (etMinutes >= 960) return 1;
   var breakpoints = [
-    [570, 0.00],
+    [570, 0.0],
     [600, 0.17],
-    [660, 0.30],
-    [720, 0.40],
+    [660, 0.3],
+    [720, 0.4],
     [780, 0.48],
     [840, 0.55],
     [900, 0.62],
-    [930, 0.70],
-    [960, 1.00],
+    [930, 0.7],
+    [960, 1.0],
   ];
   for (var i = 1; i < breakpoints.length; i++) {
     var t0 = breakpoints[i - 1][0];

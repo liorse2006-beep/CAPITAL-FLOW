@@ -16,7 +16,9 @@ router.get('/stream', requirePremiumSSE, (req, res) => {
   clients.add(client);
 
   const send = (event, data) => {
-    try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch(e) {}
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    } catch (e) {}
   };
 
   send('connected', { ts: Date.now(), clientCount: clients.size });
@@ -39,7 +41,11 @@ function broadcast(event, data) {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   const dead = [];
   clients.forEach((client) => {
-    try { client.res.write(payload); } catch(e) { dead.push(client); }
+    try {
+      client.res.write(payload);
+    } catch (e) {
+      dead.push(client);
+    }
   });
   dead.forEach((c) => clients.delete(c));
 }
@@ -53,11 +59,17 @@ function broadcastToUser(userId, event, data) {
   const dead = [];
   clients.forEach((client) => {
     if (client.userId !== userId) return;
-    try { client.res.write(payload); } catch(e) { dead.push(client); }
+    try {
+      client.res.write(payload);
+    } catch (e) {
+      dead.push(client);
+    }
   });
   dead.forEach((c) => clients.delete(c));
 }
 
-function clientCount() { return clients.size; }
+function clientCount() {
+  return clients.size;
+}
 
 module.exports = { router, broadcast, broadcastToUser, clientCount };

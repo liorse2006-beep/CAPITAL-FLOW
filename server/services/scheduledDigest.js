@@ -6,10 +6,17 @@ const { sendPushToUser } = require('./webPush');
 function israelNow() {
   var parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Jerusalem',
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
   }).formatToParts(new Date());
   var map = {};
-  parts.forEach(function(p) { map[p.type] = p.value; });
+  parts.forEach(function (p) {
+    map[p.type] = p.value;
+  });
   return { hm: map.hour + ':' + map.minute, date: map.year + '-' + map.month + '-' + map.day };
 }
 
@@ -19,9 +26,13 @@ var sentToday = new Set();
 var sentDate = null;
 
 function buildDigestPayload(thresholds, results, asOf) {
-  var bySymbol = new Map(results.map(function(r) { return [r.symbol, r]; }));
+  var bySymbol = new Map(
+    results.map(function (r) {
+      return [r.symbol, r];
+    })
+  );
   var matches = [];
-  Object.entries(thresholds).forEach(function([symbol, minRatio]) {
+  Object.entries(thresholds).forEach(function ([symbol, minRatio]) {
     var r = bySymbol.get(symbol);
     if (r && r.volumeRatio >= minRatio) matches.push(r);
   });
@@ -35,7 +46,9 @@ function buildDigestPayload(thresholds, results, asOf) {
   }
   var summary = matches
     .slice(0, 5)
-    .map(function(r) { return r.symbol + ' ' + r.volumeRatio + 'x'; })
+    .map(function (r) {
+      return r.symbol + ' ' + r.volumeRatio + 'x';
+    })
     .join(', ');
   return {
     title: matches.length + ' stock' + (matches.length > 1 ? 's' : '') + ' crossed your threshold',
@@ -46,14 +59,19 @@ function buildDigestPayload(thresholds, results, asOf) {
 
 async function runDigestTick() {
   var now = israelNow();
-  if (sentDate !== now.date) { sentToday.clear(); sentDate = now.date; }
+  if (sentDate !== now.date) {
+    sentToday.clear();
+    sentDate = now.date;
+  }
 
   var users = db.prepare('SELECT id FROM users WHERE notification_time = ?').all(now.hm);
   if (!users.length) return;
 
   var backgroundCache = require('./backgroundScan').backgroundCache;
   var results = backgroundCache.results || [];
-  var asOf = backgroundCache.scanTime ? new Date(backgroundCache.scanTime).toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }) : 'unknown';
+  var asOf = backgroundCache.scanTime
+    ? new Date(backgroundCache.scanTime).toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' })
+    : 'unknown';
 
   for (var i = 0; i < users.length; i++) {
     var userId = users[i].id;
@@ -65,13 +83,15 @@ async function runDigestTick() {
     if (Object.keys(thresholds).length === 0) continue; // nothing to check against
 
     var payload = buildDigestPayload(thresholds, results, asOf);
-    try { await sendPushToUser(userId, payload); } catch(_) {}
+    try {
+      await sendPushToUser(userId, payload);
+    } catch (_) {}
   }
 }
 
 function startScheduledDigest() {
-  setInterval(function() {
-    runDigestTick().catch(function() {});
+  setInterval(function () {
+    runDigestTick().catch(function () {});
   }, 60000);
 }
 

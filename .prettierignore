@@ -1,0 +1,6 @@
+dist
+node_modules
+data
+logs
+tools
+package-lock.json

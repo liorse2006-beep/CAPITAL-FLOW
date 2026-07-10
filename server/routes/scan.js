@@ -8,7 +8,8 @@ const { spendScan: spendScanQuota, quotaFor } = require('../services/scanQuota')
 
 function isMarketOpen() {
   const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  const day = et.getDay(), mins = et.getHours() * 60 + et.getMinutes();
+  const day = et.getDay(),
+    mins = et.getHours() * 60 + et.getMinutes();
   return day !== 0 && day !== 6 && mins >= 570 && mins < 960;
 }
 

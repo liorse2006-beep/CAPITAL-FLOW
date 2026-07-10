@@ -7,13 +7,17 @@ function resolveToken(token) {
   if (!token) return null;
   try {
     const payload = verifyToken(token);
-    const user = db.prepare(`
+    const user = db
+      .prepare(
+        `
       SELECT id, email, is_verified, is_premium, is_blocked, free_scan_count,
              is_pilot, session_version, pilot_terms_accepted_at, tier,
              free_scan_used_capital_flow, free_scan_used_ma_scanner, free_scan_used_sector_moving,
              premium_scan_count, premium_scan_window_start
       FROM users WHERE id = ?
-    `).get(payload.id);
+    `
+      )
+      .get(payload.id);
     if (!user || user.is_blocked) return null;
     // A token from a stale session_version means this account logged in
     // again elsewhere (another device, or a shared password) since this
@@ -27,8 +31,12 @@ function resolveToken(token) {
     // `isPremium`/`tier`, etc.) reads whatever resolveToken returns. The
     // underlying `tier`/`is_premium` columns are left untouched, so removing
     // the pilot tag cleanly reverts them to their real subscription status.
-    if (user.is_pilot) { user.tier = 'elite'; user.is_premium = 1; }
-    else { user.is_premium = user.tier !== 'free' ? 1 : 0; }
+    if (user.is_pilot) {
+      user.tier = 'elite';
+      user.is_premium = 1;
+    } else {
+      user.is_premium = user.tier !== 'free' ? 1 : 0;
+    }
     return user;
   } catch {
     return null;

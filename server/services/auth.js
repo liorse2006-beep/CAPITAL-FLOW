@@ -55,20 +55,28 @@ function generateOTP() {
 
 function saveOTP(email, code, type) {
   const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60; // 15 minutes
-  db.prepare(`
+  db.prepare(
+    `
     DELETE FROM otp_codes WHERE email = ? AND type = ?
-  `).run(email, type);
-  db.prepare(`
+  `
+  ).run(email, type);
+  db.prepare(
+    `
     INSERT INTO otp_codes (email, code, type, expires_at) VALUES (?, ?, ?, ?)
-  `).run(email, code, type, expiresAt);
+  `
+  ).run(email, code, type, expiresAt);
 }
 
 function verifyOTP(email, code, type) {
-  const row = db.prepare(`
+  const row = db
+    .prepare(
+      `
     SELECT * FROM otp_codes
     WHERE email = ? AND type = ? AND used = 0
     ORDER BY created_at DESC LIMIT 1
-  `).get(email, type);
+  `
+    )
+    .get(email, type);
 
   if (!row) return { valid: false, reason: 'No code found' };
   if (Math.floor(Date.now() / 1000) > row.expires_at) return { valid: false, reason: 'Code expired' };
@@ -78,4 +86,14 @@ function verifyOTP(email, code, type) {
   return { valid: true };
 }
 
-module.exports = { hashPassword, verifyPassword, generateToken, issueToken, withEffectivePremium, verifyToken, generateOTP, saveOTP, verifyOTP };
+module.exports = {
+  hashPassword,
+  verifyPassword,
+  generateToken,
+  issueToken,
+  withEffectivePremium,
+  verifyToken,
+  generateOTP,
+  saveOTP,
+  verifyOTP,
+};

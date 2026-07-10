@@ -13,7 +13,8 @@ const { requireScanQuota } = require('../server/middleware/authMiddleware');
 const { canScan, spendScan, quotaFor, PREMIUM_DAILY_LIMIT } = require('../server/services/scanQuota');
 
 function makeUser(email, { tier = 'free', isPilot = false } = {}) {
-  const id = db.prepare('INSERT INTO users (email, is_verified, tier, is_premium, is_pilot) VALUES (?, 1, ?, ?, ?)')
+  const id = db
+    .prepare('INSERT INTO users (email, is_verified, tier, is_premium, is_pilot) VALUES (?, 1, ?, ?, ?)')
     .run(email, tier, tier !== 'free' ? 1 : 0, isPilot ? 1 : 0).lastInsertRowid;
   return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
 }
@@ -25,7 +26,7 @@ function reload(id) {
 function startTestApp() {
   const app = express();
   app.get('/capital-flow', requireScanQuota('capitalFlow'), (req, res) => res.json(quotaFor(req.user)));
-  app.get('/ma-scanner',   requireScanQuota('maScanner'),   (req, res) => res.json(quotaFor(req.user)));
+  app.get('/ma-scanner', requireScanQuota('maScanner'), (req, res) => res.json(quotaFor(req.user)));
   return new Promise((resolve) => {
     const server = app.listen(0, () => resolve(server));
   });
@@ -68,11 +69,15 @@ test('free tier: requireScanQuota blocks a category after its trial is used, but
   const server = await startTestApp();
   const port = server.address().port;
   try {
-    const blocked = await fetch(`http://127.0.0.1:${port}/capital-flow`, { headers: { Authorization: 'Bearer ' + token } });
+    const blocked = await fetch(`http://127.0.0.1:${port}/capital-flow`, {
+      headers: { Authorization: 'Bearer ' + token },
+    });
     assert.strictEqual(blocked.status, 403);
     assert.strictEqual((await blocked.json()).code, 'SCAN_LIMIT');
 
-    const allowed = await fetch(`http://127.0.0.1:${port}/ma-scanner`, { headers: { Authorization: 'Bearer ' + token } });
+    const allowed = await fetch(`http://127.0.0.1:${port}/ma-scanner`, {
+      headers: { Authorization: 'Bearer ' + token },
+    });
     assert.strictEqual(allowed.status, 200, 'a different category must still be usable');
   } finally {
     server.close();
@@ -105,8 +110,10 @@ test('premium tier: a shared pool of 5 scans across every category, blocked on t
 
 test('premium tier: the pool resets once the 24h window has elapsed', () => {
   const user = makeUser('premium-b@test.local', { tier: 'premium' });
-  db.prepare('UPDATE users SET premium_scan_count = 5, premium_scan_window_start = ? WHERE id = ?')
-    .run(Math.floor(Date.now() / 1000) - 25 * 60 * 60, user.id); // 25h ago — window expired
+  db.prepare('UPDATE users SET premium_scan_count = 5, premium_scan_window_start = ? WHERE id = ?').run(
+    Math.floor(Date.now() / 1000) - 25 * 60 * 60,
+    user.id
+  ); // 25h ago — window expired
   const stale = reload(user.id);
 
   assert.strictEqual(canScan(stale, 'capitalFlow'), true, 'an expired window must not block scanning');

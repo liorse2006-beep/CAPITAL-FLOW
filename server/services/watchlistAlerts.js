@@ -17,29 +17,33 @@ const path = require('path');
     const legacy = JSON.parse(fs.readFileSync(LEGACY, 'utf8'));
     const admin = db.prepare('SELECT id FROM users ORDER BY id ASC LIMIT 1').get();
     if (admin && legacy && typeof legacy === 'object') {
-      const ins = db.prepare(
-        'INSERT OR IGNORE INTO watchlist_alerts (user_id, symbol, min_ratio) VALUES (?, ?, ?)'
-      );
+      const ins = db.prepare('INSERT OR IGNORE INTO watchlist_alerts (user_id, symbol, min_ratio) VALUES (?, ?, ?)');
       const tx = db.transaction((rows) => rows.forEach(([s, r]) => ins.run(admin.id, s, r)));
       tx(Object.entries(legacy).filter(([, r]) => typeof r === 'number' && r > 0));
     }
     fs.renameSync(LEGACY, LEGACY + '.migrated');
-  } catch (_) { /* non-fatal */ }
+  } catch (_) {
+    /* non-fatal */
+  }
 })();
 
 /** All alert thresholds for one user → { SYMBOL: ratio } */
 function getWatchlistAlerts(userId) {
   const rows = db.prepare('SELECT symbol, min_ratio FROM watchlist_alerts WHERE user_id = ?').all(userId);
   const out = {};
-  rows.forEach((r) => { out[r.symbol] = r.min_ratio; });
+  rows.forEach((r) => {
+    out[r.symbol] = r.min_ratio;
+  });
   return out;
 }
 
 function setAlert(userId, symbol, minRatio) {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO watchlist_alerts (user_id, symbol, min_ratio) VALUES (?, ?, ?)
     ON CONFLICT(user_id, symbol) DO UPDATE SET min_ratio = excluded.min_ratio
-  `).run(userId, symbol, minRatio);
+  `
+  ).run(userId, symbol, minRatio);
 }
 
 function removeAlert(userId, symbol) {

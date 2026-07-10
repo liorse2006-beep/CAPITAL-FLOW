@@ -1,4 +1,4 @@
-import React from 'react'
+import React from 'react';
 
 const SECTIONS = [
   'Capital Flow הוא כלי דיגיטלי. שימוש באתר/באפליקציה מהווה הסכמה לתנאים המפורטים להלן.',
@@ -6,15 +6,19 @@ const SECTIONS = [
   'החזר כספי יינתן רק במקרה של תקלה טכנית בתפקוד המוצר, שצוות המוצר ניסה לתקן ולא הצליח בתוך עד שבוע ימים מרגע הדיווח. מעבר למקרה זה, אין החזרים על תשלומים ששולמו.',
   'אנחנו עושים כמיטב יכולתנו כדי להציג נתונים מדויקים ועדכניים. יחד עם זאת, הנתונים מגיעים מספקי מידע חיצוניים (שאין לנו שליטה מלאה עליהם), ולכן ייתכנו לעיתים עיכובים, אי-דיוקים או הפרעות זמניות שאינן בשליטתנו. משתמש שמבצע פעולה על סמך נתון באתר מחויב לוודא את הנתון בעצמו לפני קבלת ההחלטה.',
   'לשאלות, תלונות או בקשות בנושא פרטיות/מדיניות — ניתן לפנות דרך עמוד האינסטגרם capital_flow67',
-]
+];
 
 export default function PolicyPage() {
-  return React.createElement('div', { className: 'page-content policy-page', dir: 'rtl' },
+  return React.createElement(
+    'div',
+    { className: 'page-content policy-page', dir: 'rtl' },
     React.createElement('h2', { className: 'flow-title policy-title', dir: 'ltr' }, 'Terms of Service'),
-    React.createElement('div', { className: 'policy-card' },
-      SECTIONS.map(function(text, i) {
-        return React.createElement('p', { key: i, className: 'policy-paragraph' }, text)
+    React.createElement(
+      'div',
+      { className: 'policy-card' },
+      SECTIONS.map(function (text, i) {
+        return React.createElement('p', { key: i, className: 'policy-paragraph' }, text);
       })
     )
-  )
+  );
 }

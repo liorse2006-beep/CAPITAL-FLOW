@@ -1,9 +1,7 @@
 require('./helpers/testEnv');
 const { test } = require('node:test');
 const assert = require('node:assert');
-const {
-  hashPassword, verifyPassword, generateToken, verifyToken, generateOTP,
-} = require('../server/services/auth');
+const { hashPassword, verifyPassword, generateToken, verifyToken, generateOTP } = require('../server/services/auth');
 
 test('password hash roundtrip: correct password verifies, wrong one fails', async () => {
   const hash = await hashPassword('correct horse battery staple');

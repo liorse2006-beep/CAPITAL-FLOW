@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 
 const BASE_DELAY = 1000;
-const MAX_DELAY  = 30000;
+const MAX_DELAY = 30000;
 
 /**
  * Auto-reconnecting EventSource hook.
@@ -11,13 +11,15 @@ const MAX_DELAY  = 30000;
  * @param {boolean}  enabled    - Pause/resume without unmounting
  */
 export default function useSSE(url, handlers, enabled = true) {
-  const esRef      = useRef(null);
-  const timerRef   = useRef(null);
-  const delayRef   = useRef(BASE_DELAY);
+  const esRef = useRef(null);
+  const timerRef = useRef(null);
+  const delayRef = useRef(BASE_DELAY);
   const handlersRef = useRef(handlers);
 
   // Keep handler refs current without re-connecting
-  useEffect(() => { handlersRef.current = handlers; }, [handlers]);
+  useEffect(() => {
+    handlersRef.current = handlers;
+  }, [handlers]);
 
   const connect = useCallback(() => {
     if (esRef.current) {
@@ -28,7 +30,9 @@ export default function useSSE(url, handlers, enabled = true) {
     const es = new EventSource(url);
     esRef.current = es;
 
-    es.onopen = () => { delayRef.current = BASE_DELAY; };
+    es.onopen = () => {
+      delayRef.current = BASE_DELAY;
+    };
 
     es.onerror = () => {
       es.close();
@@ -46,7 +50,7 @@ export default function useSSE(url, handlers, enabled = true) {
         if (!cb) return;
         try {
           cb(name === 'ping' ? {} : JSON.parse(e.data));
-        } catch(_) {}
+        } catch (_) {}
       });
     });
   }, [url]);
@@ -54,13 +58,19 @@ export default function useSSE(url, handlers, enabled = true) {
   useEffect(() => {
     if (!enabled || !url) {
       clearTimeout(timerRef.current);
-      if (esRef.current) { esRef.current.close(); esRef.current = null; }
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
+      }
       return;
     }
     connect();
     return () => {
       clearTimeout(timerRef.current);
-      if (esRef.current) { esRef.current.close(); esRef.current = null; }
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
+      }
     };
   }, [url, enabled, connect]);
 }

@@ -4,11 +4,13 @@ const fs = require('fs');
 
 // Allow overriding the DB location (e.g. ':memory:' or a temp file) so the
 // test suite never touches real user data.
-const dbPath = process.env.DB_PATH || (() => {
-  const dataDir = path.join(__dirname, '../../data');
-  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-  return path.join(dataDir, 'users.db');
-})();
+const dbPath =
+  process.env.DB_PATH ||
+  (() => {
+    const dataDir = path.join(__dirname, '../../data');
+    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+    return path.join(dataDir, 'users.db');
+  })();
 
 const db = new Database(dbPath);
 
@@ -69,17 +71,42 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_push_sub_user ON push_subscriptions(user_id);
+
+  -- In-app feedback submissions (floating feedback button). user_id is
+  -- nullable — signed-out visitors can still send feedback.
+  CREATE TABLE IF NOT EXISTS feedback (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER,
+    email      TEXT,
+    message    TEXT    NOT NULL,
+    page       TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at);
 `);
 
 // Safe migrations — no-op if the column already exists
-try { db.exec(`ALTER TABLE users ADD COLUMN ma_scan_count INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
-try { db.exec(`ALTER TABLE users ADD COLUMN is_blocked    INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
-try { db.exec(`ALTER TABLE users ADD COLUMN is_pilot      INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
-try { db.exec(`ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
-try { db.exec(`ALTER TABLE users ADD COLUMN pilot_terms_accepted_at INTEGER`); } catch (_) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN ma_scan_count INTEGER NOT NULL DEFAULT 0`);
+} catch (_) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN is_blocked    INTEGER NOT NULL DEFAULT 0`);
+} catch (_) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN is_pilot      INTEGER NOT NULL DEFAULT 0`);
+} catch (_) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0`);
+} catch (_) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN pilot_terms_accepted_at INTEGER`);
+} catch (_) {}
 // "HH:MM" in Israel local time — when set, the scheduled digest sends a push
 // notification at that time every day; null means the digest is disabled.
-try { db.exec(`ALTER TABLE users ADD COLUMN notification_time TEXT`); } catch (_) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN notification_time TEXT`);
+} catch (_) {}
 
 // free_scan_count replaces ma_scan_count as a single pool shared across every
 // scan type (Capital Flow, Sector Moving, MA Scanner) — a free user gets 3
@@ -100,14 +127,24 @@ try {
 } catch (_) {}
 // Free tier: one lifetime trial scan per category — independent flags, not a
 // shared pool, so using Capital Flow's trial doesn't burn MA Scanner's.
-try { db.exec(`ALTER TABLE users ADD COLUMN free_scan_used_capital_flow INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
-try { db.exec(`ALTER TABLE users ADD COLUMN free_scan_used_ma_scanner INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
-try { db.exec(`ALTER TABLE users ADD COLUMN free_scan_used_sector_moving INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN free_scan_used_capital_flow INTEGER NOT NULL DEFAULT 0`);
+} catch (_) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN free_scan_used_ma_scanner INTEGER NOT NULL DEFAULT 0`);
+} catch (_) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN free_scan_used_sector_moving INTEGER NOT NULL DEFAULT 0`);
+} catch (_) {}
 // Premium tier: a shared pool of scans that resets every 24h (rolling window
 // from premium_scan_window_start), rather than Free's one-time trial or
 // Elite's no limit at all.
-try { db.exec(`ALTER TABLE users ADD COLUMN premium_scan_count INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
-try { db.exec(`ALTER TABLE users ADD COLUMN premium_scan_window_start INTEGER`); } catch (_) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN premium_scan_count INTEGER NOT NULL DEFAULT 0`);
+} catch (_) {}
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN premium_scan_window_start INTEGER`);
+} catch (_) {}
 
 // otp_codes has no natural cap — used and expired rows would otherwise
 // accumulate forever. Sweep anything used or expired for more than a day,

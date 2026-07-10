@@ -11,7 +11,8 @@ const { issueToken } = require('../server/services/auth');
 const { requireElite } = require('../server/middleware/authMiddleware');
 
 function makeUser(email, tier) {
-  const id = db.prepare('INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, ?, ?)')
+  const id = db
+    .prepare('INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, ?, ?)')
     .run(email, tier, tier !== 'free' ? 1 : 0).lastInsertRowid;
   return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
 }
@@ -67,7 +68,8 @@ test('requireElite allows an elite-tier user through', async () => {
 });
 
 test('requireElite allows a pilot account through, even with tier=free in the DB', async () => {
-  const id = db.prepare('INSERT INTO users (email, is_verified, tier, is_premium, is_pilot) VALUES (?, 1, ?, 0, 1)')
+  const id = db
+    .prepare('INSERT INTO users (email, is_verified, tier, is_premium, is_pilot) VALUES (?, 1, ?, 0, 1)')
     .run('elite-gate-pilot@test.local', 'free').lastInsertRowid;
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
   const token = issueToken(user);

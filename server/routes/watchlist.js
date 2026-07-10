@@ -6,7 +6,14 @@ var SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
 
 router.get('/watchlist-quotes', scanLimiter, async (req, res) => {
   var symbols = req.query.symbols
-    ? req.query.symbols.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return SYMBOL_RE.test(s); })
+    ? req.query.symbols
+        .split(',')
+        .map(function (s) {
+          return s.trim().toUpperCase();
+        })
+        .filter(function (s) {
+          return SYMBOL_RE.test(s);
+        })
     : [];
   if (symbols.length === 0) return res.json({ results: [] });
   if (symbols.length > 50) symbols = symbols.slice(0, 50);

@@ -3,14 +3,14 @@
 // scan page actually needs to render: is this category exhausted, and what
 // short label explains why.
 export function categoryQuota(scanMeta, category) {
-  if (!scanMeta) return { exhausted: false, label: '' }
+  if (!scanMeta) return { exhausted: false, label: '' };
 
   if (scanMeta.tier === 'elite') {
-    return { exhausted: false, label: 'Unlimited' }
+    return { exhausted: false, label: 'Unlimited' };
   }
 
   if (scanMeta.tier === 'premium') {
-    const p = scanMeta.premium || { used: 0, left: 5, limit: 5 }
+    const p = scanMeta.premium || { used: 0, left: 5, limit: 5 };
     return {
       exhausted: p.left === 0,
       label: `${p.used} / ${p.limit} scans used today`,
@@ -18,15 +18,15 @@ export function categoryQuota(scanMeta, category) {
       limit: p.limit,
       left: p.left,
       resetsAt: p.resetsAt,
-    }
+    };
   }
 
-  const used = !!(scanMeta.free && scanMeta.free[category])
+  const used = !!(scanMeta.free && scanMeta.free[category]);
   return {
     exhausted: used,
     label: used ? 'Free trial used for this scan type' : 'Free trial available',
     used: used ? 1 : 0,
     limit: 1,
     left: used ? 0 : 1,
-  }
+  };
 }

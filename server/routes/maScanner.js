@@ -21,14 +21,14 @@ function cacheKeyFor(ma, distance, interval, market, sectors) {
 
 // ── Start a MA scan ────────────────────────────────────────────────────────
 router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
-  const MA_VALID  = [9, 20, 50, 150];
+  const MA_VALID = [9, 20, 50, 150];
   const DIST_VALID = [1, 2];
 
-  const ma       = MA_VALID.includes(Number(req.query.ma)) ? Number(req.query.ma) : 20;
+  const ma = MA_VALID.includes(Number(req.query.ma)) ? Number(req.query.ma) : 20;
   const distance = DIST_VALID.includes(Number(req.query.distance)) ? Number(req.query.distance) : 2;
   const interval = req.query.interval === '1wk' ? '1wk' : '1d';
-  const market   = req.query.market || 'all';
-  const sectors  = req.query.sectors ? req.query.sectors.split(',').filter(Boolean) : [];
+  const market = req.query.market || 'all';
+  const sectors = req.query.sectors ? req.query.sectors.split(',').filter(Boolean) : [];
 
   const cacheKey = cacheKeyFor(ma, distance, interval, market, sectors);
   const cached = resultCache.get(cacheKey);
@@ -51,8 +51,12 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
     tickersToScan = SP500;
   } else if (market === 'sectors' && sectors.length > 0) {
     const seen = new Set();
-    sectors.forEach(s => {
-      (SECTOR_TICKERS[s] || []).forEach(t => { if (!seen.has(t)) { seen.add(t); } });
+    sectors.forEach((s) => {
+      (SECTOR_TICKERS[s] || []).forEach((t) => {
+        if (!seen.has(t)) {
+          seen.add(t);
+        }
+      });
     });
     tickersToScan = seen.size > 0 ? [...seen] : ALL_TICKERS;
   }
@@ -68,7 +72,9 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
 
   try {
     const { results } = await scanMA(tickersToScan, {
-      ma, distance, interval,
+      ma,
+      distance,
+      interval,
       onProgress: (p) => scanProgress.set(userId, { ...p, running: true }),
     });
 
@@ -82,7 +88,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
     res.json({
       results,
       scanTime,
-      params:   { ma, distance, interval },
+      params: { ma, distance, interval },
       ...quotaFor(req.user),
     });
   } catch (err) {

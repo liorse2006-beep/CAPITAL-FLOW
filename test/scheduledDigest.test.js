@@ -7,9 +7,9 @@ const assert = require('node:assert');
 
 const webpushLib = require('web-push');
 const vapidKeys = webpushLib.generateVAPIDKeys();
-process.env.VAPID_PUBLIC_KEY  = vapidKeys.publicKey;
+process.env.VAPID_PUBLIC_KEY = vapidKeys.publicKey;
 process.env.VAPID_PRIVATE_KEY = vapidKeys.privateKey;
-process.env.VAPID_SUBJECT     = 'mailto:test@test.local';
+process.env.VAPID_SUBJECT = 'mailto:test@test.local';
 
 delete require.cache[require.resolve('../server/config')];
 delete require.cache[require.resolve('../server/services/webPush')];
@@ -53,12 +53,14 @@ test('runDigestTick sends exactly one push per user per day, even if the tick fi
   setAlert(u, 'AAA', 2);
   webPush.saveSubscription(u, { endpoint: 'https://push.example/digest-a', keys: { p256dh: 'p', auth: 'a' } });
 
-  backgroundCache.results  = [{ symbol: 'AAA', volumeRatio: 3 }];
+  backgroundCache.results = [{ symbol: 'AAA', volumeRatio: 3 }];
   backgroundCache.scanTime = new Date().toISOString();
 
   let calls = 0;
   const original = webpushLib.sendNotification;
-  webpushLib.sendNotification = async () => { calls++; };
+  webpushLib.sendNotification = async () => {
+    calls++;
+  };
   try {
     await runDigestTick();
     await runDigestTick();
@@ -75,12 +77,14 @@ test('runDigestTick skips users with no watchlist thresholds set', async () => {
   db.prepare('UPDATE users SET notification_time = ? WHERE id = ?').run(now.hm, u);
   webPush.saveSubscription(u, { endpoint: 'https://push.example/digest-b', keys: { p256dh: 'p', auth: 'a' } });
 
-  backgroundCache.results  = [{ symbol: 'AAA', volumeRatio: 3 }];
+  backgroundCache.results = [{ symbol: 'AAA', volumeRatio: 3 }];
   backgroundCache.scanTime = new Date().toISOString();
 
   let calls = 0;
   const original = webpushLib.sendNotification;
-  webpushLib.sendNotification = async () => { calls++; };
+  webpushLib.sendNotification = async () => {
+    calls++;
+  };
   try {
     await runDigestTick();
   } finally {

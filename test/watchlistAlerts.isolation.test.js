@@ -8,7 +8,11 @@ const assert = require('node:assert');
 
 const db = require('../server/db');
 const {
-  getWatchlistAlerts, setAlert, removeAlert, clearAlerts, getAllAlertsGrouped,
+  getWatchlistAlerts,
+  setAlert,
+  removeAlert,
+  clearAlerts,
+  getAllAlertsGrouped,
 } = require('../server/services/watchlistAlerts');
 
 function makeUser(email) {
@@ -17,7 +21,7 @@ function makeUser(email) {
 
 test('alerts set by one user are invisible to another', () => {
   const alice = makeUser('alice@test.local');
-  const bob   = makeUser('bob@test.local');
+  const bob = makeUser('bob@test.local');
 
   setAlert(alice, 'AAPL', 2.5);
 
@@ -46,7 +50,7 @@ test('removeAlert only removes the specified user + symbol', () => {
 
 test('clearAlerts only clears the specified user', () => {
   const frank = makeUser('frank@test.local');
-  const gina  = makeUser('gina@test.local');
+  const gina = makeUser('gina@test.local');
   setAlert(frank, 'MSFT', 2);
   setAlert(gina, 'MSFT', 2);
 
@@ -58,7 +62,7 @@ test('clearAlerts only clears the specified user', () => {
 
 test('getAllAlertsGrouped groups every alert under its owning user id', () => {
   const hank = makeUser('hank@test.local');
-  const ivy  = makeUser('ivy@test.local');
+  const ivy = makeUser('ivy@test.local');
   setAlert(hank, 'AMD', 1.5);
   setAlert(ivy, 'AMD', 4);
 

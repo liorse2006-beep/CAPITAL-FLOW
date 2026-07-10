@@ -4,25 +4,29 @@
  * Sends a recovery email when the server comes back up.
  */
 require('dotenv').config();
-const http         = require('http');
-const fs           = require('fs');
-const path         = require('path');
-const nodemailer   = require('nodemailer');
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const nodemailer = require('nodemailer');
 
-const PORT         = process.env.PORT || 3001;
-const HEALTH_URL   = `http://localhost:${PORT}/health`;
-const ALERT_TO     = process.env.ADMIN_EMAIL   || '';
-const GMAIL_USER   = process.env.GMAIL_USER    || '';
-const GMAIL_PASS   = process.env.GMAIL_APP_PASSWORD || '';
-const THRESHOLD    = 3;
-const STATE_FILE   = path.join(__dirname, 'data', '.monitor-state.json');
+const PORT = process.env.PORT || 3001;
+const HEALTH_URL = `http://localhost:${PORT}/health`;
+const ALERT_TO = process.env.ADMIN_EMAIL || '';
+const GMAIL_USER = process.env.GMAIL_USER || '';
+const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD || '';
+const THRESHOLD = 3;
+const STATE_FILE = path.join(__dirname, 'data', '.monitor-state.json');
 
 // ── Persisted state across cron runs ────────────────────────────────────────
 let state = { failCount: 0, alerted: false };
-try { state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')); } catch (_) {}
+try {
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+} catch (_) {}
 
 function saveState() {
-  try { fs.writeFileSync(STATE_FILE, JSON.stringify(state)); } catch (_) {}
+  try {
+    fs.writeFileSync(STATE_FILE, JSON.stringify(state));
+  } catch (_) {}
 }
 
 // ── Email alert ──────────────────────────────────────────────────────────────
@@ -31,17 +35,19 @@ function sendAlert(subject, body) {
     console.warn('[monitor] Email not configured — set GMAIL_USER + GMAIL_APP_PASSWORD in .env');
     return;
   }
-  nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user: GMAIL_USER, pass: GMAIL_PASS },
-  }).sendMail({
-    from:    `"Capital Flow Monitor" <${GMAIL_USER}>`,
-    to:      ALERT_TO,
-    subject,
-    text:    body,
-  })
+  nodemailer
+    .createTransport({
+      service: 'gmail',
+      auth: { user: GMAIL_USER, pass: GMAIL_PASS },
+    })
+    .sendMail({
+      from: `"Capital Flow Monitor" <${GMAIL_USER}>`,
+      to: ALERT_TO,
+      subject,
+      text: body,
+    })
     .then(() => console.log('[monitor] Alert sent:', subject))
-    .catch(err => console.error('[monitor] Alert send failed:', err.message));
+    .catch((err) => console.error('[monitor] Alert send failed:', err.message));
 }
 
 // ── Health check ─────────────────────────────────────────────────────────────
@@ -65,8 +71,11 @@ function checkHealth() {
     }
   });
 
-  req.on('timeout', () => { req.destroy(); onFail('request timeout'); });
-  req.on('error',   (err) => onFail(err.message));
+  req.on('timeout', () => {
+    req.destroy();
+    onFail('request timeout');
+  });
+  req.on('error', (err) => onFail(err.message));
 }
 
 function onFail(reason) {

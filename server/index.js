@@ -35,16 +35,22 @@ const spaCsp = helmet.contentSecurityPolicy({
   useDefaults: false,
   directives: {
     defaultSrc: ["'self'"],
-    scriptSrc:  ["'self'"],
+    scriptSrc: ["'self'"],
     // React sets inline styles via the CSSOM (style.setProperty), which CSP
     // treats the same as a literal style="" attribute — 'unsafe-inline' is
     // required here given how pervasively this app uses style={{...}}.
-    styleSrc:   ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://api.fontshare.com', 'https://cdn.fontshare.com'],
-    fontSrc:    ["'self'", 'https://fonts.gstatic.com', 'https://cdn.fontshare.com'],
-    imgSrc:     ["'self'", 'data:'],
+    styleSrc: [
+      "'self'",
+      "'unsafe-inline'",
+      'https://fonts.googleapis.com',
+      'https://api.fontshare.com',
+      'https://cdn.fontshare.com',
+    ],
+    fontSrc: ["'self'", 'https://fonts.gstatic.com', 'https://cdn.fontshare.com'],
+    imgSrc: ["'self'", 'data:'],
     connectSrc: ["'self'"],
-    objectSrc:  ["'none'"],
-    baseUri:    ["'self'"],
+    objectSrc: ["'none'"],
+    baseUri: ["'self'"],
     frameAncestors: ["'none'"],
   },
 });
@@ -53,44 +59,44 @@ app.use((req, res, next) => (req.path.startsWith('/admin') ? next() : spaCsp(req
 // CORS allowlist — the app is normally same-origin (backend serves the built
 // frontend), so this only matters for local dev servers and the configured
 // production frontend. Never reflect an arbitrary origin.
-const allowedOrigins = new Set([
-  FRONTEND_URL,
-  'http://localhost:3001',
-  'http://localhost:5173',
-]);
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin || allowedOrigins.has(origin)) return cb(null, true);
-    cb(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-}));
+const allowedOrigins = new Set([FRONTEND_URL, 'http://localhost:3001', 'http://localhost:5173']);
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.has(origin)) return cb(null, true);
+      cb(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json({ limit: '256kb' }));
-app.use(session({
-  secret: SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  // 'auto' asks express-session to set Secure only when the request is
-  // actually HTTPS (it trusts req.secure, which respects 'trust proxy'
-  // above) — so the cookie is hardened for free the moment a TLS-terminating
-  // proxy is put in front of this server, without breaking plain-HTTP dev.
-  cookie: { secure: 'auto', sameSite: 'lax', maxAge: 1000 * 60 * 10 }, // 10 min — only for OAuth dance
-  // Sessions here are short-lived (OAuth handshake only), but the default
-  // MemoryStore never prunes expired entries — a slow, real memory leak over
-  // long uptimes. MemoryStore (the npm package) sweeps expired sessions on
-  // an interval, closing that leak without adding external infra.
-  store: new MemoryStore({ checkPeriod: 1000 * 60 * 15 }),
-}));
+app.use(
+  session({
+    secret: SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    // 'auto' asks express-session to set Secure only when the request is
+    // actually HTTPS (it trusts req.secure, which respects 'trust proxy'
+    // above) — so the cookie is hardened for free the moment a TLS-terminating
+    // proxy is put in front of this server, without breaking plain-HTTP dev.
+    cookie: { secure: 'auto', sameSite: 'lax', maxAge: 1000 * 60 * 10 }, // 10 min — only for OAuth dance
+    // Sessions here are short-lived (OAuth handshake only), but the default
+    // MemoryStore never prunes expired entries — a slow, real memory leak over
+    // long uptimes. MemoryStore (the npm package) sweeps expired sessions on
+    // an interval, closing that leak without adding external infra.
+    store: new MemoryStore({ checkPeriod: 1000 * 60 * 15 }),
+  })
+);
 app.use(passport.initialize());
 app.use(passport.session());
 
 // Serve static files — dist/ if built, else public/ fallback (checked at request time)
 const distDir = path.join(__dirname, '../dist');
 const publicDir = path.join(__dirname, '../public');
-app.use(function(req, res, next) {
+app.use(function (req, res, next) {
   const serveDir = fs.existsSync(distDir) ? distDir : publicDir;
   express.static(serveDir, {
-    setHeaders: function(res, filePath) {
+    setHeaders: function (res, filePath) {
       // Vite fingerprints every file under assets/ with a content hash in the
       // name (index-Ab12Cd34.js) — the filename itself changes whenever the
       // content does, so it's safe to tell browsers to cache it forever and
@@ -108,23 +114,24 @@ app.use(function(req, res, next) {
 app.use('/', require('./routes/health'));
 
 // API routes (all mounted at /api)
-app.use('/api',       apiLimiter); // floor: every API route is throttled, not just the ones tuned individually
-app.use('/api/auth',  require('./routes/auth'));
-app.use('/api/scan',  scanLimiter); // throttle the expensive volume scan
-app.use('/api',       require('./routes/scan'));
-app.use('/api',       require('./routes/sectors'));
-app.use('/api',       require('./routes/chart'));
-app.use('/api',       require('./routes/watchlist'));
-app.use('/api',       require('./routes/watchlistAlerts'));
-app.use('/api',       require('./routes/news'));
-app.use('/api',       require('./routes/volumeContext'));
-app.use('/api',       require('./routes/background'));
-app.use('/api',       require('./routes/stream').router);
-app.use('/api',       require('./routes/maScanner'));
-app.use('/api',       require('./routes/scanQuota'));
-app.use('/api',       require('./routes/push'));
-app.use('/admin',     adminLimiter); // admin router is mounted at "/", not "/api" — it needs its own floor
-app.use('/',          require('./routes/admin'));
+app.use('/api', apiLimiter); // floor: every API route is throttled, not just the ones tuned individually
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/scan', scanLimiter); // throttle the expensive volume scan
+app.use('/api', require('./routes/scan'));
+app.use('/api', require('./routes/sectors'));
+app.use('/api', require('./routes/chart'));
+app.use('/api', require('./routes/watchlist'));
+app.use('/api', require('./routes/watchlistAlerts'));
+app.use('/api', require('./routes/news'));
+app.use('/api', require('./routes/volumeContext'));
+app.use('/api', require('./routes/background'));
+app.use('/api', require('./routes/stream').router);
+app.use('/api', require('./routes/maScanner'));
+app.use('/api', require('./routes/scanQuota'));
+app.use('/api', require('./routes/push'));
+app.use('/api', require('./routes/feedback'));
+app.use('/admin', adminLimiter); // admin router is mounted at "/", not "/api" — it needs its own floor
+app.use('/', require('./routes/admin'));
 
 // SPA fallback — MUST be last
 app.get('/{*splat}', (req, res) => {

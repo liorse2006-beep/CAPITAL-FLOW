@@ -21,9 +21,7 @@ async function finnhubFetch(urlWithoutToken) {
 async function fetchFinnhubQuote(symbol, apiKey) {
   try {
     var url = 'https://finnhub.io/api/v1/quote?symbol=' + encodeURIComponent(symbol);
-    var res = apiKey
-      ? await fetch(url + '&token=' + apiKey)
-      : await finnhubFetch(url);
+    var res = apiKey ? await fetch(url + '&token=' + apiKey) : await finnhubFetch(url);
     if (!res) return null;
     var data = await res.json();
     if (!data || data.error) return null;
@@ -49,9 +47,7 @@ async function fetchFinnhubQuote(symbol, apiKey) {
 async function fetchFinnhubMetric(symbol, apiKey) {
   try {
     var url = 'https://finnhub.io/api/v1/stock/metric?symbol=' + encodeURIComponent(symbol) + '&metric=all';
-    var res = apiKey
-      ? await fetch(url + '&token=' + apiKey)
-      : await finnhubFetch(url);
+    var res = apiKey ? await fetch(url + '&token=' + apiKey) : await finnhubFetch(url);
     if (!res) return null;
     var data = await res.json();
     if (!data || !data.metric) return null;

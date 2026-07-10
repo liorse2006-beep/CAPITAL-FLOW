@@ -11,7 +11,8 @@ const { issueToken, verifyToken, withEffectivePremium } = require('../server/ser
 const { resolveToken } = require('../server/middleware/authMiddleware');
 
 function makeUser(email, { isPilot = false, isPremium = false } = {}) {
-  const id = db.prepare('INSERT INTO users (email, is_verified, is_premium, is_pilot, tier) VALUES (?, 1, ?, ?, ?)')
+  const id = db
+    .prepare('INSERT INTO users (email, is_verified, is_premium, is_pilot, tier) VALUES (?, 1, ?, ?, ?)')
     .run(email, isPremium ? 1 : 0, isPilot ? 1 : 0, isPremium ? 'premium' : 'free').lastInsertRowid;
   return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
 }

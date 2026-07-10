@@ -34,6 +34,8 @@ function reportRateLimited(key) {
   cooldownUntil.set(key, Date.now() + 65 * 1000);
 }
 
-function poolSize() { return keys.length; }
+function poolSize() {
+  return keys.length;
+}
 
 module.exports = { getKey, reportRateLimited, poolSize };

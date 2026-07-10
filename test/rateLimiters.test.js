@@ -32,7 +32,10 @@ test('authLimiter blocks after its configured max (10) requests per window', asy
     const codes = await hit(port, 15);
     const blocked = codes.filter((c) => c === 429).length;
     assert.ok(blocked > 0, 'expected at least one 429 within 15 rapid requests (limit is 10)');
-    assert.ok(codes.slice(0, 10).every((c) => c === 200), 'the first 10 requests should succeed');
+    assert.ok(
+      codes.slice(0, 10).every((c) => c === 200),
+      'the first 10 requests should succeed'
+    );
   } finally {
     server.close();
   }

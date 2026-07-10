@@ -11,8 +11,8 @@ const PREMIUM_DAILY_LIMIT = 5;
 const PREMIUM_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const CATEGORY_COLUMN = {
-  capitalFlow:  'free_scan_used_capital_flow',
-  maScanner:    'free_scan_used_ma_scanner',
+  capitalFlow: 'free_scan_used_capital_flow',
+  maScanner: 'free_scan_used_ma_scanner',
   sectorMoving: 'free_scan_used_sector_moving',
 };
 
@@ -44,7 +44,10 @@ function spendScan(user, category) {
   if (user.tier === 'premium') {
     const nowSec = Math.floor(Date.now() / 1000);
     if (windowExpired(user)) {
-      db.prepare('UPDATE users SET premium_scan_count = 1, premium_scan_window_start = ? WHERE id = ?').run(nowSec, user.id);
+      db.prepare('UPDATE users SET premium_scan_count = 1, premium_scan_window_start = ? WHERE id = ?').run(
+        nowSec,
+        user.id
+      );
       user.premium_scan_count = 1;
       user.premium_scan_window_start = nowSec;
     } else {
@@ -70,10 +73,8 @@ function quotaFor(user) {
 
   if (tier === 'premium') {
     const expired = windowExpired(user);
-    const used = expired ? 0 : (user.premium_scan_count || 0);
-    const resetsAt = expired
-      ? null
-      : new Date((user.premium_scan_window_start * 1000) + PREMIUM_WINDOW_MS).toISOString();
+    const used = expired ? 0 : user.premium_scan_count || 0;
+    const resetsAt = expired ? null : new Date(user.premium_scan_window_start * 1000 + PREMIUM_WINDOW_MS).toISOString();
     return {
       ...base,
       premium: { used, left: Math.max(0, PREMIUM_DAILY_LIMIT - used), limit: PREMIUM_DAILY_LIMIT, resetsAt },
@@ -85,8 +86,8 @@ function quotaFor(user) {
     ...base,
     premium: null,
     free: {
-      capitalFlow:  !!user.free_scan_used_capital_flow,
-      maScanner:    !!user.free_scan_used_ma_scanner,
+      capitalFlow: !!user.free_scan_used_capital_flow,
+      maScanner: !!user.free_scan_used_ma_scanner,
       sectorMoving: !!user.free_scan_used_sector_moving,
     },
   };

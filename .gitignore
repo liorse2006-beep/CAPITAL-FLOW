@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 .env.*
+!.env.example
 data/
 logs/
 *.log
@@ -12,3 +13,6 @@ logs/
 
 # Marketing assets — not app source, keep them out of the deploy repo
 *.mp4
+
+# Personal reference docs — not app source
+payment-provider-guide.html

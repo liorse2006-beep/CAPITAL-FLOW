@@ -6,7 +6,9 @@ const BATCH_SIZE = 30;
 const DELAY_MS = 200;
 
 function sleep(ms) {
-  return new Promise(function(resolve) { setTimeout(resolve, ms); });
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms);
+  });
 }
 
 async function enrichSector(symbol) {
@@ -14,7 +16,7 @@ async function enrichSector(symbol) {
     var summary = await yahooFinance.quoteSummary(symbol, {
       modules: ['assetProfile'],
     });
-    return (summary.assetProfile && summary.assetProfile.sector) ? summary.assetProfile.sector : 'N/A';
+    return summary.assetProfile && summary.assetProfile.sector ? summary.assetProfile.sector : 'N/A';
   } catch (e) {
     return 'N/A';
   }
@@ -47,8 +49,8 @@ async function scanTickers(tickers, options) {
   for (var i = 0; i < tickers.length; i += BATCH_SIZE) {
     var batch = tickers.slice(i, i + BATCH_SIZE);
 
-    var batchPromises = batch.map(function(symbol) {
-      return (async function() {
+    var batchPromises = batch.map(function (symbol) {
+      return (async function () {
         try {
           var quote = await yahooFinance.quote(symbol);
           processed++;
@@ -100,7 +102,7 @@ async function scanTickers(tickers, options) {
     });
 
     var batchResults = await Promise.all(batchPromises);
-    batchResults.forEach(function(r) {
+    batchResults.forEach(function (r) {
       if (r) {
         results.push(r);
         if (onMatch) onMatch(r);
@@ -117,8 +119,8 @@ async function scanTickers(tickers, options) {
   }
 
   // Phase 2: Enrich matches with Finnhub prices + sparkline + sector
-  var enrichPromises = results.map(function(r) {
-    return (async function() {
+  var enrichPromises = results.map(function (r) {
+    return (async function () {
       try {
         // No key passed — fetchFinnhubQuote/Metric pull from the rotating
         // account pool internally, so enrichment survives any single
@@ -157,12 +159,18 @@ async function scanTickers(tickers, options) {
           }
         }
 
-        var quotes = (chart && chart.quotes) ? chart.quotes : [];
+        var quotes = chart && chart.quotes ? chart.quotes : [];
         r.sparkline = quotes
-          .filter(function(d) { return d.close != null; })
-          .sort(function(a, b) { return new Date(a.date) - new Date(b.date); })
+          .filter(function (d) {
+            return d.close != null;
+          })
+          .sort(function (a, b) {
+            return new Date(a.date) - new Date(b.date);
+          })
           .slice(-7)
-          .map(function(d) { return d.close; });
+          .map(function (d) {
+            return d.close;
+          });
         r.sector = sector;
       } catch (e) {
         r.sector = 'N/A';
@@ -172,7 +180,7 @@ async function scanTickers(tickers, options) {
   await Promise.all(enrichPromises);
 
   // Re-filter after enrichment — strict validation, no bad data reaches the user
-  results = results.filter(function(r) {
+  results = results.filter(function (r) {
     if (!r.price || r.price <= 0) return false;
     if (!r.volume || r.volume <= 0) return false;
     if (!r.avgVolume || r.avgVolume <= 0) return false;
@@ -185,7 +193,9 @@ async function scanTickers(tickers, options) {
     return true;
   });
 
-  results.sort(function(a, b) { return b.volumeRatio - a.volumeRatio; });
+  results.sort(function (a, b) {
+    return b.volumeRatio - a.volumeRatio;
+  });
 
   return { results: results, errors: errors, processed: processed };
 }
@@ -196,16 +206,14 @@ async function quickScan(symbols) {
   for (var i = 0; i < symbols.length; i += BATCH_SIZE) {
     var batch = symbols.slice(i, i + BATCH_SIZE);
 
-    var batchPromises = batch.map(function(symbol) {
-      return (async function() {
+    var batchPromises = batch.map(function (symbol) {
+      return (async function () {
         try {
           var quote = await yahooFinance.quote(symbol);
           if (!quote || !quote.regularMarketVolume) return null;
 
           var avgVolume = quote.averageDailyVolume10Day || 0;
-          var volumeRatio = avgVolume > 0
-            ? Math.round((quote.regularMarketVolume / avgVolume) * 100) / 100
-            : 0;
+          var volumeRatio = avgVolume > 0 ? Math.round((quote.regularMarketVolume / avgVolume) * 100) / 100 : 0;
 
           return {
             symbol: quote.symbol,
@@ -231,7 +239,7 @@ async function quickScan(symbols) {
     });
 
     var batchResults = await Promise.all(batchPromises);
-    batchResults.forEach(function(r) {
+    batchResults.forEach(function (r) {
       if (r) results.push(r);
     });
 
@@ -254,8 +262,8 @@ async function scanPreMarket(tickers, options) {
   for (var i = 0; i < tickers.length; i += BATCH_SIZE) {
     var batch = tickers.slice(i, i + BATCH_SIZE);
 
-    var batchPromises = batch.map(function(symbol) {
-      return (async function() {
+    var batchPromises = batch.map(function (symbol) {
+      return (async function () {
         try {
           var quote = await yahooFinance.quote(symbol);
           processed++;
@@ -273,9 +281,7 @@ async function scanPreMarket(tickers, options) {
 
           var avgVolume = quote.averageDailyVolume10Day || 0;
           var volume = quote.regularMarketVolume || 0;
-          var volumeRatio = avgVolume > 0
-            ? Math.round((volume / avgVolume) * 100) / 100
-            : 0;
+          var volumeRatio = avgVolume > 0 ? Math.round((volume / avgVolume) * 100) / 100 : 0;
 
           return {
             symbol: quote.symbol,
@@ -300,7 +306,7 @@ async function scanPreMarket(tickers, options) {
     });
 
     var batchResults = await Promise.all(batchPromises);
-    batchResults.forEach(function(r) {
+    batchResults.forEach(function (r) {
       if (r) results.push(r);
     });
 
@@ -313,7 +319,9 @@ async function scanPreMarket(tickers, options) {
     }
   }
 
-  results.sort(function(a, b) { return Math.abs(b.gapPercent) - Math.abs(a.gapPercent); });
+  results.sort(function (a, b) {
+    return Math.abs(b.gapPercent) - Math.abs(a.gapPercent);
+  });
 
   return { results: results, errors: errors, processed: processed };
 }

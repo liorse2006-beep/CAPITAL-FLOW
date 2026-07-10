@@ -7,7 +7,7 @@ const { scanLimiter } = require('../middleware/rateLimiters');
 // external news API.
 var SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
 
-router.get('/news/:symbol', scanLimiter, async function(req, res) {
+router.get('/news/:symbol', scanLimiter, async function (req, res) {
   var symbol = (req.params.symbol || '').toUpperCase();
   if (!SYMBOL_RE.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
 

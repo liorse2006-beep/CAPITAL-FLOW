@@ -4,7 +4,7 @@ const rateLimit = require('express-rate-limit');
 // signup, OTP verification, and password reset. Keyed by IP.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,                  // 10 attempts per IP per window
+  max: 10, // 10 attempts per IP per window
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many attempts. Please wait a few minutes and try again.' },

@@ -1,9 +1,7 @@
 require('./helpers/testEnv');
 const { test } = require('node:test');
 const assert = require('node:assert');
-const {
-  isAllowed, addToAllowlist, removeFromAllowlist, listAllowlist,
-} = require('../server/services/pilotAllowlist');
+const { isAllowed, addToAllowlist, removeFromAllowlist, listAllowlist } = require('../server/services/pilotAllowlist');
 
 test('an email must be explicitly added before it is allowed', () => {
   assert.strictEqual(isAllowed('nobody@test.local'), false);
@@ -29,7 +27,7 @@ test('removeFromAllowlist revokes future signups without affecting others', () =
 test('listAllowlist reflects current state', () => {
   addToAllowlist('list-a@test.local');
   addToAllowlist('list-b@test.local');
-  const emails = listAllowlist().map(r => r.email);
+  const emails = listAllowlist().map((r) => r.email);
   assert.ok(emails.includes('list-a@test.local'));
   assert.ok(emails.includes('list-b@test.local'));
 });

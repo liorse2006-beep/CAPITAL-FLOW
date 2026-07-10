@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const db     = require('../db');
+const db = require('../db');
 const { ADMIN_TOKEN, ADMIN_EMAIL } = require('../config');
 const { verifyToken } = require('../services/auth');
 const pilotAllowlist = require('../services/pilotAllowlist');
@@ -33,7 +33,9 @@ function checkToken(req, res) {
 // ── Admin API: user list ───────────────────────────────────────────────────
 router.get('/admin/api/users', (req, res) => {
   if (!checkToken(req, res)) return;
-  const users = db.prepare(`
+  const users = db
+    .prepare(
+      `
     SELECT id, email, google_email, is_verified, is_premium, is_blocked, is_pilot, tier,
            pilot_terms_accepted_at, free_scan_count, created_at, notification_time,
            free_scan_used_capital_flow, free_scan_used_ma_scanner, free_scan_used_sector_moving,
@@ -41,7 +43,9 @@ router.get('/admin/api/users', (req, res) => {
            (SELECT COUNT(*) FROM watchlist_alerts    WHERE user_id = users.id) AS alert_count,
            (SELECT COUNT(*) FROM push_subscriptions  WHERE user_id = users.id) AS push_count
     FROM users ORDER BY id DESC
-  `).all();
+  `
+    )
+    .all();
   res.json(users);
 });
 
@@ -63,7 +67,11 @@ router.post('/admin/api/users/:id/tier', (req, res) => {
   if (!checkToken(req, res)) return;
   const { tier } = req.body;
   if (!VALID_TIERS.has(tier)) return res.status(400).json({ error: 'tier must be free, premium, or elite' });
-  db.prepare('UPDATE users SET tier = ?, is_premium = ? WHERE id = ?').run(tier, tier !== 'free' ? 1 : 0, req.params.id);
+  db.prepare('UPDATE users SET tier = ?, is_premium = ? WHERE id = ?').run(
+    tier,
+    tier !== 'free' ? 1 : 0,
+    req.params.id
+  );
   res.json({ ok: true, tier });
 });
 
@@ -113,11 +121,35 @@ router.delete('/admin/api/pilot-allowlist/:email', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Admin API: feedback submissions ────────────────────────────────────────
+router.get('/admin/api/feedback', (req, res) => {
+  if (!checkToken(req, res)) return;
+  const rows = db
+    .prepare(
+      `
+    SELECT feedback.id, feedback.email, feedback.message, feedback.page, feedback.created_at,
+           users.email AS account_email
+    FROM feedback
+    LEFT JOIN users ON users.id = feedback.user_id
+    ORDER BY feedback.id DESC
+    LIMIT 200
+  `
+    )
+    .all();
+  res.json(rows);
+});
+
+router.delete('/admin/api/feedback/:id', (req, res) => {
+  if (!checkToken(req, res)) return;
+  db.prepare('DELETE FROM feedback WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 // ── Admin UI ───────────────────────────────────────────────────────────────
 router.get('/admin', (req, res) => {
   if (!checkToken(req, res)) return;
   const token = req.query.token;
-  const jwt   = req.query.jwt;
+  const jwt = req.query.jwt;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!DOCTYPE html>
@@ -204,6 +236,14 @@ router.get('/admin', (req, res) => {
   .refresh-btn { background: none; border: 1px solid rgba(255,255,255,0.1); color: #A0A0A8;
                  font-size: 12px; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
   .refresh-btn:hover { background: rgba(255,255,255,0.05); color: #E4E4E7; }
+  .feedback-row { padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .feedback-row:last-child { border-bottom: none; }
+  .feedback-row-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .feedback-who { font-size: 12px; font-weight: 600; color: #E4E4E7; }
+  .feedback-date { font-size: 11px; color: #71717A; font-family: monospace; margin-left: auto; }
+  .feedback-del { background: none; border: none; color: #7F1D1D; cursor: pointer; font-size: 12px; padding: 0 4px; }
+  .feedback-del:hover { color: #EF4444; }
+  .feedback-msg { font-size: 13px; color: #D4D4D8; line-height: 1.5; white-space: pre-wrap; }
   .toast { position: fixed; bottom: 24px; right: 24px; background: #1C1C1C;
            border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
            padding: 12px 18px; font-size: 13px; color: #E4E4E7;
@@ -246,6 +286,14 @@ router.get('/admin', (req, res) => {
     <div class="pilot-list" id="pilot-list"><span class="pilot-empty">Loading…</span></div>
   </div>
 
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-hdr">
+      <h2>Feedback</h2>
+      <button class="refresh-btn" onclick="loadFeedback()">↻ Refresh</button>
+    </div>
+    <div id="feedback-wrap"><div class="loader">Loading…</div></div>
+  </div>
+
   <div class="card">
     <div class="card-hdr">
       <h2>Users</h2>
@@ -266,9 +314,7 @@ router.get('/admin', (req, res) => {
 // Strip it from the address bar and browser history immediately, then use it
 // only as an in-memory Authorization header for every subsequent request —
 // it never appears in a URL, referrer, or server access log again.
-const AUTH_HEADERS = ${jwt
-  ? `{ 'Authorization': 'Bearer ${jwt}' }`
-  : `{ 'x-admin-token': '${token}' }`};
+const AUTH_HEADERS = ${jwt ? `{ 'Authorization': 'Bearer ${jwt}' }` : `{ 'x-admin-token': '${token}' }`};
 history.replaceState(null, '', '/admin');
 
 let allUsers = [];
@@ -296,6 +342,33 @@ async function load() {
     document.getElementById('table-wrap').innerHTML = '<div class="loader">Failed to fetch.</div>';
   }
   loadPilotAllowlist();
+}
+
+async function loadFeedback() {
+  try {
+    const r = await fetch('/admin/api/feedback', { headers: AUTH_HEADERS });
+    const rows = r.ok ? await r.json() : [];
+    const el = document.getElementById('feedback-wrap');
+    if (!rows.length) { el.innerHTML = '<div class="loader">No feedback yet.</div>'; return; }
+    el.innerHTML = rows.map(function(row) {
+      const who = escapeHtml(row.account_email || row.email || 'Anonymous');
+      const page = row.page ? \` · <span style="color:#71717A">\${escapeHtml(row.page)}</span>\` : '';
+      const date = new Date(row.created_at * 1000).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      return \`<div class="feedback-row">
+        <div class="feedback-row-hdr">
+          <span class="feedback-who">\${who}\${page}</span>
+          <span class="feedback-date">\${date}</span>
+          <button class="feedback-del" onclick="deleteFeedback(\${row.id})" title="Delete">✕</button>
+        </div>
+        <div class="feedback-msg">\${escapeHtml(row.message)}</div>
+      </div>\`;
+    }).join('');
+  } catch(e) {}
+}
+
+async function deleteFeedback(id) {
+  const r = await fetch('/admin/api/feedback/' + id, { method: 'DELETE', headers: AUTH_HEADERS });
+  if (r.ok) loadFeedback();
 }
 
 async function loadPilotAllowlist() {
@@ -483,7 +556,9 @@ function toast(msg, err) {
 }
 
 load();
+loadFeedback();
 setInterval(load, 60000);
+setInterval(loadFeedback, 60000);
 </script>
 </body>
 </html>`);

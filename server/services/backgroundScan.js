@@ -9,10 +9,18 @@ var backgroundCache = {
 
 // Lazy-require broadcast to avoid circular deps at startup
 function getBroadcast() {
-  try { return require('../routes/stream').broadcast; } catch(_) { return () => {}; }
+  try {
+    return require('../routes/stream').broadcast;
+  } catch (_) {
+    return () => {};
+  }
 }
 function getBroadcastToUser() {
-  try { return require('../routes/stream').broadcastToUser; } catch(_) { return () => {}; }
+  try {
+    return require('../routes/stream').broadcastToUser;
+  } catch (_) {
+    return () => {};
+  }
 }
 
 function isMarketOpen() {
@@ -34,12 +42,12 @@ function isPreMarket() {
 }
 
 function filterCachedResults(cached, opts) {
-  var minRatio   = opts.minVolumeRatio || 2.5;
-  var minCap     = opts.minMarketCap   || 1000000000;
-  var minP       = opts.minPrice       || 0;
-  var maxP       = opts.maxPrice       || 0;
-  var minVolRaw  = opts.minVolRaw      || '';
-  var list       = opts.list           || 'all';
+  var minRatio = opts.minVolumeRatio || 2.5;
+  var minCap = opts.minMarketCap || 1000000000;
+  var minP = opts.minPrice || 0;
+  var maxP = opts.maxPrice || 0;
+  var minVolRaw = opts.minVolRaw || '';
+  var list = opts.list || 'all';
 
   function parseVol(str) {
     if (!str) return 0;
@@ -52,15 +60,15 @@ function filterCachedResults(cached, opts) {
   var minVolNum = parseVol(minVolRaw);
 
   var allowedSymbols = null;
-  if (list === 'sp500')     allowedSymbols = new Set(SP500);
+  if (list === 'sp500') allowedSymbols = new Set(SP500);
   else if (list === 'nasdaq100') allowedSymbols = new Set(NASDAQ100);
 
-  return cached.filter(function(r) {
+  return cached.filter(function (r) {
     if (allowedSymbols && !allowedSymbols.has(r.symbol)) return false;
-    if (r.volumeRatio   < minRatio)   return false;
-    if (r.marketCap     < minCap)     return false;
-    if (minP > 0 && r.price < minP)   return false;
-    if (maxP > 0 && r.price > maxP)   return false;
+    if (r.volumeRatio < minRatio) return false;
+    if (r.marketCap < minCap) return false;
+    if (minP > 0 && r.price < minP) return false;
+    if (maxP > 0 && r.price > maxP) return false;
     if (minVolNum > 0 && r.volume < minVolNum) return false;
     return true;
   });
@@ -75,10 +83,10 @@ async function checkWatchlistAlerts(results) {
   try {
     const { getAllAlertsGrouped } = require('./watchlistAlerts');
     const byUser = getAllAlertsGrouped(); // { userId: { AAPL: 2.0, ... }, ... }
-    const bySymbol = new Map(results.map(r => [r.symbol, r]));
+    const bySymbol = new Map(results.map((r) => [r.symbol, r]));
 
-    Object.entries(byUser).forEach(function([userId, thresholds]) {
-      Object.entries(thresholds).forEach(function([symbol, threshold]) {
+    Object.entries(byUser).forEach(function ([userId, thresholds]) {
+      Object.entries(thresholds).forEach(function ([symbol, threshold]) {
         const r = bySymbol.get(symbol);
         if (!r || r.volumeRatio < threshold) return;
         // Dedupe per user + symbol + 30-min window
@@ -86,20 +94,22 @@ async function checkWatchlistAlerts(results) {
         if (alertedThisCycle.has(key)) return;
         alertedThisCycle.add(key);
         const alertPayload = {
-          symbol:     r.symbol,
-          name:       r.name,
-          title:      `${r.symbol} Volume Spike`,
-          body:       `${r.volumeRatio}x avg volume — ${r.change >= 0 ? '+' : ''}${r.change.toFixed(2)}% @ $${r.price.toFixed(2)}`,
+          symbol: r.symbol,
+          name: r.name,
+          title: `${r.symbol} Volume Spike`,
+          body: `${r.volumeRatio}x avg volume — ${r.change >= 0 ? '+' : ''}${r.change.toFixed(2)}% @ $${r.price.toFixed(2)}`,
           volumeRatio: r.volumeRatio,
-          change:     r.change,
-          price:      r.price,
-          ts:         Date.now(),
+          change: r.change,
+          price: r.price,
+          ts: Date.now(),
         };
         broadcastToUser(Number(userId), 'alert', alertPayload);
-        try { require('./webPush').sendPushToUser(Number(userId), alertPayload); } catch(_) {}
+        try {
+          require('./webPush').sendPushToUser(Number(userId), alertPayload);
+        } catch (_) {}
       });
     });
-  } catch(_) {}
+  } catch (_) {}
 }
 
 async function runBackgroundScan() {
@@ -112,22 +122,22 @@ async function runBackgroundScan() {
 
     var res = await scanTickers(ALL_TICKERS, {
       minVolumeRatio: 1.5,
-      minMarketCap:   500000000,
+      minMarketCap: 500000000,
     });
 
-    backgroundCache.results  = res.results;
+    backgroundCache.results = res.results;
     backgroundCache.scanTime = new Date().toISOString();
     console.log(`[Background] ${res.results.length} results at ${backgroundCache.scanTime}`);
 
     // Push live results to all connected SSE clients
     broadcast('scan-update', {
-      results:  res.results.slice(0, 50), // top 50 to keep payload light
+      results: res.results.slice(0, 50), // top 50 to keep payload light
       scanTime: backgroundCache.scanTime,
     });
 
     // Check watchlist thresholds
     await checkWatchlistAlerts(res.results);
-  } catch(e) {
+  } catch (e) {
     console.error('[Background] Scan failed:', e.message);
     broadcast('scan-status', { running: false, error: e.message });
   }
@@ -142,7 +152,7 @@ function startBackgroundScheduler() {
     setTimeout(runBackgroundScan, 5000);
   }
 
-  setInterval(function() {
+  setInterval(function () {
     if (!isMarketOpen() && !isPreMarket()) return;
     if (backgroundCache.running) return;
     if (backgroundCache.scanTime) {

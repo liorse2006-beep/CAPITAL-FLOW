@@ -11,7 +11,8 @@ const { issueToken, verifyToken } = require('../server/services/auth');
 const { resolveToken } = require('../server/middleware/authMiddleware');
 
 function makeUser(email, isPilot) {
-  const id = db.prepare('INSERT INTO users (email, is_verified, is_premium, is_pilot) VALUES (?, 1, 1, ?)')
+  const id = db
+    .prepare('INSERT INTO users (email, is_verified, is_premium, is_pilot) VALUES (?, 1, 1, ?)')
     .run(email, isPilot ? 1 : 0).lastInsertRowid;
   return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
 }
@@ -40,15 +41,19 @@ test('a second login invalidates the first token (sv no longer matches DB)', () 
 
   assert.notStrictEqual(sv1, sv2, 'each login must mint a new session_version');
   assert.strictEqual(sv2, finalDbState.session_version, 'the latest token must match current DB state');
-  assert.notStrictEqual(sv1, finalDbState.session_version, 'the first token must now be stale — this is what locks out the shared login');
+  assert.notStrictEqual(
+    sv1,
+    finalDbState.session_version,
+    'the first token must now be stale — this is what locks out the shared login'
+  );
 });
 
 test('resolveToken rejects a token after a second login elsewhere (end-to-end)', () => {
   const user = makeUser('pilot-c@test.local', true);
 
-  const tokenOnPhone   = issueToken(user);
-  const reloaded       = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
-  const tokenOnLaptop  = issueToken(reloaded); // e.g. a friend logging in with the shared password
+  const tokenOnPhone = issueToken(user);
+  const reloaded = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+  const tokenOnLaptop = issueToken(reloaded); // e.g. a friend logging in with the shared password
 
   assert.strictEqual(resolveToken(tokenOnLaptop) !== null, true, 'the newest login must resolve successfully');
   assert.strictEqual(resolveToken(tokenOnPhone), null, 'the earlier session must now be rejected outright');

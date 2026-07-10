@@ -11,9 +11,9 @@ const webpushLib = require('web-push');
 // web-push validates VAPID key format at setVapidDetails() time, so fake
 // strings would throw at module load — generate a real key pair for tests.
 const vapidKeys = webpushLib.generateVAPIDKeys();
-process.env.VAPID_PUBLIC_KEY  = vapidKeys.publicKey;
+process.env.VAPID_PUBLIC_KEY = vapidKeys.publicKey;
 process.env.VAPID_PRIVATE_KEY = vapidKeys.privateKey;
-process.env.VAPID_SUBJECT     = 'mailto:test@test.local';
+process.env.VAPID_SUBJECT = 'mailto:test@test.local';
 
 delete require.cache[require.resolve('../server/config')];
 delete require.cache[require.resolve('../server/services/webPush')];
@@ -41,7 +41,9 @@ test('sendPushToUser calls sendNotification once per subscription owned by that 
 
   const calls = [];
   const original = webpushLib.sendNotification;
-  webpushLib.sendNotification = async (sub, body) => { calls.push({ sub, body }); };
+  webpushLib.sendNotification = async (sub, body) => {
+    calls.push({ sub, body });
+  };
   try {
     await webPush.sendPushToUser(u, { title: 'hi' });
   } finally {
@@ -57,7 +59,11 @@ test('sendPushToUser prunes a subscription that the push service reports as gone
   webPush.saveSubscription(u, { endpoint: 'https://push.example/3', keys: { p256dh: 'p', auth: 'a' } });
 
   const original = webpushLib.sendNotification;
-  webpushLib.sendNotification = async () => { const err = new Error('gone'); err.statusCode = 410; throw err; };
+  webpushLib.sendNotification = async () => {
+    const err = new Error('gone');
+    err.statusCode = 410;
+    throw err;
+  };
   try {
     await webPush.sendPushToUser(u, { title: 'hi' });
   } finally {
@@ -68,14 +74,16 @@ test('sendPushToUser prunes a subscription that the push service reports as gone
   assert.strictEqual(row, undefined, 'an expired subscription must be removed, not retried forever');
 });
 
-test('sendPushToUser never touches another user\'s subscriptions', async () => {
+test("sendPushToUser never touches another user's subscriptions", async () => {
   const alice = makeUser('push-alice@test.local');
-  const bob   = makeUser('push-bob@test.local');
+  const bob = makeUser('push-bob@test.local');
   webPush.saveSubscription(bob, { endpoint: 'https://push.example/bob', keys: { p256dh: 'p', auth: 'a' } });
 
   const calls = [];
   const original = webpushLib.sendNotification;
-  webpushLib.sendNotification = async (sub) => { calls.push(sub); };
+  webpushLib.sendNotification = async (sub) => {
+    calls.push(sub);
+  };
   try {
     await webPush.sendPushToUser(alice, { title: 'hi' });
   } finally {
