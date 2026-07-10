@@ -1,4 +1,5 @@
 import React from 'react';
+import useModalA11y from '../../hooks/useModalA11y';
 
 var CHECK = React.createElement(
   'svg',
@@ -62,6 +63,7 @@ function cell(value, tierClass) {
 function UpgradeModal(props) {
   var userTier = props.userTier || 'free';
   var onClose = props.onClose;
+  var panelRef = useModalA11y(onClose);
 
   function ctaOrBadge(tierKey, tierLabel, ctaClass) {
     if (userTier === tierKey) {
@@ -83,11 +85,20 @@ function UpgradeModal(props) {
       'div',
       {
         className: 'upgrade-modal tier-table-modal',
+        ref: panelRef,
+        tabIndex: -1,
+        role: 'dialog',
+        'aria-modal': 'true',
+        'aria-label': 'Compare plans',
         onClick: function (e) {
           e.stopPropagation();
         },
       },
-      React.createElement('button', { className: 'upgrade-close', onClick: onClose }, '\xd7'),
+      React.createElement(
+        'button',
+        { className: 'upgrade-close', onClick: onClose, 'aria-label': 'Close' },
+        '\xd7'
+      ),
       React.createElement(
         'h2',
         { className: 'upgrade-title', style: { textAlign: 'center', marginBottom: 4 } },

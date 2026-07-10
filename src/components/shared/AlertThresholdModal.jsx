@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import useModalA11y from '../../hooks/useModalA11y';
 
 // Replaces window.prompt() for setting a per-ticker volume-ratio alert
 // threshold — native prompts can't be styled, block Sentry replay capture,
 // and read poorly on mobile Safari.
 export default function AlertThresholdModal({ symbol, current, onSave, onRemove, onClose }) {
   const [value, setValue] = useState(current ? String(current) : '');
+  const panelRef = useModalA11y(onClose);
 
   function submit(e) {
     e.preventDefault();
@@ -25,7 +27,15 @@ export default function AlertThresholdModal({ symbol, current, onSave, onRemove,
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="upgrade-modal" style={{ width: 320 }}>
+      <div
+        className="upgrade-modal"
+        style={{ width: 320 }}
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label={'Alert threshold for ' + symbol}
+      >
         <button className="upgrade-close" onClick={onClose} aria-label="Close">
           ×
         </button>
@@ -36,7 +46,11 @@ export default function AlertThresholdModal({ symbol, current, onSave, onRemove,
             : 'Get notified when this ticker crosses a volume ratio threshold.'}
         </p>
         <form onSubmit={submit}>
+          <label htmlFor="alert-threshold-input" className="sr-only">
+            Volume ratio threshold
+          </label>
           <input
+            id="alert-threshold-input"
             className="auth-input"
             type="number"
             step="0.5"
@@ -44,7 +58,6 @@ export default function AlertThresholdModal({ symbol, current, onSave, onRemove,
             placeholder="e.g. 3"
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            autoFocus
             style={{ textAlign: 'center', marginBottom: 14 }}
           />
           <button className="upgrade-cta" type="submit">

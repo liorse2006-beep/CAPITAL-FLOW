@@ -176,7 +176,7 @@ export default function ScannerPage({
                   )
                 })}
             </div>
-            <div className="radar-info">
+            <div className="radar-info" role="status" aria-live="polite" aria-atomic="true">
               <div className="radar-pct">{Math.round((progress.processed / progress.total) * 100) + '%'}</div>
               <div className="radar-stat">Scanning the market...</div>
               <div className="radar-stat accent">
@@ -662,7 +662,7 @@ export default function ScannerPage({
                             href={'https://www.tradingview.com/chart/?symbol=' + r.symbol}
                             target="_blank"
                             rel="noopener noreferrer"
-                            title="Open in TradingView"
+                            title="Open in TradingView" aria-label="Open in TradingView"
                           >
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M3 3v18h18" />
@@ -691,6 +691,7 @@ export default function ScannerPage({
                               toggleWatchlistTicker(r.symbol)
                             }}
                             title={isInWatchlist(r.symbol) ? 'Remove from watchlist' : 'Add to watchlist'}
+                            aria-label={isInWatchlist(r.symbol) ? 'Remove from watchlist' : 'Add to watchlist'}
                           >
                             <svg
                               viewBox="0 0 24 24"
@@ -732,6 +733,8 @@ export default function ScannerPage({
                               e.stopPropagation()
                               toggleWatchlistTicker(r.symbol)
                             }}
+                            title={isInWatchlist(r.symbol) ? 'Remove from watchlist' : 'Add to watchlist'}
+                            aria-label={isInWatchlist(r.symbol) ? 'Remove from watchlist' : 'Add to watchlist'}
                           >
                             <svg
                               viewBox="0 0 24 24"
@@ -764,7 +767,7 @@ export default function ScannerPage({
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            title="Open in TradingView"
+                            title="Open in TradingView" aria-label="Open in TradingView"
                           >
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M3 3v18h18" />

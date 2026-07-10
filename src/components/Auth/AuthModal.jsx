@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import HCaptcha from '@hcaptcha/react-hcaptcha';
 import { useAuth } from '../../context/AuthContext';
+import useModalA11y from '../../hooks/useModalA11y';
 
 const HCAPTCHA_SITE_KEY = import.meta.env.VITE_HCAPTCHA_SITE_KEY || '10000000-ffff-ffff-ffff-000000000001'; // test key
 
@@ -72,6 +73,7 @@ export default function AuthModal({ onClose }) {
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const captchaRef = useRef(null);
+  const panelRef = useModalA11y(onClose);
 
   // Form fields
   const [email, setEmail] = useState('');
@@ -215,7 +217,7 @@ export default function AuthModal({ onClose }) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="auth-panel">
+      <div className="auth-panel" ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Sign in">
         {/* Close */}
         <button className="auth-close" onClick={onClose} aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

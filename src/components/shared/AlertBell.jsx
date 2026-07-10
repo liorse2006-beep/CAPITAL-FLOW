@@ -34,6 +34,8 @@ function AlertBell(props) {
         className: 'notif-bell' + (notificationsEnabled ? ' active' : '') + (showAlertPanel ? ' open' : ''),
         onClick: onBellClick,
         title: 'Alert history',
+        'aria-label': 'Alert history' + (unreadCount > 0 ? ', ' + unreadCount + ' unread' : ''),
+        'aria-expanded': showAlertPanel,
       },
       React.createElement(
         'svg',
@@ -73,7 +75,11 @@ function AlertBell(props) {
                 },
                 'Clear all'
               ),
-            React.createElement('button', { className: 'alert-panel-close', onClick: onClosePanel }, '\xd7')
+            React.createElement(
+              'button',
+              { className: 'alert-panel-close', onClick: onClosePanel, 'aria-label': 'Close alert history' },
+              '\xd7'
+            )
           )
         ),
         alertHistory.length === 0
@@ -126,6 +132,7 @@ function AlertBell(props) {
                       onClick: function () {
                         onRemoveAlert(alert.id);
                       },
+                      'aria-label': 'Dismiss alert for ' + alert.sym,
                     },
                     '\xd7'
                   )

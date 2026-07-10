@@ -47,8 +47,23 @@ const spaCsp = helmet.contentSecurityPolicy({
       'https://cdn.fontshare.com',
     ],
     fontSrc: ["'self'", 'https://fonts.gstatic.com', 'https://cdn.fontshare.com'],
-    imgSrc: ["'self'", 'data:'],
-    connectSrc: ["'self'"],
+    // Ticker logos are fetched client-side from Parqet's public logo CDN
+    // (see the `ticker-logo` <img> in ScannerPage/WatchlistPage) — without
+    // this, every logo silently fails to load in production.
+    imgSrc: ["'self'", 'data:', 'https://assets.parqet.com'],
+    // Sentry and PostHog are both opt-in (no-op without their respective
+    // VITE_ env vars — see src/sentry.js and src/analytics.js), but the CSP
+    // is baked in at server startup regardless of whether a key is set, so
+    // these ingest endpoints are always allow-listed. An unused allow-list
+    // entry is not a security downgrade.
+    connectSrc: [
+      "'self'",
+      'https://*.ingest.sentry.io',
+      'https://*.ingest.us.sentry.io',
+      'https://*.ingest.de.sentry.io',
+      'https://us.i.posthog.com',
+      'https://us-assets.i.posthog.com',
+    ],
     objectSrc: ["'none'"],
     baseUri: ["'self'"],
     frameAncestors: ["'none'"],

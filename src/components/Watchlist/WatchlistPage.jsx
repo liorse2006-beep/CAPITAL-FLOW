@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { fmt } from '../../utils/format'
+import DeleteAccountModal from '../shared/DeleteAccountModal'
 
 function StarIcon({ starred }) {
   return (
@@ -42,7 +43,11 @@ export default function WatchlistPage({
   notifTime,
   saveNotifTime,
   setShowUpgradeModal,
+  getToken,
+  onAccountDeleted,
 }) {
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+
   function findQuote(sym) {
     return watchlistData ? watchlistData.find((r) => r.symbol === sym) : null
   }
@@ -127,6 +132,36 @@ export default function WatchlistPage({
         </div>
       )}
 
+      {user && (
+        <div className="notif-settings-panel danger-zone">
+          <div className="notif-settings-row">
+            <div>
+              <div className="notif-settings-title" style={{ color: '#EF4444' }}>
+                Delete Account
+              </div>
+              <div className="notif-settings-sub">
+                Permanently delete your account and all associated data — watchlist, alerts, and push subscriptions.
+                This cannot be undone.
+              </div>
+            </div>
+            <button className="notif-toggle-btn danger" onClick={() => setShowDeleteModal(true)}>
+              Delete Account
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showDeleteModal && (
+        <DeleteAccountModal
+          getToken={getToken}
+          onClose={() => setShowDeleteModal(false)}
+          onDeleted={() => {
+            setShowDeleteModal(false)
+            onAccountDeleted()
+          }}
+        />
+      )}
+
       {watchlistError && (
         <div className="error-bar error-bar-action">
           <div className="error-bar-content">
@@ -187,6 +222,7 @@ export default function WatchlistPage({
                           className="star-btn starred"
                           onClick={() => toggleWatchlistTicker(sym)}
                           title="Remove from watchlist"
+                          aria-label="Remove from watchlist"
                         >
                           <StarIcon starred />
                         </button>
@@ -252,6 +288,7 @@ export default function WatchlistPage({
                           className="chart-open-btn"
                           onClick={() => openChart(sym, d ? d.name : sym)}
                           title="Open chart"
+                          aria-label={'Open chart for ' + sym}
                         >
                           📈
                         </button>
@@ -259,6 +296,7 @@ export default function WatchlistPage({
                           className="star-btn-remove"
                           onClick={() => toggleWatchlistTicker(sym)}
                           title="Remove"
+                          aria-label={'Remove ' + sym + ' from watchlist'}
                         >
                           {'\xd7'}
                         </button>
@@ -278,7 +316,11 @@ export default function WatchlistPage({
                 <div key={sym} className="mobile-card ratio-ok">
                   <div className="mobile-card-top">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <button className="star-btn starred" onClick={() => toggleWatchlistTicker(sym)}>
+                      <button
+                        className="star-btn starred"
+                        onClick={() => toggleWatchlistTicker(sym)}
+                        aria-label={'Remove ' + sym + ' from watchlist'}
+                      >
                         <StarIcon starred />
                       </button>
                       <span className="mobile-card-ticker">{sym}</span>

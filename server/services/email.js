@@ -57,4 +57,33 @@ async function sendPasswordResetEmail(email, code) {
   });
 }
 
-module.exports = { sendOTPEmail, sendPasswordResetEmail };
+async function sendWelcomeEmail(email) {
+  const transport = createTransport();
+  if (!transport) {
+    console.log(`[EMAIL DEV] Welcome email for ${email}`);
+    return;
+  }
+  await transport.sendMail({
+    from: `"Capital Flow" <${GMAIL_USER}>`,
+    to: email,
+    subject: `Welcome to Capital Flow`,
+    html: `
+      <div style="background:#0A0A0A;padding:40px;font-family:sans-serif;color:#e4e4e7;max-width:480px;margin:0 auto;border-radius:8px;">
+        <div style="color:#F59E0B;font-size:13px;font-weight:700;letter-spacing:.12em;margin-bottom:24px;">CAPITAL FLOW</div>
+        <h2 style="font-size:22px;margin-bottom:8px;color:#fff;">You're in 🎉</h2>
+        <p style="color:#a0a0a8;font-size:14px;line-height:1.6;margin-bottom:24px;">
+          Your account is ready. Run your first scan to find unusual volume spikes across the S&amp;P 500,
+          NASDAQ 100, or any sector you pick.
+        </p>
+        <ul style="color:#71717a;font-size:13px;line-height:2;margin:0 0 28px;padding-left:18px;">
+          <li>Every plan gets one free trial scan per tool</li>
+          <li>Star a ticker to add it to your Watchlist</li>
+          <li>Upgrade any time for higher scan limits and alerts</li>
+        </ul>
+        <p style="color:#525252;font-size:12px;">Questions or feedback? Just reply to this email, or use the feedback button in the app.</p>
+      </div>
+    `,
+  });
+}
+
+module.exports = { sendOTPEmail, sendPasswordResetEmail, sendWelcomeEmail };

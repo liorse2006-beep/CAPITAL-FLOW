@@ -333,7 +333,7 @@ export default function ChartModal({ symbol, name, onClose }) {
     },
     React.createElement(
       'div',
-      { className: 'chart-modal' },
+      { className: 'chart-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': `${symbol} chart` },
 
       // ── Header ──────────────────────────────────────────────────────────
       React.createElement(

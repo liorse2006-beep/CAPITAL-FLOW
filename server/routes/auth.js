@@ -12,7 +12,7 @@ const {
   saveOTP,
   verifyOTP,
 } = require('../services/auth');
-const { sendOTPEmail, sendPasswordResetEmail } = require('../services/email');
+const { sendOTPEmail, sendPasswordResetEmail, sendWelcomeEmail } = require('../services/email');
 const { requireAuth } = require('../middleware/authMiddleware');
 const { authLimiter, otpLimiter } = require('../middleware/rateLimiters');
 const pilotAllowlist = require('../services/pilotAllowlist');
@@ -72,6 +72,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
               )
               .run(email, profile.id, email, isPilot);
             user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+            sendWelcomeEmail(email).catch(() => {});
           }
         }
         return done(null, user);
@@ -154,6 +155,7 @@ router.post('/verify-otp', otpLimiter, (req, res) => {
   db.prepare('UPDATE users SET is_verified = 1 WHERE email = ?').run(email);
   const user = withEffectivePremium(db.prepare('SELECT * FROM users WHERE email = ?').get(email));
   const token = issueToken(user);
+  sendWelcomeEmail(email).catch(() => {});
 
   res.json({
     success: true,
@@ -296,6 +298,26 @@ router.get('/me', requireAuth, (req, res) => {
     is_elite: safeUser.tier === 'elite',
   };
   res.json({ user });
+});
+
+/* ── Delete account — irreversible, cascades every table that stores data
+   keyed to this user (watchlist alerts, push subscriptions, feedback,
+   pending OTP codes). Matches the retention promise in the Privacy Policy
+   (src/pages/PolicyPage.jsx): deletion is immediate and permanent. ── */
+router.delete('/account', requireAuth, (req, res) => {
+  const userId = req.user.id;
+  const email = req.user.email;
+
+  const deleteAll = db.transaction(() => {
+    db.prepare('DELETE FROM watchlist_alerts WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM feedback WHERE user_id = ?').run(userId);
+    if (email) db.prepare('DELETE FROM otp_codes WHERE email = ?').run(email);
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  });
+  deleteAll();
+
+  res.json({ ok: true });
 });
 
 /* ── Accept pilot confidentiality terms (pilot accounts only) ── */

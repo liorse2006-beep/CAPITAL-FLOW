@@ -2,23 +2,15 @@ import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { track } from '../../analytics';
+import useModalA11y from '../../hooks/useModalA11y';
 
-// Floating feedback entry point, always mounted — the in-app equivalent of
-// the roadmap's "in-app feedback button" item. Submits to POST /api/feedback
-// (server/routes/feedback.js), visible to admins on /admin.
-export default function FeedbackButton() {
-  const { user, getToken } = useAuth();
+function FeedbackModal({ user, onClose }) {
   const location = useLocation();
-  const [open, setOpen] = useState(false);
+  const { getToken } = useAuth();
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState('idle'); // idle | sending | sent | error
-
-  function close() {
-    setOpen(false);
-    setStatus('idle');
-    setMessage('');
-  }
+  const panelRef = useModalA11y(onClose);
 
   function submit(e) {
     e.preventDefault();
@@ -38,10 +30,88 @@ export default function FeedbackButton() {
         track('feedback_submitted', { page: location.pathname });
         setStatus('sent');
         setMessage('');
-        setTimeout(close, 1800);
+        setTimeout(onClose, 1800);
       })
       .catch(() => setStatus('error'));
   }
+
+  return (
+    <div
+      className="upgrade-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="upgrade-modal"
+        style={{ width: 380 }}
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Send feedback"
+      >
+        <button className="upgrade-close" onClick={onClose} aria-label="Close">
+          ×
+        </button>
+        {status === 'sent' ? (
+          <>
+            <h2 className="upgrade-title">Thanks!</h2>
+            <p className="upgrade-desc">Your feedback helps shape what we build next.</p>
+          </>
+        ) : (
+          <form onSubmit={submit}>
+            <h2 className="upgrade-title">Send Feedback</h2>
+            <p className="upgrade-desc">Found a bug, or have an idea? Tell us — we read every message.</p>
+            <label htmlFor="feedback-message" className="sr-only">
+              Your feedback
+            </label>
+            <textarea
+              id="feedback-message"
+              className="auth-input"
+              rows={4}
+              placeholder="What's on your mind?"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              style={{ resize: 'vertical', marginBottom: 10, fontFamily: 'inherit' }}
+            />
+            {!user && (
+              <>
+                <label htmlFor="feedback-email" className="sr-only">
+                  Your email (optional)
+                </label>
+                <input
+                  id="feedback-email"
+                  className="auth-input"
+                  type="email"
+                  placeholder="Your email (optional, so we can reply)"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  style={{ marginBottom: 14 }}
+                />
+              </>
+            )}
+            {status === 'error' && (
+              <p className="upgrade-desc" style={{ color: 'var(--red, #EF4444)' }}>
+                Couldn&apos;t send — please try again.
+              </p>
+            )}
+            <button className="upgrade-cta" type="submit" disabled={status === 'sending' || !message.trim()}>
+              {status === 'sending' ? 'Sending…' : 'Send'}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Floating feedback entry point, always mounted — the in-app equivalent of
+// the roadmap's "in-app feedback button" item. Submits to POST /api/feedback
+// (server/routes/feedback.js), visible to admins on /admin.
+export default function FeedbackButton() {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
 
   return (
     <>
@@ -51,58 +121,7 @@ export default function FeedbackButton() {
         </svg>
       </button>
 
-      {open && (
-        <div
-          className="upgrade-overlay"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) close();
-          }}
-        >
-          <div className="upgrade-modal" style={{ width: 380 }}>
-            <button className="upgrade-close" onClick={close} aria-label="Close">
-              ×
-            </button>
-            {status === 'sent' ? (
-              <>
-                <h2 className="upgrade-title">Thanks!</h2>
-                <p className="upgrade-desc">Your feedback helps shape what we build next.</p>
-              </>
-            ) : (
-              <form onSubmit={submit}>
-                <h2 className="upgrade-title">Send Feedback</h2>
-                <p className="upgrade-desc">Found a bug, or have an idea? Tell us — we read every message.</p>
-                <textarea
-                  className="auth-input"
-                  rows={4}
-                  placeholder="What's on your mind?"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  autoFocus
-                  style={{ resize: 'vertical', marginBottom: 10, fontFamily: 'inherit' }}
-                />
-                {!user && (
-                  <input
-                    className="auth-input"
-                    type="email"
-                    placeholder="Your email (optional, so we can reply)"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    style={{ marginBottom: 14 }}
-                  />
-                )}
-                {status === 'error' && (
-                  <p className="upgrade-desc" style={{ color: 'var(--red, #EF4444)' }}>
-                    Couldn&apos;t send — please try again.
-                  </p>
-                )}
-                <button className="upgrade-cta" type="submit" disabled={status === 'sending' || !message.trim()}>
-                  {status === 'sending' ? 'Sending…' : 'Send'}
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
+      {open && <FeedbackModal user={user} onClose={() => setOpen(false)} />}
     </>
   );
 }
