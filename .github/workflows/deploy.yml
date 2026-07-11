@@ -1,0 +1,50 @@
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  # ── 1. Tests must pass before any deploy ──────────────────────────────────
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  # ── 2. SSH into Oracle VM and redeploy ────────────────────────────────────
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Oracle Cloud
+        uses: appleboy/ssh-action@v1
+        with:
+          host:     ${{ secrets.ORACLE_HOST }}
+          username: ubuntu
+          key:      ${{ secrets.ORACLE_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/capital-flow
+
+            echo "==> Pulling latest code..."
+            git pull origin master
+
+            echo "==> Rebuilding and restarting Docker container..."
+            docker compose up -d --build --remove-orphans
+
+            echo "==> Waiting for health check..."
+            sleep 10
+            docker compose ps
+            curl -sf -o /dev/null -w "%{http_code}" http://localhost:3001/health \
+              | grep -q "200" \
+              && echo "✅ Deploy successful" \
+              || (echo "❌ Health check failed" && docker compose logs --tail=50 && exit 1)
