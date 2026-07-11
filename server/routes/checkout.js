@@ -19,7 +19,7 @@ router.post('/checkout/transaction', requireAuth, async (req, res) => {
 
   let discountId = null;
   if (couponCode) {
-    const coupon = validateCoupon(couponCode, tier);
+    const coupon = await validateCoupon(couponCode, tier);
     if (!coupon.valid) return res.status(400).json({ error: coupon.error });
     discountId = coupon.paddleDiscountId; // null is fine — coupon still valid, just not wired to a real Paddle discount
   }

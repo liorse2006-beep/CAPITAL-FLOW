@@ -39,9 +39,9 @@ function generateToken(user) {
  * elsewhere" mechanism that keeps one account to one active device at a
  * time, no matter how the password/credentials were shared.
  */
-function issueToken(user) {
+async function issueToken(user) {
   const sv = (user.session_version || 0) + 1;
-  db.prepare('UPDATE users SET session_version = ? WHERE id = ?').run(sv, user.id);
+  await db.prepare('UPDATE users SET session_version = ? WHERE id = ?').run(sv, user.id);
   return generateToken(withEffectivePremium({ ...user, session_version: sv }));
 }
 
@@ -53,28 +53,22 @@ function generateOTP() {
   return String(crypto.randomInt(100000, 1000000)); // cryptographically secure 6-digit code
 }
 
-function saveOTP(email, code, type) {
+async function saveOTP(email, code, type) {
   const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60; // 15 minutes
-  db.prepare(
-    `
-    DELETE FROM otp_codes WHERE email = ? AND type = ?
-  `
+  await db.prepare(
+    `DELETE FROM otp_codes WHERE email = ? AND type = ?`
   ).run(email, type);
-  db.prepare(
-    `
-    INSERT INTO otp_codes (email, code, type, expires_at) VALUES (?, ?, ?, ?)
-  `
+  await db.prepare(
+    `INSERT INTO otp_codes (email, code, type, expires_at) VALUES (?, ?, ?, ?)`
   ).run(email, code, type, expiresAt);
 }
 
-function verifyOTP(email, code, type) {
-  const row = db
+async function verifyOTP(email, code, type) {
+  const row = await db
     .prepare(
-      `
-    SELECT * FROM otp_codes
-    WHERE email = ? AND type = ? AND used = 0
-    ORDER BY created_at DESC LIMIT 1
-  `
+      `SELECT * FROM otp_codes
+       WHERE email = ? AND type = ? AND used = 0
+       ORDER BY created_at DESC LIMIT 1`
     )
     .get(email, type);
 
@@ -82,7 +76,7 @@ function verifyOTP(email, code, type) {
   if (Math.floor(Date.now() / 1000) > row.expires_at) return { valid: false, reason: 'Code expired' };
   if (row.code !== code) return { valid: false, reason: 'Invalid code' };
 
-  db.prepare(`UPDATE otp_codes SET used = 1 WHERE id = ?`).run(row.id);
+  await db.prepare(`UPDATE otp_codes SET used = 1 WHERE id = ?`).run(row.id);
   return { valid: true };
 }
 

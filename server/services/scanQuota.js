@@ -38,27 +38,27 @@ function canScan(user, category) {
  * place too, matching the existing call-site pattern (routes read
  * req.user.* again right after to build the response).
  */
-function spendScan(user, category) {
+async function spendScan(user, category) {
   if (user.tier === 'elite') return;
 
   if (user.tier === 'premium') {
     const nowSec = Math.floor(Date.now() / 1000);
     if (windowExpired(user)) {
-      db.prepare('UPDATE users SET premium_scan_count = 1, premium_scan_window_start = ? WHERE id = ?').run(
+      await db.prepare('UPDATE users SET premium_scan_count = 1, premium_scan_window_start = ? WHERE id = ?').run(
         nowSec,
         user.id
       );
       user.premium_scan_count = 1;
       user.premium_scan_window_start = nowSec;
     } else {
-      db.prepare('UPDATE users SET premium_scan_count = premium_scan_count + 1 WHERE id = ?').run(user.id);
+      await db.prepare('UPDATE users SET premium_scan_count = premium_scan_count + 1 WHERE id = ?').run(user.id);
       user.premium_scan_count = (user.premium_scan_count || 0) + 1;
     }
     return;
   }
 
   const col = CATEGORY_COLUMN[category];
-  db.prepare(`UPDATE users SET ${col} = 1 WHERE id = ?`).run(user.id);
+  await db.prepare(`UPDATE users SET ${col} = 1 WHERE id = ?`).run(user.id);
   user[col] = 1;
 }
 

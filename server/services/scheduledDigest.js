@@ -64,7 +64,7 @@ async function runDigestTick() {
     sentDate = now.date;
   }
 
-  var users = db.prepare('SELECT id FROM users WHERE notification_time = ?').all(now.hm);
+  var users = await db.prepare('SELECT id FROM users WHERE notification_time = ?').all(now.hm);
   if (!users.length) return;
 
   var backgroundCache = require('./backgroundScan').backgroundCache;
@@ -79,7 +79,7 @@ async function runDigestTick() {
     if (sentToday.has(dedupeKey)) continue;
     sentToday.add(dedupeKey);
 
-    var thresholds = getWatchlistAlerts(userId);
+    var thresholds = await getWatchlistAlerts(userId);
     if (Object.keys(thresholds).length === 0) continue; // nothing to check against
 
     var payload = buildDigestPayload(thresholds, results, asOf);

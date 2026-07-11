@@ -2,19 +2,21 @@
 // thresholds, push subscribe) are Elite-only under the 3-tier system —
 // Premium (and Free) must be rejected with NOT_ELITE, only Elite gets in.
 require('./helpers/testEnv');
-const { test } = require('node:test');
+const { test, before } = require('node:test');
 const assert = require('node:assert');
 const express = require('express');
 
 const db = require('../server/db');
+
+before(async () => { await db.ready; });
 const { issueToken } = require('../server/services/auth');
 const { requireElite } = require('../server/middleware/authMiddleware');
 
-function makeUser(email, tier) {
-  const id = db
+async function makeUser(email, tier) {
+  const result = await db
     .prepare('INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, ?, ?)')
-    .run(email, tier, tier !== 'free' ? 1 : 0).lastInsertRowid;
-  return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    .run(email, tier, tier !== 'free' ? 1 : 0);
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
 }
 
 function startTestApp() {
@@ -26,8 +28,8 @@ function startTestApp() {
 }
 
 test('requireElite rejects a free-tier user with NOT_ELITE', async () => {
-  const user = makeUser('elite-gate-free@test.local', 'free');
-  const token = issueToken(user);
+  const user = await makeUser('elite-gate-free@test.local', 'free');
+  const token = await issueToken(user);
   const server = await startTestApp();
   const port = server.address().port;
   try {
@@ -40,8 +42,8 @@ test('requireElite rejects a free-tier user with NOT_ELITE', async () => {
 });
 
 test('requireElite rejects a premium-tier user with NOT_ELITE — premium has scanning, not notifications', async () => {
-  const user = makeUser('elite-gate-premium@test.local', 'premium');
-  const token = issueToken(user);
+  const user = await makeUser('elite-gate-premium@test.local', 'premium');
+  const token = await issueToken(user);
   const server = await startTestApp();
   const port = server.address().port;
   try {
@@ -54,8 +56,8 @@ test('requireElite rejects a premium-tier user with NOT_ELITE — premium has sc
 });
 
 test('requireElite allows an elite-tier user through', async () => {
-  const user = makeUser('elite-gate-elite@test.local', 'elite');
-  const token = issueToken(user);
+  const user = await makeUser('elite-gate-elite@test.local', 'elite');
+  const token = await issueToken(user);
   const server = await startTestApp();
   const port = server.address().port;
   try {
@@ -68,11 +70,11 @@ test('requireElite allows an elite-tier user through', async () => {
 });
 
 test('requireElite allows a pilot account through, even with tier=free in the DB', async () => {
-  const id = db
+  const result = await db
     .prepare('INSERT INTO users (email, is_verified, tier, is_premium, is_pilot) VALUES (?, 1, ?, 0, 1)')
-    .run('elite-gate-pilot@test.local', 'free').lastInsertRowid;
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
-  const token = issueToken(user);
+    .run('elite-gate-pilot@test.local', 'free');
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+  const token = await issueToken(user);
   const server = await startTestApp();
   const port = server.address().port;
   try {

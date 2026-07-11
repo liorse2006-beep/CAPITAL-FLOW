@@ -6,7 +6,7 @@ const pilotAllowlist = require('../services/pilotAllowlist');
 
 const EMAIL_RE = /^[^\s@<>"'`]+@[^\s@<>"'`]+\.[^\s@<>"'`]+$/;
 
-function checkToken(req, res) {
+async function checkToken(req, res) {
   if (!ADMIN_TOKEN) {
     res.status(503).send('Admin panel disabled — set ADMIN_TOKEN in .env');
     return false;
@@ -21,7 +21,7 @@ function checkToken(req, res) {
   if (jwt && ADMIN_EMAIL) {
     try {
       const payload = verifyToken(jwt);
-      const user = db.prepare('SELECT email, is_blocked FROM users WHERE id = ?').get(payload.id);
+      const user = await db.prepare('SELECT email, is_blocked FROM users WHERE id = ?').get(payload.id);
       if (user && !user.is_blocked && user.email === ADMIN_EMAIL) return true;
     } catch (_) {}
   }
@@ -31,43 +31,37 @@ function checkToken(req, res) {
 }
 
 // ── Admin API: user list ───────────────────────────────────────────────────
-router.get('/admin/api/users', (req, res) => {
-  if (!checkToken(req, res)) return;
-  const users = db
+router.get('/admin/api/users', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
+  const users = await db
     .prepare(
-      `
-    SELECT id, email, google_email, is_verified, is_premium, is_blocked, is_pilot, tier,
-           pilot_terms_accepted_at, free_scan_count, created_at, notification_time,
-           free_scan_used_capital_flow, free_scan_used_ma_scanner, free_scan_used_sector_moving,
-           premium_scan_count, premium_scan_window_start,
-           (SELECT COUNT(*) FROM watchlist_alerts    WHERE user_id = users.id) AS alert_count,
-           (SELECT COUNT(*) FROM push_subscriptions  WHERE user_id = users.id) AS push_count
-    FROM users ORDER BY id DESC
-  `
+      `SELECT id, email, google_email, is_verified, is_premium, is_blocked, is_pilot, tier,
+              pilot_terms_accepted_at, free_scan_count, created_at, notification_time,
+              free_scan_used_capital_flow, free_scan_used_ma_scanner, free_scan_used_sector_moving,
+              premium_scan_count, premium_scan_window_start,
+              (SELECT COUNT(*) FROM watchlist_alerts    WHERE user_id = users.id) AS alert_count,
+              (SELECT COUNT(*) FROM push_subscriptions  WHERE user_id = users.id) AS push_count
+       FROM users ORDER BY id DESC`
     )
     .all();
   res.json(users);
 });
 
-// ── Admin API: force sign-out — bumps session_version so every token issued
-// before now (on any device) is rejected on its next request. Useful for the
-// single-active-session system added alongside the tier rework: previously
-// only a full block could interrupt an active session; this ends just the
-// session without touching tier/verification/pilot status.
-router.post('/admin/api/users/:id/logout', (req, res) => {
-  if (!checkToken(req, res)) return;
-  db.prepare('UPDATE users SET session_version = session_version + 1 WHERE id = ?').run(req.params.id);
+// ── Admin API: force sign-out ──────────────────────────────────────────────
+router.post('/admin/api/users/:id/logout', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
+  await db.prepare('UPDATE users SET session_version = session_version + 1 WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 
 const VALID_TIERS = new Set(['free', 'premium', 'elite']);
 
 // ── Admin API: set subscription tier ───────────────────────────────────────
-router.post('/admin/api/users/:id/tier', (req, res) => {
-  if (!checkToken(req, res)) return;
+router.post('/admin/api/users/:id/tier', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
   const { tier } = req.body;
   if (!VALID_TIERS.has(tier)) return res.status(400).json({ error: 'tier must be free, premium, or elite' });
-  db.prepare('UPDATE users SET tier = ?, is_premium = ? WHERE id = ?').run(
+  await db.prepare('UPDATE users SET tier = ?, is_premium = ? WHERE id = ?').run(
     tier,
     tier !== 'free' ? 1 : 0,
     req.params.id
@@ -76,72 +70,67 @@ router.post('/admin/api/users/:id/tier', (req, res) => {
 });
 
 // ── Admin API: block / unblock ────────────────────────────────────────────
-router.post('/admin/api/users/:id/block', (req, res) => {
-  if (!checkToken(req, res)) return;
+router.post('/admin/api/users/:id/block', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
   const { value } = req.body; // 1 or 0
-  db.prepare('UPDATE users SET is_blocked = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
+  await db.prepare('UPDATE users SET is_blocked = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
   res.json({ ok: true });
 });
 
 // ── Admin API: delete user ─────────────────────────────────────────────────
-router.delete('/admin/api/users/:id', (req, res) => {
-  if (!checkToken(req, res)) return;
-  db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+router.delete('/admin/api/users/:id', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
+  await db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 
 // ── Admin API: grant / revoke pilot status on an existing user ─────────────
-// This only toggles the pilot restrictions (single session, watermark,
-// confidentiality gate) — it is not a security control. To actually cut off
-// a user's access immediately, use the block toggle above instead.
-router.post('/admin/api/users/:id/pilot', (req, res) => {
-  if (!checkToken(req, res)) return;
+router.post('/admin/api/users/:id/pilot', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
   const { value } = req.body; // 1 or 0
-  db.prepare('UPDATE users SET is_pilot = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
+  await db.prepare('UPDATE users SET is_pilot = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
   res.json({ ok: true });
 });
 
 // ── Admin API: pilot allowlist (pre-approved emails) ────────────────────────
-router.get('/admin/api/pilot-allowlist', (req, res) => {
-  if (!checkToken(req, res)) return;
-  res.json(pilotAllowlist.listAllowlist());
+router.get('/admin/api/pilot-allowlist', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
+  res.json(await pilotAllowlist.listAllowlist());
 });
 
-router.post('/admin/api/pilot-allowlist', (req, res) => {
-  if (!checkToken(req, res)) return;
+router.post('/admin/api/pilot-allowlist', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
   const email = String(req.body.email || '').trim();
   if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Valid email required' });
-  pilotAllowlist.addToAllowlist(email);
+  await pilotAllowlist.addToAllowlist(email);
   res.json({ ok: true });
 });
 
-router.delete('/admin/api/pilot-allowlist/:email', (req, res) => {
-  if (!checkToken(req, res)) return;
-  pilotAllowlist.removeFromAllowlist(req.params.email);
+router.delete('/admin/api/pilot-allowlist/:email', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
+  await pilotAllowlist.removeFromAllowlist(req.params.email);
   res.json({ ok: true });
 });
 
 // ── Admin API: feedback submissions ────────────────────────────────────────
-router.get('/admin/api/feedback', (req, res) => {
-  if (!checkToken(req, res)) return;
-  const rows = db
+router.get('/admin/api/feedback', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
+  const rows = await db
     .prepare(
-      `
-    SELECT feedback.id, feedback.email, feedback.message, feedback.page, feedback.created_at,
-           users.email AS account_email
-    FROM feedback
-    LEFT JOIN users ON users.id = feedback.user_id
-    ORDER BY feedback.id DESC
-    LIMIT 200
-  `
+      `SELECT feedback.id, feedback.email, feedback.message, feedback.page, feedback.created_at,
+              users.email AS account_email
+       FROM feedback
+       LEFT JOIN users ON users.id = feedback.user_id
+       ORDER BY feedback.id DESC
+       LIMIT 200`
     )
     .all();
   res.json(rows);
 });
 
-router.delete('/admin/api/feedback/:id', (req, res) => {
-  if (!checkToken(req, res)) return;
-  db.prepare('DELETE FROM feedback WHERE id = ?').run(req.params.id);
+router.delete('/admin/api/feedback/:id', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
+  await db.prepare('DELETE FROM feedback WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 
@@ -157,14 +146,14 @@ function generateCode() {
   return code;
 }
 
-router.get('/admin/api/coupons', (req, res) => {
-  if (!checkToken(req, res)) return;
-  const rows = db.prepare('SELECT * FROM coupons ORDER BY id DESC').all();
+router.get('/admin/api/coupons', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
+  const rows = await db.prepare('SELECT * FROM coupons ORDER BY id DESC').all();
   res.json(rows);
 });
 
-router.post('/admin/api/coupons', (req, res) => {
-  if (!checkToken(req, res)) return;
+router.post('/admin/api/coupons', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
   const { discountPercent, appliesTo, maxUses, expiresInDays, paddleDiscountId } = req.body;
   let { code } = req.body;
 
@@ -186,7 +175,7 @@ router.post('/admin/api/coupons', (req, res) => {
   const paddleId = paddleDiscountId && String(paddleDiscountId).trim() ? String(paddleDiscountId).trim() : null;
 
   try {
-    db.prepare(
+    await db.prepare(
       'INSERT INTO coupons (code, discount_percent, applies_to, max_uses, expires_at, paddle_discount_id) VALUES (?, ?, ?, ?, ?, ?)'
     ).run(code, pct, scope, max, expiresAt, paddleId);
   } catch (err) {
@@ -196,22 +185,22 @@ router.post('/admin/api/coupons', (req, res) => {
   res.json({ ok: true, code });
 });
 
-router.post('/admin/api/coupons/:code/toggle', (req, res) => {
-  if (!checkToken(req, res)) return;
+router.post('/admin/api/coupons/:code/toggle', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
   const { active } = req.body;
-  db.prepare('UPDATE coupons SET active = ? WHERE code = ?').run(active ? 1 : 0, req.params.code.toUpperCase());
+  await db.prepare('UPDATE coupons SET active = ? WHERE code = ?').run(active ? 1 : 0, req.params.code.toUpperCase());
   res.json({ ok: true });
 });
 
-router.delete('/admin/api/coupons/:code', (req, res) => {
-  if (!checkToken(req, res)) return;
-  db.prepare('DELETE FROM coupons WHERE code = ?').run(req.params.code.toUpperCase());
+router.delete('/admin/api/coupons/:code', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
+  await db.prepare('DELETE FROM coupons WHERE code = ?').run(req.params.code.toUpperCase());
   res.json({ ok: true });
 });
 
 // ── Admin UI ───────────────────────────────────────────────────────────────
-router.get('/admin', (req, res) => {
-  if (!checkToken(req, res)) return;
+router.get('/admin', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
   const token = req.query.token;
   const jwt = req.query.jwt;
 
@@ -410,19 +399,11 @@ router.get('/admin', (req, res) => {
 <div class="toast" id="toast"></div>
 
 <script>
-// The token only ever travels in the URL for this single initial page load.
-// Strip it from the address bar and browser history immediately, then use it
-// only as an in-memory Authorization header for every subsequent request —
-// it never appears in a URL, referrer, or server access log again.
 const AUTH_HEADERS = ${jwt ? `{ 'Authorization': 'Bearer ${jwt}' }` : `{ 'x-admin-token': '${token}' }`};
 history.replaceState(null, '', '/admin');
 
 let allUsers = [];
 
-// Defense in depth: every value below is written into innerHTML via template
-// strings (not React), so anything user-controlled — an email, in
-// particular — must be escaped before it's interpolated, even though the
-// server now also rejects malformed emails at signup.
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -653,8 +634,6 @@ function renderTable(users) {
         ? (u.premium_scan_count || 0) + '/5 today'
         : [u.free_scan_used_capital_flow, u.free_scan_used_ma_scanner, u.free_scan_used_sector_moving].filter(Boolean).length + '/3 used';
 
-    // Elite-only features (push/digest/watchlist alerts) — meaningless to
-    // show for Free/Premium since they can't enable any of them.
     const notifCell = tier !== 'elite' ? '<span style="color:#444">—</span>' : [
       u.push_count > 0 ? \`<span class="badge badge-push" title="\${u.push_count} device(s) subscribed">Push</span>\` : '',
       u.alert_count > 0 ? \`<span class="badge badge-pro" title="\${u.alert_count} watchlist alert threshold(s)">\${u.alert_count} alert\${u.alert_count === 1 ? '' : 's'}</span>\` : '',

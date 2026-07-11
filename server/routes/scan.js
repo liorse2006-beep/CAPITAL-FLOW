@@ -13,8 +13,8 @@ function isMarketOpen() {
   return day !== 0 && day !== 6 && mins >= 570 && mins < 960;
 }
 
-function spendScan(req) {
-  spendScanQuota(req.user, 'capitalFlow');
+async function spendScan(req) {
+  await spendScanQuota(req.user, 'capitalFlow');
   return quotaFor(req.user);
 }
 
@@ -60,7 +60,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
           fromCache: true,
           cacheAge: Math.round(cacheAgeMs / 1000),
           marketClosed: !marketOpen,
-          ...spendScan(req),
+          ...(await spendScan(req)),
         });
       }
     }
@@ -111,7 +111,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
       tickersScanned: processed,
       errors: errors.length,
       marketClosed: !isMarketOpen(),
-      ...spendScan(req),
+      ...(await spendScan(req)),
     });
   } catch (err) {
     scanState.running = false;

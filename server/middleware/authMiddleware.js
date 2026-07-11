@@ -3,19 +3,17 @@ const db = require('../db');
 const { canScan, quotaFor } = require('../services/scanQuota');
 
 /** Resolve a JWT string → verified DB user, or null on failure */
-function resolveToken(token) {
+async function resolveToken(token) {
   if (!token) return null;
   try {
     const payload = verifyToken(token);
-    const user = db
+    const user = await db
       .prepare(
-        `
-      SELECT id, email, is_verified, is_premium, is_blocked, free_scan_count,
-             is_pilot, session_version, pilot_terms_accepted_at, tier,
-             free_scan_used_capital_flow, free_scan_used_ma_scanner, free_scan_used_sector_moving,
-             premium_scan_count, premium_scan_window_start
-      FROM users WHERE id = ?
-    `
+        `SELECT id, email, is_verified, is_premium, is_blocked, free_scan_count,
+                is_pilot, session_version, pilot_terms_accepted_at, tier,
+                free_scan_used_capital_flow, free_scan_used_ma_scanner, free_scan_used_sector_moving,
+                premium_scan_count, premium_scan_window_start
+         FROM users WHERE id = ?`
       )
       .get(payload.id);
     if (!user || user.is_blocked) return null;
@@ -44,12 +42,12 @@ function resolveToken(token) {
 }
 
 /** Require a valid JWT in Authorization: Bearer <token> */
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const user = resolveToken(header.slice(7));
+  const user = await resolveToken(header.slice(7));
   if (!user) return res.status(401).json({ error: 'Invalid or expired token' });
   req.user = user;
   next();
@@ -61,12 +59,12 @@ function requireAuth(req, res, next) {
  * stale-token bypass). Gates features available to Premium and Elite alike
  * (charts, premarket scanning) — see requireElite for Elite-only features.
  */
-function requirePremium(req, res, next) {
+async function requirePremium(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized', code: 'NOT_AUTHENTICATED' });
   }
-  const user = resolveToken(header.slice(7));
+  const user = await resolveToken(header.slice(7));
   if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
   if (!user.is_premium) {
     return res.status(403).json({ error: 'Premium subscription required', code: 'NOT_PREMIUM' });
@@ -80,12 +78,12 @@ function requirePremium(req, res, next) {
  * scheduled digest, watchlist alert thresholds) is Elite-only; Premium gets
  * unlimited-feeling scanning but not notifications.
  */
-function requireElite(req, res, next) {
+async function requireElite(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized', code: 'NOT_AUTHENTICATED' });
   }
-  const user = resolveToken(header.slice(7));
+  const user = await resolveToken(header.slice(7));
   if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
   if (user.tier !== 'elite') {
     return res.status(403).json({ error: 'Elite subscription required', code: 'NOT_ELITE' });
@@ -98,8 +96,8 @@ function requireElite(req, res, next) {
  * Same as requirePremium but reads the token from ?token= query param.
  * Used for SSE (EventSource cannot set Authorization headers).
  */
-function requirePremiumSSE(req, res, next) {
-  const user = resolveToken(req.query.token);
+async function requirePremiumSSE(req, res, next) {
+  const user = await resolveToken(req.query.token);
   if (!user) {
     // SSE: respond with a plain-text error event instead of JSON
     res.setHeader('Content-Type', 'text/event-stream');
@@ -127,12 +125,12 @@ function requirePremiumSSE(req, res, next) {
  * requireScanQuota('capitalFlow'), not requireScanQuota directly.
  */
 function requireScanQuota(category) {
-  return function (req, res, next) {
+  return async function (req, res, next) {
     const header = req.headers.authorization;
     if (!header || !header.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Sign in to run a scan', code: 'NOT_AUTHENTICATED' });
     }
-    const user = resolveToken(header.slice(7));
+    const user = await resolveToken(header.slice(7));
     if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
     if (!canScan(user, category)) {
       return res.status(403).json({

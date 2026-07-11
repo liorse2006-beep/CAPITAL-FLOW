@@ -3,7 +3,7 @@
 // service replies 404/410) must be pruned automatically so we stop wasting
 // calls on it and it doesn't accumulate forever.
 require('./helpers/testEnv');
-const { test } = require('node:test');
+const { test, before } = require('node:test');
 const assert = require('node:assert');
 
 const webpushLib = require('web-push');
@@ -21,23 +21,26 @@ delete require.cache[require.resolve('../server/services/webPush')];
 const db = require('../server/db');
 const webPush = require('../server/services/webPush');
 
-function makeUser(email) {
-  return db.prepare('INSERT INTO users (email, is_verified, is_premium) VALUES (?, 1, 1)').run(email).lastInsertRowid;
+before(async () => { await db.ready; });
+
+async function makeUser(email) {
+  const result = await db.prepare('INSERT INTO users (email, is_verified, is_premium) VALUES (?, 1, 1)').run(email);
+  return result.lastInsertRowid;
 }
 
-test('saveSubscription upserts by endpoint, keeping only the latest keys', () => {
-  const u = makeUser('push-a@test.local');
-  webPush.saveSubscription(u, { endpoint: 'https://push.example/1', keys: { p256dh: 'p1', auth: 'a1' } });
-  webPush.saveSubscription(u, { endpoint: 'https://push.example/1', keys: { p256dh: 'p2', auth: 'a2' } });
+test('saveSubscription upserts by endpoint, keeping only the latest keys', async () => {
+  const u = await makeUser('push-a@test.local');
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/1', keys: { p256dh: 'p1', auth: 'a1' } });
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/1', keys: { p256dh: 'p2', auth: 'a2' } });
 
-  const row = db.prepare('SELECT * FROM push_subscriptions WHERE endpoint = ?').get('https://push.example/1');
+  const row = await db.prepare('SELECT * FROM push_subscriptions WHERE endpoint = ?').get('https://push.example/1');
   assert.strictEqual(row.p256dh, 'p2');
   assert.strictEqual(row.user_id, u);
 });
 
 test('sendPushToUser calls sendNotification once per subscription owned by that user', async () => {
-  const u = makeUser('push-b@test.local');
-  webPush.saveSubscription(u, { endpoint: 'https://push.example/2', keys: { p256dh: 'p', auth: 'a' } });
+  const u = await makeUser('push-b@test.local');
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/2', keys: { p256dh: 'p', auth: 'a' } });
 
   const calls = [];
   const original = webpushLib.sendNotification;
@@ -55,8 +58,8 @@ test('sendPushToUser calls sendNotification once per subscription owned by that 
 });
 
 test('sendPushToUser prunes a subscription that the push service reports as gone (410)', async () => {
-  const u = makeUser('push-c@test.local');
-  webPush.saveSubscription(u, { endpoint: 'https://push.example/3', keys: { p256dh: 'p', auth: 'a' } });
+  const u = await makeUser('push-c@test.local');
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/3', keys: { p256dh: 'p', auth: 'a' } });
 
   const original = webpushLib.sendNotification;
   webpushLib.sendNotification = async () => {
@@ -70,14 +73,14 @@ test('sendPushToUser prunes a subscription that the push service reports as gone
     webpushLib.sendNotification = original;
   }
 
-  const row = db.prepare('SELECT * FROM push_subscriptions WHERE endpoint = ?').get('https://push.example/3');
+  const row = await db.prepare('SELECT * FROM push_subscriptions WHERE endpoint = ?').get('https://push.example/3');
   assert.strictEqual(row, undefined, 'an expired subscription must be removed, not retried forever');
 });
 
 test("sendPushToUser never touches another user's subscriptions", async () => {
-  const alice = makeUser('push-alice@test.local');
-  const bob = makeUser('push-bob@test.local');
-  webPush.saveSubscription(bob, { endpoint: 'https://push.example/bob', keys: { p256dh: 'p', auth: 'a' } });
+  const alice = await makeUser('push-alice@test.local');
+  const bob = await makeUser('push-bob@test.local');
+  await webPush.saveSubscription(bob, { endpoint: 'https://push.example/bob', keys: { p256dh: 'p', auth: 'a' } });
 
   const calls = [];
   const original = webpushLib.sendNotification;

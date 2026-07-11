@@ -1,14 +1,8 @@
-# Multi-stage build. Debian-slim (not Alpine) — better-sqlite3 is a native
-# module and Alpine's musl libc frequently trips up prebuilt binaries.
+# Multi-stage build. @libsql/client is pure JS (no native compilation) so
+# Alpine or any slim image works fine — no build toolchain needed.
 
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
-
-# Native build toolchain for better-sqlite3, isolated to this stage only —
-# the final image never carries a compiler.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ \
-  && rm -rf /var/lib/apt/lists/*
 
 # puppeteer is a devDependency used only by local capture-*.js tooling
 # scripts, which never run inside this container — skip its ~300MB Chromium
@@ -40,7 +34,8 @@ COPY server ./server
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
-# SQLite data + logs live on a volume — not baked into the image.
+# In production (Koyeb + Turso) no local SQLite file is used.
+# The data/ dir is still created so local dev (file:./data/users.db) works.
 RUN mkdir -p data logs && chown -R app:app /app
 
 EXPOSE 3001

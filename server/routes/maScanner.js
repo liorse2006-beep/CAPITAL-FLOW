@@ -33,7 +33,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
   const cacheKey = cacheKeyFor(ma, distance, interval, market, sectors);
   const cached = resultCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
-    spendScan(req.user, 'maScanner');
+    await spendScan(req.user, 'maScanner');
     return res.json({
       results: cached.results,
       scanTime: cached.scanTime,
@@ -78,7 +78,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
       onProgress: (p) => scanProgress.set(userId, { ...p, running: true }),
     });
 
-    spendScan(req.user, 'maScanner');
+    await spendScan(req.user, 'maScanner');
 
     scanProgress.delete(userId);
 

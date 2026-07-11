@@ -3,11 +3,13 @@
 // the user row itself — the Privacy Policy promises immediate, permanent
 // deletion, so this is a compliance guarantee, not just a nice-to-have.
 require('./helpers/testEnv');
-const { test } = require('node:test');
+const { test, before } = require('node:test');
 const assert = require('node:assert');
 const express = require('express');
 
 const db = require('../server/db');
+
+before(async () => { await db.ready; });
 const { issueToken } = require('../server/services/auth');
 const authRouter = require('../server/routes/auth');
 
@@ -20,29 +22,28 @@ function startTestApp() {
   });
 }
 
-function makeUser(email) {
-  const id = db.prepare('INSERT INTO users (email, is_verified, tier) VALUES (?, 1, ?)').run(email, 'elite')
-    .lastInsertRowid;
-  return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+async function makeUser(email) {
+  const result = await db.prepare('INSERT INTO users (email, is_verified, tier) VALUES (?, 1, ?)').run(email, 'elite');
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
 }
 
 test('DELETE /api/auth/account removes the user and every associated row', async () => {
-  const user = makeUser('delete-me@test.local');
-  const token = issueToken(user);
+  const user = await makeUser('delete-me@test.local');
+  const token = await issueToken(user);
 
-  db.prepare('INSERT INTO watchlist_alerts (user_id, symbol, min_ratio) VALUES (?, ?, ?)').run(user.id, 'AAPL', 3);
-  db.prepare('INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)').run(
+  await db.prepare('INSERT INTO watchlist_alerts (user_id, symbol, min_ratio) VALUES (?, ?, ?)').run(user.id, 'AAPL', 3);
+  await db.prepare('INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)').run(
     user.id,
     'https://push.example/' + user.id,
     'p256dh-key',
     'auth-key'
   );
-  db.prepare('INSERT INTO feedback (user_id, email, message) VALUES (?, ?, ?)').run(
+  await db.prepare('INSERT INTO feedback (user_id, email, message) VALUES (?, ?, ?)').run(
     user.id,
     user.email,
     'test feedback'
   );
-  db.prepare('INSERT INTO otp_codes (email, code, type, expires_at) VALUES (?, ?, ?, ?)').run(
+  await db.prepare('INSERT INTO otp_codes (email, code, type, expires_at) VALUES (?, ?, ?, ?)').run(
     user.email,
     '123456',
     'verify_email',
@@ -59,17 +60,17 @@ test('DELETE /api/auth/account removes the user and every associated row', async
     assert.strictEqual(res.status, 200);
     assert.strictEqual((await res.json()).ok, true);
 
-    assert.strictEqual(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id), undefined);
+    assert.strictEqual(await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id), undefined);
     assert.strictEqual(
-      db.prepare('SELECT * FROM watchlist_alerts WHERE user_id = ?').get(user.id),
+      await db.prepare('SELECT * FROM watchlist_alerts WHERE user_id = ?').get(user.id),
       undefined
     );
     assert.strictEqual(
-      db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').get(user.id),
+      await db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').get(user.id),
       undefined
     );
-    assert.strictEqual(db.prepare('SELECT * FROM feedback WHERE user_id = ?').get(user.id), undefined);
-    assert.strictEqual(db.prepare('SELECT * FROM otp_codes WHERE email = ?').get(user.email), undefined);
+    assert.strictEqual(await db.prepare('SELECT * FROM feedback WHERE user_id = ?').get(user.id), undefined);
+    assert.strictEqual(await db.prepare('SELECT * FROM otp_codes WHERE email = ?').get(user.email), undefined);
   } finally {
     server.close();
   }
@@ -87,9 +88,9 @@ test('DELETE /api/auth/account requires auth', async () => {
 });
 
 test('DELETE /api/auth/account only removes the requesting user, not others', async () => {
-  const victim = makeUser('delete-victim@test.local');
-  const bystander = makeUser('delete-bystander@test.local');
-  const token = issueToken(victim);
+  const victim = await makeUser('delete-victim@test.local');
+  const bystander = await makeUser('delete-bystander@test.local');
+  const token = await issueToken(victim);
 
   const server = await startTestApp();
   const port = server.address().port;
@@ -99,8 +100,8 @@ test('DELETE /api/auth/account only removes the requesting user, not others', as
       headers: { Authorization: 'Bearer ' + token },
     });
     assert.strictEqual(res.status, 200);
-    assert.strictEqual(db.prepare('SELECT * FROM users WHERE id = ?').get(victim.id), undefined);
-    assert.ok(db.prepare('SELECT * FROM users WHERE id = ?').get(bystander.id));
+    assert.strictEqual(await db.prepare('SELECT * FROM users WHERE id = ?').get(victim.id), undefined);
+    assert.ok(await db.prepare('SELECT * FROM users WHERE id = ?').get(bystander.id));
   } finally {
     server.close();
   }

@@ -15,8 +15,8 @@
     },
     {
       "name": "landing-page",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "4173", "--directory", "LANDING PAGE"],
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["tools/run-landing-dev.js"],
       "port": 4173
     }
   ]

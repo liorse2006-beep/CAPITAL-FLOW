@@ -11,7 +11,7 @@ const CACHE_TTL_MS = 60 * 1000;
 
 router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) => {
   if (flowCache.results && flowCache.expiresAt > Date.now()) {
-    spendScan(req.user, 'sectorMoving');
+    await spendScan(req.user, 'sectorMoving');
     return res.json({
       results: flowCache.results,
       fetchTime: flowCache.fetchTime,
@@ -133,7 +133,7 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
         }
       })
     );
-    spendScan(req.user, 'sectorMoving');
+    await spendScan(req.user, 'sectorMoving');
     var fetchTime = new Date().toISOString();
     flowCache = { results: results, fetchTime: fetchTime, expiresAt: Date.now() + CACHE_TTL_MS };
     res.json({ results: results, fetchTime: fetchTime, ...quotaFor(req.user) });

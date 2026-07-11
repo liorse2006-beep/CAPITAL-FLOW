@@ -8,7 +8,7 @@ process.env.PADDLE_PREMIUM_PRICE_ID = 'pri_premium_test';
 process.env.PADDLE_ELITE_PRICE_ID = 'pri_elite_test';
 
 require('./helpers/testEnv');
-const { test } = require('node:test');
+const { test, before } = require('node:test');
 const assert = require('node:assert');
 const crypto = require('node:crypto');
 const express = require('express');
@@ -18,6 +18,8 @@ const { issueToken } = require('../server/services/auth');
 const paddle = require('../server/services/paddle');
 const webhooksRouter = require('../server/routes/webhooks');
 const checkoutRouter = require('../server/routes/checkout');
+
+before(async () => { await db.ready; });
 
 function sign(rawBody, ts = Math.floor(Date.now() / 1000)) {
   const h1 = crypto.createHmac('sha256', 'test-webhook-secret').update(`${ts}:${rawBody}`).digest('hex');
@@ -42,10 +44,9 @@ function startCheckoutApp() {
   });
 }
 
-function makeUser(email, tier = 'free') {
-  const id = db.prepare('INSERT INTO users (email, is_verified, tier) VALUES (?, 1, ?)').run(email, tier)
-    .lastInsertRowid;
-  return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+async function makeUser(email, tier = 'free') {
+  const result = await db.prepare('INSERT INTO users (email, is_verified, tier) VALUES (?, 1, ?)').run(email, tier);
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
 }
 
 // ── paddle.verifyWebhookSignature ──────────────────────────────────────────
@@ -73,8 +74,8 @@ test('verifyWebhookSignature rejects a malformed signature header', () => {
 // ── POST /api/webhooks/paddle ───────────────────────────────────────────────
 
 test('webhook upgrades the user tier on transaction.completed and redeems the coupon', async () => {
-  const user = makeUser('webhook-upgrade@test.local', 'free');
-  db.prepare('INSERT INTO coupons (code, discount_percent, applies_to, uses_count) VALUES (?, ?, ?, ?)').run(
+  const user = await makeUser('webhook-upgrade@test.local', 'free');
+  await db.prepare('INSERT INTO coupons (code, discount_percent, applies_to, uses_count) VALUES (?, ?, ?, ?)').run(
     'WEBHOOK1',
     20,
     'both',
@@ -96,11 +97,11 @@ test('webhook upgrades the user tier on transaction.completed and redeems the co
     });
     assert.strictEqual(res.status, 200);
 
-    const updated = db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
+    const updated = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
     assert.strictEqual(updated.tier, 'premium');
     assert.strictEqual(updated.is_premium, 1);
 
-    const coupon = db.prepare('SELECT uses_count FROM coupons WHERE code = ?').get('WEBHOOK1');
+    const coupon = await db.prepare('SELECT uses_count FROM coupons WHERE code = ?').get('WEBHOOK1');
     assert.strictEqual(coupon.uses_count, 1);
   } finally {
     server.close();
@@ -124,7 +125,7 @@ test('webhook rejects a request with an invalid signature', async () => {
 });
 
 test('webhook ignores event types other than transaction.completed', async () => {
-  const user = makeUser('webhook-ignore@test.local', 'free');
+  const user = await makeUser('webhook-ignore@test.local', 'free');
   const payload = JSON.stringify({
     event_type: 'transaction.created',
     data: { custom_data: { userId: user.id, tier: 'elite' } },
@@ -138,7 +139,7 @@ test('webhook ignores event types other than transaction.completed', async () =>
       body: payload,
     });
     assert.strictEqual(res.status, 200);
-    const unchanged = db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id);
+    const unchanged = await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id);
     assert.strictEqual(unchanged.tier, 'free');
   } finally {
     server.close();
@@ -163,13 +164,13 @@ test('checkout/transaction requires auth', async () => {
 });
 
 test('checkout/transaction rejects an invalid tier', async () => {
-  const user = makeUser('checkout-badtier@test.local');
+  const user = await makeUser('checkout-badtier@test.local');
   const server = await startCheckoutApp();
   const port = server.address().port;
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/checkout/transaction`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + issueToken(user) },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)) },
       body: JSON.stringify({ tier: 'free' }),
     });
     assert.strictEqual(res.status, 400);
@@ -179,13 +180,13 @@ test('checkout/transaction rejects an invalid tier', async () => {
 });
 
 test('checkout/transaction rejects an invalid coupon before calling Paddle', async () => {
-  const user = makeUser('checkout-badcoupon@test.local');
+  const user = await makeUser('checkout-badcoupon@test.local');
   const server = await startCheckoutApp();
   const port = server.address().port;
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/checkout/transaction`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + issueToken(user) },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)) },
       body: JSON.stringify({ tier: 'premium', couponCode: 'DOES-NOT-EXIST' }),
     });
     assert.strictEqual(res.status, 400);

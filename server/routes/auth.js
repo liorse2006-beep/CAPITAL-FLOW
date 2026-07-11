@@ -50,46 +50,54 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
         clientSecret: GOOGLE_CLIENT_SECRET,
         callbackURL: GOOGLE_CALLBACK_URL || 'http://localhost:3001/api/auth/google/callback',
       },
-      function (accessToken, refreshToken, profile, done) {
-        const email = profile.emails && profile.emails[0] && profile.emails[0].value;
-        if (!email) return done(new Error('No email from Google'));
+      async function (accessToken, refreshToken, profile, done) {
+        try {
+          const email = profile.emails && profile.emails[0] && profile.emails[0].value;
+          if (!email) return done(new Error('No email from Google'));
 
-        let user = db.prepare('SELECT * FROM users WHERE google_id = ?').get(profile.id);
-        if (!user) {
-          user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-          if (user) {
-            db.prepare('UPDATE users SET google_id = ?, google_email = ?, is_verified = 1 WHERE id = ?').run(
-              profile.id,
-              email,
-              user.id
-            );
-            user = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
-          } else {
-            const isPilot = pilotAllowlist.isAllowed(email) ? 1 : 0;
-            const result = db
-              .prepare(
-                'INSERT INTO users (email, google_id, google_email, is_verified, is_pilot) VALUES (?, ?, ?, 1, ?)'
-              )
-              .run(email, profile.id, email, isPilot);
-            user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-            sendWelcomeEmail(email).catch(() => {});
+          let user = await db.prepare('SELECT * FROM users WHERE google_id = ?').get(profile.id);
+          if (!user) {
+            user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+            if (user) {
+              await db.prepare('UPDATE users SET google_id = ?, google_email = ?, is_verified = 1 WHERE id = ?').run(
+                profile.id,
+                email,
+                user.id
+              );
+              user = await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+            } else {
+              const isPilot = (await pilotAllowlist.isAllowed(email)) ? 1 : 0;
+              const result = await db
+                .prepare(
+                  'INSERT INTO users (email, google_id, google_email, is_verified, is_pilot) VALUES (?, ?, ?, 1, ?)'
+                )
+                .run(email, profile.id, email, isPilot);
+              user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+              sendWelcomeEmail(email).catch(() => {});
+            }
           }
+          return done(null, user);
+        } catch (err) {
+          return done(err);
         }
-        return done(null, user);
       }
     )
   );
 
   passport.serializeUser((user, done) => done(null, user.id));
-  passport.deserializeUser((id, done) => {
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
-    done(null, user || false);
+  passport.deserializeUser(async (id, done) => {
+    try {
+      const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+      done(null, user || false);
+    } catch (err) {
+      done(err);
+    }
   });
 
   router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], prompt: 'select_account' }));
 
   router.get('/google/callback', function (req, res, next) {
-    passport.authenticate('google', { session: false }, function (err, user, info) {
+    passport.authenticate('google', { session: false }, async function (err, user, info) {
       if (err) {
         console.error('[google/callback] passport error:', err);
         return res.redirect(`${FRONTEND_URL || 'http://localhost:5173'}/?auth_error=google_failed`);
@@ -99,7 +107,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
         return res.redirect(`${FRONTEND_URL || 'http://localhost:5173'}/?auth_error=google_failed`);
       }
       console.log('[google/callback] success, user id:', user.id, 'email:', user.email);
-      const token = issueToken(user);
+      const token = await issueToken(user);
       const dest = FRONTEND_URL || 'http://localhost:5173';
       console.log('[google/callback] redirecting to:', dest + '/?token=<JWT>');
       res.redirect(`${dest}/?google_pending=${token}`);
@@ -121,20 +129,20 @@ router.post('/signup', authLimiter, async (req, res) => {
     const captchaOk = await verifyHCaptcha(captchaToken);
     if (!captchaOk) return res.status(400).json({ error: 'CAPTCHA verification failed' });
 
-    const existing = db.prepare('SELECT id, is_verified FROM users WHERE email = ?').get(email);
+    const existing = await db.prepare('SELECT id, is_verified FROM users WHERE email = ?').get(email);
     if (existing && existing.is_verified)
       return res.status(409).json({ error: 'An account with this email already exists' });
 
     const hash = await hashPassword(password);
     if (existing) {
-      db.prepare('UPDATE users SET password_hash = ? WHERE email = ?').run(hash, email);
+      await db.prepare('UPDATE users SET password_hash = ? WHERE email = ?').run(hash, email);
     } else {
-      const isPilot = pilotAllowlist.isAllowed(email) ? 1 : 0;
-      db.prepare('INSERT INTO users (email, password_hash, is_pilot) VALUES (?, ?, ?)').run(email, hash, isPilot);
+      const isPilot = (await pilotAllowlist.isAllowed(email)) ? 1 : 0;
+      await db.prepare('INSERT INTO users (email, password_hash, is_pilot) VALUES (?, ?, ?)').run(email, hash, isPilot);
     }
 
     const code = generateOTP();
-    saveOTP(email, code, 'verify_email');
+    await saveOTP(email, code, 'verify_email');
     await sendOTPEmail(email, code);
 
     res.json({ success: true, message: 'Verification code sent to your email' });
@@ -145,29 +153,34 @@ router.post('/signup', authLimiter, async (req, res) => {
 });
 
 /* ── Verify OTP (email verification) ── */
-router.post('/verify-otp', otpLimiter, (req, res) => {
-  const { email, code } = req.body;
-  if (!email || !code) return res.status(400).json({ error: 'Missing fields' });
+router.post('/verify-otp', otpLimiter, async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) return res.status(400).json({ error: 'Missing fields' });
 
-  const result = verifyOTP(email, code, 'verify_email');
-  if (!result.valid) return res.status(400).json({ error: result.reason });
+    const result = await verifyOTP(email, code, 'verify_email');
+    if (!result.valid) return res.status(400).json({ error: result.reason });
 
-  db.prepare('UPDATE users SET is_verified = 1 WHERE email = ?').run(email);
-  const user = withEffectivePremium(db.prepare('SELECT * FROM users WHERE email = ?').get(email));
-  const token = issueToken(user);
-  sendWelcomeEmail(email).catch(() => {});
+    await db.prepare('UPDATE users SET is_verified = 1 WHERE email = ?').run(email);
+    const user = withEffectivePremium(await db.prepare('SELECT * FROM users WHERE email = ?').get(email));
+    const token = await issueToken(user);
+    sendWelcomeEmail(email).catch(() => {});
 
-  res.json({
-    success: true,
-    token,
-    user: {
-      id: user.id,
-      email: user.email,
-      is_premium: user.is_premium,
-      is_pilot: !!user.is_pilot,
-      tier: user.tier || 'free',
-    },
-  });
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        is_premium: user.is_premium,
+        is_pilot: !!user.is_pilot,
+        tier: user.tier || 'free',
+      },
+    });
+  } catch (err) {
+    console.error('[verify-otp]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 /* ── Resend OTP ── */
@@ -177,7 +190,7 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
     if (!email) return res.status(400).json({ error: 'Email required' });
     const otpType = type === 'reset_password' ? 'reset_password' : 'verify_email';
     const code = generateOTP();
-    saveOTP(email, code, otpType);
+    await saveOTP(email, code, otpType);
     if (otpType === 'reset_password') {
       await sendPasswordResetEmail(email, code);
     } else {
@@ -196,7 +209,7 @@ router.post('/login', authLimiter, async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
 
-    let user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    let user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
     if (!user || !user.password_hash) return res.status(401).json({ error: 'Invalid email or password' });
 
     const ok = await verifyPassword(password, user.password_hash);
@@ -204,13 +217,13 @@ router.post('/login', authLimiter, async (req, res) => {
 
     if (!user.is_verified) {
       const code = generateOTP();
-      saveOTP(email, code, 'verify_email');
+      await saveOTP(email, code, 'verify_email');
       await sendOTPEmail(email, code);
       return res.status(403).json({ error: 'Email not verified', needsVerification: true, email });
     }
 
     user = withEffectivePremium(user);
-    const token = issueToken(user);
+    const token = await issueToken(user);
     res.json({
       success: true,
       token,
@@ -234,11 +247,11 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email required' });
 
-    const user = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    const user = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
     // Always respond success to avoid email enumeration
     if (user) {
       const code = generateOTP();
-      saveOTP(email, code, 'reset_password');
+      await saveOTP(email, code, 'reset_password');
       await sendPasswordResetEmail(email, code);
     }
     res.json({ success: true, message: 'If that email exists, a reset code was sent' });
@@ -255,14 +268,14 @@ router.post('/reset-password', otpLimiter, async (req, res) => {
     if (!email || !code || !newPassword) return res.status(400).json({ error: 'Missing fields' });
     if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
-    const result = verifyOTP(email, code, 'reset_password');
+    const result = await verifyOTP(email, code, 'reset_password');
     if (!result.valid) return res.status(400).json({ error: result.reason });
 
     const hash = await hashPassword(newPassword);
-    db.prepare('UPDATE users SET password_hash = ?, is_verified = 1 WHERE email = ?').run(hash, email);
+    await db.prepare('UPDATE users SET password_hash = ?, is_verified = 1 WHERE email = ?').run(hash, email);
 
-    const user = withEffectivePremium(db.prepare('SELECT * FROM users WHERE email = ?').get(email));
-    const token = issueToken(user);
+    const user = withEffectivePremium(await db.prepare('SELECT * FROM users WHERE email = ?').get(email));
+    const token = await issueToken(user);
     res.json({
       success: true,
       token,
@@ -304,30 +317,37 @@ router.get('/me', requireAuth, (req, res) => {
    keyed to this user (watchlist alerts, push subscriptions, feedback,
    pending OTP codes). Matches the retention promise in the Privacy Policy
    (src/pages/PolicyPage.jsx): deletion is immediate and permanent. ── */
-router.delete('/account', requireAuth, (req, res) => {
-  const userId = req.user.id;
-  const email = req.user.email;
+router.delete('/account', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const email = req.user.email;
 
-  const deleteAll = db.transaction(() => {
-    db.prepare('DELETE FROM watchlist_alerts WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM feedback WHERE user_id = ?').run(userId);
-    if (email) db.prepare('DELETE FROM otp_codes WHERE email = ?').run(email);
-    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
-  });
-  deleteAll();
+    await db.prepare('DELETE FROM watchlist_alerts WHERE user_id = ?').run(userId);
+    await db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(userId);
+    await db.prepare('DELETE FROM feedback WHERE user_id = ?').run(userId);
+    if (email) await db.prepare('DELETE FROM otp_codes WHERE email = ?').run(email);
+    await db.prepare('DELETE FROM users WHERE id = ?').run(userId);
 
-  res.json({ ok: true });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[delete account]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 /* ── Accept pilot confidentiality terms (pilot accounts only) ── */
-router.post('/accept-pilot-terms', requireAuth, (req, res) => {
-  if (!req.user.is_pilot) return res.status(400).json({ error: 'Not a pilot account' });
-  db.prepare('UPDATE users SET pilot_terms_accepted_at = ? WHERE id = ?').run(
-    Math.floor(Date.now() / 1000),
-    req.user.id
-  );
-  res.json({ ok: true });
+router.post('/accept-pilot-terms', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.is_pilot) return res.status(400).json({ error: 'Not a pilot account' });
+    await db.prepare('UPDATE users SET pilot_terms_accepted_at = ? WHERE id = ?').run(
+      Math.floor(Date.now() / 1000),
+      req.user.id
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[accept-pilot-terms]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 module.exports = router;

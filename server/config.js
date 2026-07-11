@@ -63,4 +63,7 @@ module.exports = {
   PADDLE_ENV: process.env.PADDLE_ENV === 'production' ? 'production' : 'sandbox',
   PADDLE_PREMIUM_PRICE_ID: process.env.PADDLE_PREMIUM_PRICE_ID || '',
   PADDLE_ELITE_PRICE_ID: process.env.PADDLE_ELITE_PRICE_ID || '',
+  // Turso cloud SQLite — set for production (Koyeb). Omit for local dev (file-based).
+  TURSO_DB_URL: process.env.TURSO_DB_URL || '',
+  TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN || '',
 };

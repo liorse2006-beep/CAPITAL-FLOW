@@ -2,7 +2,7 @@
 // a time (Israel local); at that minute they get exactly one push summarizing
 // which of their watchlist thresholds were crossed — never zero, never twice.
 require('./helpers/testEnv');
-const { test } = require('node:test');
+const { test, before } = require('node:test');
 const assert = require('node:assert');
 
 const webpushLib = require('web-push');
@@ -16,13 +16,17 @@ delete require.cache[require.resolve('../server/services/webPush')];
 delete require.cache[require.resolve('../server/services/scheduledDigest')];
 
 const db = require('../server/db');
+
+before(async () => { await db.ready; });
+
 const { israelNow, buildDigestPayload, runDigestTick } = require('../server/services/scheduledDigest');
 const { backgroundCache } = require('../server/services/backgroundScan');
 const { setAlert } = require('../server/services/watchlistAlerts');
 const webPush = require('../server/services/webPush');
 
-function makeUser(email) {
-  return db.prepare('INSERT INTO users (email, is_verified, is_premium) VALUES (?, 1, 1)').run(email).lastInsertRowid;
+async function makeUser(email) {
+  const result = await db.prepare('INSERT INTO users (email, is_verified, is_premium) VALUES (?, 1, 1)').run(email);
+  return result.lastInsertRowid;
 }
 
 test('israelNow returns HH:MM and YYYY-MM-DD shaped strings', () => {
@@ -47,11 +51,11 @@ test('buildDigestPayload reports clearly when nothing crossed the threshold', ()
 });
 
 test('runDigestTick sends exactly one push per user per day, even if the tick fires twice', async () => {
-  const u = makeUser('digest-a@test.local');
+  const u = await makeUser('digest-a@test.local');
   const now = israelNow();
-  db.prepare('UPDATE users SET notification_time = ? WHERE id = ?').run(now.hm, u);
-  setAlert(u, 'AAA', 2);
-  webPush.saveSubscription(u, { endpoint: 'https://push.example/digest-a', keys: { p256dh: 'p', auth: 'a' } });
+  await db.prepare('UPDATE users SET notification_time = ? WHERE id = ?').run(now.hm, u);
+  await setAlert(u, 'AAA', 2);
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/digest-a', keys: { p256dh: 'p', auth: 'a' } });
 
   backgroundCache.results = [{ symbol: 'AAA', volumeRatio: 3 }];
   backgroundCache.scanTime = new Date().toISOString();
@@ -72,10 +76,10 @@ test('runDigestTick sends exactly one push per user per day, even if the tick fi
 });
 
 test('runDigestTick skips users with no watchlist thresholds set', async () => {
-  const u = makeUser('digest-b@test.local');
+  const u = await makeUser('digest-b@test.local');
   const now = israelNow();
-  db.prepare('UPDATE users SET notification_time = ? WHERE id = ?').run(now.hm, u);
-  webPush.saveSubscription(u, { endpoint: 'https://push.example/digest-b', keys: { p256dh: 'p', auth: 'a' } });
+  await db.prepare('UPDATE users SET notification_time = ? WHERE id = ?').run(now.hm, u);
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/digest-b', keys: { p256dh: 'p', auth: 'a' } });
 
   backgroundCache.results = [{ symbol: 'AAA', volumeRatio: 3 }];
   backgroundCache.scanTime = new Date().toISOString();
