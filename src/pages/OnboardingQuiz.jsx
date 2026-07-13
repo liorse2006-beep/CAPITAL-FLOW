@@ -154,50 +154,28 @@ function RevealSlide({ onNext }) {
 }
 
 export default function OnboardingQuiz({ onComplete }) {
-  const [step, setStep] = useState(0); // 0..QUESTIONS.length = questions, +1 = reveal, +2 = cta
+  const [step, setStep] = useState(0);
   const [selected, setSelected] = useState({});
-  const [animating, setAnimating] = useState(false);
-  const [direction, setDirection] = useState('forward'); // 'forward' | 'back'
-  const [visible, setVisible] = useState(true);
+  const [direction, setDirection] = useState('forward');
 
-  const totalSteps = QUESTIONS.length + 1; // questions + cta
+  const totalSteps = QUESTIONS.length + 1;
   const isQuestion = step < QUESTIONS.length;
-  const isReveal = false;
   const isCTA = step === QUESTIONS.length;
 
   function advance() {
-    if (animating) return;
-    setAnimating(true);
     setDirection('forward');
-    setVisible(false);
-    setTimeout(() => {
-      setStep((s) => s + 1);
-      setVisible(true);
-      setAnimating(false);
-    }, 280);
+    setStep((s) => s + 1);
   }
 
   function back() {
-    if (animating || step === 0) return;
-    setAnimating(true);
+    if (step === 0) return;
     setDirection('back');
-    setVisible(false);
-    setTimeout(() => {
-      setStep((s) => s - 1);
-      setVisible(true);
-      setAnimating(false);
-    }, 280);
-  }
-
-  function selectOption(optLabel) {
-    if (isQuestion) {
-      setSelected((prev) => ({ ...prev, [QUESTIONS[step].id]: optLabel }));
-    }
+    setStep((s) => s - 1);
   }
 
   function handleOptionClick(optLabel) {
-    selectOption(optLabel);
-    setTimeout(() => advance(), 180);
+    if (isQuestion) setSelected((prev) => ({ ...prev, [QUESTIONS[step].id]: optLabel }));
+    setTimeout(() => advance(), 120);
   }
 
   function handleScan() {
@@ -206,12 +184,7 @@ export default function OnboardingQuiz({ onComplete }) {
   }
 
   const q = isQuestion ? QUESTIONS[step] : null;
-
-  const slideStyle = {
-    transition: visible ? 'opacity 0.28s ease, transform 0.28s ease' : 'none',
-    opacity: visible ? 1 : 0,
-    transform: visible ? 'translateX(0)' : direction === 'forward' ? 'translateX(40px)' : 'translateX(-40px)',
-  };
+  const enterClass = direction === 'forward' ? 'quiz-step-enter' : 'quiz-step-enter-back';
 
   return (
     <div className="quiz-shell">
@@ -260,7 +233,7 @@ export default function OnboardingQuiz({ onComplete }) {
 
       {/* Body */}
       <div className="quiz-body">
-        <div style={slideStyle}>
+        <div key={step} className={enterClass}>
           {isQuestion && (
             <div className="quiz-question-wrap">
               <div className="quiz-step-label">
