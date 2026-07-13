@@ -14,6 +14,11 @@ export function AuthProvider({ children }) {
     const tokenFromUrl = params.get('token');
     const pendingFromUrl = params.get('google_pending');
     const errorFromUrl = params.get('auth_error');
+    const inviteFromUrl = params.get('invite');
+
+    if (inviteFromUrl) {
+      localStorage.setItem('vs_pilot_invite', inviteFromUrl);
+    }
 
     if (tokenFromUrl) {
       localStorage.setItem('vs_token', tokenFromUrl);
@@ -114,8 +119,19 @@ export function AuthProvider({ children }) {
 
   function confirmGoogleLogin() {
     if (!pendingGoogleToken) return;
-    localStorage.setItem('vs_token', pendingGoogleToken);
-    fetchMe(pendingGoogleToken).finally(() => setPendingGoogleToken(null));
+    const token = pendingGoogleToken;
+    localStorage.setItem('vs_token', token);
+    const invite = localStorage.getItem('vs_pilot_invite');
+    const afterLogin = invite
+      ? fetch('/api/auth/apply-invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ inviteCode: invite }),
+        })
+          .then(() => localStorage.removeItem('vs_pilot_invite'))
+          .catch(() => {})
+      : Promise.resolve();
+    afterLogin.finally(() => fetchMe(token).finally(() => setPendingGoogleToken(null)));
   }
 
   function cancelGoogleLogin() {

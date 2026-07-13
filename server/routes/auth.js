@@ -22,6 +22,7 @@ const {
   GOOGLE_CALLBACK_URL,
   HCAPTCHA_SECRET,
   TURNSTILE_SECRET,
+  PILOT_INVITE_CODE,
   FRONTEND_URL,
   ADMIN_EMAIL,
 } = require('../config');
@@ -123,7 +124,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
 /* ── Sign Up ── */
 router.post('/signup', authLimiter, async (req, res) => {
   try {
-    const { email, password, captchaToken } = req.body;
+    const { email, password, captchaToken, inviteCode } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
     if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Please enter a valid email address' });
     if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -135,12 +136,18 @@ router.post('/signup', authLimiter, async (req, res) => {
     if (existing && existing.is_verified)
       return res.status(409).json({ error: 'An account with this email already exists' });
 
+    const isPilotByInvite = PILOT_INVITE_CODE && inviteCode === PILOT_INVITE_CODE ? 1 : 0;
     const hash = await hashPassword(password);
     if (existing) {
       await db.prepare('UPDATE users SET password_hash = ? WHERE email = ?').run(hash, email);
+      if (isPilotByInvite) {
+        await db.prepare("UPDATE users SET is_pilot = 1, tier = 'elite' WHERE email = ?").run(email);
+      }
     } else {
-      const isPilot = (await pilotAllowlist.isAllowed(email)) ? 1 : 0;
-      await db.prepare('INSERT INTO users (email, password_hash, is_pilot) VALUES (?, ?, ?)').run(email, hash, isPilot);
+      const isPilotByAllowlist = (await pilotAllowlist.isAllowed(email)) ? 1 : 0;
+      const isPilot = isPilotByInvite || isPilotByAllowlist;
+      const tier = isPilot ? 'elite' : 'free';
+      await db.prepare('INSERT INTO users (email, password_hash, is_pilot, tier) VALUES (?, ?, ?, ?)').run(email, hash, isPilot, tier);
     }
 
     const code = generateOTP();
@@ -333,6 +340,20 @@ router.delete('/account', requireAuth, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[delete account]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/* ── Apply pilot invite (for users who signed in via Google with an invite link) ── */
+router.post('/apply-invite', requireAuth, async (req, res) => {
+  try {
+    const { inviteCode } = req.body;
+    if (!PILOT_INVITE_CODE || inviteCode !== PILOT_INVITE_CODE)
+      return res.status(400).json({ error: 'Invalid invite code' });
+    await db.prepare("UPDATE users SET is_pilot = 1, tier = 'elite' WHERE id = ?").run(req.user.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[apply-invite]', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

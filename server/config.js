@@ -67,4 +67,5 @@ module.exports = {
   // Turso cloud SQLite — set for production (Koyeb). Omit for local dev (file-based).
   TURSO_DB_URL: process.env.TURSO_DB_URL || '',
   TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN || '',
+  PILOT_INVITE_CODE: process.env.PILOT_INVITE_CODE || '',
 };

@@ -162,7 +162,9 @@ export default function AuthModal({ onClose }) {
     setLoading(true);
     setError('');
     try {
-      await api('signup', { email, password, captchaToken });
+      const inviteCode = localStorage.getItem('vs_pilot_invite') || undefined;
+      await api('signup', { email, password, captchaToken, inviteCode });
+      if (inviteCode) localStorage.removeItem('vs_pilot_invite');
       setPendingEmail(email);
       setOtp('');
       setScreen('otp');
