@@ -198,6 +198,20 @@ router.delete('/admin/api/coupons/:code', async (req, res) => {
   res.json({ ok: true });
 });
 
+router.post('/admin/api/users/:id/push-test', async (req, res) => {
+  if (!(await checkToken(req, res))) return;
+  const userId = Number(req.params.id);
+  const { title = 'Capital Flow — Test', body = 'Push notifications are working! 🎉' } = req.body || {};
+  try {
+    const { sendPushToUser, configured } = require('../services/webPush');
+    if (!configured) return res.status(503).json({ error: 'VAPID keys not configured' });
+    await sendPushToUser(userId, { title, body, tag: 'admin-test', data: { url: '/' } });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Admin UI ───────────────────────────────────────────────────────────────
 router.get('/admin', async (req, res) => {
   if (!(await checkToken(req, res))) return;
@@ -271,6 +285,7 @@ router.get('/admin', async (req, res) => {
   .btn-pilot-on  { background: rgba(168,85,247,0.12); color: #A855F7; border-color: rgba(168,85,247,0.3); }
   .btn-pilot-off { background: rgba(113,113,122,0.10); color: #A0A0A8; border-color: rgba(113,113,122,0.2); }
   .btn-logout    { background: rgba(59,130,246,0.10); color: #3B82F6; border-color: rgba(59,130,246,0.25); }
+  .btn-push-test { background: rgba(0,255,136,0.10); color: #00FF88; border-color: rgba(0,255,136,0.25); }
   .badge-push    { background: rgba(34,197,94,0.12); color: #22C55E; border: 1px solid rgba(34,197,94,0.2); }
   .pilot-add { display: flex; gap: 8px; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); }
   .pilot-add input { flex: 1; background: #1C1C1C; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;
@@ -626,6 +641,10 @@ function renderTable(users) {
 
     const logoutBtn = \`<button class="btn btn-logout" onclick="forceLogout(\${u.id})" title="Ends their current session on every device">⏻ Force logout</button>\`;
 
+    const pushTestBtn = u.push_count > 0
+      ? \`<button class="btn btn-push-test" onclick="sendTestPush(\${u.id})" title="Send a test push notification to this user">🔔 Test push</button>\`
+      : '';
+
     const delBtn = \`<button class="btn btn-del" onclick="deleteUser(\${u.id}, '\${email.replace(/'/g,"\\\\'")}')">✕</button>\`;
 
     const usage = tier === 'elite'
@@ -649,7 +668,7 @@ function renderTable(users) {
       <td class="center" style="font-family:monospace;font-size:12px">\${usage}</td>
       <td>\${notifCell}</td>
       <td class="date">\${date}</td>
-      <td><div class="actions">\${tierBtns}\${pilotBtn}\${logoutBtn}\${blockBtn}\${delBtn}</div></td>
+      <td><div class="actions">\${tierBtns}\${pilotBtn}\${logoutBtn}\${pushTestBtn}\${blockBtn}\${delBtn}</div></td>
     </tr>\`;
   }).join('');
 
@@ -705,6 +724,12 @@ async function deleteUser(id, email) {
   const r = await fetch(\`/admin/api/users/\${id}\`, { method: 'DELETE', headers: AUTH_HEADERS });
   if (r.ok) { toast('User deleted'); load(); }
   else toast('Error', true);
+}
+
+async function sendTestPush(id) {
+  const r = await fetch(\`/admin/api/users/\${id}/push-test\`, { method: 'POST', headers: { ...AUTH_HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Capital Flow — Test', body: 'Push notifications are working! 🎉 You will receive alerts automatically.' }) });
+  if (r.ok) toast('🔔 Test push sent!');
+  else { const d = await r.json(); toast('Push error: ' + (d.error || r.status), true); }
 }
 
 function toast(msg, err) {

@@ -1,14 +1,10 @@
-var CACHE_NAME = 'vs-v3';
+var CACHE_NAME = 'vs-v4';
 // Only precache paths guaranteed to exist and stay stable across builds.
 // Vite fingerprints every JS/CSS bundle with a content hash that changes on
 // every build, so those can't be precached by name — they're picked up by
 // the runtime cache-on-fetch handler below instead, the first time they're
-// requested. (An earlier version of this list named pre-Vite files —
-// /styles.css, /app.jsx — that no longer exist; cache.addAll() rejects the
-// whole install if even one URL 404s, which silently broke installation and
-// therefore navigator.serviceWorker.ready, which push notifications rely
-// on.)
-var STATIC_ASSETS = ['/', '/favicon.svg', '/manifest.json'];
+// requested.
+var STATIC_ASSETS = ['/', '/favicon.svg', '/manifest.json', '/icon-192.png'];
 
 self.addEventListener('install', function (event) {
   event.waitUntil(
@@ -26,17 +22,11 @@ self.addEventListener('activate', function (event) {
       .then(function (names) {
         return Promise.all(
           names
-            .filter(function (n) {
-              return n !== CACHE_NAME;
-            })
-            .map(function (n) {
-              return caches.delete(n);
-            })
+            .filter(function (n) { return n !== CACHE_NAME; })
+            .map(function (n) { return caches.delete(n); })
         );
       })
-      .then(function () {
-        return clients.claim();
-      })
+      .then(function () { return clients.claim(); })
   );
 });
 
@@ -67,27 +57,39 @@ self.addEventListener('push', function (event) {
   } catch (e) {
     data = { title: 'Capital Flow', body: event.data ? event.data.text() : 'New alert' };
   }
-  event.waitUntil(
-    self.registration.showNotification(data.title || 'Capital Flow', {
-      body: data.body || 'New stock alert',
-      icon: '/favicon.svg',
-      badge: '/favicon.svg',
-      tag: 'volume-alert',
-      renotify: true,
-    })
-  );
+
+  var title = data.title || 'Capital Flow';
+  var options = {
+    body: data.body || 'New stock alert',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: data.tag || 'volume-alert',
+    renotify: true,
+    // Forward structured data so notificationclick can navigate
+    data: {
+      url: (data.data && data.data.url) || '/',
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
+  var targetUrl = (event.notification.data && event.notification.data.url) || '/';
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+      // Focus existing tab if open
       for (var i = 0; i < clientList.length; i++) {
-        if (clientList[i].url.indexOf('/') !== -1 && 'focus' in clientList[i]) {
-          return clientList[i].focus();
+        var c = clientList[i];
+        if ('focus' in c) {
+          if (typeof c.navigate === 'function') c.navigate(targetUrl);
+          return c.focus();
         }
       }
-      if (clients.openWindow) return clients.openWindow('/');
+      // Otherwise open new window
+      if (clients.openWindow) return clients.openWindow(targetUrl);
     })
   );
 });
