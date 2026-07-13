@@ -1,9 +1,8 @@
-import React, { useState, useRef } from 'react';
-import HCaptcha from '@hcaptcha/react-hcaptcha';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import useModalA11y from '../../hooks/useModalA11y';
 
-const HCAPTCHA_SITE_KEY = import.meta.env.VITE_HCAPTCHA_SITE_KEY || '10000000-ffff-ffff-ffff-000000000001'; // test key
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'; // test key
 
 function OTPInput({ length = 6, value, onChange }) {
   const inputs = useRef([]);
@@ -55,6 +54,53 @@ function OTPInput({ length = 6, value, onChange }) {
   );
 }
 
+function Turnstile({ onVerify, onExpire }) {
+  const containerRef = useRef(null);
+  const widgetId = useRef(null);
+
+  const render = useCallback(() => {
+    if (!containerRef.current || !window.turnstile) return;
+    if (widgetId.current != null) return;
+    widgetId.current = window.turnstile.render(containerRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      callback: (token) => onVerify(token),
+      'expired-callback': () => { onExpire(); widgetId.current = null; },
+      theme: 'dark',
+    });
+  }, [onVerify, onExpire]);
+
+  useEffect(() => {
+    if (window.turnstile) {
+      render();
+      return;
+    }
+    if (document.getElementById('cf-turnstile-script')) {
+      const interval = setInterval(() => {
+        if (window.turnstile) { clearInterval(interval); render(); }
+      }, 100);
+      return () => clearInterval(interval);
+    }
+    const script = document.createElement('script');
+    script.id = 'cf-turnstile-script';
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+    script.async = true;
+    script.defer = true;
+    script.onload = render;
+    document.head.appendChild(script);
+  }, [render]);
+
+  useEffect(() => {
+    return () => {
+      if (widgetId.current != null && window.turnstile) {
+        window.turnstile.remove(widgetId.current);
+        widgetId.current = null;
+      }
+    };
+  }, []);
+
+  return <div ref={containerRef} />;
+}
+
 function decodeJwtEmail(token) {
   try {
     const payload = token.split('.')[1];
@@ -72,7 +118,6 @@ export default function AuthModal({ onClose }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
-  const captchaRef = useRef(null);
   const panelRef = useModalA11y(onClose);
 
   // Form fields
@@ -124,7 +169,6 @@ export default function AuthModal({ onClose }) {
       startResendCooldown();
     } catch (err) {
       handleErr(err.message);
-      captchaRef.current?.resetCaptcha();
       setCaptchaToken('');
     }
   }
@@ -207,7 +251,6 @@ export default function AuthModal({ onClose }) {
     setPassword('');
     setOtp('');
     setCaptchaToken('');
-    captchaRef.current?.resetCaptcha();
   }
 
   return (
@@ -312,13 +355,9 @@ export default function AuthModal({ onClose }) {
 
               {screen === 'signup' && (
                 <div className="auth-captcha-wrap">
-                  <HCaptcha
-                    ref={captchaRef}
-                    sitekey={HCAPTCHA_SITE_KEY}
+                  <Turnstile
                     onVerify={(token) => setCaptchaToken(token)}
                     onExpire={() => setCaptchaToken('')}
-                    theme="dark"
-                    size="normal"
                   />
                 </div>
               )}

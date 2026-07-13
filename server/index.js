@@ -36,7 +36,7 @@ const spaCsp = helmet.contentSecurityPolicy({
   useDefaults: false,
   directives: {
     defaultSrc: ["'self'"],
-    scriptSrc: ["'self'"],
+    scriptSrc: ["'self'", 'https://challenges.cloudflare.com'],
     // React sets inline styles via the CSSOM (style.setProperty), which CSP
     // treats the same as a literal style="" attribute — 'unsafe-inline' is
     // required here given how pervasively this app uses style={{...}}.
@@ -64,7 +64,10 @@ const spaCsp = helmet.contentSecurityPolicy({
       'https://*.ingest.de.sentry.io',
       'https://us.i.posthog.com',
       'https://us-assets.i.posthog.com',
+      'https://challenges.cloudflare.com',
     ],
+    // Turnstile renders its challenge inside a sandboxed iframe from Cloudflare
+    frameSrc: ["'self'", 'https://challenges.cloudflare.com'],
     objectSrc: ["'none'"],
     baseUri: ["'self'"],
     frameAncestors: ["'none'"],

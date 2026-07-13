@@ -21,6 +21,7 @@ const {
   GOOGLE_CLIENT_SECRET,
   GOOGLE_CALLBACK_URL,
   HCAPTCHA_SECRET,
+  TURNSTILE_SECRET,
   FRONTEND_URL,
   ADMIN_EMAIL,
 } = require('../config');
@@ -31,12 +32,13 @@ const {
 // (the admin panel renders emails via template strings, not React).
 const EMAIL_RE = /^[^\s@<>"'`]+@[^\s@<>"'`]+\.[^\s@<>"'`]+$/;
 
-/* ── hCaptcha verification ── */
-async function verifyHCaptcha(token) {
-  if (!HCAPTCHA_SECRET) return true; // bypass in dev if not configured
+/* ── Cloudflare Turnstile verification ── */
+async function verifyTurnstile(token) {
+  const secret = TURNSTILE_SECRET || HCAPTCHA_SECRET; // fallback for legacy env
+  if (!secret) return true; // bypass in dev if not configured
   if (!token) return false;
-  const params = new URLSearchParams({ secret: HCAPTCHA_SECRET, response: token });
-  const res = await fetch(`https://hcaptcha.com/siteverify`, { method: 'POST', body: params });
+  const params = new URLSearchParams({ secret, response: token });
+  const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: params });
   const data = await res.json();
   return data.success === true;
 }
@@ -126,7 +128,7 @@ router.post('/signup', authLimiter, async (req, res) => {
     if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Please enter a valid email address' });
     if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
-    const captchaOk = await verifyHCaptcha(captchaToken);
+    const captchaOk = await verifyTurnstile(captchaToken);
     if (!captchaOk) return res.status(400).json({ error: 'CAPTCHA verification failed' });
 
     const existing = await db.prepare('SELECT id, is_verified FROM users WHERE email = ?').get(email);
