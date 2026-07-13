@@ -20,14 +20,15 @@ jobs:
       - run: npm test
       - run: npm run build
 
-  # ── 2. Trigger Koyeb redeploy ─────────────────────────────────────────────
+  # ── 2. Trigger Render redeploy via deploy hook ────────────────────────────
   deploy:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to Koyeb
+      - name: Deploy to Render
         run: |
-          curl -fsSL https://raw.githubusercontent.com/koyeb/koyeb-cli/master/install.sh | sh
-          koyeb service redeploy capital-flow/capital-flow --wait
-        env:
-          KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}" --max-time 30)
+          echo "Render deploy hook status: $STATUS"
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "201" ]; then
+            echo "Warning: deploy hook returned $STATUS"
+          fi
