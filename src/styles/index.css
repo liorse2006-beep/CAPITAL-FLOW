@@ -5232,6 +5232,96 @@ td {
   border: 0;
 }
 
+/* ── Install / Add-to-Home-Screen prompt ───────────────────────────────────── */
+.install-prompt {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-1);
+  border: 1px solid rgba(0, 255, 136, 0.25);
+  border-radius: 14px;
+  padding: 14px 16px;
+  width: min(420px, calc(100vw - 24px));
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0,255,136,0.06);
+  animation: slideUpBanner 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes slideUpBanner {
+  from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.install-prompt-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(0, 255, 136, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(0,255,136,0.15);
+}
+.install-prompt-body {
+  flex: 1;
+  min-width: 0;
+}
+.install-prompt-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-0);
+  font-family: var(--font);
+  margin: 0 0 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.install-prompt-sub {
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--font);
+  margin: 0;
+  line-height: 1.4;
+}
+.install-prompt-sub strong {
+  color: var(--text-2);
+}
+.install-prompt-cta {
+  flex-shrink: 0;
+  padding: 7px 16px;
+  background: var(--accent);
+  color: #000;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.install-prompt-cta:hover {
+  opacity: 0.85;
+}
+.install-prompt-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  border-radius: 6px;
+  transition: color 0.15s;
+}
+.install-prompt-close:hover {
+  color: var(--text-1);
+}
+
 /* ── Schedule Scan ─────────────────────────────────────────────────────────── */
 .schedule-scan-btn {
   display: inline-flex;

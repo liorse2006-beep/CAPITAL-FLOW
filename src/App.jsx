@@ -9,6 +9,7 @@ import { categoryQuota } from './utils/quota';
 import { useAuth } from './context/AuthContext';
 import { track } from './analytics';
 import PushPermissionPrompt from './components/shared/PushPermissionPrompt';
+import InstallPrompt from './components/shared/InstallPrompt';
 import UpgradeModal from './components/shared/UpgradeModal';
 import PilotGate from './components/shared/PilotGate';
 import AlertThresholdModal from './components/shared/AlertThresholdModal';
@@ -825,6 +826,7 @@ function App() {
       )}
 
       <PushPermissionPrompt user={user} />
+      <InstallPrompt />
 
       <FeedbackButton />
 
