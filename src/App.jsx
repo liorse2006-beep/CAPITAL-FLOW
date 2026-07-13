@@ -883,7 +883,7 @@ function App() {
             path="/ma"
             element={
               <Suspense fallback={<div className="page-loading">Loading…</div>}>
-                <MAScannerPage onOpenChart={openChart} onSignIn={() => setShowAuthModal(true)} />
+                <MAScannerPage onOpenChart={openChart} onSignIn={() => setShowAuthModal(true)} onUpgrade={() => setShowUpgradeModal(true)} />
               </Suspense>
             }
           />
@@ -994,6 +994,8 @@ function App() {
                 maxFreeSectors={MAX_FREE_SECTORS}
                 maxPremiumSectors={MAX_PREMIUM_SECTORS}
                 sectorLimit={sectorLimit}
+                user={user}
+                onUpgrade={() => setShowUpgradeModal(true)}
               />
             }
           />

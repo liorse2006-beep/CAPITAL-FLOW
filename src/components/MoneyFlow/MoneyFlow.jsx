@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import SectorHeatmap from './SectorHeatmap';
 import ScanLoader from '../shared/ScanLoader';
+import ScheduleScan from '../shared/ScheduleScan';
 import { fmt, friendlyError } from '../../utils/format';
 import { categoryQuota } from '../../utils/quota';
 import { SECTOR_ETFS } from '../../constants';
@@ -111,7 +112,7 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn }) {
           <h2 className="flow-title">Sector Money Flow</h2>
           <p className="flow-sub">ALL MARKET SECTORS</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button className="scan-btn" onClick={fetchFlow} disabled={loading}>
             {loading
               ? React.createElement(
@@ -122,6 +123,13 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn }) {
                 )
               : 'Refresh Flow'}
           </button>
+          {user && (
+            <ScheduleScan
+              scanType="sectorMoving"
+              user={user}
+              onUpgrade={() => setShowUpgradeModal(true)}
+            />
+          )}
         </div>
       </div>
 

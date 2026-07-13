@@ -147,7 +147,21 @@ async function initDb() {
       expires_at       INTEGER,
       paddle_discount_id TEXT,
       created_at       INTEGER NOT NULL DEFAULT (unixepoch())
-    )
+    );
+
+    CREATE TABLE IF NOT EXISTS scheduled_scans (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id           INTEGER NOT NULL,
+      scan_type         TEXT    NOT NULL CHECK(scan_type IN ('capitalFlow','maScanner','sectorMoving')),
+      scan_time         TEXT    NOT NULL,
+      active            INTEGER NOT NULL DEFAULT 1,
+      last_run_at       INTEGER,
+      last_result_count INTEGER,
+      created_at        INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_scheduled_scans_user ON scheduled_scans(user_id);
+    CREATE INDEX IF NOT EXISTS idx_scheduled_scans_time ON scheduled_scans(scan_time, active)
   `);
 
   // Safe migrations — silently ignored if the column already exists

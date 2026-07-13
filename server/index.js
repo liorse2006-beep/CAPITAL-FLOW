@@ -12,6 +12,7 @@ const fs = require('fs');
 const { PORT, SESSION_SECRET, FRONTEND_URL } = require('./config');
 const { startBackgroundScheduler } = require('./services/backgroundScan');
 const { startScheduledDigest } = require('./services/scheduledDigest');
+const { startScheduledScanRunner } = require('./services/scheduledScanRunner');
 const { scanLimiter, apiLimiter, adminLimiter } = require('./middleware/rateLimiters');
 
 const app = express();
@@ -150,6 +151,7 @@ app.use('/api', require('./routes/stream').router);
 app.use('/api', require('./routes/maScanner'));
 app.use('/api', require('./routes/scanQuota'));
 app.use('/api', require('./routes/push'));
+app.use('/api', require('./routes/scheduledScans'));
 app.use('/api', require('./routes/feedback'));
 app.use('/api', require('./routes/coupons'));
 app.use('/api', require('./routes/checkout'));
@@ -180,6 +182,7 @@ process.on('uncaughtException', (err) => {
 
 startBackgroundScheduler();
 startScheduledDigest();
+startScheduledScanRunner();
 
 app.listen(PORT, () => {
   console.log(`Volume Scanner running at http://localhost:${PORT}`);

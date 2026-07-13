@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import useScanQuota from '../../hooks/useScanQuota';
 import ScanLoader from '../shared/ScanLoader';
+import ScheduleScan from '../shared/ScheduleScan';
 import { categoryQuota } from '../../utils/quota';
 import { friendlyError } from '../../utils/format';
 
@@ -38,7 +39,7 @@ function fmtCap(v) {
   return '—';
 }
 
-export default function MAScannerPage({ onOpenChart, onSignIn }) {
+export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
   const { getToken, user } = useAuth();
   const isPremium = !!(user && user.is_premium);
 
@@ -174,7 +175,7 @@ export default function MAScannerPage({ onOpenChart, onSignIn }) {
       ),
       React.createElement(
         'div',
-        { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+        { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
         scanTime &&
           React.createElement(
             'span',
@@ -199,7 +200,8 @@ export default function MAScannerPage({ onOpenChart, onSignIn }) {
               : results
                 ? 'Re-scan'
                 : 'Run MA Scan'
-          )
+          ),
+        user && React.createElement(ScheduleScan, { scanType: 'maScanner', user, onUpgrade })
       )
     ),
 

@@ -1,5 +1,6 @@
 import React from 'react'
 import ScanLoader from '../shared/ScanLoader'
+import ScheduleScan from '../shared/ScheduleScan'
 import { fmt, friendlyError } from '../../utils/format'
 import { categoryQuota } from '../../utils/quota'
 import { SECTOR_ICONS } from '../../constants/sectorIcons'
@@ -148,6 +149,8 @@ export default function ScannerPage({
   maxFreeSectors,
   maxPremiumSectors,
   sectorLimit,
+  user,
+  onUpgrade,
 }) {
   const lastCount = results ? results.length : null
   const mktOpen = isMarketOpenNow()
@@ -432,7 +435,7 @@ export default function ScannerPage({
           )}
 
           {scanMode && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center', marginTop: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center', marginTop: 8, flexWrap: 'wrap' }}>
               <button className="scan-btn scan-mode-go" onClick={startScan} disabled={scanning}>
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8 }}>
                   <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
@@ -448,6 +451,7 @@ export default function ScannerPage({
                       : '1 free scan available'}
                 </span>
               )}
+              {user && <ScheduleScan scanType="capitalFlow" user={user} onUpgrade={onUpgrade} />}
             </div>
           )}
         </div>
