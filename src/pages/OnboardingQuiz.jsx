@@ -8,6 +8,7 @@ const QUESTIONS = [
     options: [
       { label: 'Active day trader', emoji: '⚡', desc: 'Multiple positions, daily action' },
       { label: 'Swing trader', emoji: '📈', desc: 'Hold for days or weeks' },
+      { label: 'Long term investor', emoji: '🏦', desc: 'Holding for years, watching fundamentals' },
       { label: 'Learning to trade', emoji: '🌱', desc: 'Building my strategy' },
     ],
   },
@@ -299,34 +300,34 @@ export default function OnboardingQuiz({ onComplete }) {
 
           {isCTA && (
             <div className="quiz-cta-wrap">
-              <div className="quiz-cta-badge">LIVE MARKET DATA</div>
-              <div className="quiz-cta-pulse-ring" />
+              <div className="quiz-cta-logo-wrap">
+                <img src="/logo-text.png" alt="Capital Flow" className="quiz-cta-logo-img" />
+              </div>
               <h1 className="quiz-cta-title">
-                You&apos;re 1 click away from seeing
+                See what&apos;s moving
                 <br />
-                <span className="quiz-cta-highlight">what&apos;s spiking right now</span>
+                <span className="quiz-cta-highlight">right now</span>
               </h1>
               <p className="quiz-cta-sub">
-                Real-time volume anomalies across 6,000+ stocks.
-                <br />
-                Catch the move before the crowd.
+                Live volume spikes across 6,000+ stocks —<br />before they make the news.
               </p>
-              <button className="quiz-cta-btn primary pulse" onClick={handleScan}>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                >
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                SCAN THE MARKET NOW
-              </button>
-              <div className="quiz-cta-note">Free to start · No credit card</div>
+              <div className="quiz-cta-trust-row">
+                <span className="quiz-cta-trust-item"><span className="quiz-cta-trust-dot" />Free to start</span>
+                <span className="quiz-cta-trust-item"><span className="quiz-cta-trust-dot" />No credit card</span>
+                <span className="quiz-cta-trust-item"><span className="quiz-cta-trust-dot" />Live data</span>
+              </div>
+              <div className="quiz-cta-aurora-wrap">
+                <button className="quiz-cta-aurora-btn" onClick={handleScan}>
+                  <span className="quiz-cta-aurora-content">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round">
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    Scan the market now
+                  </span>
+                </button>
+                <div className="quiz-cta-aurora-glow" />
+              </div>
             </div>
           )}
         </div>
