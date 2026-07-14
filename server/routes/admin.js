@@ -8,6 +8,16 @@ const pilotAllowlist = require('../services/pilotAllowlist');
 
 const EMAIL_RE = /^[^\s@<>"'`]+@[^\s@<>"'`]+\.[^\s@<>"'`]+$/;
 
+// Catches unhandled promise rejections in async route handlers (Express 4 doesn't do this natively)
+function asyncRoute(fn) {
+  return function (req, res, next) {
+    fn(req, res, next).catch(function (err) {
+      console.error('[admin route]', err);
+      if (!res.headersSent) res.status(500).json({ error: 'Server error' });
+    });
+  };
+}
+
 async function checkToken(req, res) {
   if (!ADMIN_TOKEN) {
     res.status(503).send('Admin panel disabled — set ADMIN_TOKEN in .env');
@@ -33,7 +43,7 @@ async function checkToken(req, res) {
 }
 
 // ── Admin API: user list ───────────────────────────────────────────────────
-router.get('/admin/api/users', async (req, res) => {
+router.get('/admin/api/users', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   const users = await db
     .prepare(
@@ -47,19 +57,19 @@ router.get('/admin/api/users', async (req, res) => {
     )
     .all();
   res.json(users);
-});
+}));
 
 // ── Admin API: force sign-out ──────────────────────────────────────────────
-router.post('/admin/api/users/:id/logout', async (req, res) => {
+router.post('/admin/api/users/:id/logout', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   await db.prepare('UPDATE users SET session_version = session_version + 1 WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
-});
+}));
 
 const VALID_TIERS = new Set(['free', 'premium', 'elite']);
 
 // ── Admin API: set subscription tier ───────────────────────────────────────
-router.post('/admin/api/users/:id/tier', async (req, res) => {
+router.post('/admin/api/users/:id/tier', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   const { tier } = req.body;
   if (!VALID_TIERS.has(tier)) return res.status(400).json({ error: 'tier must be free, premium, or elite' });
@@ -69,53 +79,53 @@ router.post('/admin/api/users/:id/tier', async (req, res) => {
     req.params.id
   );
   res.json({ ok: true, tier });
-});
+}));
 
 // ── Admin API: block / unblock ────────────────────────────────────────────
-router.post('/admin/api/users/:id/block', async (req, res) => {
+router.post('/admin/api/users/:id/block', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   const { value } = req.body; // 1 or 0
   await db.prepare('UPDATE users SET is_blocked = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
   res.json({ ok: true });
-});
+}));
 
 // ── Admin API: delete user ─────────────────────────────────────────────────
-router.delete('/admin/api/users/:id', async (req, res) => {
+router.delete('/admin/api/users/:id', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   await db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
-});
+}));
 
 // ── Admin API: grant / revoke pilot status on an existing user ─────────────
-router.post('/admin/api/users/:id/pilot', async (req, res) => {
+router.post('/admin/api/users/:id/pilot', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   const { value } = req.body; // 1 or 0
   await db.prepare('UPDATE users SET is_pilot = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
   res.json({ ok: true });
-});
+}));
 
 // ── Admin API: pilot allowlist (pre-approved emails) ────────────────────────
-router.get('/admin/api/pilot-allowlist', async (req, res) => {
+router.get('/admin/api/pilot-allowlist', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   res.json(await pilotAllowlist.listAllowlist());
-});
+}));
 
-router.post('/admin/api/pilot-allowlist', async (req, res) => {
+router.post('/admin/api/pilot-allowlist', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   const email = String(req.body.email || '').trim();
   if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Valid email required' });
   await pilotAllowlist.addToAllowlist(email);
   res.json({ ok: true });
-});
+}));
 
-router.delete('/admin/api/pilot-allowlist/:email', async (req, res) => {
+router.delete('/admin/api/pilot-allowlist/:email', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   await pilotAllowlist.removeFromAllowlist(req.params.email);
   res.json({ ok: true });
-});
+}));
 
 // ── Admin API: feedback submissions ────────────────────────────────────────
-router.get('/admin/api/feedback', async (req, res) => {
+router.get('/admin/api/feedback', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   const rows = await db
     .prepare(
@@ -128,13 +138,13 @@ router.get('/admin/api/feedback', async (req, res) => {
     )
     .all();
   res.json(rows);
-});
+}));
 
-router.delete('/admin/api/feedback/:id', async (req, res) => {
+router.delete('/admin/api/feedback/:id', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   await db.prepare('DELETE FROM feedback WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
-});
+}));
 
 // ── Admin API: coupons ──────────────────────────────────────────────────────
 const VALID_APPLIES_TO = new Set(['both', 'premium', 'elite']);
@@ -148,11 +158,11 @@ function generateCode() {
   return code;
 }
 
-router.get('/admin/api/coupons', async (req, res) => {
+router.get('/admin/api/coupons', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   const rows = await db.prepare('SELECT * FROM coupons ORDER BY id DESC').all();
   res.json(rows);
-});
+}));
 
 router.post('/admin/api/coupons', async (req, res) => {
   if (!(await checkToken(req, res))) return;
@@ -187,18 +197,18 @@ router.post('/admin/api/coupons', async (req, res) => {
   res.json({ ok: true, code });
 });
 
-router.post('/admin/api/coupons/:code/toggle', async (req, res) => {
+router.post('/admin/api/coupons/:code/toggle', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   const { active } = req.body;
   await db.prepare('UPDATE coupons SET active = ? WHERE code = ?').run(active ? 1 : 0, req.params.code.toUpperCase());
   res.json({ ok: true });
-});
+}));
 
-router.delete('/admin/api/coupons/:code', async (req, res) => {
+router.delete('/admin/api/coupons/:code', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   await db.prepare('DELETE FROM coupons WHERE code = ?').run(req.params.code.toUpperCase());
   res.json({ ok: true });
-});
+}));
 
 router.post('/admin/api/users/:id/push-test', async (req, res) => {
   if (!(await checkToken(req, res))) return;
@@ -215,7 +225,7 @@ router.post('/admin/api/users/:id/push-test', async (req, res) => {
 });
 
 // ── Admin UI ───────────────────────────────────────────────────────────────
-router.get('/admin', async (req, res) => {
+router.get('/admin', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   const token = req.query.token;
   const jwt = req.query.jwt;
@@ -417,7 +427,7 @@ router.get('/admin', async (req, res) => {
 <div class="toast" id="toast"></div>
 
 <script>
-const AUTH_HEADERS = ${jwt ? `{ 'Authorization': 'Bearer ${jwt}' }` : `{ 'x-admin-token': '${token}' }`};
+const AUTH_HEADERS = ${jwt ? `{ 'Authorization': 'Bearer ' + ${JSON.stringify(jwt)} }` : `{ 'x-admin-token': ${JSON.stringify(token)} }`};
 history.replaceState(null, '', '/admin');
 
 let allUsers = [];
@@ -752,6 +762,6 @@ setInterval(loadCoupons, 60000);
 </script>
 </body>
 </html>`);
-});
+}));
 
 module.exports = router;

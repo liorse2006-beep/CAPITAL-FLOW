@@ -3,7 +3,7 @@ const { scanTickers } = require('../services/scanner');
 const { backgroundCache, filterCachedResults } = require('../services/backgroundScan');
 const { scanState } = require('../state');
 const { SP500, NASDAQ100, ALL_TICKERS, SECTOR_TICKERS } = require('../../tickers');
-const { requireScanQuota } = require('../middleware/authMiddleware');
+const { requireAuth, requireScanQuota } = require('../middleware/authMiddleware');
 const { spendScan: spendScanQuota, quotaFor } = require('../services/scanQuota');
 
 function isMarketOpen() {
@@ -119,7 +119,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
   }
 });
 
-router.get('/progress', (req, res) => {
+router.get('/progress', requireAuth, (req, res) => {
   res.json({
     running: scanState.running,
     progress: scanState.progress,
@@ -127,7 +127,7 @@ router.get('/progress', (req, res) => {
   });
 });
 
-router.get('/last-results', (req, res) => {
+router.get('/last-results', requireAuth, (req, res) => {
   res.json({
     results: scanState.lastResults,
     scanTime: scanState.lastScanTime,

@@ -1,10 +1,11 @@
 const router = require('express').Router();
 const { quickScan } = require('../services/scanner');
 const { scanLimiter } = require('../middleware/rateLimiters');
+const { requireAuth } = require('../middleware/authMiddleware');
 
 var SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
 
-router.get('/watchlist-quotes', scanLimiter, async (req, res) => {
+router.get('/watchlist-quotes', requireAuth, scanLimiter, async (req, res) => {
   var symbols = req.query.symbols
     ? req.query.symbols
         .split(',')
