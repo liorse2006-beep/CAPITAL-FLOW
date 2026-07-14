@@ -1,6 +1,8 @@
 const router = require('express').Router();
 const db = require('../db');
-const { ADMIN_TOKEN, ADMIN_EMAIL } = require('../config');
+const { ADMIN_TOKEN, ADMIN_EMAIL, TURSO_DB_URL } = require('../config');
+
+const DB_ENV = TURSO_DB_URL ? 'PRODUCTION (Turso)' : 'LOCAL (SQLite)';
 const { verifyToken } = require('../services/auth');
 const pilotAllowlist = require('../services/pilotAllowlist');
 
@@ -336,6 +338,7 @@ router.get('/admin', async (req, res) => {
 <div class="topbar">
   <h1>⚡ Capital Flow — Admin</h1>
   <div style="display:flex;align-items:center;gap:16px">
+    <span style="font-size:11px;font-family:monospace;padding:3px 10px;border-radius:4px;font-weight:700;${TURSO_DB_URL ? 'background:rgba(34,197,94,0.12);color:#22C55E;border:1px solid rgba(34,197,94,0.25)' : 'background:rgba(239,68,68,0.12);color:#EF4444;border:1px solid rgba(239,68,68,0.25)'}">${DB_ENV}</span>
     <span id="last-refresh">Loading…</span>
     <a href="/" style="font-size:12px;color:#71717A;text-decoration:none;border:1px solid rgba(255,255,255,0.1);padding:5px 12px;border-radius:6px;transition:color .15s" onmouseover="this.style.color='#E4E4E7'" onmouseout="this.style.color='#71717A'">← Back to site</a>
   </div>

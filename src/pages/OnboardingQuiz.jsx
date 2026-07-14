@@ -158,9 +158,10 @@ export default function OnboardingQuiz({ onComplete }) {
   const [selected, setSelected] = useState({});
   const [direction, setDirection] = useState('forward');
 
-  const totalSteps = QUESTIONS.length + 1;
+  const totalSteps = QUESTIONS.length + 2;
   const isQuestion = step < QUESTIONS.length;
-  const isCTA = step === QUESTIONS.length;
+  const isReveal = step === QUESTIONS.length;
+  const isCTA = step === QUESTIONS.length + 1;
 
   function advance() {
     setDirection('forward');
@@ -190,7 +191,7 @@ export default function OnboardingQuiz({ onComplete }) {
     <div className="quiz-shell">
       {/* Header */}
       <div className="quiz-top">
-        {step > 0 && !isCTA ? (
+        {step > 0 && !isReveal && !isCTA ? (
           <button className="quiz-back-btn" onClick={back}>
             <svg
               width="14"
@@ -222,9 +223,9 @@ export default function OnboardingQuiz({ onComplete }) {
             <span>CAPITAL FLOW</span>
           </div>
         )}
-        {!isCTA && (
+        {isQuestion && (
           <div className="quiz-progress">
-            {Array.from({ length: totalSteps - 1 }).map((_, i) => (
+            {Array.from({ length: QUESTIONS.length }).map((_, i) => (
               <div key={i} className={`quiz-prog-dot ${i < step ? 'done' : i === step ? 'active' : ''}`} />
             ))}
           </div>
@@ -270,6 +271,8 @@ export default function OnboardingQuiz({ onComplete }) {
               </div>
             </div>
           )}
+
+          {isReveal && <RevealSlide onNext={advance} />}
 
           {isCTA && (
             <div className="quiz-cta-wrap">

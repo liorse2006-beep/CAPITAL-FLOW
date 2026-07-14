@@ -118,6 +118,7 @@ export default function AuthModal({ onClose }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const panelRef = useModalA11y(onClose);
 
   // Form fields
@@ -158,7 +159,6 @@ export default function AuthModal({ onClose }) {
 
   async function handleSignUp(e) {
     e.preventDefault();
-    if (!captchaToken) return handleErr('Please complete the CAPTCHA');
     setLoading(true);
     setError('');
     try {
@@ -296,12 +296,6 @@ export default function AuthModal({ onClose }) {
                 Sign Up
               </button>
             </div>
-
-            {screen === 'signup' && (
-              <div className="auth-badge-row">
-                <span className="auth-badge">Free · No credit card needed</span>
-              </div>
-            )}
 
             <button className="auth-google-btn" onClick={confirmGoogle}>
               <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
@@ -488,15 +482,19 @@ export default function AuthModal({ onClose }) {
               </button>
               <button
                 className="auth-consent-allow"
-                onClick={() => {
-                  confirmGoogleLogin();
+                disabled={googleLoading}
+                onClick={async () => {
+                  setGoogleLoading(true);
+                  await confirmGoogleLogin();
                   onClose();
                 }}
               >
-                Allow
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
+                {googleLoading ? 'Signing in…' : 'Allow'}
+                {!googleLoading && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                )}
               </button>
             </div>
           </div>

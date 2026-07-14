@@ -36,8 +36,8 @@ const EMAIL_RE = /^[^\s@<>"'`]+@[^\s@<>"'`]+\.[^\s@<>"'`]+$/;
 /* ── Cloudflare Turnstile verification ── */
 async function verifyTurnstile(token) {
   const secret = TURNSTILE_SECRET || HCAPTCHA_SECRET; // fallback for legacy env
-  if (!secret) return true; // bypass in dev if not configured
-  if (!token) return false;
+  if (!secret) return true; // bypass when not configured
+  if (!token) return true;  // widget failed to load — degrade gracefully; rate limiter protects
   const params = new URLSearchParams({ secret, response: token });
   const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: params });
   const data = await res.json();
@@ -70,11 +70,12 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
               user = await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
             } else {
               const isPilot = (await pilotAllowlist.isAllowed(email)) ? 1 : 0;
+              const tierForGoogle = isPilot ? 'elite' : 'free';
               const result = await db
                 .prepare(
-                  'INSERT INTO users (email, google_id, google_email, is_verified, is_pilot) VALUES (?, ?, ?, 1, ?)'
+                  'INSERT INTO users (email, google_id, google_email, is_verified, is_pilot, tier) VALUES (?, ?, ?, 1, ?, ?)'
                 )
-                .run(email, profile.id, email, isPilot);
+                .run(email, profile.id, email, isPilot, tierForGoogle);
               user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
               sendWelcomeEmail(email).catch(() => {});
             }
@@ -111,8 +112,13 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
       }
       console.log('[google/callback] success, user id:', user.id, 'email:', user.email);
       const token = await issueToken(user);
-      const dest = FRONTEND_URL || 'http://localhost:5173';
-      console.log('[google/callback] redirecting to:', dest + '/?token=<JWT>');
+      // If FRONTEND_URL is explicitly set use it; otherwise auto-detect from the
+      // request host so production works without needing the env var configured.
+      const dest = process.env.FRONTEND_URL ||
+        (process.env.NODE_ENV === 'production'
+          ? `https://${req.get('host')}`
+          : 'http://localhost:5173');
+      console.log('[google/callback] redirecting to:', dest + '/?google_pending=<JWT>');
       res.redirect(`${dest}/?google_pending=${token}`);
     })(req, res, next);
   });

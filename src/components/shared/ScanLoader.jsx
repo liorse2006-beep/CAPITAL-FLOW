@@ -212,7 +212,7 @@ export default function ScanLoader({ label, matches, statusMessages }) {
   var deckRef = useRef(shuffled(TICKER_POOL));
   var deckIdxRef = useRef(0);
   var [visible, setVisible] = useState(function () {
-    return deckRef.current.slice(0, 14);
+    return deckRef.current.slice(0, 24);
   });
   var [statusIdx, setStatusIdx] = useState(0);
   var [pulse, setPulse] = useState(false);

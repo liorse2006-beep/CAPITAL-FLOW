@@ -13,7 +13,6 @@ import InstallPrompt from './components/shared/InstallPrompt';
 import UpgradeModal from './components/shared/UpgradeModal';
 import PilotGate from './components/shared/PilotGate';
 import AlertThresholdModal from './components/shared/AlertThresholdModal';
-import FeedbackButton from './components/shared/FeedbackButton';
 import Topbar from './components/shared/Topbar';
 import WatchlistPage from './components/Watchlist/WatchlistPage';
 import ScannerPage from './components/Scanner/ScannerPage';
@@ -501,6 +500,7 @@ function App() {
   }, []);
 
   useEffect(function () {
+    if (!localStorage.getItem('vs_token')) return; // don't auto-show cached results to guests
     fetch('/api/last-results')
       .then(function (r) {
         return r.json();
@@ -828,7 +828,6 @@ function App() {
       <PushPermissionPrompt user={user} />
       <InstallPrompt />
 
-      <FeedbackButton />
 
       {showUpgradeModal && <UpgradeModal userTier={userTier} onClose={() => setShowUpgradeModal(false)} />}
 

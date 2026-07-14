@@ -181,6 +181,14 @@ export default function ScannerPage({
             </div>
             <div className="radar-info" role="status" aria-live="polite" aria-atomic="true">
               <div className="radar-pct">{Math.round((progress.processed / progress.total) * 100) + '%'}</div>
+              <div className="scan-progress-mini">
+                <div className="scan-progress-track">
+                  <div
+                    className="scan-progress-fill"
+                    style={{ width: Math.round((progress.processed / progress.total) * 100) + '%' }}
+                  />
+                </div>
+              </div>
               <div className="radar-stat">Scanning the market...</div>
               <div className="radar-stat accent">
                 {progress.found + ' volume spike' + (progress.found !== 1 ? 's' : '') + ' detected'}
@@ -603,6 +611,7 @@ export default function ScannerPage({
                       <TH label="Change" field="change" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
                       <TH label="RVOL" field="volumeRatio" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
                       <th>Avg / Vol</th>
+                      <TH label="Mkt Cap" field="marketCap" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
                       <TH label="Sector" field="sector" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
                       <th style={{ width: 36 }}></th>
                     </tr>
@@ -656,6 +665,9 @@ export default function ScannerPage({
                             <span className="vol-stack-sep">/</span>
                             <span className="vol-stack-cur">{fmt(r.volume)}</span>
                           </span>
+                        </td>
+                        <td style={{ color: 'var(--text-2)', fontSize: 12 }}>
+                          {r.marketCap > 0 ? fmt(r.marketCap) : '—'}
                         </td>
                         <td>
                           <span className="sector-chip">{r.sector}</span>
@@ -811,6 +823,9 @@ export default function ScannerPage({
                           </span>
                         </span>
                         <span className="mobile-card-vol">{fmt(r.avgVolume) + ' / ' + fmt(r.volume)}</span>
+                        {r.marketCap > 0 && (
+                          <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{fmt(r.marketCap)}</span>
+                        )}
                         <span className="mobile-card-sector">
                           <span className="sector-chip">{r.sector}</span>
                         </span>

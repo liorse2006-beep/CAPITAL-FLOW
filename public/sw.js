@@ -65,7 +65,11 @@ self.addEventListener('push', function (event) {
     badge: '/icon-192.png',
     tag: data.tag || 'volume-alert',
     renotify: true,
-    // Forward structured data so notificationclick can navigate
+    requireInteraction: false,
+    vibrate: [100, 50, 100],
+    actions: [
+      { action: 'open', title: 'Open App' },
+    ],
     data: {
       url: (data.data && data.data.url) || '/',
     },
@@ -80,7 +84,6 @@ self.addEventListener('notificationclick', function (event) {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      // Focus existing tab if open
       for (var i = 0; i < clientList.length; i++) {
         var c = clientList[i];
         if ('focus' in c) {
@@ -88,7 +91,6 @@ self.addEventListener('notificationclick', function (event) {
           return c.focus();
         }
       }
-      // Otherwise open new window
       if (clients.openWindow) return clients.openWindow(targetUrl);
     })
   );

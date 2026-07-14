@@ -22,30 +22,39 @@ async function executeScheduledScan(sched) {
     const { scanTickers } = require('./scanner');
     const res = await scanTickers(ALL_TICKERS, { minVolumeRatio: 2.5, minMarketCap: 1_000_000_000 });
     results = res.results || [];
-    title = 'Capital Flow — Scan Ready';
-    body =
-      results.length > 0
-        ? `${results.length} stocks with unusual volume. Top: ${results[0].symbol} ${results[0].volumeRatio.toFixed(1)}x avg`
-        : 'No unusual volume detected right now.';
+    if (results.length > 0) {
+      const top = results[0];
+      title = `Volume spike detected — ${top.symbol} ${top.volumeRatio.toFixed(1)}×`;
+      body = `${results.length} stocks moving right now. Tap to see the full scan.`;
+    } else {
+      title = 'Capital Flow — Daily Scan';
+      body = 'No unusual volume right now. Markets look quiet.';
+    }
   } else if (sched.scan_type === 'maScanner') {
     const { scanMA } = require('./maScanner');
     const res = await scanMA(ALL_TICKERS, { ma: 20, distance: 2, interval: '1d' });
     results = res.results || [];
-    title = 'MA Scanner — Scan Ready';
-    body =
-      results.length > 0
-        ? `${results.length} stocks near MA20. Top: ${results[0].symbol}`
-        : 'No MA crossings detected right now.';
+    if (results.length > 0) {
+      title = `MA signal detected — ${results[0].symbol}`;
+      body = `${results.length} stocks near their moving average. Tap to see the full scan.`;
+    } else {
+      title = 'MA Scanner — Daily Scan';
+      body = 'No MA signals right now. Check back later.';
+    }
   } else if (sched.scan_type === 'sectorMoving') {
     const { scanTickers } = require('./scanner');
     const res = await scanTickers(ALL_TICKERS, { minVolumeRatio: 2.0, minMarketCap: 500_000_000 });
     results = res.results || [];
-    title = 'Sector Flow — Scan Ready';
-    body =
-      results.length > 0
-        ? `${results.length} sector movers detected. Top: ${results[0].symbol}`
-        : 'No sector flow detected right now.';
+    if (results.length > 0) {
+      title = `Sector flow detected — ${results[0].symbol}`;
+      body = `${results.length} sector movers right now. Tap to see the full scan.`;
+    } else {
+      title = 'Sector Moving — Daily Scan';
+      body = 'No sector flow right now. Markets look quiet.';
+    }
   }
+
+  const SCAN_URL = { capitalFlow: '/scanner', maScanner: '/ma', sectorMoving: '/flow' };
 
   await db
     .prepare('UPDATE scheduled_scans SET last_run_at = ?, last_result_count = ? WHERE id = ?')
@@ -57,7 +66,7 @@ async function executeScheduledScan(sched) {
       title,
       body,
       tag: 'scheduled-scan-' + sched.scan_type,
-      data: { scanType: sched.scan_type, resultCount: results.length, url: '/' },
+      data: { scanType: sched.scan_type, resultCount: results.length, url: SCAN_URL[sched.scan_type] || '/scanner' },
     });
   } catch (pushErr) {
     console.error(`[ScheduledScans] Push failed for user ${sched.user_id}:`, pushErr.message);

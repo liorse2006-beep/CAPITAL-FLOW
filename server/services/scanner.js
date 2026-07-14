@@ -1,9 +1,7 @@
 const yahooFinance = require('./yahoo');
+const { getQuotes } = require('./quoteCache');
 const { fetchFinnhubQuote, fetchFinnhubMetric } = require('./finnhub');
 const { getETMinutes, calculateRVOL } = require('./rvol');
-
-const BATCH_SIZE = 30;
-const DELAY_MS = 200;
 
 function sleep(ms) {
   return new Promise(function (resolve) {
@@ -44,87 +42,76 @@ async function scanTickers(tickers, options) {
 
   var results = [];
   var errors = [];
-  var processed = 0;
 
-  for (var i = 0; i < tickers.length; i += BATCH_SIZE) {
-    var batch = tickers.slice(i, i + BATCH_SIZE);
+  // ── Phase 1: batch-fetch all quotes (5–6 HTTP calls for 516 tickers) ────────
+  if (onProgress) onProgress({ processed: 0, total: tickers.length, found: 0 });
 
-    var batchPromises = batch.map(function (symbol) {
-      return (async function () {
-        try {
-          var quote = await yahooFinance.quote(symbol);
-          processed++;
-
-          if (!quote || !quote.regularMarketVolume) return null;
-          if ((quote.marketCap || 0) < minMarketCap) return null;
-
-          var avgVolume = quote.averageDailyVolume10Day || 0;
-          if (avgVolume <= 0) return null;
-
-          var volumeRatio = Math.round((quote.regularMarketVolume / avgVolume) * 100) / 100;
-          if (volumeRatio < minVolumeRatio) return null;
-
-          var etMins = getETMinutes();
-          var rvol = calculateRVOL(quote.regularMarketVolume, avgVolume, etMins);
-
-          var price = quote.regularMarketPrice || 0;
-          if (minPrice > 0 && price < minPrice) return null;
-          if (maxPrice > 0 && price > maxPrice) return null;
-          if (minVolNum > 0 && quote.regularMarketVolume < minVolNum) return null;
-
-          return {
-            symbol: quote.symbol,
-            name: quote.shortName || quote.longName || symbol,
-            price: price,
-            change: quote.regularMarketChangePercent || 0,
-            volume: quote.regularMarketVolume,
-            avgVolume: avgVolume,
-            volumeRatio: volumeRatio,
-            rvol: rvol,
-            marketCap: quote.marketCap || 0,
-            sector: 'Pending',
-            exchange: quote.exchange || 'N/A',
-            dayHigh: quote.regularMarketDayHigh || 0,
-            dayLow: quote.regularMarketDayLow || 0,
-            prevClose: quote.regularMarketPreviousClose || 0,
-            fiftyTwoWeekHigh: quote.fiftyTwoWeekHigh || 0,
-            fiftyTwoWeekLow: quote.fiftyTwoWeekLow || 0,
-            floatShares: quote.floatShares || 0,
-            shortPercent: quote.shortPercentOfFloat || 0,
-            sparkline: [],
-          };
-        } catch (e) {
-          errors.push(symbol);
-          processed++;
-          return null;
-        }
-      })();
-    });
-
-    var batchResults = await Promise.all(batchPromises);
-    batchResults.forEach(function (r) {
-      if (r) {
-        results.push(r);
-        if (onMatch) onMatch(r);
-      }
-    });
-
+  var quotesMap = await getQuotes(tickers, function (fetched, fetchTotal) {
     if (onProgress) {
-      onProgress({ processed: processed, total: tickers.length, found: results.length });
+      // Map fetch progress onto the first half of the progress bar
+      var approx = Math.round((fetched / fetchTotal) * (tickers.length * 0.5));
+      onProgress({ processed: approx, total: tickers.length, found: 0 });
+    }
+  });
+
+  // ── Filter in memory — no more per-ticker HTTP calls ─────────────────────────
+  var etMins = getETMinutes();
+
+  tickers.forEach(function (symbol) {
+    var quote = quotesMap.get(symbol);
+    if (!quote) {
+      errors.push(symbol);
+      return;
     }
 
-    if (i + BATCH_SIZE < tickers.length) {
-      await sleep(DELAY_MS);
-    }
-  }
+    if (!quote.regularMarketVolume) return;
+    if ((quote.marketCap || 0) < minMarketCap) return;
 
-  // Phase 2: Enrich matches with Finnhub prices + sparkline + sector
+    var avgVolume = quote.averageDailyVolume10Day || 0;
+    if (avgVolume <= 0) return;
+
+    var volumeRatio = Math.round((quote.regularMarketVolume / avgVolume) * 100) / 100;
+    if (volumeRatio < minVolumeRatio) return;
+
+    var price = quote.regularMarketPrice || 0;
+    if (minPrice > 0 && price < minPrice) return;
+    if (maxPrice > 0 && price > maxPrice) return;
+    if (minVolNum > 0 && quote.regularMarketVolume < minVolNum) return;
+
+    var rvol = calculateRVOL(quote.regularMarketVolume, avgVolume, etMins);
+
+    var match = {
+      symbol: quote.symbol,
+      name: quote.shortName || quote.longName || symbol,
+      price: price,
+      change: quote.regularMarketChangePercent || 0,
+      volume: quote.regularMarketVolume,
+      avgVolume: avgVolume,
+      volumeRatio: volumeRatio,
+      rvol: rvol,
+      marketCap: quote.marketCap || 0,
+      sector: 'Pending',
+      exchange: quote.exchange || 'N/A',
+      dayHigh: quote.regularMarketDayHigh || 0,
+      dayLow: quote.regularMarketDayLow || 0,
+      prevClose: quote.regularMarketPreviousClose || 0,
+      fiftyTwoWeekHigh: quote.fiftyTwoWeekHigh || 0,
+      fiftyTwoWeekLow: quote.fiftyTwoWeekLow || 0,
+      floatShares: quote.floatShares || 0,
+      shortPercent: quote.shortPercentOfFloat || 0,
+      sparkline: [],
+    };
+
+    results.push(match);
+    if (onMatch) onMatch(match);
+  });
+
+  if (onProgress) onProgress({ processed: tickers.length, total: tickers.length, found: results.length });
+
+  // ── Phase 2: enrich matches with Finnhub + sparkline + sector ────────────────
   var enrichPromises = results.map(function (r) {
     return (async function () {
       try {
-        // No key passed — fetchFinnhubQuote/Metric pull from the rotating
-        // account pool internally, so enrichment survives any single
-        // account hitting its rate limit.
         var finnhubQuote = fetchFinnhubQuote(r.symbol);
         var finnhubMetric = fetchFinnhubMetric(r.symbol);
         var chartPromise = yahooFinance.chart(r.symbol, {
@@ -161,22 +148,18 @@ async function scanTickers(tickers, options) {
 
         var quotes = chart && chart.quotes ? chart.quotes : [];
         r.sparkline = quotes
-          .filter(function (d) {
-            return d.close != null;
-          })
-          .sort(function (a, b) {
-            return new Date(a.date) - new Date(b.date);
-          })
+          .filter(function (d) { return d.close != null; })
+          .sort(function (a, b) { return new Date(a.date) - new Date(b.date); })
           .slice(-7)
-          .map(function (d) {
-            return d.close;
-          });
+          .map(function (d) { return d.close; });
+
         r.sector = sector;
       } catch (e) {
         r.sector = 'N/A';
       }
     })();
   });
+
   await Promise.all(enrichPromises);
 
   // Re-filter after enrichment — strict validation, no bad data reaches the user
@@ -193,60 +176,40 @@ async function scanTickers(tickers, options) {
     return true;
   });
 
-  results.sort(function (a, b) {
-    return b.volumeRatio - a.volumeRatio;
-  });
+  results.sort(function (a, b) { return b.volumeRatio - a.volumeRatio; });
 
-  return { results: results, errors: errors, processed: processed };
+  return { results: results, errors: errors, processed: tickers.length };
 }
 
 async function quickScan(symbols) {
+  var quotesMap = await getQuotes(symbols);
   var results = [];
 
-  for (var i = 0; i < symbols.length; i += BATCH_SIZE) {
-    var batch = symbols.slice(i, i + BATCH_SIZE);
+  symbols.forEach(function (symbol) {
+    var quote = quotesMap.get(symbol);
+    if (!quote || !quote.regularMarketVolume) return;
 
-    var batchPromises = batch.map(function (symbol) {
-      return (async function () {
-        try {
-          var quote = await yahooFinance.quote(symbol);
-          if (!quote || !quote.regularMarketVolume) return null;
+    var avgVolume = quote.averageDailyVolume10Day || 0;
+    var volumeRatio = avgVolume > 0 ? Math.round((quote.regularMarketVolume / avgVolume) * 100) / 100 : 0;
 
-          var avgVolume = quote.averageDailyVolume10Day || 0;
-          var volumeRatio = avgVolume > 0 ? Math.round((quote.regularMarketVolume / avgVolume) * 100) / 100 : 0;
-
-          return {
-            symbol: quote.symbol,
-            name: quote.shortName || quote.longName || symbol,
-            price: quote.regularMarketPrice || 0,
-            change: quote.regularMarketChangePercent || 0,
-            volume: quote.regularMarketVolume,
-            avgVolume: avgVolume,
-            volumeRatio: volumeRatio,
-            marketCap: quote.marketCap || 0,
-            sector: 'N/A',
-            exchange: quote.exchange || 'N/A',
-            dayHigh: quote.regularMarketDayHigh || 0,
-            dayLow: quote.regularMarketDayLow || 0,
-            prevClose: quote.regularMarketPreviousClose || 0,
-            fiftyTwoWeekHigh: quote.fiftyTwoWeekHigh || 0,
-            fiftyTwoWeekLow: quote.fiftyTwoWeekLow || 0,
-          };
-        } catch (e) {
-          return null;
-        }
-      })();
+    results.push({
+      symbol: quote.symbol,
+      name: quote.shortName || quote.longName || symbol,
+      price: quote.regularMarketPrice || 0,
+      change: quote.regularMarketChangePercent || 0,
+      volume: quote.regularMarketVolume,
+      avgVolume: avgVolume,
+      volumeRatio: volumeRatio,
+      marketCap: quote.marketCap || 0,
+      sector: 'N/A',
+      exchange: quote.exchange || 'N/A',
+      dayHigh: quote.regularMarketDayHigh || 0,
+      dayLow: quote.regularMarketDayLow || 0,
+      prevClose: quote.regularMarketPreviousClose || 0,
+      fiftyTwoWeekHigh: quote.fiftyTwoWeekHigh || 0,
+      fiftyTwoWeekLow: quote.fiftyTwoWeekLow || 0,
     });
-
-    var batchResults = await Promise.all(batchPromises);
-    batchResults.forEach(function (r) {
-      if (r) results.push(r);
-    });
-
-    if (i + BATCH_SIZE < symbols.length) {
-      await sleep(DELAY_MS);
-    }
-  }
+  });
 
   return results;
 }
@@ -257,73 +220,55 @@ async function scanPreMarket(tickers, options) {
 
   var results = [];
   var errors = [];
-  var processed = 0;
 
-  for (var i = 0; i < tickers.length; i += BATCH_SIZE) {
-    var batch = tickers.slice(i, i + BATCH_SIZE);
+  if (onProgress) onProgress({ processed: 0, total: tickers.length, found: 0 });
 
-    var batchPromises = batch.map(function (symbol) {
-      return (async function () {
-        try {
-          var quote = await yahooFinance.quote(symbol);
-          processed++;
-
-          if (!quote) return null;
-
-          var prevClose = quote.regularMarketPreviousClose || 0;
-          var preMarketPrice = quote.preMarketPrice || 0;
-
-          if (!prevClose || !preMarketPrice) return null;
-
-          var gapPercent = Math.round(((preMarketPrice - prevClose) / prevClose) * 10000) / 100;
-
-          if (Math.abs(gapPercent) <= 2) return null;
-
-          var avgVolume = quote.averageDailyVolume10Day || 0;
-          var volume = quote.regularMarketVolume || 0;
-          var volumeRatio = avgVolume > 0 ? Math.round((volume / avgVolume) * 100) / 100 : 0;
-
-          return {
-            symbol: quote.symbol,
-            name: quote.shortName || quote.longName || symbol,
-            preMarketPrice: preMarketPrice,
-            preMarketChange: quote.preMarketChange || 0,
-            preMarketChangePercent: quote.preMarketChangePercent || 0,
-            regularPrice: quote.regularMarketPrice || 0,
-            prevClose: prevClose,
-            gapPercent: gapPercent,
-            volume: volume,
-            avgVolume: avgVolume,
-            volumeRatio: volumeRatio,
-            marketCap: quote.marketCap || 0,
-          };
-        } catch (e) {
-          errors.push(symbol);
-          processed++;
-          return null;
-        }
-      })();
-    });
-
-    var batchResults = await Promise.all(batchPromises);
-    batchResults.forEach(function (r) {
-      if (r) results.push(r);
-    });
-
+  var quotesMap = await getQuotes(tickers, function (fetched, fetchTotal) {
     if (onProgress) {
-      onProgress({ processed: processed, total: tickers.length, found: results.length });
+      var approx = Math.round((fetched / fetchTotal) * tickers.length);
+      onProgress({ processed: approx, total: tickers.length, found: 0 });
     }
-
-    if (i + BATCH_SIZE < tickers.length) {
-      await sleep(DELAY_MS);
-    }
-  }
-
-  results.sort(function (a, b) {
-    return Math.abs(b.gapPercent) - Math.abs(a.gapPercent);
   });
 
-  return { results: results, errors: errors, processed: processed };
+  tickers.forEach(function (symbol) {
+    var quote = quotesMap.get(symbol);
+    if (!quote) {
+      errors.push(symbol);
+      return;
+    }
+
+    var prevClose = quote.regularMarketPreviousClose || 0;
+    var preMarketPrice = quote.preMarketPrice || 0;
+    if (!prevClose || !preMarketPrice) return;
+
+    var gapPercent = Math.round(((preMarketPrice - prevClose) / prevClose) * 10000) / 100;
+    if (Math.abs(gapPercent) <= 2) return;
+
+    var avgVolume = quote.averageDailyVolume10Day || 0;
+    var volume = quote.regularMarketVolume || 0;
+    var volumeRatio = avgVolume > 0 ? Math.round((volume / avgVolume) * 100) / 100 : 0;
+
+    results.push({
+      symbol: quote.symbol,
+      name: quote.shortName || quote.longName || symbol,
+      preMarketPrice: preMarketPrice,
+      preMarketChange: quote.preMarketChange || 0,
+      preMarketChangePercent: quote.preMarketChangePercent || 0,
+      regularPrice: quote.regularMarketPrice || 0,
+      prevClose: prevClose,
+      gapPercent: gapPercent,
+      volume: volume,
+      avgVolume: avgVolume,
+      volumeRatio: volumeRatio,
+      marketCap: quote.marketCap || 0,
+    });
+  });
+
+  if (onProgress) onProgress({ processed: tickers.length, total: tickers.length, found: results.length });
+
+  results.sort(function (a, b) { return Math.abs(b.gapPercent) - Math.abs(a.gapPercent); });
+
+  return { results: results, errors: errors, processed: tickers.length };
 }
 
 module.exports = { sleep, enrichSector, scanTickers, quickScan, scanPreMarket };

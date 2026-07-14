@@ -118,7 +118,7 @@ export function AuthProvider({ children }) {
   }
 
   function confirmGoogleLogin() {
-    if (!pendingGoogleToken) return;
+    if (!pendingGoogleToken) return Promise.resolve();
     const token = pendingGoogleToken;
     localStorage.setItem('vs_token', token);
     const invite = localStorage.getItem('vs_pilot_invite');
@@ -131,7 +131,7 @@ export function AuthProvider({ children }) {
           .then(() => localStorage.removeItem('vs_pilot_invite'))
           .catch(() => {})
       : Promise.resolve();
-    afterLogin.finally(() => fetchMe(token).finally(() => setPendingGoogleToken(null)));
+    return afterLogin.then(() => fetchMe(token)).finally(() => setPendingGoogleToken(null));
   }
 
   function cancelGoogleLogin() {

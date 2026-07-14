@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { fmt } from '../../utils/format'
-import DeleteAccountModal from '../shared/DeleteAccountModal'
+import AddTickerModal from './AddTickerModal'
 
 function StarIcon({ starred }) {
   return (
@@ -46,7 +46,7 @@ export default function WatchlistPage({
   getToken,
   onAccountDeleted,
 }) {
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
 
   function findQuote(sym) {
     return watchlistData ? watchlistData.find((r) => r.symbol === sym) : null
@@ -62,13 +62,7 @@ export default function WatchlistPage({
         <div style={{ display: 'flex', gap: 8 }}>
           {watchlist.length > 0 && (
             <button className="scan-btn" onClick={refreshWatchlist} disabled={watchlistLoading}>
-              {watchlistLoading ? (
-                <>
-                  <div className="spinner" /> Refreshing...
-                </>
-              ) : (
-                'Refresh Quotes'
-              )}
+              {watchlistLoading ? <><div className="spinner" /> Refreshing...</> : 'Refresh'}
             </button>
           )}
         </div>
@@ -132,33 +126,11 @@ export default function WatchlistPage({
         </div>
       )}
 
-      {user && (
-        <div className="notif-settings-panel danger-zone">
-          <div className="notif-settings-row">
-            <div>
-              <div className="notif-settings-title" style={{ color: '#EF4444' }}>
-                Delete Account
-              </div>
-              <div className="notif-settings-sub">
-                Permanently delete your account and all associated data — watchlist, alerts, and push subscriptions.
-                This cannot be undone.
-              </div>
-            </div>
-            <button className="notif-toggle-btn danger" onClick={() => setShowDeleteModal(true)}>
-              Delete Account
-            </button>
-          </div>
-        </div>
-      )}
-
-      {showDeleteModal && (
-        <DeleteAccountModal
-          getToken={getToken}
-          onClose={() => setShowDeleteModal(false)}
-          onDeleted={() => {
-            setShowDeleteModal(false)
-            onAccountDeleted()
-          }}
+      {showAddModal && (
+        <AddTickerModal
+          watchlist={watchlist}
+          onAdd={(sym) => toggleWatchlistTicker(sym)}
+          onClose={() => setShowAddModal(false)}
         />
       )}
 
@@ -187,6 +159,12 @@ export default function WatchlistPage({
           </div>
           <h2>Your Watchlist is Empty</h2>
           <p>Run a scan and click the star icon next to any ticker to add it to your watchlist.</p>
+          <button className="scan-btn add-ticker-btn" onClick={() => setShowAddModal(true)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Add Ticker
+          </button>
         </div>
       ) : (
         <div className="table-card">
@@ -197,12 +175,17 @@ export default function WatchlistPage({
                 {watchlistData ? 'Last refreshed ' + new Date().toLocaleTimeString() : 'Click Refresh to load latest quotes'}
               </span>
             </div>
+            <button className="scan-btn add-ticker-btn" onClick={() => setShowAddModal(true)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Add Ticker
+            </button>
           </div>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th style={{ width: 36 }}></th>
                   <th>Ticker</th>
                   <th>Name</th>
                   <th>Price</th>
@@ -217,16 +200,6 @@ export default function WatchlistPage({
                   const d = findQuote(sym)
                   return (
                     <tr key={sym}>
-                      <td>
-                        <button
-                          className="star-btn starred"
-                          onClick={() => toggleWatchlistTicker(sym)}
-                          title="Remove from watchlist"
-                          aria-label="Remove from watchlist"
-                        >
-                          <StarIcon starred />
-                        </button>
-                      </td>
                       <td className="col-ticker">
                         <div className="ticker-cell">
                           <img
@@ -315,18 +288,18 @@ export default function WatchlistPage({
               return (
                 <div key={sym} className="mobile-card ratio-ok">
                   <div className="mobile-card-top">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <button
-                        className="star-btn starred"
-                        onClick={() => toggleWatchlistTicker(sym)}
-                        aria-label={'Remove ' + sym + ' from watchlist'}
-                      >
-                        <StarIcon starred />
-                      </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
                       <span className="mobile-card-ticker">{sym}</span>
                       {d && <span className="mobile-card-name">{d.name}</span>}
                       {!d && watchlistLoading && <span className="skel skel-text" />}
                     </div>
+                    <button
+                      className="star-btn-remove"
+                      onClick={() => toggleWatchlistTicker(sym)}
+                      aria-label={'Remove ' + sym + ' from watchlist'}
+                    >
+                      {'\xd7'}
+                    </button>
                   </div>
                   {d && (
                     <div className="mobile-card-mid">
