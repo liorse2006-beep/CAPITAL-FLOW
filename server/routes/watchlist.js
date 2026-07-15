@@ -22,7 +22,8 @@ router.get('/watchlist-quotes', requireAuth, scanLimiter, async (req, res) => {
     var results = await quickScan(symbols);
     res.json({ results: results, fetchTime: new Date().toISOString() });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[watchlist-quotes]', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

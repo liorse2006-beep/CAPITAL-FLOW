@@ -14,8 +14,13 @@ async function saveSubscription(userId, sub) {
   ).run(userId, sub.endpoint, sub.keys.p256dh, sub.keys.auth);
 }
 
-async function removeSubscription(endpoint) {
-  await db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(endpoint);
+async function removeSubscription(endpoint, userId) {
+  if (userId != null) {
+    await db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?').run(endpoint, userId);
+  } else {
+    // Internal cleanup path (dead subscription pruning) — no user context to scope to.
+    await db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(endpoint);
+  }
 }
 
 /** Sends one push payload to every device the user has subscribed on. Prunes dead subscriptions automatically. */

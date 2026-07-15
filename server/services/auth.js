@@ -74,7 +74,10 @@ async function verifyOTP(email, code, type) {
 
   if (!row) return { valid: false, reason: 'No code found' };
   if (Math.floor(Date.now() / 1000) > row.expires_at) return { valid: false, reason: 'Code expired' };
-  if (row.code !== code) return { valid: false, reason: 'Invalid code' };
+  const stored = Buffer.from(String(row.code));
+  const supplied = Buffer.from(String(code || ''));
+  const codeMatches = stored.length === supplied.length && crypto.timingSafeEqual(stored, supplied);
+  if (!codeMatches) return { valid: false, reason: 'Invalid code' };
 
   await db.prepare(`UPDATE otp_codes SET used = 1 WHERE id = ?`).run(row.id);
   return { valid: true };

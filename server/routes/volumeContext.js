@@ -17,7 +17,8 @@ router.get('/volume-context/:symbol', scanLimiter, async function (req, res) {
     }
     return res.json({ found: true, context: context });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    console.error('[volume-context]', err);
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 

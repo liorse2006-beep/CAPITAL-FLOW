@@ -1,6 +1,14 @@
 const router = require('express').Router();
+const crypto = require('crypto');
 const db = require('../db');
 const { ADMIN_TOKEN, ADMIN_EMAIL, TURSO_DB_URL } = require('../config');
+
+function timingSafeStringEqual(a, b) {
+  const bufA = Buffer.from(String(a));
+  const bufB = Buffer.from(String(b));
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 const DB_ENV = TURSO_DB_URL ? 'PRODUCTION (Turso)' : 'LOCAL (SQLite)';
 const { verifyToken } = require('../services/auth');
@@ -26,7 +34,7 @@ async function checkToken(req, res) {
 
   // Accept static token
   const tok = req.query.token || req.headers['x-admin-token'];
-  if (tok === ADMIN_TOKEN) return true;
+  if (tok && timingSafeStringEqual(tok, ADMIN_TOKEN)) return true;
 
   // Accept JWT from the admin email
   const jwt = req.query.jwt || (req.headers.authorization || '').replace('Bearer ', '');
@@ -164,7 +172,7 @@ router.get('/admin/api/coupons', asyncRoute(async (req, res) => {
   res.json(rows);
 }));
 
-router.post('/admin/api/coupons', async (req, res) => {
+router.post('/admin/api/coupons', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   const { discountPercent, appliesTo, maxUses, expiresInDays, paddleDiscountId } = req.body;
   let { code } = req.body;
@@ -195,7 +203,7 @@ router.post('/admin/api/coupons', async (req, res) => {
     throw err;
   }
   res.json({ ok: true, code });
-});
+}));
 
 router.post('/admin/api/coupons/:code/toggle', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
@@ -210,7 +218,7 @@ router.delete('/admin/api/coupons/:code', asyncRoute(async (req, res) => {
   res.json({ ok: true });
 }));
 
-router.post('/admin/api/users/:id/push-test', async (req, res) => {
+router.post('/admin/api/users/:id/push-test', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   const userId = Number(req.params.id);
   const { title = 'Capital Flow — Test', body = 'Push notifications are working! 🎉' } = req.body || {};
@@ -220,9 +228,10 @@ router.post('/admin/api/users/:id/push-test', async (req, res) => {
     await sendPushToUser(userId, { title, body, tag: 'admin-test', data: { url: '/' } });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[admin push-test]', err);
+    res.status(500).json({ error: 'Server error' });
   }
-});
+}));
 
 // ── Admin UI ───────────────────────────────────────────────────────────────
 router.get('/admin', asyncRoute(async (req, res) => {
@@ -239,11 +248,12 @@ router.get('/admin', asyncRoute(async (req, res) => {
 <title>Admin — Capital Flow</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { max-width: 100%; overflow-x: hidden; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
          background: #0A0A0A; color: #E4E4E7; min-height: 100vh; }
   .topbar { display: flex; align-items: center; justify-content: space-between;
             padding: 14px 28px; border-bottom: 1px solid rgba(255,255,255,0.06);
-            background: #111; position: sticky; top: 0; z-index: 10; }
+            background: #111; position: sticky; top: 0; z-index: 10; flex-wrap: wrap; gap: 10px; }
   .topbar h1 { font-size: 16px; font-weight: 700; color: #F59E0B; letter-spacing: -0.01em; }
   .topbar span { font-size: 12px; color: #71717A; font-family: monospace; }
   .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 24px 60px; }
@@ -342,6 +352,17 @@ router.get('/admin', asyncRoute(async (req, res) => {
            box-shadow: 0 8px 24px rgba(0,0,0,0.4); opacity: 0; pointer-events: none;
            transition: opacity .25s; z-index: 999; }
   .toast.show { opacity: 1; }
+  #table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  @media (max-width: 640px) {
+    .wrap { padding: 16px 12px 40px; }
+    .topbar { padding: 12px 16px; }
+    .topbar h1 { font-size: 14px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    #search { width: 100%; }
+    .card-hdr { flex-direction: column; align-items: flex-start; }
+    .card-hdr > div { width: 100%; }
+    .toast { left: 12px; right: 12px; bottom: 12px; }
+  }
 </style>
 </head>
 <body>

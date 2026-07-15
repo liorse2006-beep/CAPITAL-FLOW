@@ -138,7 +138,8 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
     flowCache = { results: results, fetchTime: fetchTime, expiresAt: Date.now() + CACHE_TTL_MS };
     res.json({ results: results, fetchTime: fetchTime, ...quotaFor(req.user) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[sectors]', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

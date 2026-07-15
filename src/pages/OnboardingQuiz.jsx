@@ -93,10 +93,10 @@ function RevealSlide({ onNext }) {
         </div>
       </div>
 
-      {/* Live alerts preview */}
+      {/* Illustrative preview — MOCK_ALERTS are hardcoded, not a real scan */}
       <div className="reveal-alerts-label">
         <span className="reveal-live-dot" />
-        Alerts firing right now
+        Example — alerts like this fire in real time
       </div>
       <div className="reveal-alerts">
         {MOCK_ALERTS.map((a, i) => (
@@ -277,32 +277,21 @@ export default function OnboardingQuiz({ onComplete }) {
           {isCTA && (
             <div className="quiz-cta-wrap">
               <div className="quiz-cta-logo-wrap">
-                <img src="/logo-text.png" alt="Capital Flow" className="quiz-cta-logo-img" />
+                <img src="/logo-text.jpeg" alt="Capital Flow" className="quiz-cta-logo-img" />
               </div>
               <h1 className="quiz-cta-title">
-                See what&apos;s moving
-                <br />
-                <span className="quiz-cta-highlight">right now</span>
+                See where the money
+                <span className="quiz-cta-highlight">is flowing.</span>
               </h1>
-              <p className="quiz-cta-sub">
-                Live volume spikes across 6,000+ stocks —<br />before they make the news.
-              </p>
-              <div className="quiz-cta-trust-row">
-                <span className="quiz-cta-trust-item"><span className="quiz-cta-trust-dot" />Free to start</span>
-                <span className="quiz-cta-trust-item"><span className="quiz-cta-trust-dot" />No credit card</span>
-                <span className="quiz-cta-trust-item"><span className="quiz-cta-trust-dot" />Live data</span>
-              </div>
-              <div className="quiz-cta-aurora-wrap">
-                <button className="quiz-cta-aurora-btn" onClick={handleScan}>
-                  <span className="quiz-cta-aurora-content">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round">
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                    Scan the market now
-                  </span>
+              <div className="quiz-cta-scan-outer">
+                <button className="quiz-cta-scan-btn" onClick={handleScan}>
+                  <span className="quiz-cta-scan-shimmer" />
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  Start scanning
                 </button>
-                <div className="quiz-cta-aurora-glow" />
               </div>
             </div>
           )}

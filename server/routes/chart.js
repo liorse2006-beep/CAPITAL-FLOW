@@ -79,7 +79,8 @@ router.get('/chart/:symbol', requirePremium, async (req, res) => {
 
     res.json({ quotes, ma20, ma50, currentPrice, period, interval });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[chart]', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

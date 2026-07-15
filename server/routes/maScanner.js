@@ -93,7 +93,8 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
     });
   } catch (err) {
     scanProgress.delete(userId);
-    res.status(500).json({ error: err.message });
+    console.error('[ma-scanner]', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

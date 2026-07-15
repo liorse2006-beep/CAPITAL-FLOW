@@ -204,12 +204,18 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
     const { email, type } = req.body;
     if (!email) return res.status(400).json({ error: 'Email required' });
     const otpType = type === 'reset_password' ? 'reset_password' : 'verify_email';
-    const code = generateOTP();
-    await saveOTP(email, code, otpType);
-    if (otpType === 'reset_password') {
-      await sendPasswordResetEmail(email, code);
-    } else {
-      await sendOTPEmail(email, code);
+    // Only send to addresses with an actual account — otherwise this endpoint
+    // is an open relay for spamming/email-bombing arbitrary inboxes. Still
+    // reply success either way to avoid leaking which emails are registered.
+    const user = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    if (user) {
+      const code = generateOTP();
+      await saveOTP(email, code, otpType);
+      if (otpType === 'reset_password') {
+        await sendPasswordResetEmail(email, code);
+      } else {
+        await sendOTPEmail(email, code);
+      }
     }
     res.json({ success: true });
   } catch (err) {

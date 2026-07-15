@@ -115,7 +115,8 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
     });
   } catch (err) {
     scanState.running = false;
-    res.status(500).json({ error: err.message });
+    console.error('[scan]', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

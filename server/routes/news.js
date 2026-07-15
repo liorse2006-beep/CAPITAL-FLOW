@@ -29,7 +29,8 @@ router.get('/news/:symbol', scanLimiter, async function (req, res) {
       fetchTime: new Date(result.fetchTime).toISOString(),
     });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    console.error('[news]', err);
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 

@@ -387,7 +387,7 @@ function App() {
     }
     setWatchlistLoading(true);
     setWatchlistError(null);
-    fetch('/api/watchlist-quotes?symbols=' + watchlist.join(','))
+    fetch('/api/watchlist-quotes?symbols=' + watchlist.join(','), { headers: { Authorization: 'Bearer ' + getToken() } })
       .then(function (r) {
         if (!r.ok)
           return r.json().then(function (d) {
@@ -500,19 +500,20 @@ function App() {
   }, []);
 
   useEffect(function () {
-    if (!localStorage.getItem('vs_token')) return; // don't auto-show cached results to guests
-    fetch('/api/last-results')
+    if (!user) return; // don't auto-show cached results to guests
+    fetch('/api/last-results', { headers: { Authorization: 'Bearer ' + getToken() } })
       .then(function (r) {
+        if (!r.ok) return null;
         return r.json();
       })
       .then(function (d) {
-        if (d.results && d.results.length) {
+        if (d && d.results && d.results.length) {
           setResults(d.results);
           setScanTime(d.scanTime);
         }
       })
       .catch(function () {});
-  }, []);
+  }, [user]);
 
   useEffect(
     function () {
@@ -557,7 +558,7 @@ function App() {
 
       function checkForNewTickers() {
         if (!isMarketHours()) return;
-        fetch('/api/last-results')
+        fetch('/api/last-results', { headers: { Authorization: 'Bearer ' + getToken() } })
           .then(function (r) {
             return r.json();
           })
@@ -674,7 +675,7 @@ function App() {
       setCurrentTicker('');
 
       poll.current = setInterval(function () {
-        fetch('/api/progress')
+        fetch('/api/progress', { headers: { Authorization: 'Bearer ' + getToken() } })
           .then(function (r) {
             return r.json();
           })

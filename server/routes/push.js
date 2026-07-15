@@ -26,7 +26,7 @@ router.post('/push/unsubscribe', requireElite, async (req, res) => {
   try {
     const endpoint = req.body && req.body.endpoint;
     if (!endpoint) return res.status(400).json({ error: 'endpoint required' });
-    await removeSubscription(endpoint);
+    await removeSubscription(endpoint, req.user.id);
     res.json({ ok: true });
   } catch (err) {
     console.error('[push/unsubscribe]', err);

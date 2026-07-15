@@ -23,6 +23,16 @@ function RatioPill({ ratio }) {
   return <span className={'ratio-pill ' + cls}>{ratio + 'x'}</span>
 }
 
+// iOS Safari only exposes the Push API to sites added to the Home Screen
+// (display: standalone) — there is no way to enable push from a regular
+// Safari tab, so "not supported" there actually means "not installed yet".
+function isIosNotInstalled() {
+  if (typeof navigator === 'undefined') return false
+  const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+  return isIos && !isStandalone
+}
+
 export default function WatchlistPage({
   watchlist,
   watchlistData,
@@ -95,7 +105,13 @@ export default function WatchlistPage({
               </div>
             </div>
             {!pushSupported ? (
-              <span className="notif-settings-unsupported">Not supported in this browser</span>
+              isIosNotInstalled() ? (
+                <span className="notif-settings-unsupported">
+                  Tap Share → &quot;Add to Home Screen&quot; to enable notifications on iPhone
+                </span>
+              ) : (
+                <span className="notif-settings-unsupported">Not supported in this browser</span>
+              )
             ) : (
               <button
                 className={'notif-toggle-btn' + (pushEnabled ? ' on' : '')}

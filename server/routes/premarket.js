@@ -29,7 +29,8 @@ router.get('/scan-premarket', requirePremium, async (req, res) => {
     });
   } catch (err) {
     premarketState.running = false;
-    res.status(500).json({ error: err.message });
+    console.error('[premarket]', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

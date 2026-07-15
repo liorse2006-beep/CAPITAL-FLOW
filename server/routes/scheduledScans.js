@@ -13,7 +13,8 @@ router.get('/scheduled-scans', requireAuth, async (req, res) => {
       .all(req.user.id);
     res.json({ schedules: rows });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[scheduled-scans GET]', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -38,7 +39,8 @@ router.post('/scheduled-scans', requireElite, async (req, res) => {
       .run(req.user.id, scan_type, scan_time);
     res.json({ id: result.lastInsertRowid, scan_type, scan_time, active: 1, last_run_at: null, last_result_count: null });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[scheduled-scans POST]', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -60,7 +62,8 @@ router.put('/scheduled-scans/:id', requireElite, async (req, res) => {
       .run(newActive, newTime, existing.id);
     res.json({ id: existing.id, scan_type: existing.scan_type, scan_time: newTime, active: newActive });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[scheduled-scans PUT]', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -73,7 +76,8 @@ router.delete('/scheduled-scans/:id', requireElite, async (req, res) => {
     if (!result.changes) return res.status(404).json({ error: 'Not found' });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[scheduled-scans DELETE]', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
