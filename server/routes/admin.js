@@ -235,11 +235,13 @@ router.post('/admin/api/users/:id/push-test', asyncRoute(async (req, res) => {
 
 // ── Admin UI ───────────────────────────────────────────────────────────────
 router.get('/admin', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
-  const token = req.query.token;
-  const jwt = req.query.jwt;
+  // The page shell is public — no server-side auth here.
+  // Every data API call (/admin/api/*) still enforces checkToken.
+  // Auth headers are built in the browser from localStorage (always fresh).
+  const token = req.query.token || null; // static ADMIN_TOKEN path (optional)
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store'); // never cache — prevents stale JWT in HTML
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -448,7 +450,12 @@ router.get('/admin', asyncRoute(async (req, res) => {
 <div class="toast" id="toast"></div>
 
 <script>
-const AUTH_HEADERS = ${jwt ? `{ 'Authorization': 'Bearer ' + ${JSON.stringify(jwt)} }` : `{ 'x-admin-token': ${JSON.stringify(token)} }`};
+// Static ADMIN_TOKEN wins when provided via URL; otherwise use the live JWT
+// from localStorage — it's always fresh and never needs a manual refresh.
+const _staticToken = ${JSON.stringify(token)};
+const AUTH_HEADERS = _staticToken
+  ? { 'x-admin-token': _staticToken }
+  : { 'Authorization': 'Bearer ' + (localStorage.getItem('vs_token') || '') };
 history.replaceState(null, '', '/admin');
 
 let allUsers = [];
