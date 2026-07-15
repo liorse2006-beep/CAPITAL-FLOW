@@ -3,6 +3,28 @@ const { getQuotes } = require('./quoteCache');
 const { fetchFinnhubQuote, fetchFinnhubMetric } = require('./finnhub');
 const { getETMinutes, calculateRVOL } = require('./rvol');
 
+// ── Slow-data caches ─────────────────────────────────────────────────────────
+// Finnhub metric (52wk range, 10d avg vol, market cap) and the 7-day sparkline
+// are both daily-update data — they cannot change minute-to-minute. Sector
+// never changes. Caching these cuts Phase-2 API calls by ~75% on repeated
+// scans without sacrificing accuracy: the only live call per match is the
+// Finnhub quote (price, change%) which stays on a 60-second TTL.
+const METRIC_TTL_MS = 24 * 60 * 60 * 1000;       // 24 h — Finnhub metric
+const SPARK_TTL_MS  = 24 * 60 * 60 * 1000;        // 24 h — sparkline closes
+const SECTOR_TTL_MS = 7  * 24 * 60 * 60 * 1000;  //  7 d — sector string
+
+const metricCache = new Map();  // symbol → { data, fetchedAt }
+const sparkCache  = new Map();  // symbol → { data, fetchedAt }
+const sectorCache = new Map();  // symbol → { data, fetchedAt }
+
+function slowGet(cache, symbol, ttl) {
+  const e = cache.get(symbol);
+  return e && (Date.now() - e.fetchedAt < ttl) ? e.data : null;
+}
+function slowSet(cache, symbol, data) {
+  cache.set(symbol, { data, fetchedAt: Date.now() });
+}
+
 function sleep(ms) {
   return new Promise(function (resolve) {
     setTimeout(resolve, ms);
@@ -10,11 +32,15 @@ function sleep(ms) {
 }
 
 async function enrichSector(symbol) {
+  const cached = slowGet(sectorCache, symbol, SECTOR_TTL_MS);
+  if (cached !== null) return cached;
   try {
     var summary = await yahooFinance.quoteSummary(symbol, {
       modules: ['assetProfile'],
     });
-    return summary.assetProfile && summary.assetProfile.sector ? summary.assetProfile.sector : 'N/A';
+    const sector = summary.assetProfile && summary.assetProfile.sector ? summary.assetProfile.sector : 'N/A';
+    slowSet(sectorCache, symbol, sector);
+    return sector;
   } catch (e) {
     return 'N/A';
   }
@@ -109,22 +135,45 @@ async function scanTickers(tickers, options) {
   if (onProgress) onProgress({ processed: tickers.length, total: tickers.length, found: results.length });
 
   // ── Phase 2: enrich matches with Finnhub + sparkline + sector ────────────────
+  // Only fetchFinnhubQuote is called every scan (price/change% must be live).
+  // Metric, sparkline, and sector are served from slow caches (24h / 7d) and
+  // only fetched from the network when the cache entry is missing or expired.
   var enrichPromises = results.map(function (r) {
     return (async function () {
       try {
-        var finnhubQuote = fetchFinnhubQuote(r.symbol);
-        var finnhubMetric = fetchFinnhubMetric(r.symbol);
-        var chartPromise = yahooFinance.chart(r.symbol, {
-          period1: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000),
-          interval: '1d',
-        });
-        var sectorPromise = enrichSector(r.symbol);
+        // Always fresh — price and change% are real-time data
+        var fQuotePromise = fetchFinnhubQuote(r.symbol);
 
-        var resolved = await Promise.all([finnhubQuote, finnhubMetric, chartPromise, sectorPromise]);
-        var fQuote = resolved[0];
+        // Slow data — resolve from cache or fetch once per day
+        var cachedMetric = slowGet(metricCache, r.symbol, METRIC_TTL_MS);
+        var metricPromise = cachedMetric !== null
+          ? Promise.resolve(cachedMetric)
+          : fetchFinnhubMetric(r.symbol).then(function (m) {
+              if (m) slowSet(metricCache, r.symbol, m);
+              return m;
+            });
+
+        var cachedSpark = slowGet(sparkCache, r.symbol, SPARK_TTL_MS);
+        var sparkPromise = cachedSpark !== null
+          ? Promise.resolve(cachedSpark)
+          : yahooFinance.chart(r.symbol, {
+              period1: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000),
+              interval: '1d',
+            }).then(function (chart) {
+              var closes = (chart && chart.quotes ? chart.quotes : [])
+                .filter(function (d) { return d.close != null; })
+                .sort(function (a, b) { return new Date(a.date) - new Date(b.date); })
+                .slice(-7)
+                .map(function (d) { return d.close; });
+              slowSet(sparkCache, r.symbol, closes);
+              return closes;
+            });
+
+        var resolved = await Promise.all([fQuotePromise, metricPromise, sparkPromise, enrichSector(r.symbol)]);
+        var fQuote  = resolved[0];
         var fMetric = resolved[1];
-        var chart = resolved[2];
-        var sector = resolved[3];
+        var sparkline = resolved[2];
+        var sector  = resolved[3];
 
         if (fQuote && fQuote.price > 0) {
           r.price = fQuote.price;
@@ -146,13 +195,7 @@ async function scanTickers(tickers, options) {
           }
         }
 
-        var quotes = chart && chart.quotes ? chart.quotes : [];
-        r.sparkline = quotes
-          .filter(function (d) { return d.close != null; })
-          .sort(function (a, b) { return new Date(a.date) - new Date(b.date); })
-          .slice(-7)
-          .map(function (d) { return d.close; });
-
+        r.sparkline = Array.isArray(sparkline) ? sparkline : [];
         r.sector = sector;
       } catch (e) {
         r.sector = 'N/A';
