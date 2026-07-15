@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ErrorBoundary from './components/shared/ErrorBoundary';
+import CookieConsent from './components/shared/CookieConsent';
 import './sentry';
 import './analytics';
 import './styles/index.css';
@@ -65,6 +66,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <AuthProvider>
         <BrowserRouter>
           <Root />
+          <CookieConsent />
         </BrowserRouter>
       </AuthProvider>
     </ErrorBoundary>

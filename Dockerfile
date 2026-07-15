@@ -34,7 +34,7 @@ COPY server ./server
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
-# In production (Koyeb + Turso) no local SQLite file is used.
+# In production (Render + Turso) no local SQLite file is used.
 # The data/ dir is still created so local dev (file:./data/users.db) works.
 RUN mkdir -p data logs && chown -R app:app /app
 

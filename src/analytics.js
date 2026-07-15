@@ -8,6 +8,16 @@ const KEY = import.meta.env.VITE_POSTHOG_KEY || '';
 const HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com';
 const enabled = !!KEY;
 
+const CONSENT_KEY = 'cf_analytics_consent';
+
+export function hasConsented() {
+  return localStorage.getItem(CONSENT_KEY) === 'true';
+}
+
+export function hasAnswered() {
+  return localStorage.getItem(CONSENT_KEY) !== null;
+}
+
 let posthogPromise = null;
 function loadPosthog() {
   if (!enabled) return Promise.resolve(null);
@@ -29,14 +39,24 @@ function loadPosthog() {
   return posthogPromise;
 }
 
-if (enabled) loadPosthog();
+// Only load on startup if the user has already consented
+if (enabled && hasConsented()) loadPosthog();
+
+export function giveConsent() {
+  localStorage.setItem(CONSENT_KEY, 'true');
+  if (enabled) loadPosthog();
+}
+
+export function revokeConsent() {
+  localStorage.setItem(CONSENT_KEY, 'false');
+}
 
 function track(event, props) {
-  if (enabled) loadPosthog().then((posthog) => posthog && posthog.capture(event, props));
+  if (enabled && hasConsented()) loadPosthog().then((posthog) => posthog && posthog.capture(event, props));
 }
 
 function identify(userId, props) {
-  if (enabled) loadPosthog().then((posthog) => posthog && posthog.identify(userId, props));
+  if (enabled && hasConsented()) loadPosthog().then((posthog) => posthog && posthog.identify(userId, props));
 }
 
 function reset() {

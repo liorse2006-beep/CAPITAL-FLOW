@@ -161,7 +161,12 @@ async function initDb() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_scheduled_scans_user ON scheduled_scans(user_id);
-    CREATE INDEX IF NOT EXISTS idx_scheduled_scans_time ON scheduled_scans(scan_time, active)
+    CREATE INDEX IF NOT EXISTS idx_scheduled_scans_time ON scheduled_scans(scan_time, active);
+
+    CREATE TABLE IF NOT EXISTS processed_webhook_events (
+      event_id     TEXT    PRIMARY KEY,
+      processed_at INTEGER NOT NULL DEFAULT (unixepoch())
+    )
   `);
 
   // Safe migrations — silently ignored if the column already exists

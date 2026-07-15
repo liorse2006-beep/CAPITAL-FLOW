@@ -13,6 +13,7 @@ const { PORT, SESSION_SECRET, FRONTEND_URL } = require('./config');
 const { startBackgroundScheduler } = require('./services/backgroundScan');
 const { startScheduledDigest } = require('./services/scheduledDigest');
 const { startScheduledScanRunner } = require('./services/scheduledScanRunner');
+const { startScheduledBackup } = require('./services/dbBackup');
 const { scanLimiter, apiLimiter, adminLimiter } = require('./middleware/rateLimiters');
 
 const app = express();
@@ -186,6 +187,7 @@ process.on('uncaughtException', (err) => {
 startBackgroundScheduler();
 startScheduledDigest();
 startScheduledScanRunner();
+startScheduledBackup();
 
 app.listen(PORT, () => {
   console.log(`Volume Scanner running at http://localhost:${PORT}`);

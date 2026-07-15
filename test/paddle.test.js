@@ -108,6 +108,45 @@ test('webhook upgrades the user tier on transaction.completed and redeems the co
   }
 });
 
+test('webhook redelivery with the same event_id does not double-redeem the coupon', async () => {
+  const user = await makeUser('webhook-redelivery@test.local', 'free');
+  await db.prepare('INSERT INTO coupons (code, discount_percent, applies_to, uses_count) VALUES (?, ?, ?, ?)').run(
+    'WEBHOOK2',
+    20,
+    'both',
+    0
+  );
+
+  const payload = JSON.stringify({
+    event_id: 'evt_redelivery_test_1',
+    event_type: 'transaction.completed',
+    data: { custom_data: { userId: user.id, tier: 'premium', couponCode: 'WEBHOOK2' } },
+  });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    const send = () =>
+      fetch(`http://127.0.0.1:${port}/api/webhooks/paddle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'paddle-signature': sign(payload) },
+        body: payload,
+      });
+
+    const first = await send();
+    assert.strictEqual(first.status, 200);
+    const second = await send();
+    assert.strictEqual(second.status, 200);
+    const secondBody = await second.json();
+    assert.strictEqual(secondBody.duplicate, true);
+
+    const coupon = await db.prepare('SELECT uses_count FROM coupons WHERE code = ?').get('WEBHOOK2');
+    assert.strictEqual(coupon.uses_count, 1);
+  } finally {
+    server.close();
+  }
+});
+
 test('webhook rejects a request with an invalid signature', async () => {
   const payload = JSON.stringify({ event_type: 'transaction.completed', data: {} });
   const server = await startWebhookApp();

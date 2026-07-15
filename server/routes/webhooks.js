@@ -22,6 +22,21 @@ router.post('/webhooks/paddle', async (req, res) => {
       return res.status(400).json({ error: 'Malformed payload' });
     }
 
+    // Paddle redelivers webhooks that don't get a timely 2xx (network hiccup,
+    // slow DB, etc.) — without this, a redelivered transaction.completed
+    // would redeem the same coupon code a second time. event_id uniquely
+    // identifies this specific delivery; skip processing (but still 200) if
+    // we've already handled it. Older/synthetic payloads without an
+    // event_id fall through unprotected rather than being rejected.
+    if (event.event_id) {
+      const inserted = await db
+        .prepare('INSERT OR IGNORE INTO processed_webhook_events (event_id) VALUES (?)')
+        .run(event.event_id);
+      if (inserted.changes === 0) {
+        return res.json({ ok: true, duplicate: true });
+      }
+    }
+
     if (event.event_type === 'transaction.completed') {
       const customData = event.data && event.data.custom_data;
       if (customData && customData.userId && customData.tier) {
