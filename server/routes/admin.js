@@ -27,14 +27,14 @@ function asyncRoute(fn) {
 }
 
 async function checkToken(req, res) {
-  if (!ADMIN_TOKEN) {
-    res.status(503).send('Admin panel disabled — set ADMIN_TOKEN in .env');
+  if (!ADMIN_TOKEN && !ADMIN_EMAIL) {
+    res.status(503).send('Admin panel disabled — set ADMIN_TOKEN or ADMIN_EMAIL in .env');
     return false;
   }
 
   // Accept static token
   const tok = req.query.token || req.headers['x-admin-token'];
-  if (tok && timingSafeStringEqual(tok, ADMIN_TOKEN)) return true;
+  if (tok && ADMIN_TOKEN && timingSafeStringEqual(tok, ADMIN_TOKEN)) return true;
 
   // Accept JWT from the admin email
   const jwt = req.query.jwt || (req.headers.authorization || '').replace('Bearer ', '');
