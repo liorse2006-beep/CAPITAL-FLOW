@@ -607,11 +607,11 @@ export default function ScannerPage({
                       <th style={{ width: 40 }}>#</th>
                       <TH label="Ticker" field="symbol" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
                       <TH label="Name" field="name" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
+                      <TH label="Mkt Cap" field="marketCap" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
                       <TH label="Price" field="price" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
                       <TH label="Change" field="change" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
                       <TH label="RVOL" field="volumeRatio" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
                       <th>Avg / Vol</th>
-                      <TH label="Mkt Cap" field="marketCap" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
                       <TH label="Sector" field="sector" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
                       <th style={{ width: 36 }}></th>
                     </tr>
@@ -637,6 +637,9 @@ export default function ScannerPage({
                         </td>
                         <td className="col-name" title={r.name}>
                           {r.name}
+                        </td>
+                        <td style={{ color: 'var(--text-2)', fontSize: 12 }}>
+                          {r.marketCap > 0 ? fmt(r.marketCap) : '—'}
                         </td>
                         <td>{'$' + r.price.toFixed(2)}</td>
                         <td className={r.change >= 0 ? 'col-pos' : 'col-neg'}>
@@ -665,9 +668,6 @@ export default function ScannerPage({
                             <span className="vol-stack-sep">/</span>
                             <span className="vol-stack-cur">{fmt(r.volume)}</span>
                           </span>
-                        </td>
-                        <td style={{ color: 'var(--text-2)', fontSize: 12 }}>
-                          {r.marketCap > 0 ? fmt(r.marketCap) : '—'}
                         </td>
                         <td>
                           <span className="sector-chip">{r.sector}</span>
