@@ -2,9 +2,18 @@ const webpush = require('web-push');
 const db = require('../db');
 const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT } = require('../config');
 
-const configured = !!(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY && VAPID_SUBJECT);
+// A malformed VAPID key (wrong length/encoding) must never take the whole
+// server down at boot — push notifications are one optional feature, not
+// a reason for the entire app to fail to start. Fall back to "not
+// configured" and log loudly instead of throwing.
+let configured = !!(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY && VAPID_SUBJECT);
 if (configured) {
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  try {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  } catch (err) {
+    configured = false;
+    console.error('[webPush] Invalid VAPID keys — push notifications disabled:', err.message);
+  }
 }
 
 async function saveSubscription(userId, sub) {
