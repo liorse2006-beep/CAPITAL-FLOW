@@ -79,7 +79,18 @@ app.use((req, res, next) => (req.path.startsWith('/admin') ? next() : spaCsp(req
 // CORS allowlist — the app is normally same-origin (backend serves the built
 // frontend), so this only matters for local dev servers and the configured
 // production frontend. Never reflect an arbitrary origin.
-const allowedOrigins = new Set([FRONTEND_URL, 'http://localhost:3001', 'http://localhost:5173']);
+// Vite adds crossorigin to <script type="module"> tags which causes browsers
+// to send an Origin header even for same-origin asset fetches — both the
+// custom domain and the Render URL must be explicitly listed so neither blocks
+// the other when FRONTEND_URL is updated between deploys.
+const allowedOrigins = new Set([
+  FRONTEND_URL,
+  'https://capitalflow.vip',
+  'https://www.capitalflow.vip',
+  'https://capital-flow-3v59.onrender.com',
+  'http://localhost:3001',
+  'http://localhost:5173',
+]);
 app.use(
   cors({
     origin: (origin, cb) => {
