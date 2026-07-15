@@ -10,10 +10,8 @@ import './styles/index.css';
 
 // Split out — OnboardingQuiz is only ever seen by first-time visitors
 // (returning users skip straight past it via the vs_quiz_done flag), and
-// AuthModal is only needed once someone actually opens it. Neither belongs
-// in the bundle every visitor downloads up front.
+// doesn't belong in the bundle every visitor downloads up front.
 const OnboardingQuiz = lazy(() => import('./pages/OnboardingQuiz'));
-const AuthModal = lazy(() => import('./components/Auth/AuthModal'));
 
 // Push notifications depend on an active service worker — App.jsx waits on
 // navigator.serviceWorker.ready, which never resolves without a prior
@@ -25,13 +23,11 @@ if ('serviceWorker' in navigator) {
 }
 
 function Root() {
-  const { user, isLoading } = useAuth();
+  const { isLoading } = useAuth();
   const [quizDone, setQuizDone] = useState(() => !!localStorage.getItem('vs_quiz_done'));
-  const [showAuthModal, setShowAuthModal] = useState(false);
 
   function handleQuizComplete() {
     setQuizDone(true);
-    if (!user) setShowAuthModal(true);
   }
 
   const loadingScreen = (
@@ -60,16 +56,7 @@ function Root() {
     );
   }
 
-  return (
-    <>
-      <App />
-      {showAuthModal && !user && (
-        <Suspense fallback={null}>
-          <AuthModal onClose={() => setShowAuthModal(false)} />
-        </Suspense>
-      )}
-    </>
-  );
+  return <App />;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(

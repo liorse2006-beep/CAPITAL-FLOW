@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 
 const QUESTIONS = [
   {
@@ -45,123 +45,13 @@ const QUESTIONS = [
   },
 ];
 
-const MOCK_ALERTS = [
-  { sym: 'NVDA', name: 'NVIDIA Corp', change: '+6.2%', ratio: '9.1x', ago: '2 min ago', hot: true },
-  { sym: 'AMD', name: 'Advanced Micro Devices', change: '+3.8%', ratio: '6.4x', ago: '5 min ago', hot: true },
-  { sym: 'META', name: 'Meta Platforms', change: '+4.1%', ratio: '5.7x', ago: '11 min ago', hot: false },
-];
-
-function RevealSlide({ onNext }) {
-  const [statVal, setStatVal] = useState(0);
-  const [visible, setVisible] = useState([false, false, false]);
-  const [delayShown, setDelayShown] = useState(false);
-  const started = useRef(false);
-
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-
-    // Count up 87%
-    let v = 0;
-    const t = setInterval(() => {
-      v += 3;
-      if (v >= 87) {
-        v = 87;
-        clearInterval(t);
-      }
-      setStatVal(v);
-    }, 28);
-
-    // Stagger alert cards
-    setTimeout(() => setVisible((p) => [true, p[1], p[2]]), 400);
-    setTimeout(() => setVisible((p) => [p[0], true, p[2]]), 700);
-    setTimeout(() => setVisible((p) => [p[0], p[1], true]), 1000);
-    setTimeout(() => setDelayShown(true), 1400);
-  }, []);
-
-  return (
-    <div className="quiz-reveal-wrap">
-      <div className="quiz-reveal-eyebrow">THE EDGE YOU&apos;VE BEEN MISSING</div>
-
-      {/* Big stat */}
-      <div className="reveal-hero">
-        <div className="reveal-hero-stat">{statVal}%</div>
-        <div className="reveal-hero-label">
-          of major single-day moves start with a volume spike
-          <br />
-          <strong style={{ color: '#f4f4f5' }}>hours before the price moves</strong>
-        </div>
-      </div>
-
-      {/* Illustrative preview — MOCK_ALERTS are hardcoded, not a real scan */}
-      <div className="reveal-alerts-label">
-        <span className="reveal-live-dot" />
-        Example — alerts like this fire in real time
-      </div>
-      <div className="reveal-alerts">
-        {MOCK_ALERTS.map((a, i) => (
-          <div
-            key={a.sym}
-            className={`reveal-alert-card ${a.hot ? 'hot' : ''}`}
-            style={{
-              opacity: visible[i] ? 1 : 0,
-              transform: visible[i] ? 'translateY(0)' : 'translateY(12px)',
-              transition: 'opacity 0.35s ease, transform 0.35s ease',
-            }}
-          >
-            <div className="reveal-alert-left">
-              <span className="reveal-alert-sym">{a.sym}</span>
-              <span className="reveal-alert-name">{a.name}</span>
-            </div>
-            <div className="reveal-alert-right">
-              <span className={`reveal-alert-change ${a.hot ? 'hot' : ''}`}>{a.change}</span>
-              <span className="reveal-alert-ratio">{a.ratio} vol</span>
-              <span className="reveal-alert-ago">{a.ago}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* The delay callout */}
-      <div
-        className="reveal-delay-box"
-        style={{
-          opacity: delayShown ? 1 : 0,
-          transform: delayShown ? 'translateY(0)' : 'translateY(8px)',
-          transition: 'opacity 0.4s ease, transform 0.4s ease',
-        }}
-      >
-        <div className="reveal-delay-row">
-          <div className="reveal-delay-col pro">
-            <div className="reveal-delay-badge">PROS</div>
-            <div className="reveal-delay-time">0 sec</div>
-            <div className="reveal-delay-sub">Real-time scanner alert</div>
-          </div>
-          <div className="reveal-delay-vs">VS</div>
-          <div className="reveal-delay-col retail">
-            <div className="reveal-delay-badge retail">YOU (NOW)</div>
-            <div className="reveal-delay-time retail">~30 min</div>
-            <div className="reveal-delay-sub">Twitter, news, gut feeling</div>
-          </div>
-        </div>
-      </div>
-
-      <button className="quiz-cta-btn secondary" onClick={onNext} style={{ marginTop: 28 }}>
-        Fix that gap →
-      </button>
-    </div>
-  );
-}
-
 export default function OnboardingQuiz({ onComplete }) {
   const [step, setStep] = useState(0);
   const [selected, setSelected] = useState({});
   const [direction, setDirection] = useState('forward');
 
-  const totalSteps = QUESTIONS.length + 2;
   const isQuestion = step < QUESTIONS.length;
-  const isReveal = step === QUESTIONS.length;
-  const isCTA = step === QUESTIONS.length + 1;
+  const isCTA = step === QUESTIONS.length;
 
   function advance() {
     setDirection('forward');
@@ -191,7 +81,7 @@ export default function OnboardingQuiz({ onComplete }) {
     <div className="quiz-shell">
       {/* Header */}
       <div className="quiz-top">
-        {step > 0 && !isReveal && !isCTA ? (
+        {step > 0 && !isCTA ? (
           <button className="quiz-back-btn" onClick={back}>
             <svg
               width="14"
@@ -271,8 +161,6 @@ export default function OnboardingQuiz({ onComplete }) {
               </div>
             </div>
           )}
-
-          {isReveal && <RevealSlide onNext={advance} />}
 
           {isCTA && (
             <div className="quiz-cta-wrap">
