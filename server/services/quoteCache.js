@@ -50,11 +50,19 @@ async function fetchBatch(symbols) {
         await sleep(delay);
         continue;
       }
-      console.error(`[QuoteCache] Batch failed (${symbols[0]}…${symbols[symbols.length - 1]}): ${msg}`);
-      return []; // partial result — caller gets what it can
+      // All retries exhausted — serve whatever stale cache entries exist for
+      // these symbols rather than returning empty. Stale data (even minutes or
+      // hours old) is far better than a blank scanner or a crashed scan.
+      const stale = symbols.map((s) => cache.get(s)?.data).filter(Boolean);
+      if (stale.length > 0) {
+        console.warn(`[QuoteCache] Yahoo failed — serving ${stale.length}/${symbols.length} stale entries: ${msg}`);
+      } else {
+        console.error(`[QuoteCache] Batch failed, no stale fallback (${symbols[0]}…${symbols[symbols.length - 1]}): ${msg}`);
+      }
+      return stale;
     }
   }
-  return [];
+  return symbols.map((s) => cache.get(s)?.data).filter(Boolean);
 }
 
 /**

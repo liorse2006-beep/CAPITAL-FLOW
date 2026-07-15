@@ -5,7 +5,10 @@ const pool = require('./finnhubKeyPool');
  * on the next account if the first key is rate-limited.
  */
 async function finnhubFetch(urlWithoutToken) {
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // Try every key in the pool before giving up — with N keys we get N attempts,
+  // so a single exhausted key never blocks the request when others are available.
+  const attempts = Math.max(pool.poolSize(), 1);
+  for (let attempt = 0; attempt < attempts; attempt++) {
     const key = pool.getKey();
     if (!key) return null;
     const res = await fetch(urlWithoutToken + '&token=' + key);
