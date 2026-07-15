@@ -176,7 +176,24 @@ async function scanTickers(tickers, options) {
         var sector  = resolved[3];
 
         if (fQuote && fQuote.price > 0) {
-          r.price = fQuote.price;
+          // Cross-validate Finnhub price against the Yahoo baseline. A >25%
+          // divergence almost certainly means Finnhub handed back a stale close
+          // or a bad feed value — in that case keep the Yahoo price and log the
+          // anomaly. Non-price fields (dayHigh/Low/prevClose) are still applied
+          // because they are less likely to be wildly wrong.
+          const yahooBasePrice = r.price;
+          const priceDivergence = yahooBasePrice > 0
+            ? Math.abs(fQuote.price - yahooBasePrice) / yahooBasePrice
+            : 0;
+          if (priceDivergence > 0.25) {
+            console.warn(
+              `[Scanner] Price divergence rejected for ${r.symbol}: ` +
+              `Yahoo=${yahooBasePrice.toFixed(2)} Finnhub=${fQuote.price.toFixed(2)} ` +
+              `(${(priceDivergence * 100).toFixed(1)}% diff)`
+            );
+          } else {
+            r.price = fQuote.price;
+          }
           r.change = fQuote.change;
           if (fQuote.dayHigh > 0) r.dayHigh = fQuote.dayHigh;
           if (fQuote.dayLow > 0) r.dayLow = fQuote.dayLow;

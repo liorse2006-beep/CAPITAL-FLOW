@@ -16,6 +16,11 @@ const BATCH_SIZE = 100;           // symbols per HTTP call (Yahoo handles 200+ b
 const CACHE_TTL_MS = 3 * 60 * 1000;  // 3 minutes
 const INTER_BATCH_DELAY_MS = 150;
 const MAX_RETRIES = 2;
+// Maximum age for stale fallback entries. Beyond this limit we refuse to serve
+// them — it is better to show no data than silently show volume figures from
+// an hour ago while claiming the scan just ran. 10 min gives enough cushion
+// for a brief Yahoo outage without risking badly misleading results.
+const MAX_STALE_AGE_MS = 10 * 60 * 1000;
 
 // symbol → { data: QuoteResult, fetchedAt: number }
 const cache = new Map();
@@ -50,19 +55,31 @@ async function fetchBatch(symbols) {
         await sleep(delay);
         continue;
       }
-      // All retries exhausted — serve whatever stale cache entries exist for
-      // these symbols rather than returning empty. Stale data (even minutes or
-      // hours old) is far better than a blank scanner or a crashed scan.
-      const stale = symbols.map((s) => cache.get(s)?.data).filter(Boolean);
+      // All retries exhausted — serve stale cache entries only if they are
+      // recent enough (< MAX_STALE_AGE_MS). Entries older than that are
+      // rejected: showing 10-minute-old volume as "just scanned" is
+      // misleading enough to cause a bad trade. Better to omit the symbol
+      // entirely and let the scan return fewer results than fabricate freshness.
+      const now = Date.now();
+      const stale = symbols
+        .map((s) => {
+          const e = cache.get(s);
+          return e && (now - e.fetchedAt) < MAX_STALE_AGE_MS ? e.data : null;
+        })
+        .filter(Boolean);
       if (stale.length > 0) {
-        console.warn(`[QuoteCache] Yahoo failed — serving ${stale.length}/${symbols.length} stale entries: ${msg}`);
+        console.warn(`[QuoteCache] Yahoo failed — serving ${stale.length}/${symbols.length} recent stale entries (< ${MAX_STALE_AGE_MS / 60000} min old): ${msg}`);
       } else {
-        console.error(`[QuoteCache] Batch failed, no stale fallback (${symbols[0]}…${symbols[symbols.length - 1]}): ${msg}`);
+        console.error(`[QuoteCache] Batch failed, no usable stale fallback (${symbols[0]}…${symbols[symbols.length - 1]}): ${msg}`);
       }
       return stale;
     }
   }
-  return symbols.map((s) => cache.get(s)?.data).filter(Boolean);
+  // Loop exhausted without returning — same age-limited stale fallback
+  const now2 = Date.now();
+  return symbols
+    .map((s) => { const e = cache.get(s); return e && (now2 - e.fetchedAt) < MAX_STALE_AGE_MS ? e.data : null; })
+    .filter(Boolean);
 }
 
 /**

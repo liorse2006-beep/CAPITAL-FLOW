@@ -587,7 +587,22 @@ export default function ScannerPage({
           <div className="table-bar">
             <div>
               <h2>{sorted.length + ' Result' + (sorted.length !== 1 ? 's' : '')}</h2>
-              {scanTime && <span className="table-bar-sub">{'Scanned ' + new Date(scanTime).toLocaleString()}</span>}
+              {scanTime && (() => {
+                const ageMs = Date.now() - new Date(scanTime).getTime();
+                const ageMins = Math.round(ageMs / 60000);
+                const isStale = !marketClosed && ageMins >= 5;
+                return (
+                  <span
+                    className="table-bar-sub"
+                    style={isStale ? { color: 'var(--accent)', fontWeight: 600 } : undefined}
+                    title={isStale ? 'Data may not reflect current market activity' : undefined}
+                  >
+                    {isStale
+                      ? `⚠ Data is ${ageMins} min old`
+                      : 'Scanned ' + new Date(scanTime).toLocaleString()}
+                  </span>
+                );
+              })()}
             </div>
             {sorted.length > 50 && (
               <span className="load-more-count">
