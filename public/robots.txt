@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /api/
 
-Sitemap: https://capital-flow-3v59.onrender.com/sitemap.xml
+Sitemap: https://capitalflow.vip/sitemap.xml
