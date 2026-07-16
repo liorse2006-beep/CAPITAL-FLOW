@@ -6,7 +6,7 @@ import AlertThresholdModal from './AlertThresholdModal';
 describe('AlertThresholdModal', () => {
   it('shows the ticker symbol in the title', () => {
     render(<AlertThresholdModal symbol="AAPL" current={null} onSave={vi.fn()} onRemove={vi.fn()} onClose={vi.fn()} />);
-    expect(screen.getByText(/Alert — AAPL/)).toBeInTheDocument();
+    expect(screen.getByText(/התראת נפח — AAPL/)).toBeInTheDocument();
   });
 
   it('pre-fills the input with the current threshold', () => {
@@ -19,7 +19,7 @@ describe('AlertThresholdModal', () => {
     const onSave = vi.fn();
     render(<AlertThresholdModal symbol="AAPL" current={null} onSave={onSave} onRemove={vi.fn()} onClose={vi.fn()} />);
     await user.type(screen.getByRole('spinbutton'), '4');
-    await user.click(screen.getByRole('button', { name: /save alert/i }));
+    await user.click(screen.getByRole('button', { name: 'שמור התראה' }));
     expect(onSave).toHaveBeenCalledWith(4);
   });
 
@@ -30,7 +30,10 @@ describe('AlertThresholdModal', () => {
       <AlertThresholdModal symbol="AAPL" current={3} onSave={vi.fn()} onRemove={onRemove} onClose={vi.fn()} />
     );
     await user.clear(screen.getByRole('spinbutton'));
-    await user.click(screen.getByRole('button', { name: /remove alert/i }));
+    // With a current threshold set and the field cleared, the submit button
+    // reads "הסר התראה" and a standalone remove button is also shown — both
+    // call onRemove. Click the first (the submit button).
+    await user.click(screen.getAllByRole('button', { name: 'הסר התראה' })[0]);
     expect(onRemove).toHaveBeenCalled();
   });
 

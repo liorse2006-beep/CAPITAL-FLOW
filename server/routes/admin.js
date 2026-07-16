@@ -240,15 +240,38 @@ router.get('/admin', asyncRoute(async (req, res) => {
   // Auth headers are built in the browser from localStorage (always fresh).
   const token = req.query.token || null; // static ADMIN_TOKEN path (optional)
 
+  // Per-request nonce for the inline <script> and <style>. This lets the admin
+  // page run under a real Content-Security-Policy: script-src carries the nonce
+  // and NOT 'unsafe-inline', so an injected <script> (even if escaping ever
+  // failed) cannot execute. All former inline on* handlers were moved into the
+  // nonce'd script via event delegation. Inline style="" attributes remain, so
+  // style-src keeps 'unsafe-inline' — style injection is a far lower risk and
+  // every user-controlled value is already escaped with escapeHtml().
+  const nonce = crypto.randomBytes(16).toString('base64');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store'); // never cache — prevents stale JWT in HTML
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      `script-src 'self' 'nonce-${nonce}'`,
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "connect-src 'self'",
+      "font-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+    ].join('; ')
+  );
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admin — Capital Flow</title>
-<style>
+<style nonce="${nonce}">
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { max-width: 100%; overflow-x: hidden; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -340,6 +363,7 @@ router.get('/admin', asyncRoute(async (req, res) => {
   .refresh-btn { background: none; border: 1px solid rgba(255,255,255,0.1); color: #A0A0A8;
                  font-size: 12px; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
   .refresh-btn:hover { background: rgba(255,255,255,0.05); color: #E4E4E7; }
+  .back-link:hover { color: #E4E4E7 !important; }
   .feedback-row { padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.04); }
   .feedback-row:last-child { border-bottom: none; }
   .feedback-row-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
@@ -373,7 +397,7 @@ router.get('/admin', asyncRoute(async (req, res) => {
   <div style="display:flex;align-items:center;gap:16px">
     <span style="font-size:11px;font-family:monospace;padding:3px 10px;border-radius:4px;font-weight:700;${TURSO_DB_URL ? 'background:rgba(34,197,94,0.12);color:#22C55E;border:1px solid rgba(34,197,94,0.25)' : 'background:rgba(239,68,68,0.12);color:#EF4444;border:1px solid rgba(239,68,68,0.25)'}">${DB_ENV}</span>
     <span id="last-refresh">Loading…</span>
-    <a href="/" style="font-size:12px;color:#71717A;text-decoration:none;border:1px solid rgba(255,255,255,0.1);padding:5px 12px;border-radius:6px;transition:color .15s" onmouseover="this.style.color='#E4E4E7'" onmouseout="this.style.color='#71717A'">← Back to site</a>
+    <a href="/" class="back-link" style="font-size:12px;color:#71717A;text-decoration:none;border:1px solid rgba(255,255,255,0.1);padding:5px 12px;border-radius:6px;transition:color .15s">← Back to site</a>
   </div>
 </div>
 <div class="wrap">
@@ -396,8 +420,8 @@ router.get('/admin', asyncRoute(async (req, res) => {
       <span style="font-size:11px;color:#71717A">Emails below auto-tag as PILOT on signup</span>
     </div>
     <div class="pilot-add">
-      <input id="pilot-email" placeholder="tester@company.com" onkeydown="if(event.key==='Enter')addPilotEmail()" />
-      <button onclick="addPilotEmail()">+ Add to pilot</button>
+      <input id="pilot-email" placeholder="tester@company.com" />
+      <button id="btn-add-pilot">+ Add to pilot</button>
     </div>
     <div class="pilot-list" id="pilot-list"><span class="pilot-empty">Loading…</span></div>
   </div>
@@ -405,7 +429,7 @@ router.get('/admin', asyncRoute(async (req, res) => {
   <div class="card" style="margin-bottom:20px">
     <div class="card-hdr">
       <h2>Feedback</h2>
-      <button class="refresh-btn" onclick="loadFeedback()">↻ Refresh</button>
+      <button class="refresh-btn" id="btn-refresh-feedback">↻ Refresh</button>
     </div>
     <div id="feedback-wrap"><div class="loader">Loading…</div></div>
   </div>
@@ -426,7 +450,7 @@ router.get('/admin', asyncRoute(async (req, res) => {
       <input id="coupon-max-uses" type="number" min="1" placeholder="Max uses" style="width:90px" />
       <input id="coupon-expires" type="number" min="1" placeholder="Expires (days)" style="width:110px" />
       <input id="coupon-paddle-id" placeholder="Paddle discount ID (optional)" style="width:180px" />
-      <button onclick="createCoupon()">+ Create</button>
+      <button id="btn-create-coupon">+ Create</button>
     </div>
     <div style="padding:0 20px 12px;font-size:11px;color:#71717A">
       To actually charge the discounted price at checkout, create a matching discount in Paddle's dashboard and paste its ID here — otherwise this coupon only changes what's displayed, not what Paddle bills.
@@ -438,8 +462,8 @@ router.get('/admin', asyncRoute(async (req, res) => {
     <div class="card-hdr">
       <h2>Users</h2>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <input id="search" placeholder="Filter by email…" oninput="filterTable()" />
-        <button class="refresh-btn" onclick="load()">↻ Refresh</button>
+        <input id="search" placeholder="Filter by email…" />
+        <button class="refresh-btn" id="btn-refresh-users">↻ Refresh</button>
       </div>
     </div>
     <div id="table-wrap">
@@ -449,7 +473,7 @@ router.get('/admin', asyncRoute(async (req, res) => {
 </div>
 <div class="toast" id="toast"></div>
 
-<script>
+<script nonce="${nonce}">
 // Static ADMIN_TOKEN wins when provided via URL; otherwise use the live JWT
 // from localStorage — it's always fresh and never needs a manual refresh.
 const _staticToken = ${JSON.stringify(token)};
@@ -495,7 +519,7 @@ async function loadFeedback() {
         <div class="feedback-row-hdr">
           <span class="feedback-who">\${who}\${page}</span>
           <span class="feedback-date">\${date}</span>
-          <button class="feedback-del" onclick="deleteFeedback(\${row.id})" title="Delete">✕</button>
+          <button class="feedback-del" data-act="del-feedback" data-id="\${row.id}" title="Delete">✕</button>
         </div>
         <div class="feedback-msg">\${escapeHtml(row.message)}</div>
       </div>\`;
@@ -526,8 +550,8 @@ async function loadCoupons() {
           ? '<span class="badge badge-no">Expired</span>'
           : '<span class="badge badge-ok">Active</span>';
       const toggleBtn = c.active
-        ? \`<button class="btn btn-pilot-off" onclick="toggleCoupon('\${c.code}', false)">Disable</button>\`
-        : \`<button class="btn btn-pilot-on" onclick="toggleCoupon('\${c.code}', true)">Enable</button>\`;
+        ? \`<button class="btn btn-pilot-off" data-act="toggle-coupon" data-code="\${escapeHtml(c.code)}" data-active="0">Disable</button>\`
+        : \`<button class="btn btn-pilot-on" data-act="toggle-coupon" data-code="\${escapeHtml(c.code)}" data-active="1">Enable</button>\`;
       const paddleBadge = c.paddle_discount_id
         ? \`<span class="badge badge-ok" title="\${escapeHtml(c.paddle_discount_id)}">Paddle linked</span>\`
         : \`<span class="badge badge-no" title="Discount won't be reflected at actual checkout">No Paddle link</span>\`;
@@ -540,7 +564,7 @@ async function loadCoupons() {
         <span class="coupon-meta">\${uses}</span>
         <div class="actions">
           \${toggleBtn}
-          <button class="btn btn-del" onclick="deleteCoupon('\${c.code}')">✕</button>
+          <button class="btn btn-del" data-act="del-coupon" data-code="\${escapeHtml(c.code)}">✕</button>
         </div>
       </div>\`;
     }).join('');
@@ -597,8 +621,7 @@ async function loadPilotAllowlist() {
     if (!list.length) { el.innerHTML = '<span class="pilot-empty">No pilot invites yet — add an email above.</span>'; return; }
     el.innerHTML = list.map(function(row) {
       const safe = escapeHtml(row.email);
-      const jsSafe = row.email.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
-      return \`<span class="pilot-chip">\${safe}<button onclick="removePilotEmail('\${escapeHtml(jsSafe)}')" title="Remove">✕</button></span>\`;
+      return \`<span class="pilot-chip">\${safe}<button data-act="remove-pilot" data-email="\${safe}" title="Remove">✕</button></span>\`;
     }).join('');
   } catch(e) {}
 }
@@ -669,24 +692,24 @@ function renderTable(users) {
     const tierBtns = ['free', 'premium', 'elite'].map(function(t) {
       const active = tier === t ? ' btn-tier-active' : '';
       const label = t === 'free' ? 'Free' : t === 'premium' ? 'Premium' : 'Elite';
-      return \`<button class="btn btn-tier-\${t}\${active}" onclick="setTier(\${u.id}, '\${t}')">\${label}</button>\`;
+      return \`<button class="btn btn-tier-\${t}\${active}" data-act="set-tier" data-id="\${u.id}" data-tier="\${t}">\${label}</button>\`;
     }).join('');
 
     const pilotBtn = u.is_pilot
-      ? \`<button class="btn btn-pilot-off" onclick="setPilot(\${u.id}, 0)">Remove pilot</button>\`
-      : \`<button class="btn btn-pilot-on"  onclick="setPilot(\${u.id}, 1)">🔬 Mark pilot</button>\`;
+      ? \`<button class="btn btn-pilot-off" data-act="set-pilot" data-id="\${u.id}" data-val="0">Remove pilot</button>\`
+      : \`<button class="btn btn-pilot-on"  data-act="set-pilot" data-id="\${u.id}" data-val="1">🔬 Mark pilot</button>\`;
 
     const blockBtn = u.is_blocked
-      ? \`<button class="btn btn-unblock" onclick="setBlock(\${u.id}, 0)">✓ Unblock</button>\`
-      : \`<button class="btn btn-block"   onclick="setBlock(\${u.id}, 1)">⊘ Block</button>\`;
+      ? \`<button class="btn btn-unblock" data-act="set-block" data-id="\${u.id}" data-val="0">✓ Unblock</button>\`
+      : \`<button class="btn btn-block"   data-act="set-block" data-id="\${u.id}" data-val="1">⊘ Block</button>\`;
 
-    const logoutBtn = \`<button class="btn btn-logout" onclick="forceLogout(\${u.id})" title="Ends their current session on every device">⏻ Force logout</button>\`;
+    const logoutBtn = \`<button class="btn btn-logout" data-act="force-logout" data-id="\${u.id}" title="Ends their current session on every device">⏻ Force logout</button>\`;
 
     const pushTestBtn = u.push_count > 0
-      ? \`<button class="btn btn-push-test" onclick="sendTestPush(\${u.id})" title="Send a test push notification to this user">🔔 Test push</button>\`
+      ? \`<button class="btn btn-push-test" data-act="push-test" data-id="\${u.id}" title="Send a test push notification to this user">🔔 Test push</button>\`
       : '';
 
-    const delBtn = \`<button class="btn btn-del" onclick="deleteUser(\${u.id}, '\${email.replace(/'/g,"\\\\'")}')">✕</button>\`;
+    const delBtn = \`<button class="btn btn-del" data-act="del-user" data-id="\${u.id}" data-email="\${email}">✕</button>\`;
 
     const usage = tier === 'elite'
       ? '∞'
@@ -780,6 +803,41 @@ function toast(msg, err) {
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2800);
 }
+
+// ── Event delegation ────────────────────────────────────────────────────────
+// Every button action is wired here instead of via inline onclick="" — that is
+// what lets the whole page run under a Content-Security-Policy whose script-src
+// has NO 'unsafe-inline'. Dynamic rows carry data-act + data-* attributes; a
+// single delegated listener reads them and dispatches. Browsers decode HTML
+// entities in attribute values on parse, so escapeHtml'd emails/codes arrive
+// here as their real string.
+document.addEventListener('click', function (e) {
+  const btn = e.target.closest('[data-act]');
+  if (!btn) return;
+  const d = btn.dataset;
+  switch (d.act) {
+    case 'set-tier':      return setTier(d.id, d.tier);
+    case 'set-pilot':     return setPilot(d.id, Number(d.val));
+    case 'set-block':     return setBlock(d.id, Number(d.val));
+    case 'force-logout':  return forceLogout(d.id);
+    case 'push-test':     return sendTestPush(d.id);
+    case 'del-user':      return deleteUser(d.id, d.email);
+    case 'toggle-coupon': return toggleCoupon(d.code, Number(d.active));
+    case 'del-coupon':    return deleteCoupon(d.code);
+    case 'del-feedback':  return deleteFeedback(d.id);
+    case 'remove-pilot':  return removePilotEmail(d.email);
+  }
+});
+
+// Static controls (present in the initial HTML, not regenerated)
+document.getElementById('btn-add-pilot').addEventListener('click', addPilotEmail);
+document.getElementById('pilot-email').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') addPilotEmail();
+});
+document.getElementById('btn-refresh-feedback').addEventListener('click', loadFeedback);
+document.getElementById('btn-create-coupon').addEventListener('click', createCoupon);
+document.getElementById('btn-refresh-users').addEventListener('click', load);
+document.getElementById('search').addEventListener('input', filterTable);
 
 load();
 loadFeedback();

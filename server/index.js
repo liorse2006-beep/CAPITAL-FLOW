@@ -41,14 +41,10 @@ const spaCsp = helmet.contentSecurityPolicy({
     // React sets inline styles via the CSSOM (style.setProperty), which CSP
     // treats the same as a literal style="" attribute — 'unsafe-inline' is
     // required here given how pervasively this app uses style={{...}}.
-    styleSrc: [
-      "'self'",
-      "'unsafe-inline'",
-      'https://fonts.googleapis.com',
-      'https://api.fontshare.com',
-      'https://cdn.fontshare.com',
-    ],
-    fontSrc: ["'self'", 'https://fonts.gstatic.com', 'https://cdn.fontshare.com'],
+    // Fonts are self-hosted (see @font-face in src/styles/index.css), so no
+    // external font-CDN origins are allow-listed here anymore.
+    styleSrc: ["'self'", "'unsafe-inline'"],
+    fontSrc: ["'self'"],
     // Ticker logos are fetched client-side from Parqet's public logo CDN
     // (see the `ticker-logo` <img> in ScannerPage/WatchlistPage) — without
     // this, every logo silently fails to load in production.

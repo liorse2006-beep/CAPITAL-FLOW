@@ -36,13 +36,13 @@
     <link rel="icon" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="manifest" href="/manifest.json" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
-      rel="stylesheet"
-    />
-    <link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap" rel="stylesheet" />
+    <!-- Fonts are self-hosted (see @font-face in src/styles/index.css) — no
+         external CDN. Preload the two faces on the critical first-paint path:
+         Switzer 400 (body/UI text) and JetBrains Mono (every number in the
+         scanner table). The browser fetches them in parallel with the CSS
+         instead of discovering them only after the stylesheet parses. -->
+    <link rel="preload" href="/fonts/switzer-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
   </head>
   <body>
     <div id="root"></div>

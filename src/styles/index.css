@@ -1,3 +1,47 @@
+/* ── Self-hosted fonts ──────────────────────────────────────────────────────
+   Served from same-origin /fonts/ with a 1-year immutable cache instead of
+   Google Fonts + Fontshare CDNs. This removes two render-blocking cross-origin
+   round-trips on every first paint — the single biggest latency win for users
+   far from the origin server. Only the latin subset is bundled; Hebrew text
+   falls back to the system UI font (Switzer/JetBrains cover no Hebrew glyphs
+   anyway). font-display:swap keeps text visible during load. */
+@font-face {
+  font-family: 'Switzer';
+  src: url('/fonts/switzer-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Switzer';
+  src: url('/fonts/switzer-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Switzer';
+  src: url('/fonts/switzer-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Switzer';
+  src: url('/fonts/switzer-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+/* JetBrains Mono latin is a single variable file covering weights 400–600. */
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono-latin.woff2') format('woff2');
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg-0: #0a0a0a;
   --bg-1: #141414;
@@ -37,6 +81,38 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+/* ── Accessibility: visible keyboard focus (WCAG 2.4.7) ──────────────────────
+   The app sets `outline: none` in many places for mouse aesthetics, which left
+   keyboard users with no visible focus indicator. `:focus-visible` restores a
+   clear focus ring for keyboard/AT navigation ONLY — it never triggers on a
+   mouse click, so the pointer experience is unchanged. !important guarantees it
+   wins over the scattered per-component `outline: none` on `:focus`. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible,
+[role='button']:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+/* ── Accessibility: respect reduced-motion preference (WCAG 2.3.3) ───────────
+   Users who ask their OS to minimise motion get near-instant transitions
+   instead of the radar sweeps, slides and pulses. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 body {
@@ -5793,4 +5869,95 @@ td {
 }
 .push-prompt-dismiss:hover {
   color: var(--text-1);
+}
+
+/* ── Logged-out demo preview ────────────────────────────────────────────────
+   A labelled sample scan shown to visitors before they sign in. The SAMPLE
+   badge is deliberately loud so the example values can never read as live. */
+@keyframes demoFadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.demo-preview {
+  margin-top: 28px;
+  animation: demoFadeInUp 0.4s ease both;
+}
+.demo-preview-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.demo-preview-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.demo-badge {
+  align-self: flex-start;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-xs);
+  padding: 3px 8px;
+}
+.demo-preview-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-0);
+  letter-spacing: -0.01em;
+}
+.demo-preview-sub {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.5;
+  max-width: 52ch;
+}
+.demo-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--accent);
+  color: #0a0a0a;
+  border: none;
+  border-radius: var(--radius);
+  padding: 10px 18px;
+  font-family: var(--font);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.25);
+  transition: filter 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+.demo-cta:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.35);
+}
+/* The sample table stays fully legible but visually "quieted" a touch and made
+   non-interactive so it reads as an illustration, not a live tool. */
+.demo-table-card {
+  position: relative;
+  opacity: 0.92;
+}
+.demo-table-card::after {
+  content: 'SAMPLE — NOT LIVE DATA';
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+  pointer-events: none;
+}
+.demo-table-card table {
+  pointer-events: none;
 }

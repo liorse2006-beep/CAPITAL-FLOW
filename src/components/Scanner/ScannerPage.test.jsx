@@ -103,7 +103,10 @@ describe('ScannerPage sector limit', () => {
     const user = userEvent.setup();
     const toggleSector = vi.fn();
     render(<ScannerPage {...baseProps({ toggleSector })} />);
-    await user.click(screen.getByText('Technology').closest('button'));
+    // Scope to the sector-grid card specifically — the logged-out demo preview
+    // also renders a "Technology" sector chip, so an unscoped text query is
+    // ambiguous. The card's name lives in .sector-card-name.
+    await user.click(screen.getByText('Technology', { selector: '.sector-card-name' }).closest('button'));
     expect(toggleSector).toHaveBeenCalledWith('Technology');
   });
 });

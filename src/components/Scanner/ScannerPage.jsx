@@ -4,6 +4,7 @@ import ScheduleScan from '../shared/ScheduleScan'
 import { fmt, friendlyError } from '../../utils/format'
 import { categoryQuota } from '../../utils/quota'
 import { SECTOR_ICONS } from '../../constants/sectorIcons'
+import { DEMO_RESULTS } from '../../constants/demoResults'
 
 const ALL_SECTORS = [
   'Technology',
@@ -89,6 +90,142 @@ function TH({ label, field, sortField, sortDir, isPremium, onSort, onSortReset }
       {label}
       {sortField === field && isPremium && <span className="sort-icon">{sortDir === 'asc' ? '▲' : '▼'}</span>}
     </th>
+  )
+}
+
+/**
+ * Logged-out preview. Shows a static example scan so a visitor understands the
+ * product before signing in. Every value is illustrative and permanently
+ * labelled "SAMPLE DATA" — never a live quote — so it can't be mistaken for
+ * tradeable figures. The CTA routes through onSignIn (the auth modal).
+ */
+function DemoPreview({ onSignIn }) {
+  return (
+    <div className="demo-preview" aria-label="Example scan preview">
+      <div className="demo-preview-head">
+        <div className="demo-preview-titles">
+          <span className="demo-badge">SAMPLE DATA</span>
+          <h2 className="demo-preview-title">See a scan before you sign in</h2>
+          <p className="demo-preview-sub">
+            This is a fixed example — not live prices. Sign in to run a real-time scan across the S&amp;P 500 and NASDAQ 100.
+          </p>
+        </div>
+        <button className="demo-cta" onClick={onSignIn}>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          </svg>
+          Sign in to scan live
+        </button>
+      </div>
+
+      <div className="table-card demo-table-card">
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: 40 }}>#</th>
+                <th>Ticker</th>
+                <th>Name</th>
+                <th>Mkt Cap</th>
+                <th>Price</th>
+                <th>Change</th>
+                <th>RVOL</th>
+                <th>Avg / Vol</th>
+                <th>Sector</th>
+              </tr>
+            </thead>
+            <tbody>
+              {DEMO_RESULTS.map((r, i) => (
+                <tr key={r.symbol}>
+                  <td className="col-rank">{i + 1}</td>
+                  <td className="col-ticker">
+                    <div className="ticker-cell">
+                      <img
+                        className="ticker-logo"
+                        src={'https://assets.parqet.com/logos/symbol/' + r.symbol}
+                        alt=""
+                        width={18}
+                        height={18}
+                        onError={(e) => {
+                          e.target.style.display = 'none'
+                        }}
+                      />
+                      {r.symbol}
+                    </div>
+                  </td>
+                  <td className="col-name" title={r.name}>
+                    {r.name}
+                  </td>
+                  <td style={{ color: 'var(--text-2)', fontSize: 12 }}>{fmt(r.marketCap)}</td>
+                  <td>{'$' + r.price.toFixed(2)}</td>
+                  <td className={r.change >= 0 ? 'col-pos' : 'col-neg'}>
+                    {(r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '%'}
+                  </td>
+                  <td>
+                    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span className="vol-ratio-pill rvol-active">{r.rvol + 'x'}</span>
+                      <div className="rvol-label">RVOL</div>
+                    </div>
+                  </td>
+                  <td>
+                    <span className="vol-stack">
+                      <span className="vol-stack-avg">{fmt(r.avgVolume)}</span>
+                      <span className="vol-stack-sep">/</span>
+                      <span className="vol-stack-cur">{fmt(r.volume)}</span>
+                    </span>
+                  </td>
+                  <td>
+                    <span className="sector-chip">{r.sector}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile cards mirror the desktop rows */}
+        <div className="mobile-cards">
+          {DEMO_RESULTS.map((r, i) => (
+            <div key={r.symbol} className={'mobile-card ' + (r.volumeRatio >= 5 ? 'ratio-hot' : r.volumeRatio >= 3.5 ? 'ratio-warm' : 'ratio-ok')}>
+              <div className="mobile-card-top">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <img
+                    className="ticker-logo"
+                    src={'https://assets.parqet.com/logos/symbol/' + r.symbol}
+                    alt=""
+                    width={18}
+                    height={18}
+                    onError={(e) => {
+                      e.target.style.display = 'none'
+                    }}
+                  />
+                  <span className="mobile-card-ticker">{r.symbol}</span>
+                  <span className="mobile-card-name">{r.name}</span>
+                </div>
+                <span className="mobile-card-rank">{'#' + (i + 1)}</span>
+              </div>
+              <div className="mobile-card-mid">
+                <span className="mobile-card-price">{'$' + r.price.toFixed(2)}</span>
+                <span className={'mobile-card-change ' + (r.change >= 0 ? 'pos' : 'neg')}>
+                  {(r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '%'}
+                </span>
+              </div>
+              <div className="mobile-card-bottom">
+                <span className="mobile-card-ratio">
+                  <span className={'ratio-pill ' + (r.volumeRatio >= 5 ? 'hot' : r.volumeRatio >= 3.5 ? 'warm' : 'ok')}>
+                    {r.volumeRatio + 'x'}
+                  </span>
+                </span>
+                <span className="mobile-card-vol">{fmt(r.avgVolume) + ' / ' + fmt(r.volume)}</span>
+                <span className="mobile-card-sector">
+                  <span className="sector-chip">{r.sector}</span>
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -464,6 +601,10 @@ export default function ScannerPage({
           )}
         </div>
       )}
+
+      {/* Logged-out preview — a labelled sample scan so visitors see the
+          product before signing in. Never shown once real results exist. */}
+      {!user && !results && !scanning && <DemoPreview onSignIn={startScan} />}
 
       {/* Filter strip — only shown after scan completes */}
       {results && !scanning && (
