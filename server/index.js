@@ -133,10 +133,16 @@ app.use(function (req, res, next) {
       // Vite fingerprints every file under assets/ with a content hash in the
       // name (index-Ab12Cd34.js) — the filename itself changes whenever the
       // content does, so it's safe to tell browsers to cache it forever and
-      // skip the network entirely on repeat visits. Everything else (notably
-      // index.html, which references those hashed names) must always be
-      // revalidated or users would get stuck on a stale build.
-      if (filePath.includes(path.join(serveDir, 'assets') + path.sep)) {
+      // skip the network entirely on repeat visits. Self-hosted font files
+      // are equally static (same treatment as any CDN font host) — they only
+      // ever change on a deliberate redesign, which ships alongside a CSS/JS
+      // change that busts those hashed assets anyway. Everything else
+      // (notably index.html, which references those hashed names) must
+      // always be revalidated or users would get stuck on a stale build.
+      if (
+        filePath.includes(path.join(serveDir, 'assets') + path.sep) ||
+        filePath.includes(path.join(serveDir, 'fonts') + path.sep)
+      ) {
         res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       }
     },
