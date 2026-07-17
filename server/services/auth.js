@@ -41,7 +41,8 @@ function generateToken(user) {
  */
 async function issueToken(user) {
   const sv = (user.session_version || 0) + 1;
-  await db.prepare('UPDATE users SET session_version = ? WHERE id = ?').run(sv, user.id);
+  const now = Math.floor(Date.now() / 1000);
+  await db.prepare('UPDATE users SET session_version = ?, last_login_at = ? WHERE id = ?').run(sv, now, user.id);
   return generateToken(withEffectivePremium({ ...user, session_version: sv }));
 }
 

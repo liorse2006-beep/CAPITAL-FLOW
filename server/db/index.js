@@ -184,6 +184,7 @@ async function initDb() {
     `ALTER TABLE users ADD COLUMN free_scan_used_sector_moving INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE users ADD COLUMN premium_scan_count INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE users ADD COLUMN premium_scan_window_start INTEGER`,
+    `ALTER TABLE users ADD COLUMN last_login_at INTEGER`,
     `ALTER TABLE coupons ADD COLUMN paddle_discount_id TEXT`,
   ];
 

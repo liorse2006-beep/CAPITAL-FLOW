@@ -56,7 +56,7 @@ router.get('/admin/api/users', asyncRoute(async (req, res) => {
   const users = await db
     .prepare(
       `SELECT id, email, google_email, is_verified, is_premium, is_blocked, is_pilot, tier,
-              pilot_terms_accepted_at, free_scan_count, created_at, notification_time,
+              pilot_terms_accepted_at, free_scan_count, created_at, last_login_at, notification_time,
               free_scan_used_capital_flow, free_scan_used_ma_scanner, free_scan_used_sector_moving,
               premium_scan_count, premium_scan_window_start,
               (SELECT COUNT(*) FROM watchlist_alerts    WHERE user_id = users.id) AS alert_count,
@@ -410,6 +410,7 @@ router.get('/admin', asyncRoute(async (req, res) => {
     <div class="stat"><div class="stat-val" id="s-pilot">—</div><div class="stat-lbl">Pilot</div></div>
     <div class="stat"><div class="stat-val" id="s-today">—</div><div class="stat-lbl">Joined Today</div></div>
     <div class="stat"><div class="stat-val" id="s-week">—</div><div class="stat-lbl">This Week</div></div>
+    <div class="stat"><div class="stat-val" id="s-active">—</div><div class="stat-lbl">Active (7d)</div></div>
     <div class="stat"><div class="stat-val" id="s-push">—</div><div class="stat-lbl">Push Enabled</div></div>
     <div class="stat"><div class="stat-val" id="s-alerts">—</div><div class="stat-lbl">Watchlist Alerts Set</div></div>
   </div>
@@ -665,6 +666,7 @@ function renderStats(users) {
   document.getElementById('s-pilot').textContent    = users.filter(u => u.is_pilot).length;
   document.getElementById('s-today').textContent    = users.filter(u => new Date(u.created_at).toDateString() === today).length;
   document.getElementById('s-week').textContent     = users.filter(u => new Date(u.created_at) >= weekAgo).length;
+  document.getElementById('s-active').textContent   = users.filter(u => u.last_login_at && new Date(u.last_login_at * 1000) >= weekAgo).length;
   document.getElementById('s-push').textContent     = users.filter(u => u.push_count > 0).length;
   document.getElementById('s-alerts').textContent   = users.reduce((sum, u) => sum + (u.alert_count || 0), 0);
 }
@@ -688,6 +690,9 @@ function renderTable(users) {
       ? \`<span class="badge badge-pilot" title="\${u.pilot_terms_accepted_at ? 'Terms accepted' : 'Terms not yet accepted'}">PILOT\${u.pilot_terms_accepted_at ? '' : ' ⏳'}</span>\`
       : '';
     const date    = new Date(u.created_at).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const lastLogin = u.last_login_at
+      ? new Date(u.last_login_at * 1000).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' })
+      : '<span style="color:#444">Never</span>';
 
     const tierBtns = ['free', 'premium', 'elite'].map(function(t) {
       const active = tier === t ? ' btn-tier-active' : '';
@@ -732,6 +737,7 @@ function renderTable(users) {
       <td class="center" style="font-family:monospace;font-size:12px">\${usage}</td>
       <td>\${notifCell}</td>
       <td class="date">\${date}</td>
+      <td class="date">\${lastLogin}</td>
       <td><div class="actions">\${tierBtns}\${pilotBtn}\${logoutBtn}\${pushTestBtn}\${blockBtn}\${delBtn}</div></td>
     </tr>\`;
   }).join('');
@@ -747,6 +753,7 @@ function renderTable(users) {
         <th class="center">Usage</th>
         <th>Notifications</th>
         <th>Joined</th>
+        <th>Last Login</th>
         <th>Actions</th>
       </tr></thead>
       <tbody>\${rows}</tbody>
