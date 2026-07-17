@@ -110,7 +110,7 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn }) {
       <div className="flow-header">
         <div>
           <h2 className="flow-title">Sector Money Flow</h2>
-          <p className="flow-sub">ALL MARKET SECTORS</p>
+          <p className="flow-sub">TRACK WHERE CAPITAL IS ROTATING ACROSS EVERY SECTOR</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button className="scan-btn" onClick={fetchFlow} disabled={loading}>
