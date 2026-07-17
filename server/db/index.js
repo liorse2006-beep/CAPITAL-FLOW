@@ -166,7 +166,18 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS processed_webhook_events (
       event_id     TEXT    PRIMARY KEY,
       processed_at INTEGER NOT NULL DEFAULT (unixepoch())
-    )
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_audit_log (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor          TEXT    NOT NULL,
+      action         TEXT    NOT NULL,
+      target_user_id INTEGER,
+      detail         TEXT,
+      created_at     INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_audit_log_created ON admin_audit_log(created_at)
   `);
 
   // Safe migrations — silently ignored if the column already exists

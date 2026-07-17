@@ -53,6 +53,17 @@ async function runBackupTick() {
 
 function startScheduledBackup() {
   const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  const STARTUP_DELAY_MS = 2 * 60 * 1000; // let the DB/config finish settling after boot
+  // A pure 24h setInterval never fires on Render's free tier: the instance
+  // spins down after 15 min idle and every redeploy restarts the process,
+  // resetting the countdown before it reaches 24h. Also run once shortly
+  // after boot so a backup actually goes out on every deploy/restart, not
+  // only on the (rare here) occasion the process stays up a full day.
+  setTimeout(function () {
+    runBackupTick().catch(function (err) {
+      console.error('[dbBackup]', err);
+    });
+  }, STARTUP_DELAY_MS);
   setInterval(function () {
     runBackupTick().catch(function (err) {
       console.error('[dbBackup]', err);

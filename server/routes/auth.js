@@ -12,7 +12,7 @@ const {
   saveOTP,
   verifyOTP,
 } = require('../services/auth');
-const { sendOTPEmail, sendPasswordResetEmail, sendWelcomeEmail } = require('../services/email');
+const { sendOTPEmail, sendPasswordResetEmail, sendWelcomeEmail, sendNewSignupAdminAlert } = require('../services/email');
 const { requireAuth } = require('../middleware/authMiddleware');
 const { authLimiter, otpLimiter } = require('../middleware/rateLimiters');
 const pilotAllowlist = require('../services/pilotAllowlist');
@@ -78,6 +78,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
                 .run(email, profile.id, email, isPilot, tierForGoogle);
               user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
               sendWelcomeEmail(email).catch(() => {});
+              sendNewSignupAdminAlert(email, 'Google').catch(() => {});
             }
           }
           return done(null, user);
@@ -176,10 +177,16 @@ router.post('/verify-otp', otpLimiter, async (req, res) => {
     const result = await verifyOTP(email, code, 'verify_email');
     if (!result.valid) return res.status(400).json({ error: result.reason });
 
+    // Fetch before the UPDATE so we can tell a brand-new signup (never
+    // verified before) apart from an already-verified account re-running
+    // this endpoint — the admin alert should fire once, not on every call.
+    const wasAlreadyVerified = (await db.prepare('SELECT is_verified FROM users WHERE email = ?').get(email))?.is_verified;
+
     await db.prepare('UPDATE users SET is_verified = 1 WHERE email = ?').run(email);
     const user = withEffectivePremium(await db.prepare('SELECT * FROM users WHERE email = ?').get(email));
     const token = await issueToken(user);
     sendWelcomeEmail(email).catch(() => {});
+    if (!wasAlreadyVerified) sendNewSignupAdminAlert(email, 'email').catch(() => {});
 
     res.json({
       success: true,

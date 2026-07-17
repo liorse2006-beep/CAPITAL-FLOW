@@ -26,6 +26,12 @@ function asyncRoute(fn) {
   };
 }
 
+// Returns the acting admin's identity string on success (the ADMIN_EMAIL, or
+// 'static-token' when authenticated via ADMIN_TOKEN instead of a login), or
+// false on failure. Every existing call site already does
+// `if (!(await checkToken(req, res))) return;`, which still works unchanged
+// since a non-empty string is truthy — callers that need to attribute an
+// audit-log entry just capture the returned identity instead of discarding it.
 async function checkToken(req, res) {
   if (!ADMIN_TOKEN && !ADMIN_EMAIL) {
     res.status(503).send('Admin panel disabled — set ADMIN_TOKEN or ADMIN_EMAIL in .env');
@@ -34,7 +40,7 @@ async function checkToken(req, res) {
 
   // Accept static token
   const tok = req.query.token || req.headers['x-admin-token'];
-  if (tok && ADMIN_TOKEN && timingSafeStringEqual(tok, ADMIN_TOKEN)) return true;
+  if (tok && ADMIN_TOKEN && timingSafeStringEqual(tok, ADMIN_TOKEN)) return 'static-token';
 
   // Accept JWT from the admin email
   const jwt = req.query.jwt || (req.headers.authorization || '').replace('Bearer ', '');
@@ -42,12 +48,24 @@ async function checkToken(req, res) {
     try {
       const payload = verifyToken(jwt);
       const user = await db.prepare('SELECT email, is_blocked FROM users WHERE id = ?').get(payload.id);
-      if (user && !user.is_blocked && user.email === ADMIN_EMAIL) return true;
+      if (user && !user.is_blocked && user.email === ADMIN_EMAIL) return user.email;
     } catch (_) {}
   }
 
   res.status(401).send('Unauthorized');
   return false;
+}
+
+// Best-effort — an audit-log write failure should never block the action it's
+// describing from succeeding.
+async function logAction(actor, action, targetUserId, detail) {
+  try {
+    await db
+      .prepare('INSERT INTO admin_audit_log (actor, action, target_user_id, detail) VALUES (?, ?, ?, ?)')
+      .run(actor, action, targetUserId || null, detail || null);
+  } catch (err) {
+    console.error('[admin audit log]', err);
+  }
 }
 
 // ── Admin API: user list ───────────────────────────────────────────────────
@@ -69,8 +87,10 @@ router.get('/admin/api/users', asyncRoute(async (req, res) => {
 
 // ── Admin API: force sign-out ──────────────────────────────────────────────
 router.post('/admin/api/users/:id/logout', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
+  const actor = await checkToken(req, res);
+  if (!actor) return;
   await db.prepare('UPDATE users SET session_version = session_version + 1 WHERE id = ?').run(req.params.id);
+  logAction(actor, 'force_logout', req.params.id);
   res.json({ ok: true });
 }));
 
@@ -78,7 +98,8 @@ const VALID_TIERS = new Set(['free', 'premium', 'elite']);
 
 // ── Admin API: set subscription tier ───────────────────────────────────────
 router.post('/admin/api/users/:id/tier', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
+  const actor = await checkToken(req, res);
+  if (!actor) return;
   const { tier } = req.body;
   if (!VALID_TIERS.has(tier)) return res.status(400).json({ error: 'tier must be free, premium, or elite' });
   await db.prepare('UPDATE users SET tier = ?, is_premium = ? WHERE id = ?').run(
@@ -86,29 +107,37 @@ router.post('/admin/api/users/:id/tier', asyncRoute(async (req, res) => {
     tier !== 'free' ? 1 : 0,
     req.params.id
   );
+  logAction(actor, 'set_tier', req.params.id, tier);
   res.json({ ok: true, tier });
 }));
 
 // ── Admin API: block / unblock ────────────────────────────────────────────
 router.post('/admin/api/users/:id/block', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
+  const actor = await checkToken(req, res);
+  if (!actor) return;
   const { value } = req.body; // 1 or 0
   await db.prepare('UPDATE users SET is_blocked = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
+  logAction(actor, value ? 'block_user' : 'unblock_user', req.params.id);
   res.json({ ok: true });
 }));
 
 // ── Admin API: delete user ─────────────────────────────────────────────────
 router.delete('/admin/api/users/:id', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
+  const actor = await checkToken(req, res);
+  if (!actor) return;
+  const target = await db.prepare('SELECT email FROM users WHERE id = ?').get(req.params.id);
   await db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+  logAction(actor, 'delete_user', req.params.id, target?.email);
   res.json({ ok: true });
 }));
 
 // ── Admin API: grant / revoke pilot status on an existing user ─────────────
 router.post('/admin/api/users/:id/pilot', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
+  const actor = await checkToken(req, res);
+  if (!actor) return;
   const { value } = req.body; // 1 or 0
   await db.prepare('UPDATE users SET is_pilot = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
+  logAction(actor, value ? 'grant_pilot' : 'revoke_pilot', req.params.id);
   res.json({ ok: true });
 }));
 
@@ -119,16 +148,20 @@ router.get('/admin/api/pilot-allowlist', asyncRoute(async (req, res) => {
 }));
 
 router.post('/admin/api/pilot-allowlist', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
+  const actor = await checkToken(req, res);
+  if (!actor) return;
   const email = String(req.body.email || '').trim();
   if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Valid email required' });
   await pilotAllowlist.addToAllowlist(email);
+  logAction(actor, 'pilot_allowlist_add', null, email);
   res.json({ ok: true });
 }));
 
 router.delete('/admin/api/pilot-allowlist/:email', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
+  const actor = await checkToken(req, res);
+  if (!actor) return;
   await pilotAllowlist.removeFromAllowlist(req.params.email);
+  logAction(actor, 'pilot_allowlist_remove', null, req.params.email);
   res.json({ ok: true });
 }));
 
@@ -173,7 +206,8 @@ router.get('/admin/api/coupons', asyncRoute(async (req, res) => {
 }));
 
 router.post('/admin/api/coupons', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
+  const actor = await checkToken(req, res);
+  if (!actor) return;
   const { discountPercent, appliesTo, maxUses, expiresInDays, paddleDiscountId } = req.body;
   let { code } = req.body;
 
@@ -202,20 +236,40 @@ router.post('/admin/api/coupons', asyncRoute(async (req, res) => {
     if (String(err.message).includes('UNIQUE')) return res.status(409).json({ error: 'That code already exists' });
     throw err;
   }
+  logAction(actor, 'coupon_create', null, code);
   res.json({ ok: true, code });
 }));
 
 router.post('/admin/api/coupons/:code/toggle', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
+  const actor = await checkToken(req, res);
+  if (!actor) return;
   const { active } = req.body;
   await db.prepare('UPDATE coupons SET active = ? WHERE code = ?').run(active ? 1 : 0, req.params.code.toUpperCase());
+  logAction(actor, active ? 'coupon_enable' : 'coupon_disable', null, req.params.code.toUpperCase());
   res.json({ ok: true });
 }));
 
 router.delete('/admin/api/coupons/:code', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
+  const actor = await checkToken(req, res);
+  if (!actor) return;
   await db.prepare('DELETE FROM coupons WHERE code = ?').run(req.params.code.toUpperCase());
+  logAction(actor, 'coupon_delete', null, req.params.code.toUpperCase());
   res.json({ ok: true });
+}));
+
+// ── Admin API: audit log ────────────────────────────────────────────────────
+router.get('/admin/api/audit-log', asyncRoute(async (req, res) => {
+  if (!(await checkToken(req, res))) return;
+  const rows = await db
+    .prepare(
+      `SELECT admin_audit_log.*, users.email AS target_email
+       FROM admin_audit_log
+       LEFT JOIN users ON users.id = admin_audit_log.target_user_id
+       ORDER BY admin_audit_log.id DESC
+       LIMIT 200`
+    )
+    .all();
+  res.json(rows);
 }));
 
 router.post('/admin/api/users/:id/push-test', asyncRoute(async (req, res) => {
@@ -429,6 +483,14 @@ router.get('/admin', asyncRoute(async (req, res) => {
 
   <div class="card" style="margin-bottom:20px">
     <div class="card-hdr">
+      <h2>Activity Log</h2>
+      <button class="refresh-btn" id="btn-refresh-audit">↻ Refresh</button>
+    </div>
+    <div id="audit-wrap"><div class="loader">Loading…</div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-hdr">
       <h2>Feedback</h2>
       <button class="refresh-btn" id="btn-refresh-feedback">↻ Refresh</button>
     </div>
@@ -523,6 +585,44 @@ async function loadFeedback() {
           <button class="feedback-del" data-act="del-feedback" data-id="\${row.id}" title="Delete">✕</button>
         </div>
         <div class="feedback-msg">\${escapeHtml(row.message)}</div>
+      </div>\`;
+    }).join('');
+  } catch(e) {}
+}
+
+const ACTION_LABEL = {
+  force_logout: '⏻ Force logout',
+  set_tier: '🎫 Set tier',
+  block_user: '⊘ Block',
+  unblock_user: '✓ Unblock',
+  delete_user: '✕ Delete user',
+  grant_pilot: '🔬 Grant pilot',
+  revoke_pilot: 'Revoke pilot',
+  pilot_allowlist_add: '+ Pilot allowlist',
+  pilot_allowlist_remove: '− Pilot allowlist',
+  coupon_create: '+ Coupon',
+  coupon_enable: 'Enable coupon',
+  coupon_disable: 'Disable coupon',
+  coupon_delete: '✕ Delete coupon',
+};
+
+async function loadAuditLog() {
+  try {
+    const r = await fetch('/admin/api/audit-log', { headers: AUTH_HEADERS });
+    const rows = r.ok ? await r.json() : [];
+    const el = document.getElementById('audit-wrap');
+    if (!rows.length) { el.innerHTML = '<div class="loader">No admin actions logged yet.</div>'; return; }
+    el.innerHTML = rows.map(function(row) {
+      const label = ACTION_LABEL[row.action] || row.action;
+      const target = row.target_email ? \` · <span style="color:#A0A0A8">\${escapeHtml(row.target_email)}</span>\`
+        : row.detail ? \` · <span style="color:#A0A0A8">\${escapeHtml(row.detail)}</span>\` : '';
+      const detailSuffix = row.target_email && row.detail ? \` (\${escapeHtml(row.detail)})\` : '';
+      const date = new Date(row.created_at * 1000).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      return \`<div class="feedback-row">
+        <div class="feedback-row-hdr">
+          <span class="feedback-who">\${label}\${target}\${detailSuffix} <span style="color:#444">— \${escapeHtml(row.actor)}</span></span>
+          <span class="feedback-date">\${date}</span>
+        </div>
       </div>\`;
     }).join('');
   } catch(e) {}
@@ -842,6 +942,7 @@ document.getElementById('pilot-email').addEventListener('keydown', function (e) 
   if (e.key === 'Enter') addPilotEmail();
 });
 document.getElementById('btn-refresh-feedback').addEventListener('click', loadFeedback);
+document.getElementById('btn-refresh-audit').addEventListener('click', loadAuditLog);
 document.getElementById('btn-create-coupon').addEventListener('click', createCoupon);
 document.getElementById('btn-refresh-users').addEventListener('click', load);
 document.getElementById('search').addEventListener('input', filterTable);
@@ -849,9 +950,11 @@ document.getElementById('search').addEventListener('input', filterTable);
 load();
 loadFeedback();
 loadCoupons();
+loadAuditLog();
 setInterval(load, 60000);
 setInterval(loadFeedback, 60000);
 setInterval(loadCoupons, 60000);
+setInterval(loadAuditLog, 60000);
 </script>
 </body>
 </html>`);

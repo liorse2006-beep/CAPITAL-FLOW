@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
 const path = require('path');
-const { GMAIL_USER, GMAIL_APP_PASSWORD } = require('../config');
+const { GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_EMAIL } = require('../config');
 
 // Embedded via cid (not a hosted URL) so the logo renders regardless of
 // image-proxying/allow-listing in the recipient's mail client.
@@ -105,4 +105,20 @@ async function sendWelcomeEmail(email) {
   });
 }
 
-module.exports = { sendOTPEmail, sendPasswordResetEmail, sendWelcomeEmail };
+// Fires once per genuinely new account (not on every login) so the admin
+// finds out about signups in real time instead of only via the /admin panel.
+async function sendNewSignupAdminAlert(email, method) {
+  const transport = createTransport();
+  if (!transport || !ADMIN_EMAIL) {
+    console.log(`[EMAIL DEV] New signup alert: ${email} via ${method}`);
+    return;
+  }
+  await transport.sendMail({
+    from: `"Capital Flow" <${GMAIL_USER}>`,
+    to: ADMIN_EMAIL,
+    subject: `New signup — ${email}`,
+    text: `${email} just signed up via ${method}.`,
+  });
+}
+
+module.exports = { sendOTPEmail, sendPasswordResetEmail, sendWelcomeEmail, sendNewSignupAdminAlert };
