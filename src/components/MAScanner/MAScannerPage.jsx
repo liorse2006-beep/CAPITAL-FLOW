@@ -502,29 +502,63 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
       !scanLimitReached &&
       React.createElement(
         'div',
-        { className: 'empty' },
+        { className: 'empty-rich' },
         React.createElement(
           'div',
-          { className: 'empty-icon' },
-          React.createElement(
-            'svg',
-            { viewBox: '0 0 24 24', strokeWidth: '1.8', strokeLinecap: 'round', strokeLinejoin: 'round' },
-            React.createElement('polyline', { points: '22 12 18 12 15 21 9 3 6 12 2 12' })
+          { className: 'empty-rich-skeleton' },
+          [0, 1, 2, 3, 4, 5].map((i) =>
+            React.createElement(
+              'div',
+              { className: 'empty-rich-skeleton-card', key: i },
+              React.createElement('div', { className: 'empty-rich-skeleton-bar-label' }),
+              React.createElement('div', {
+                className: 'empty-rich-skeleton-bar-value' + (i % 2 === 0 ? ' accent' : ''),
+              })
+            )
           )
         ),
-        React.createElement('h2', null, 'Moving Average Scanner'),
         React.createElement(
-          'p',
-          null,
-          'Find stocks where price is touching a key moving average. Select your market universe, SMA period, tolerance, and timeframe — then run the scan.'
-        ),
-        !isPremium &&
-          scanMeta &&
+          'div',
+          { className: 'empty-rich-overlay' },
           React.createElement(
-            'p',
-            { style: { color: 'var(--text-2)', fontSize: 13, marginTop: 8 } },
-            categoryQuota(scanMeta, 'maScanner').label
+            'div',
+            { className: 'empty-rich-card' },
+            React.createElement(
+              'div',
+              { className: 'empty-rich-icon' },
+              React.createElement(
+                'svg',
+                { viewBox: '0 0 24 24', strokeWidth: '1.8', strokeLinecap: 'round', strokeLinejoin: 'round' },
+                React.createElement('polyline', { points: '22 12 18 12 15 21 9 3 6 12 2 12' })
+              )
+            ),
+            React.createElement('h3', null, 'Moving Average Scanner'),
+            React.createElement(
+              'p',
+              null,
+              'Find stocks where price is touching a key moving average. Select your market universe, SMA period, tolerance, and timeframe — then run the scan.'
+            ),
+            React.createElement(
+              'div',
+              { className: 'empty-rich-pills' },
+              React.createElement('span', { className: 'empty-rich-pill' }, 'S&P + NASDAQ'),
+              React.createElement('span', { className: 'empty-rich-pill' }, 'CUSTOM SMA PERIOD'),
+              React.createElement('span', { className: 'empty-rich-pill' }, 'ANY TIMEFRAME')
+            ),
+            !isPremium &&
+              scanMeta &&
+              React.createElement(
+                'p',
+                { style: { color: 'var(--text-2)', fontSize: 12, marginBottom: 12 } },
+                categoryQuota(scanMeta, 'maScanner').label
+              ),
+            React.createElement(
+              'button',
+              { className: 'empty-rich-cta', onClick: startScan },
+              'Run scan'
+            )
           )
+        )
       ),
 
     // ── Results ──────────────────────────────────────────────────────────────

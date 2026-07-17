@@ -110,7 +110,6 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn }) {
       <div className="flow-header">
         <div>
           <h2 className="flow-title">Sector Money Flow</h2>
-          <p className="flow-sub">TRACK WHERE CAPITAL IS ROTATING ACROSS EVERY SECTOR</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button className="scan-btn" onClick={fetchFlow} disabled={loading}>
@@ -177,15 +176,37 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn }) {
         )}
 
       {!flowData && !loading && (
-        <div className="empty">
-          <div className="empty-icon">
-            <svg viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2v20M2 12h20" />
-              <path d="M17 7l-5 5-5-5" />
-            </svg>
+        <div className="empty-rich">
+          <div className="empty-rich-skeleton">
+            {[0, 1, 2, 3, 4, 5].map(function (i) {
+              return (
+                <div className="empty-rich-skeleton-card" key={i}>
+                  <div className="empty-rich-skeleton-bar-label" />
+                  <div className={'empty-rich-skeleton-bar-value' + (i % 2 === 0 ? ' accent' : '')} />
+                </div>
+              );
+            })}
           </div>
-          <h2>Money Flow Analysis</h2>
-          <p>Hit Refresh Flow to fetch live sector ETF data and see where capital is flowing.</p>
+          <div className="empty-rich-overlay">
+            <div className="empty-rich-card">
+              <div className="empty-rich-icon">
+                <svg viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v20M2 12h20" />
+                  <path d="M17 7l-5 5-5-5" />
+                </svg>
+              </div>
+              <h3>Money Flow Analysis</h3>
+              <p>TRACK WHERE CAPITAL IS ROTATING ACROSS EVERY SECTOR</p>
+              <div className="empty-rich-pills">
+                <span className="empty-rich-pill">11 SECTORS</span>
+                <span className="empty-rich-pill">500+ STOCKS</span>
+                <span className="empty-rich-pill">REAL-TIME DATA</span>
+              </div>
+              <button className="empty-rich-cta" onClick={fetchFlow}>
+                Refresh Flow
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
