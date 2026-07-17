@@ -526,11 +526,7 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
             React.createElement(
               'div',
               { className: 'empty-rich-icon' },
-              React.createElement(
-                'svg',
-                { viewBox: '0 0 24 24', strokeWidth: '1.8', strokeLinecap: 'round', strokeLinejoin: 'round' },
-                React.createElement('polyline', { points: '22 12 18 12 15 21 9 3 6 12 2 12' })
-              )
+              React.createElement('img', { src: '/icon-192.png', alt: '' })
             ),
             React.createElement('h3', null, 'Moving Average Scanner'),
             React.createElement(

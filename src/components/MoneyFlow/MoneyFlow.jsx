@@ -190,10 +190,7 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn }) {
           <div className="empty-rich-overlay">
             <div className="empty-rich-card">
               <div className="empty-rich-icon">
-                <svg viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2v20M2 12h20" />
-                  <path d="M17 7l-5 5-5-5" />
-                </svg>
+                <img src="/icon-192.png" alt="" />
               </div>
               <h3>Money Flow Analysis</h3>
               <p>TRACK WHERE CAPITAL IS ROTATING ACROSS EVERY SECTOR</p>
