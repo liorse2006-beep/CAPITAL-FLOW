@@ -5322,6 +5322,9 @@ td {
 .site-footer-link:hover {
   color: var(--text-0);
 }
+.site-footer-col {
+  text-align: center;
+}
 .site-footer-disclaimer {
   margin: 6px 0 0;
   font-size: 11px;

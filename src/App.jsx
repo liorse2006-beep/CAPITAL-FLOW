@@ -1015,7 +1015,7 @@ function App() {
         </Routes>
 
         <footer className="site-footer">
-          <div>
+          <div className="site-footer-col">
             <button className="site-footer-link" onClick={() => setPage('policy')}>
               Privacy Policy
             </button>
