@@ -681,6 +681,13 @@ body {
   letter-spacing: 0.3px;
   text-transform: uppercase;
 }
+.sector-grid-subtitle {
+  font-size: 11px;
+  color: var(--text-3);
+  margin: -10px 0 14px;
+  text-transform: none;
+  letter-spacing: 0;
+}
 .sector-clear {
   background: none;
   border: none;

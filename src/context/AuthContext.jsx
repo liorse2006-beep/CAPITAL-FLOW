@@ -106,7 +106,15 @@ export function AuthProvider({ children }) {
 
   function logout() {
     localStorage.removeItem('vs_token');
+    // vs_quiz_done is device-scoped, not account-scoped — clearing it here
+    // means the next person to use this device (a different account signing
+    // up, e.g. a shared computer) sees the onboarding quiz fresh instead of
+    // silently inheriting whoever was logged in before them. A full reload
+    // is required because the quiz gate in main.jsx reads this flag once on
+    // mount, above this context, and won't otherwise notice the change.
+    localStorage.removeItem('vs_quiz_done');
     setUser(null);
+    window.location.reload();
   }
 
   function getToken() {

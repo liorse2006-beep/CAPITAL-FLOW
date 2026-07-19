@@ -464,6 +464,11 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
             )
         ),
         React.createElement(
+          'p',
+          { className: 'sector-grid-subtitle' },
+          'The 5 largest tickers from each sector'
+        ),
+        React.createElement(
           'div',
           { className: 'sector-grid' },
           ALL_SECTORS.map((s) => {
@@ -478,8 +483,7 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
                 style: locked ? { opacity: 0.4 } : undefined,
               },
               React.createElement('div', { className: 'sector-card-glow' }),
-              React.createElement('div', { className: 'sector-card-name' }, s),
-              React.createElement('div', { className: 'sector-card-count' }, '5 tickers')
+              React.createElement('div', { className: 'sector-card-name' }, s)
             );
           })
         ),
