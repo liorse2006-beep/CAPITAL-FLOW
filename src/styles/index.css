@@ -219,10 +219,12 @@ body {
 }
 .market-dot.dot-open {
   background: var(--green);
+  will-change: opacity;
   animation: pulse 2s ease-in-out infinite;
 }
 .market-dot.dot-pre {
   background: var(--accent);
+  will-change: opacity;
   animation: pulse 2s ease-in-out infinite;
 }
 .market-dot.dot-closed {
@@ -423,6 +425,7 @@ body {
   border: 2px solid rgba(255, 255, 255, 0.07);
   border-top-color: rgba(255, 255, 255, 0.22);
   border-radius: 50%;
+  will-change: transform;
   animation: spin 0.6s linear infinite;
 }
 
@@ -1003,6 +1006,7 @@ body {
   border-radius: 50%;
   background: var(--green);
   box-shadow: 0 0 5px var(--green);
+  will-change: opacity;
   animation: pulse 2s ease-in-out infinite;
   flex-shrink: 0;
 }
@@ -1563,6 +1567,7 @@ td {
   position: absolute;
   inset: 0;
   background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.03), transparent);
+  will-change: transform;
   animation: shimmer 2s ease-in-out infinite;
 }
 @keyframes shimmer {
@@ -1666,6 +1671,7 @@ td {
   inset: 0;
   border-radius: 50%;
   background: conic-gradient(from 0deg, transparent 0deg, rgba(245, 158, 11, 0.3) 30deg, transparent 60deg);
+  will-change: transform;
   animation: radarSpin 2s linear infinite;
 }
 @keyframes radarSpin {
@@ -1686,6 +1692,7 @@ td {
   background: rgba(245, 158, 11, 0.15);
   padding: 2px 5px;
   border-radius: 3px;
+  will-change: opacity;
   animation: blipPulse 1.5s ease infinite;
 }
 @keyframes blipPulse {
@@ -1755,6 +1762,7 @@ td {
   height: 6px;
   border-radius: 50%;
   background: #22c55e;
+  will-change: opacity;
   animation: livePulse 1s ease infinite;
 }
 @keyframes livePulse {
@@ -1915,6 +1923,7 @@ td {
     rgba(255, 255, 255, 0.06) 63%
   );
   background-size: 240px 100%;
+  will-change: background-position;
   animation: skel-shimmer 1.4s ease-in-out infinite;
 }
 .skel-text {
@@ -3721,6 +3730,7 @@ td {
     transparent 100%
   );
   background-size: 200% 100%;
+  will-change: transform;
   animation: shimmer 1.6s ease-in-out infinite;
 }
 
@@ -4144,6 +4154,7 @@ td {
   position: relative;
   display: inline-block;
   border-radius: 100px;
+  will-change: transform;
   animation: quiz-cta-breathe 2.2s ease-in-out infinite;
 }
 .quiz-cta-scan-outer::before,
@@ -4159,6 +4170,7 @@ td {
   filter: blur(22px);
   opacity: 0.7;
   z-index: -1;
+  will-change: opacity;
   animation: quiz-cta-glow 2s ease-in-out infinite;
 }
 .quiz-cta-scan-btn {
@@ -4181,6 +4193,7 @@ td {
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+  will-change: background-position;
   animation: quiz-cta-shimmer 2.6s linear infinite;
 }
 @keyframes quiz-cta-breathe {
@@ -5402,6 +5415,7 @@ td {
   border-radius: 50%;
   background: var(--accent);
   box-shadow: 0 0 6px var(--accent);
+  will-change: opacity;
   animation: pulse-dot 1.4s ease-in-out infinite;
 }
 .scan-loader-tape {
@@ -5903,6 +5917,7 @@ td {
   inset: -6px;
   border-radius: 50%;
   border: 1px solid rgba(0, 255, 136, 0.1);
+  will-change: transform, opacity;
   animation: pulseRing 2.2s ease infinite;
 }
 @keyframes pulseRing {
@@ -5912,6 +5927,7 @@ td {
 }
 .push-prompt-bell {
   font-size: 28px;
+  will-change: transform;
   animation: bellWiggle 2.5s ease-in-out 0.8s infinite;
 }
 @keyframes bellWiggle {
