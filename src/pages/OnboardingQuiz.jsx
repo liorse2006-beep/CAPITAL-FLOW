@@ -168,8 +168,8 @@ export default function OnboardingQuiz({ onComplete }) {
                 <img src="/logo-text-transparent.png" alt="Capital Flow" className="quiz-cta-logo-img" />
               </div>
               <h1 className="quiz-cta-title">
-                See where the money
-                <span className="quiz-cta-highlight">is flowing.</span>
+                Start now and get
+                <span className="quiz-cta-highlight">7 days free.</span>
               </h1>
               <ul className="quiz-cta-benefits">
                 <li>
