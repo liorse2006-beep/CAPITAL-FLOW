@@ -165,20 +165,29 @@ export default function OnboardingQuiz({ onComplete }) {
           {isCTA && (
             <div className="quiz-cta-wrap">
               <div className="quiz-cta-logo-wrap">
-                <img src="/logo-text.jpeg" alt="Capital Flow" className="quiz-cta-logo-img" />
+                <img src="/logo-text-transparent.png" alt="Capital Flow" className="quiz-cta-logo-img" />
               </div>
               <h1 className="quiz-cta-title">
                 See where the money
                 <span className="quiz-cta-highlight">is flowing.</span>
               </h1>
+              <ul className="quiz-cta-benefits">
+                <li>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  Real-time institutional volume detection
+                </li>
+                <li>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  Instant alerts the moment money moves
+                </li>
+                <li>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  Start scanning free — no card required
+                </li>
+              </ul>
               <div className="quiz-cta-scan-outer">
                 <button className="quiz-cta-scan-btn" onClick={handleScan}>
-                  <span className="quiz-cta-scan-shimmer" />
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                  Start scanning
+                  <span className="quiz-cta-scan-label">Start scanning</span>
                 </button>
               </div>
             </div>
