@@ -217,7 +217,7 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
           React.createElement(
             'div',
             { className: 'ma-signin-sub' },
-            'Free account includes 3 scans. Upgrade to Premium for unlimited.'
+            'Create a free account to run the Moving Average Scanner.'
           )
         ),
         React.createElement(
@@ -360,9 +360,11 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
         )
       ),
 
-      // Usage counter
+      // Usage counter — premium tier only; the free trial is never advertised
+      // up front, only surfaced via the upgrade modal once it's exhausted.
       !isPremium &&
         scanMeta &&
+        scanMeta.tier === 'premium' &&
         React.createElement(
           'div',
           { className: 'ma-usage' },
@@ -371,14 +373,7 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
             { className: 'ma-usage-bar-wrap' },
             React.createElement('div', {
               className: 'ma-usage-bar',
-              style: {
-                width:
-                  (scanMeta.tier === 'premium'
-                    ? ((scanMeta.premium ? scanMeta.premium.used : 0) / 5) * 100
-                    : categoryQuota(scanMeta, 'maScanner').exhausted
-                      ? 100
-                      : 0) + '%',
-              },
+              style: { width: ((scanMeta.premium ? scanMeta.premium.used : 0) / 5) * 100 + '%' },
             })
           ),
           React.createElement('span', { className: 'ma-usage-label' }, categoryQuota(scanMeta, 'maScanner').label)
@@ -543,6 +538,7 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
             ),
             !isPremium &&
               scanMeta &&
+              scanMeta.tier === 'premium' &&
               React.createElement(
                 'p',
                 { style: { color: 'var(--text-2)', fontSize: 12, marginBottom: 12 } },

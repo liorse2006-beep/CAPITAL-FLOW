@@ -134,9 +134,10 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn }) {
 
       {!isPremium &&
         scanMeta &&
+        scanMeta.tier === 'premium' &&
         (function () {
           var q = categoryQuota(scanMeta, 'sectorMoving');
-          var pct = scanMeta.tier === 'premium' ? ((q.used || 0) / (q.limit || 5)) * 100 : q.exhausted ? 100 : 0;
+          var pct = ((q.used || 0) / (q.limit || 5)) * 100;
           return React.createElement(
             'div',
             { className: 'ma-usage', style: { marginBottom: 16 } },

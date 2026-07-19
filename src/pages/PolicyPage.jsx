@@ -1,13 +1,4 @@
-import React, { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-
-const TOS_SECTIONS = [
-  'Capital Flow הוא כלי דיגיטלי. שימוש באתר/באפליקציה מהווה הסכמה לתנאים המפורטים להלן.',
-  'Capital Flow הוא כלי סריקה ומידע בלבד. הוא מציג נתוני שוק (נפחי מסחר, מחירים, ממוצעים נעים וכדומה) לצרכי מידע בלבד. אין לראות בשום תוכן באתר תוכן ייעוץ השקעות, המלצה לקנייה/מכירה, או ייעוץ פיננסי מכל סוג. אנחנו לא בעלי רישיון ייעוץ השקעות ולא פועלים ככאלה. כל החלטת השקעה, לרבות התוצאות הכספיות שלה (רווח או הפסד), היא באחריותו הבלעדית של המשתמש. מומלץ להתייעץ עם יועץ מוסמך לפני קבלת החלטות השקעה.',
-  'החזר כספי יינתן רק במקרה של תקלה טכנית בתפקוד המוצר, שצוות המוצר ניסה לתקן ולא הצליח בתוך עד שבוע ימים מרגע הדיווח. מעבר למקרה זה, אין החזרים על תשלומים ששולמו.',
-  'אנחנו עושים כמיטב יכולתנו כדי להציג נתונים מדויקים ועדכניים. יחד עם זאת, הנתונים מגיעים מספקי מידע חיצוניים (שאין לנו שליטה מלאה עליהם), ולכן ייתכנו לעיתים עיכובים, אי-דיוקים או הפרעות זמניות שאינן בשליטתנו. משתמש שמבצע פעולה על סמך נתון באתר מחויב לוודא את הנתון בעצמו לפני קבלת ההחלטה.',
-  'לשאלות, תלונות או בקשות בנושא פרטיות/מדיניות — ניתן לפנות דרך עמוד האינסטגרם capital_flow555',
-];
+import React from 'react';
 
 const PRIVACY_INTRO =
   'מסמך זה מסביר אילו נתונים Capital Flow אוסף, לשם מה, ואיך אפשר לבקש למחוק אותם. אנחנו אוספים רק את המינימום הדרוש להפעלת השירות.';
@@ -48,74 +39,59 @@ function Section({ title, children }) {
 }
 
 export default function PolicyPage() {
-  const [searchParams] = useSearchParams();
-  const [tab, setTab] = useState(() => searchParams.get('tab') === 'privacy' ? 'privacy' : 'terms');
-
   return (
     <div className="page-content policy-page" dir="rtl">
-      <div className="policy-tabs">
-        <button className={'policy-tab' + (tab === 'terms' ? ' active' : '')} onClick={() => setTab('terms')}>
-          תנאי שימוש
-        </button>
-        <button className={'policy-tab' + (tab === 'privacy' ? ' active' : '')} onClick={() => setTab('privacy')}>
-          מדיניות פרטיות
-        </button>
-      </div>
+      <h2 className="flow-title policy-title" dir="ltr">
+        Privacy Policy
+      </h2>
+      <div className="policy-card">
+        <p className="policy-paragraph">{PRIVACY_INTRO}</p>
 
-      {tab === 'terms' && (
-        <>
-          <h2 className="flow-title policy-title" dir="ltr">
-            Terms of Service
-          </h2>
-          <div className="policy-card">
-            {TOS_SECTIONS.map((text, i) => (
-              <p key={i} className="policy-paragraph">
-                {text}
-              </p>
+        <Section title="אילו נתונים נאספים">
+          {DATA_COLLECTED.map((d, i) => (
+            <p key={i} className="policy-paragraph">
+              <strong>{d.title}:</strong> {d.body}
+            </p>
+          ))}
+        </Section>
+
+        <Section title="כמה זמן נשמר המידע">
+          <p className="policy-paragraph">
+            המידע נשמר כל עוד החשבון פעיל. עם מחיקת החשבון, כל הנתונים המשויכים אליו — פרטי החשבון, רשימת המעקב,
+            התראות, ומנויי Push — נמחקים באופן מיידי ובלתי הפיך משרתי המערכת.
+          </p>
+        </Section>
+
+        <Section title="הזכויות שלך">
+          <ul className="policy-list">
+            {USER_RIGHTS.map((r, i) => (
+              <li key={i}>{r}</li>
             ))}
-          </div>
-        </>
-      )}
+          </ul>
+        </Section>
 
-      {tab === 'privacy' && (
-        <>
-          <h2 className="flow-title policy-title" dir="ltr">
-            Privacy Policy
-          </h2>
-          <div className="policy-card">
-            <p className="policy-paragraph">{PRIVACY_INTRO}</p>
+        <Section title="לא ייעוץ השקעות">
+          <p className="policy-paragraph">
+            Capital Flow הוא כלי סריקה ומידע בלבד. הוא מציג נתוני שוק (נפחי מסחר, מחירים, ממוצעים נעים וכדומה) לצרכי
+            מידע בלבד. אין לראות בשום תוכן באתר תוכן ייעוץ השקעות, המלצה לקנייה/מכירה, או ייעוץ פיננסי מכל סוג. אנחנו
+            לא בעלי רישיון ייעוץ השקעות ולא פועלים ככאלה. כל החלטת השקעה, לרבות התוצאות הכספיות שלה (רווח או הפסד),
+            היא באחריותו הבלעדית של המשתמש. מומלץ להתייעץ עם יועץ מוסמך לפני קבלת החלטות השקעה.
+          </p>
+        </Section>
 
-            <Section title="אילו נתונים נאספים">
-              {DATA_COLLECTED.map((d, i) => (
-                <p key={i} className="policy-paragraph">
-                  <strong>{d.title}:</strong> {d.body}
-                </p>
-              ))}
-            </Section>
+        <Section title="מדיניות החזרים כספיים">
+          <p className="policy-paragraph">
+            החזר כספי יינתן רק במקרה של תקלה טכנית בתפקוד המוצר, שצוות המוצר ניסה לתקן ולא הצליח בתוך עד שבוע ימים
+            מרגע הדיווח. מעבר למקרה זה, אין החזרים על תשלומים ששולמו.
+          </p>
+        </Section>
 
-            <Section title="כמה זמן נשמר המידע">
-              <p className="policy-paragraph">
-                המידע נשמר כל עוד החשבון פעיל. עם מחיקת החשבון, כל הנתונים המשויכים אליו — פרטי החשבון, רשימת המעקב,
-                התראות, ומנויי Push — נמחקים באופן מיידי ובלתי הפיך משרתי המערכת.
-              </p>
-            </Section>
-
-            <Section title="הזכויות שלך">
-              <ul className="policy-list">
-                {USER_RIGHTS.map((r, i) => (
-                  <li key={i}>{r}</li>
-                ))}
-              </ul>
-            </Section>
-
-            <Section title="יצירת קשר">
-              <p className="policy-paragraph">
-                לכל שאלה או בקשה בנושא פרטיות — ניתן לפנות דרך עמוד האינסטגרם capital_flow555.
-              </p>
-            </Section>
-          </div>
-        </>
-      )}
+        <Section title="יצירת קשר">
+          <p className="policy-paragraph">
+            לכל שאלה או בקשה — ניתן לפנות דרך עמוד האינסטגרם capital_flow555.
+          </p>
+        </Section>
+      </div>
     </div>
   );
 }

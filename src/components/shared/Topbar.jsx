@@ -1,6 +1,5 @@
 import React from 'react'
 import AlertBell from './AlertBell'
-import { categoryQuota } from '../../utils/quota'
 
 function TierBadgeOrUpgrade({ isElite, isPremium, user, onUpgrade, onSignIn }) {
   if (isElite) {
@@ -122,11 +121,6 @@ export default function Topbar({
               </button>
               {!isPremium && scanMeta && scanMeta.tier === 'premium' && (
                 <span className="scan-limit-topbar">{(scanMeta.premium ? scanMeta.premium.used : 0) + '/5 today'}</span>
-              )}
-              {!isPremium && scanMeta && scanMeta.tier === 'free' && (
-                <span className="scan-limit-topbar">
-                  {categoryQuota(scanMeta, 'capitalFlow').exhausted ? 'Trial used' : '1 free scan'}
-                </span>
               )}
             </>
           )}

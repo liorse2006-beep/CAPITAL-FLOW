@@ -1016,9 +1016,6 @@ function App() {
 
         <footer className="site-footer">
           <button className="site-footer-link" onClick={() => setPage('policy')}>
-            Terms of Service
-          </button>
-          <button className="site-footer-link" onClick={() => { navigate('/policy?tab=privacy'); }}>
             Privacy Policy
           </button>
         </footer>
