@@ -35,19 +35,29 @@ export default function InstallPrompt() {
           <>
             <p className="install-prompt-title">Add to your home screen for faster access</p>
             <div className="install-prompt-steps">
+              <span className="install-prompt-step install-prompt-step-icon-only" aria-label="More">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="5" cy="12" r="2" />
+                  <circle cx="12" cy="12" r="2" />
+                  <circle cx="19" cy="12" r="2" />
+                </svg>
+              </span>
+              <svg className="install-prompt-step-arrow" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 6 15 12 9 18" />
+              </svg>
               <span className="install-prompt-step">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 3v13" />
                   <path d="M7 8l5-5 5 5" />
                   <rect x="5" y="13" width="14" height="8" rx="2" />
                 </svg>
                 Share
               </span>
-              <svg className="install-prompt-step-arrow" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg className="install-prompt-step-arrow" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="9 6 15 12 9 18" />
               </svg>
               <span className="install-prompt-step">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="3" width="18" height="18" rx="4" />
                   <path d="M12 8v8M8 12h8" />
                 </svg>

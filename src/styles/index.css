@@ -5564,7 +5564,7 @@ td {
 .install-prompt-steps {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 .install-prompt-step {
   display: flex;
@@ -5578,6 +5578,9 @@ td {
   font-weight: 600;
   color: var(--text-1);
   font-family: var(--font);
+}
+.install-prompt-step-icon-only {
+  padding: 5px;
 }
 .install-prompt-step svg {
   color: #00ff88;
