@@ -167,20 +167,32 @@ export default function WatchlistPage({
       )}
 
       {watchlist.length === 0 ? (
-        <div className="empty">
-          <div className="empty-icon">
-            <svg viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            </svg>
+        <div className="empty-rich">
+          <div className="empty-rich-skeleton">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div className="empty-rich-skeleton-card" key={i}>
+                <div className="empty-rich-skeleton-bar-label" />
+                <div className={'empty-rich-skeleton-bar-value' + (i % 2 === 0 ? ' accent' : '')} />
+              </div>
+            ))}
           </div>
-          <h2>Your Watchlist is Empty</h2>
-          <p>Run a scan and click the star icon next to any ticker to add it to your watchlist.</p>
-          <button className="scan-btn add-ticker-btn" onClick={() => setShowAddModal(true)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            Add Ticker
-          </button>
+          <div className="empty-rich-overlay">
+            <div className="empty-rich-card">
+              <div className="empty-rich-icon">
+                <img src="/icon-192.png" alt="" />
+              </div>
+              <h3>Your Watchlist</h3>
+              <p>STAR ANY TICKER TO TRACK IT ACROSS EVERY SESSION</p>
+              <div className="empty-rich-pills">
+                <span className="empty-rich-pill">SAVED ACROSS SESSIONS</span>
+                <span className="empty-rich-pill">LIVE QUOTES</span>
+                <span className="empty-rich-pill">ONE-TAP ADD</span>
+              </div>
+              <button className="empty-rich-cta" onClick={() => setShowAddModal(true)}>
+                + Add Ticker
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="table-card">

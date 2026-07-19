@@ -1929,51 +1929,7 @@ td {
   border-radius: 100px;
 }
 
-/* ── Empty State (Money Flow) ── */
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  text-align: center;
-  /* Without a min-height these states just sit near the top of the page,
-     leaving a large dead void below on tall viewports — centering them in
-     the remaining space reads as intentional rather than unfinished. */
-  min-height: calc(100vh - 340px);
-}
-.empty-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius);
-  background: var(--accent-dim);
-  display: grid;
-  place-items: center;
-  margin-bottom: 24px;
-  border: 1px solid var(--border);
-}
-.empty-icon svg {
-  width: 24px;
-  height: 24px;
-  stroke: var(--accent);
-  fill: none;
-}
-.empty h2 {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 10px;
-  letter-spacing: -0.3px;
-  color: var(--text-1);
-}
-.empty p {
-  font-size: 13px;
-  color: var(--text-2);
-  max-width: 360px;
-  line-height: 1.7;
-  font-weight: 400;
-}
-
-/* ── Rich pre-scan empty state (Sector Flow, MA Scanner) — a faded skeleton
+/* ── Rich pre-scan empty state (Sector Flow, MA Scanner, Watchlist) — a faded skeleton
    of the results grid sits behind the CTA card so the page reads as "data is
    waiting" rather than blank, before the user has run their first scan. ── */
 .empty-rich {
