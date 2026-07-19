@@ -5547,6 +5547,32 @@ td {
 .install-prompt-sub strong {
   color: var(--text-2);
 }
+.install-prompt-steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.install-prompt-step {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0, 255, 136, 0.08);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  border-radius: 100px;
+  padding: 3px 9px 3px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-1);
+  font-family: var(--font);
+}
+.install-prompt-step svg {
+  color: #00ff88;
+  flex-shrink: 0;
+}
+.install-prompt-step-arrow {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
 .install-prompt-cta {
   flex-shrink: 0;
   padding: 7px 16px;
