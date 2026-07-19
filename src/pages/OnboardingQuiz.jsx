@@ -81,7 +81,7 @@ export default function OnboardingQuiz({ onComplete }) {
     <div className="quiz-shell">
       {/* Header */}
       <div className="quiz-top">
-        {step > 0 && !isCTA ? (
+        {isCTA ? null : step > 0 ? (
           <button className="quiz-back-btn" onClick={back}>
             <svg
               width="14"
