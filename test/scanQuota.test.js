@@ -1,5 +1,6 @@
 // Regression tests for the 3-tier scan quota system:
-//  - free:    one lifetime trial scan per category (independent, not shared)
+//  - free:    unlimited scans for FREE_TRIAL_DAYS from account creation,
+//             then blocked entirely until upgrade — purely time-gated
 //  - premium: a shared pool of 5 scans per rolling 24h across all categories
 //  - elite:   unlimited (pilot accounts resolve to elite too)
 require('./helpers/testEnv');
@@ -12,13 +13,20 @@ const db = require('../server/db');
 before(async () => { await db.ready; });
 const { issueToken } = require('../server/services/auth');
 const { requireScanQuota } = require('../server/middleware/authMiddleware');
-const { canScan, spendScan, quotaFor, PREMIUM_DAILY_LIMIT } = require('../server/services/scanQuota');
+const { canScan, spendScan, quotaFor, PREMIUM_DAILY_LIMIT, FREE_TRIAL_DAYS } = require('../server/services/scanQuota');
 
-async function makeUser(email, { tier = 'free', isPilot = false } = {}) {
+async function makeUser(email, { tier = 'free', isPilot = false, createdAt } = {}) {
   const result = await db
     .prepare('INSERT INTO users (email, is_verified, tier, is_premium, is_pilot) VALUES (?, 1, ?, ?, ?)')
     .run(email, tier, tier !== 'free' ? 1 : 0, isPilot ? 1 : 0);
+  if (createdAt) {
+    await db.prepare('UPDATE users SET created_at = ? WHERE id = ?').run(createdAt, result.lastInsertRowid);
+  }
   return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+}
+
+function isoDaysAgo(days) {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
 }
 
 async function reload(id) {
@@ -51,21 +59,33 @@ test('anonymous requests are rejected — every scan type still requires login',
   }
 });
 
-test('free tier: each category gets its own one-time trial, independent of the others', async () => {
+test('free tier: a brand-new account can scan any category, unlimited', async () => {
   const user = await makeUser('free-a@test.local');
   assert.strictEqual(canScan(user, 'capitalFlow'), true);
   assert.strictEqual(canScan(user, 'maScanner'), true);
+  assert.strictEqual(canScan(user, 'sectorMoving'), true);
 
+  // spending never affects a free account — it's purely time-gated
   await spendScan(user, 'capitalFlow');
-
-  assert.strictEqual(canScan(user, 'capitalFlow'), false, 'capitalFlow trial is now spent');
-  assert.strictEqual(canScan(user, 'maScanner'), true, 'maScanner trial is untouched by capitalFlow');
-  assert.strictEqual(canScan(user, 'sectorMoving'), true, 'sectorMoving trial is untouched too');
+  assert.strictEqual(canScan(user, 'capitalFlow'), true, 'scanning does not consume anything for free tier');
 });
 
-test('free tier: requireScanQuota blocks a category after its trial is used, but not a different category', async () => {
-  const user = await makeUser('free-b@test.local');
-  await spendScan(user, 'capitalFlow');
+test('free tier: still unlimited right up to the last moment of day 7', async () => {
+  const user = await makeUser('free-almost@test.local', {
+    createdAt: isoDaysAgo(FREE_TRIAL_DAYS - 0.01),
+  });
+  assert.strictEqual(canScan(user, 'capitalFlow'), true);
+});
+
+test('free tier: blocked in every category once the 7-day trial has elapsed', async () => {
+  const user = await makeUser('free-expired@test.local', { createdAt: isoDaysAgo(FREE_TRIAL_DAYS + 1) });
+  assert.strictEqual(canScan(user, 'capitalFlow'), false);
+  assert.strictEqual(canScan(user, 'maScanner'), false);
+  assert.strictEqual(canScan(user, 'sectorMoving'), false);
+});
+
+test('free tier: requireScanQuota blocks every category once the trial has elapsed', async () => {
+  const user = await makeUser('free-b@test.local', { createdAt: isoDaysAgo(FREE_TRIAL_DAYS + 1) });
   const token = await issueToken(await reload(user.id));
 
   const server = await startTestApp();
@@ -77,20 +97,24 @@ test('free tier: requireScanQuota blocks a category after its trial is used, but
     assert.strictEqual(blocked.status, 403);
     assert.strictEqual((await blocked.json()).code, 'SCAN_LIMIT');
 
-    const allowed = await fetch(`http://127.0.0.1:${port}/ma-scanner`, {
+    const alsoBlocked = await fetch(`http://127.0.0.1:${port}/ma-scanner`, {
       headers: { Authorization: 'Bearer ' + token },
     });
-    assert.strictEqual(allowed.status, 200, 'a different category must still be usable');
+    assert.strictEqual(alsoBlocked.status, 403, 'the trial ending blocks every category, not just one');
   } finally {
     server.close();
   }
 });
 
-test('free tier trial never resets — spending it stays spent', async () => {
-  const user = await makeUser('free-c@test.local');
-  await spendScan(user, 'sectorMoving');
-  const fresh = await reload(user.id);
-  assert.strictEqual(canScan(fresh, 'sectorMoving'), false);
+test('quotaFor reports trialActive and trialEndsAt for a free account', async () => {
+  const fresh = await makeUser('free-quota-fresh@test.local');
+  const freshQuota = quotaFor(fresh);
+  assert.strictEqual(freshQuota.free.trialActive, true);
+  assert.ok(new Date(freshQuota.free.trialEndsAt).getTime() > Date.now());
+
+  const expired = await makeUser('free-quota-expired@test.local', { createdAt: isoDaysAgo(FREE_TRIAL_DAYS + 1) });
+  const expiredQuota = quotaFor(expired);
+  assert.strictEqual(expiredQuota.free.trialActive, false);
 });
 
 test('premium tier: a shared pool of 5 scans across every category, blocked on the 6th', async () => {

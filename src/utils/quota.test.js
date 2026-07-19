@@ -30,16 +30,21 @@ describe('categoryQuota', () => {
     expect(result.limit).toBe(5);
   });
 
-  it('free tier is exhausted only for the category actually used', () => {
-    const scanMeta = { tier: 'free', free: { capitalFlow: true, maScanner: false, sectorMoving: false } };
-    expect(categoryQuota(scanMeta, 'capitalFlow').exhausted).toBe(true);
+  it('free tier is not exhausted while the trial is active, regardless of category', () => {
+    const scanMeta = { tier: 'free', free: { trialActive: true, trialEndsAt: '2099-01-01T00:00:00.000Z' } };
+    expect(categoryQuota(scanMeta, 'capitalFlow').exhausted).toBe(false);
     expect(categoryQuota(scanMeta, 'maScanner').exhausted).toBe(false);
     expect(categoryQuota(scanMeta, 'sectorMoving').exhausted).toBe(false);
   });
 
-  it('free tier with no usage yet is not exhausted', () => {
+  it('free tier is exhausted once the trial has ended, for every category', () => {
+    const scanMeta = { tier: 'free', free: { trialActive: false, trialEndsAt: '2020-01-01T00:00:00.000Z' } };
+    expect(categoryQuota(scanMeta, 'capitalFlow').exhausted).toBe(true);
+    expect(categoryQuota(scanMeta, 'maScanner').exhausted).toBe(true);
+  });
+
+  it('free tier with no free info yet is treated as exhausted, not silently allowed', () => {
     const result = categoryQuota({ tier: 'free', free: {} }, 'capitalFlow');
-    expect(result.exhausted).toBe(false);
-    expect(result.left).toBe(1);
+    expect(result.exhausted).toBe(true);
   });
 });

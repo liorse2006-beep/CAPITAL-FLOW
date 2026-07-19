@@ -512,7 +512,7 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
             { className: 'ma-limit-sub' },
             scanMeta && scanMeta.tier === 'premium'
               ? "You've used all 5 scans for today — resets in 24h. Upgrade to Elite for unlimited scans and real-time alerts."
-              : "You've used your free trial for this scan type. Upgrade to Premium for unlimited-feeling scanning, or Elite for scans plus real-time alerts."
+              : "Your free week is over. Upgrade to Premium for unlimited-feeling scanning, or Elite for scans plus real-time alerts."
           )
         )
       ),

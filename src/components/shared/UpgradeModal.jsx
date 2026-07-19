@@ -12,7 +12,7 @@ function Check() {
 
 // Feature rows in display order — Price is last, right above the CTA row.
 const ROWS = [
-  { label: 'Scans', free: '1 trial / tool', premium: '5 / 24h', elite: 'Unlimited' },
+  { label: 'Scans', free: 'Unlimited for 7 days', premium: '5 / 24h', elite: 'Unlimited' },
   { label: 'Advanced filters & presets', free: false, premium: true, elite: true },
   { label: 'Float & short interest data', free: false, premium: true, elite: true },
   { label: 'Ticker notes & charts', free: false, premium: true, elite: true },
@@ -87,7 +87,7 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
           Compare plans
         </h2>
         <p className="upgrade-desc" style={{ textAlign: 'center', marginBottom: 20 }}>
-          Free gives you one trial scan per tool. Pick the plan that fits how you trade.
+          Free gives you unlimited scans for your first 7 days. Pick the plan that fits how you trade.
         </p>
 
         <div className="tier-table-wrap">

@@ -754,6 +754,13 @@ async function setPilot(id, value) {
   else toast('Error', true);
 }
 
+// users.created_at is SQLite's datetime('now') default: "YYYY-MM-DD HH:MM:SS"
+// UTC with no timezone marker. new Date() would otherwise parse that as the
+// browser's local time, silently skewing every date shown below.
+function parseUsersDate(str) {
+  return new Date(typeof str === 'string' && !str.includes('T') ? str.replace(' ', 'T') + 'Z' : str);
+}
+
 function renderStats(users) {
   const now = new Date();
   const today = now.toDateString();
@@ -764,8 +771,8 @@ function renderStats(users) {
   document.getElementById('s-elite').textContent    = users.filter(u => u.tier === 'elite').length;
   document.getElementById('s-blocked').textContent  = users.filter(u => u.is_blocked).length;
   document.getElementById('s-pilot').textContent    = users.filter(u => u.is_pilot).length;
-  document.getElementById('s-today').textContent    = users.filter(u => new Date(u.created_at).toDateString() === today).length;
-  document.getElementById('s-week').textContent     = users.filter(u => new Date(u.created_at) >= weekAgo).length;
+  document.getElementById('s-today').textContent    = users.filter(u => parseUsersDate(u.created_at).toDateString() === today).length;
+  document.getElementById('s-week').textContent     = users.filter(u => parseUsersDate(u.created_at) >= weekAgo).length;
   document.getElementById('s-active').textContent   = users.filter(u => u.last_login_at && new Date(u.last_login_at * 1000) >= weekAgo).length;
   document.getElementById('s-push').textContent     = users.filter(u => u.push_count > 0).length;
   document.getElementById('s-alerts').textContent   = users.reduce((sum, u) => sum + (u.alert_count || 0), 0);
@@ -789,7 +796,7 @@ function renderTable(users) {
     const pilotBadge = u.is_pilot
       ? \`<span class="badge badge-pilot" title="\${u.pilot_terms_accepted_at ? 'Terms accepted' : 'Terms not yet accepted'}">PILOT\${u.pilot_terms_accepted_at ? '' : ' ⏳'}</span>\`
       : '';
-    const date    = new Date(u.created_at).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const date    = parseUsersDate(u.created_at).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
     const lastLogin = u.last_login_at
       ? new Date(u.last_login_at * 1000).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' })
       : '<span style="color:#444">Never</span>';
@@ -820,7 +827,11 @@ function renderTable(users) {
       ? '∞'
       : tier === 'premium'
         ? (u.premium_scan_count || 0) + '/5 today'
-        : [u.free_scan_used_capital_flow, u.free_scan_used_ma_scanner, u.free_scan_used_sector_moving].filter(Boolean).length + '/3 used';
+        : (function() {
+            const trialEndMs = parseUsersDate(u.created_at).getTime() + 7 * 24 * 60 * 60 * 1000;
+            const daysLeft = Math.ceil((trialEndMs - Date.now()) / (24 * 60 * 60 * 1000));
+            return daysLeft > 0 ? daysLeft + 'd trial left' : 'Trial ended';
+          })();
 
     const notifCell = tier !== 'elite' ? '<span style="color:#444">—</span>' : [
       u.push_count > 0 ? \`<span class="badge badge-push" title="\${u.push_count} device(s) subscribed">Push</span>\` : '',

@@ -21,12 +21,10 @@ export function categoryQuota(scanMeta, category) {
     };
   }
 
-  const used = !!(scanMeta.free && scanMeta.free[category]);
+  const active = !!(scanMeta.free && scanMeta.free.trialActive);
   return {
-    exhausted: used,
-    label: used ? 'Free trial used for this scan type' : 'Free trial available',
-    used: used ? 1 : 0,
-    limit: 1,
-    left: used ? 0 : 1,
+    exhausted: !active,
+    label: active ? 'Free trial active' : 'Free trial ended',
+    trialEndsAt: scanMeta.free ? scanMeta.free.trialEndsAt : null,
   };
 }
