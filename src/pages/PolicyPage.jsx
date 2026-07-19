@@ -122,7 +122,7 @@ export default function PolicyPage() {
         <Section title="Refund policy">
           <p className="policy-paragraph">
             Refunds are issued only in the case of a technical malfunction in the product's functionality, which
-            our team attempted to fix and was unable to resolve within seven days of being reported. Outside of
+            our team attempted to fix and was unable to resolve within 14 days of being reported. Outside of
             this case, payments made are non-refundable.
           </p>
         </Section>
