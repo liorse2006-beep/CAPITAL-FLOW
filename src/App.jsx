@@ -1015,9 +1015,14 @@ function App() {
         </Routes>
 
         <footer className="site-footer">
-          <button className="site-footer-link" onClick={() => setPage('policy')}>
-            Privacy Policy
-          </button>
+          <div>
+            <button className="site-footer-link" onClick={() => setPage('policy')}>
+              Privacy Policy
+            </button>
+            <p className="site-footer-disclaimer">
+              Info & Education Only. Not intended as investment advice. Market data may be delayed or estimated.
+            </p>
+          </div>
         </footer>
       </div>
 
