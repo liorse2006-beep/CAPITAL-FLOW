@@ -1,4 +1,5 @@
 import React from 'react';
+import { resetConsent } from '../analytics';
 
 const PRIVACY_INTRO =
   "This Privacy Policy explains what data Capital Flow collects, why we collect it, and how you can request its deletion. We only collect the minimum data required to operate the service, and we never sell your personal data to third parties.";
@@ -6,7 +7,7 @@ const PRIVACY_INTRO =
 const DATA_COLLECTED = [
   {
     title: 'Account information',
-    body: 'Your email address, profile picture (if provided via Google Sign-In), and subscription tier (Free, Premium, or Elite).',
+    body: 'Your email address and subscription tier (Free, Premium, or Elite).',
   },
   {
     title: 'Push notifications',
@@ -69,18 +70,30 @@ export default function PolicyPage() {
         <Section title="Cookies">
           <p className="policy-paragraph">
             We use cookies to operate and improve the service. We do not sell or share your personal data with
-            third parties for advertising purposes. You can manage your cookie preferences at any time via the
-            consent banner shown on your first visit.
+            third parties for advertising purposes. You can manage your cookie preferences at any time by{' '}
+            <button
+              type="button"
+              className="policy-inline-link"
+              onClick={() => {
+                resetConsent();
+                window.location.reload();
+              }}
+            >
+              reopening the consent banner
+            </button>
+            .
           </p>
         </Section>
 
         <Section title="Third-party services">
           <p className="policy-paragraph">
             We rely on a small number of trusted providers to operate Capital Flow: Google, for optional sign-in
-            via Google OAuth; Paddle, our payment processor, which handles subscription billing (we never see or
-            store your full card details); and, where enabled, the analytics and error-monitoring providers
-            described above. Each provider processes data under its own privacy policy, and only to the extent
-            necessary to provide its service to us.
+            via Google OAuth; Cloudflare Turnstile, to verify you're not a bot during sign-in; Gmail, which
+            delivers our account emails (verification codes, password resets, and notifications); Paddle, our
+            payment processor, which handles subscription billing (we never see or store your full card
+            details); and, where enabled, the analytics and error-monitoring providers described above. Each
+            provider processes data under its own privacy policy, and only to the extent necessary to provide
+            its service to us.
           </p>
         </Section>
 

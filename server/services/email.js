@@ -98,7 +98,7 @@ async function sendWelcomeEmail(email) {
         </p>
         <p style="color:#525252;font-size:12px;">
           Questions or feedback? We'd love to hear from you — find us on Instagram
-          <a href="https://instagram.com/capital_flow67" style="color:#F59E0B;text-decoration:none;">@capital_flow67</a>.
+          <a href="https://instagram.com/capital_flow555" style="color:#F59E0B;text-decoration:none;">@capital_flow555</a>.
         </p>
       </div>
     `,

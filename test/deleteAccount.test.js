@@ -1,7 +1,8 @@
 // DELETE /api/auth/account must cascade-remove every row keyed to the user
-// (watchlist alerts, push subscriptions, feedback, pending OTPs) alongside
-// the user row itself — the Privacy Policy promises immediate, permanent
-// deletion, so this is a compliance guarantee, not just a nice-to-have.
+// (watchlist alerts, push subscriptions, feedback, pending OTPs, scheduled
+// scans) alongside the user row itself — the Privacy Policy promises
+// immediate, permanent deletion, so this is a compliance guarantee, not
+// just a nice-to-have.
 require('./helpers/testEnv');
 const { test, before } = require('node:test');
 const assert = require('node:assert');
@@ -49,6 +50,11 @@ test('DELETE /api/auth/account removes the user and every associated row', async
     'verify_email',
     Math.floor(Date.now() / 1000) + 900
   );
+  await db.prepare('INSERT INTO scheduled_scans (user_id, scan_type, scan_time) VALUES (?, ?, ?)').run(
+    user.id,
+    'capitalFlow',
+    '09:00'
+  );
 
   const server = await startTestApp();
   const port = server.address().port;
@@ -71,6 +77,10 @@ test('DELETE /api/auth/account removes the user and every associated row', async
     );
     assert.strictEqual(await db.prepare('SELECT * FROM feedback WHERE user_id = ?').get(user.id), undefined);
     assert.strictEqual(await db.prepare('SELECT * FROM otp_codes WHERE email = ?').get(user.email), undefined);
+    assert.strictEqual(
+      await db.prepare('SELECT * FROM scheduled_scans WHERE user_id = ?').get(user.id),
+      undefined
+    );
   } finally {
     server.close();
   }

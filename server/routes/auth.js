@@ -353,6 +353,7 @@ router.delete('/account', requireAuth, async (req, res) => {
     await db.prepare('DELETE FROM watchlist_alerts WHERE user_id = ?').run(userId);
     await db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(userId);
     await db.prepare('DELETE FROM feedback WHERE user_id = ?').run(userId);
+    await db.prepare('DELETE FROM scheduled_scans WHERE user_id = ?').run(userId);
     if (email) await db.prepare('DELETE FROM otp_codes WHERE email = ?').run(email);
     await db.prepare('DELETE FROM users WHERE id = ?').run(userId);
 

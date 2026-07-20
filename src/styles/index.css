@@ -5392,6 +5392,17 @@ td {
   font-size: 14px;
   line-height: 1.8;
 }
+.policy-inline-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: inherit;
+  font-family: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
 .policy-list li {
   margin-bottom: 6px;
 }

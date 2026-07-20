@@ -51,6 +51,14 @@ export function revokeConsent() {
   localStorage.setItem(CONSENT_KEY, 'false');
 }
 
+// Clears any prior answer so the consent banner reappears on next load —
+// used by the "manage cookie preferences" link on the Policy page, since
+// hasAnswered() gates the banner and there's otherwise no way back to it
+// after the first visit.
+export function resetConsent() {
+  localStorage.removeItem(CONSENT_KEY);
+}
+
 function track(event, props) {
   if (enabled && hasConsented()) loadPosthog().then((posthog) => posthog && posthog.capture(event, props));
 }
