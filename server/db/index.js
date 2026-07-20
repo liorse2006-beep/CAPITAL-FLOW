@@ -207,6 +207,14 @@ async function initDb() {
     }
   }
 
+  // notification_time is added via ALTER TABLE above, after the table's own
+  // CREATE INDEX block already ran — indexed separately here. Every tick of
+  // the scheduled digest (server/services/scheduledDigest.js) does
+  // `WHERE notification_time = ?` against the full users table; without an
+  // index that's a full table scan on every single minute, growing worse as
+  // the user base grows.
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_users_notification_time ON users(notification_time)');
+
   // One-time data migration: carry over ma_scan_count → free_scan_count
   try {
     await client.execute(`UPDATE users SET free_scan_count = ma_scan_count WHERE ma_scan_count > 0 AND free_scan_count = 0`);

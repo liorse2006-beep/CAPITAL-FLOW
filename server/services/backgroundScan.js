@@ -82,7 +82,7 @@ async function checkWatchlistAlerts(results) {
   var broadcastToUser = getBroadcastToUser();
   try {
     const { getAllAlertsGrouped } = require('./watchlistAlerts');
-    const byUser = getAllAlertsGrouped(); // { userId: { AAPL: 2.0, ... }, ... }
+    const byUser = await getAllAlertsGrouped(); // { userId: { AAPL: 2.0, ... }, ... }
     const bySymbol = new Map(results.map((r) => [r.symbol, r]));
 
     Object.entries(byUser).forEach(function ([userId, thresholds]) {
@@ -109,7 +109,13 @@ async function checkWatchlistAlerts(results) {
         } catch (_) {}
       });
     });
-  } catch (_) {}
+  } catch (err) {
+    // This used to be a silent catch — it's why a missing `await` above
+    // (getAllAlertsGrouped returning a Promise, so Object.entries saw an
+    // empty object) shipped to production and silently dropped every
+    // watchlist alert with no error anywhere. Never swallow this again.
+    console.error('[checkWatchlistAlerts]', err);
+  }
 }
 
 async function runBackgroundScan() {
@@ -170,4 +176,5 @@ module.exports = {
   filterCachedResults,
   runBackgroundScan,
   startBackgroundScheduler,
+  checkWatchlistAlerts,
 };

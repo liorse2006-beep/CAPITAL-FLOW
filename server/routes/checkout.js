@@ -17,14 +17,14 @@ router.post('/checkout/transaction', requireAuth, async (req, res) => {
   const priceId = PRICE_ID[tier];
   if (!priceId) return res.status(400).json({ error: 'tier must be premium or elite, and its Paddle price must be configured' });
 
-  let discountId = null;
-  if (couponCode) {
-    const coupon = await validateCoupon(couponCode, tier);
-    if (!coupon.valid) return res.status(400).json({ error: coupon.error });
-    discountId = coupon.paddleDiscountId; // null is fine — coupon still valid, just not wired to a real Paddle discount
-  }
-
   try {
+    let discountId = null;
+    if (couponCode) {
+      const coupon = await validateCoupon(couponCode, tier);
+      if (!coupon.valid) return res.status(400).json({ error: coupon.error });
+      discountId = coupon.paddleDiscountId; // null is fine — coupon still valid, just not wired to a real Paddle discount
+    }
+
     const transaction = await paddle.createTransaction({
       priceId,
       discountId,
