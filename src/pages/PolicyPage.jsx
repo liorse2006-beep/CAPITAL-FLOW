@@ -9,10 +9,6 @@ const DATA_COLLECTED = [
     body: 'Your email address, profile picture (if provided via Google Sign-In), and subscription tier (Free, Premium, or Elite).',
   },
   {
-    title: 'Usage and service data',
-    body: 'The number of scans you have run in each category (used to enforce free-tier limits), your Watchlist, and any alert thresholds you have configured for individual tickers (Elite users only).',
-  },
-  {
     title: 'Push notifications',
     body: 'If you enable push notifications (an Elite-only feature), we store a technical subscription identifier tied to your browser or device so we can deliver alerts to it. You can revoke this at any time from the Watchlist page.',
   },
@@ -43,7 +39,7 @@ export default function PolicyPage() {
     <div className="page-content policy-page">
       <h2 className="flow-title policy-title">Privacy Policy</h2>
       <div className="policy-card">
-        <p className="policy-paragraph policy-updated">Last updated: July 19, 2026</p>
+        <p className="policy-paragraph policy-updated">Last updated: July 20, 2026</p>
         <p className="policy-paragraph">{PRIVACY_INTRO}</p>
 
         <Section title="Information we collect">
@@ -57,8 +53,8 @@ export default function PolicyPage() {
         <Section title="How long we retain your data">
           <p className="policy-paragraph">
             We retain your data for as long as your account remains active. When you delete your account, all
-            associated data — account details, Watchlist, alerts, and push subscriptions — is permanently and
-            irreversibly deleted from our servers immediately.
+            associated data — account details, Watchlist, alerts, and push subscriptions — is permanently
+            deleted from our servers immediately.
           </p>
         </Section>
 
@@ -124,14 +120,6 @@ export default function PolicyPage() {
             Refunds are issued only in the case of a technical malfunction in the product's functionality, which
             our team attempted to fix and was unable to resolve within 14 days of being reported. Outside of
             this case, payments made are non-refundable.
-          </p>
-        </Section>
-
-        <Section title="Children's privacy">
-          <p className="policy-paragraph">
-            Capital Flow is not directed at, and is not intended for use by, individuals under the age of 18. We
-            do not knowingly collect personal information from children. If we become aware that we have
-            inadvertently collected such information, we will delete it promptly.
           </p>
         </Section>
 
