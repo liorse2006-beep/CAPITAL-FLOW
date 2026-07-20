@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { requireElite } = require('../middleware/authMiddleware');
+const { requireElite, requireEliteOrTrial } = require('../middleware/authMiddleware');
 const { VAPID_PUBLIC_KEY } = require('../config');
 const { saveSubscription, removeSubscription } = require('../services/webPush');
 const db = require('../db');
@@ -8,7 +8,7 @@ const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 router.get('/push/vapid-public-key', (req, res) => res.json({ key: VAPID_PUBLIC_KEY }));
 
-router.post('/push/subscribe', requireElite, async (req, res) => {
+router.post('/push/subscribe', requireEliteOrTrial, async (req, res) => {
   try {
     const sub = req.body;
     if (!sub || !sub.endpoint || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) {
@@ -22,7 +22,7 @@ router.post('/push/subscribe', requireElite, async (req, res) => {
   }
 });
 
-router.post('/push/unsubscribe', requireElite, async (req, res) => {
+router.post('/push/unsubscribe', requireEliteOrTrial, async (req, res) => {
   try {
     const endpoint = req.body && req.body.endpoint;
     if (!endpoint) return res.status(400).json({ error: 'endpoint required' });

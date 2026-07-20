@@ -204,6 +204,25 @@ function App() {
   var userTier = user ? user.tier || 'free' : 'free';
   var isElite = userTier === 'elite';
 
+  /* ── Shared scan quota (unlimited for 7 days on free tier, then blocked
+        until upgrade; 5/24h on premium; unlimited on elite) ── */
+  const { scanMeta, setScanMeta, refreshQuota } = useScanQuota();
+  // Re-sync whenever the user switches tabs too, not just on first mount —
+  // otherwise the topbar counter can go stale after spending a scan on a
+  // different page (e.g. MA Scanner) without a full reload.
+  useEffect(
+    function () {
+      refreshQuota();
+    },
+    [refreshQuota, page]
+  );
+
+  // Notifications (push subscribe + watchlist alert thresholds) are Elite
+  // features, opened up temporarily to a free account for as long as its
+  // 7-day trial is active — NOT the daily scheduled-scan digest, which
+  // stays strictly Elite (gated separately, see saveNotifTime/isElite below).
+  var canNotify = isElite || (userTier === 'free' && !!(scanMeta && scanMeta.free && scanMeta.free.trialActive));
+
   /* ── Scan Presets ── */
   const [presets, setPresets] = useState(function () {
     try {
@@ -262,7 +281,7 @@ function App() {
 
   useEffect(
     function () {
-      if (!isElite) return;
+      if (!canNotify) return;
       fetch('/api/watchlist-alerts', { headers: { Authorization: 'Bearer ' + getToken() } })
         .then(function (r) {
           return r.ok ? r.json() : {};
@@ -273,7 +292,7 @@ function App() {
         })
         .catch(function () {});
     },
-    [isElite]
+    [canNotify]
   );
 
   function setAlertLevel(symbol, threshold) {
@@ -283,7 +302,7 @@ function App() {
     updated[symbol] = val;
     setAlertLevels(updated);
     localStorage.setItem('vs-alert-levels', JSON.stringify(updated));
-    if (isElite) {
+    if (canNotify) {
       fetch('/api/watchlist-alerts/' + symbol, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
@@ -298,7 +317,7 @@ function App() {
     delete alertFired.current[symbol];
     setAlertLevels(updated);
     localStorage.setItem('vs-alert-levels', JSON.stringify(updated));
-    if (isElite) {
+    if (canNotify) {
       fetch('/api/watchlist-alerts/' + symbol, {
         method: 'DELETE',
         headers: { Authorization: 'Bearer ' + getToken() },
@@ -309,7 +328,7 @@ function App() {
   const [alertModalSymbol, setAlertModalSymbol] = useState(null);
 
   function promptCreateAlert(symbol) {
-    if (!isElite) {
+    if (!canNotify) {
       setShowUpgradeModal(true);
       return;
     }
@@ -318,15 +337,24 @@ function App() {
 
   /* ── Push Notifications — real device push that fires even with the app
      closed. Delivery is driven server-side (server/services/webPush.js +
-     scheduledDigest.js) against the same thresholds set above. Elite only. ── */
+     scheduledDigest.js) against the same thresholds set above. Subscribing
+     is opened up during the free trial (canNotify); the daily scheduled
+     digest time below stays strictly Elite. ── */
   var { pushSupported, pushEnabled, pushBusy, pushError, checkSubscribed, enablePush, disablePush } =
     usePushSubscription();
   const [notifTime, setNotifTime] = useState('');
 
   useEffect(
     function () {
-      if (!isElite || !pushSupported) return;
+      if (!canNotify || !pushSupported) return;
       checkSubscribed();
+    },
+    [canNotify, pushSupported]
+  );
+
+  useEffect(
+    function () {
+      if (!isElite || !pushSupported) return;
       fetch('/api/push/notification-time', { headers: { Authorization: 'Bearer ' + getToken() } })
         .then(function (r) {
           return r.ok ? r.json() : {};
@@ -336,7 +364,7 @@ function App() {
         })
         .catch(function () {});
     },
-    [isElite]
+    [isElite, pushSupported]
   );
 
   function saveNotifTime(time) {
@@ -405,18 +433,6 @@ function App() {
         setWatchlistLoading(false);
       });
   }
-
-  /* ── Shared free-scan quota (3 total, across Capital Flow, Sector Moving, and MA Scanner) ── */
-  const { scanMeta, setScanMeta, refreshQuota } = useScanQuota();
-  // Re-sync whenever the user switches tabs too, not just on first mount —
-  // otherwise the topbar counter can go stale after spending a scan on a
-  // different page (e.g. MA Scanner) without a full reload.
-  useEffect(
-    function () {
-      refreshQuota();
-    },
-    [refreshQuota, page]
-  );
 
   /* ── Upgrade modal ── */
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -916,6 +932,7 @@ function App() {
                 openChart={openChart}
                 setWatchlistError={setWatchlistError}
                 isElite={isElite}
+                canNotify={canNotify}
                 user={user}
                 pushSupported={pushSupported}
                 pushEnabled={pushEnabled}

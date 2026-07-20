@@ -1,6 +1,6 @@
 const { verifyToken } = require('../services/auth');
 const db = require('../db');
-const { canScan, quotaFor } = require('../services/scanQuota');
+const { canScan, quotaFor, freeTrialActive } = require('../services/scanQuota');
 
 /** Resolve a JWT string → verified DB user, or null on failure */
 async function resolveToken(token) {
@@ -93,6 +93,29 @@ async function requireElite(req, res, next) {
 }
 
 /**
+ * Require Elite, OR a free-tier account still inside its 7-day trial
+ * window — used only for the notification features explicitly opened up
+ * during the free trial: push subscribe/unsubscribe and watchlist alert
+ * thresholds. NOT for every Elite feature — the daily scheduled-scan
+ * digest (push notification-time, server/routes/scheduledScans.js) stays
+ * strictly Elite-only via requireElite above.
+ */
+async function requireEliteOrTrial(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized', code: 'NOT_AUTHENTICATED' });
+  }
+  const user = await resolveToken(header.slice(7));
+  if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
+  const allowed = user.tier === 'elite' || (user.tier === 'free' && freeTrialActive(user));
+  if (!allowed) {
+    return res.status(403).json({ error: 'Elite subscription required', code: 'NOT_ELITE' });
+  }
+  req.user = user;
+  next();
+}
+
+/**
  * Same as requirePremium but reads the token from ?token= query param.
  * Used for SSE (EventSource cannot set Authorization headers).
  */
@@ -119,9 +142,10 @@ async function requirePremiumSSE(req, res, next) {
 
 /**
  * Require login AND remaining scan quota for `category` (one of
- * 'capitalFlow' | 'maScanner' | 'sectorMoving'). Free: one lifetime trial
- * per category. Premium: shared pool of 5 scans per rolling 24h. Elite:
- * unlimited. Returns a middleware bound to the given category — mount as
+ * 'capitalFlow' | 'maScanner' | 'sectorMoving'). Free: unlimited across
+ * every category for a 7-day trial from signup, then blocked entirely.
+ * Premium: shared pool of 5 scans per rolling 24h. Elite: unlimited.
+ * Returns a middleware bound to the given category — mount as
  * requireScanQuota('capitalFlow'), not requireScanQuota directly.
  */
 function requireScanQuota(category) {
@@ -144,4 +168,12 @@ function requireScanQuota(category) {
   };
 }
 
-module.exports = { requireAuth, requirePremium, requireElite, requirePremiumSSE, requireScanQuota, resolveToken };
+module.exports = {
+  requireAuth,
+  requirePremium,
+  requireElite,
+  requireEliteOrTrial,
+  requirePremiumSSE,
+  requireScanQuota,
+  resolveToken,
+};

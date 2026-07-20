@@ -43,6 +43,7 @@ export default function WatchlistPage({
   openChart,
   setWatchlistError,
   isElite,
+  canNotify,
   user,
   pushSupported,
   pushEnabled,
@@ -78,8 +79,10 @@ export default function WatchlistPage({
         </div>
       </div>
 
-      {/* Notification Settings — Elite only; push/scheduled-scan/alert-thresholds are what "no notifications" excludes for Premium */}
-      {user && !isElite && (
+      {/* Notification Settings — push + alert thresholds are Elite, or a
+          free account still inside its 7-day trial (canNotify). The daily
+          scheduled digest below stays strictly Elite (isElite). */}
+      {user && !canNotify && (
         <div className="notif-settings-panel notif-settings-upsell">
           <div className="notif-settings-row">
             <div>
@@ -95,7 +98,7 @@ export default function WatchlistPage({
         </div>
       )}
 
-      {isElite && (
+      {canNotify && (
         <div className="notif-settings-panel">
           <div className="notif-settings-row">
             <div>
@@ -123,7 +126,7 @@ export default function WatchlistPage({
             )}
           </div>
           {pushError && <div className="notif-settings-error">{pushError}</div>}
-          {pushSupported && pushEnabled && (
+          {isElite && pushSupported && pushEnabled && (
             <div className="notif-settings-row">
               <div>
                 <div className="notif-settings-title">Daily Scan Time</div>

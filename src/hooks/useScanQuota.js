@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-// Quota shape depends on tier: free users get one lifetime trial per
-// category (`free: { capitalFlow, maScanner, sectorMoving }`), premium users
+// Quota shape depends on tier: free users get unlimited scans for a 7-day
+// trial from signup (`free: { trialActive, trialEndsAt }`), premium users
 // share a 5-scan/24h pool (`premium: { used, left, limit, resetsAt }`),
 // elite users get both as null (unlimited). See server/services/scanQuota.js
 // `quotaFor()` for the authoritative shape — every scan page reads the same

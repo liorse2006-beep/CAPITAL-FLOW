@@ -1,8 +1,8 @@
 const router = require('express').Router();
-const { requireElite } = require('../middleware/authMiddleware');
+const { requireEliteOrTrial } = require('../middleware/authMiddleware');
 const { getWatchlistAlerts, setAlert, removeAlert, clearAlerts } = require('../services/watchlistAlerts');
 
-router.get('/watchlist-alerts', requireElite, async (req, res) => {
+router.get('/watchlist-alerts', requireEliteOrTrial, async (req, res) => {
   try {
     res.json(await getWatchlistAlerts(req.user.id));
   } catch (err) {
@@ -11,7 +11,7 @@ router.get('/watchlist-alerts', requireElite, async (req, res) => {
   }
 });
 
-router.post('/watchlist-alerts/:symbol', requireElite, async (req, res) => {
+router.post('/watchlist-alerts/:symbol', requireEliteOrTrial, async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase();
     const minRatio = parseFloat(req.body.minRatio);
@@ -25,7 +25,7 @@ router.post('/watchlist-alerts/:symbol', requireElite, async (req, res) => {
   }
 });
 
-router.delete('/watchlist-alerts/:symbol', requireElite, async (req, res) => {
+router.delete('/watchlist-alerts/:symbol', requireEliteOrTrial, async (req, res) => {
   try {
     await removeAlert(req.user.id, req.params.symbol.toUpperCase());
     res.json({ ok: true });
@@ -35,7 +35,7 @@ router.delete('/watchlist-alerts/:symbol', requireElite, async (req, res) => {
   }
 });
 
-router.delete('/watchlist-alerts', requireElite, async (req, res) => {
+router.delete('/watchlist-alerts', requireEliteOrTrial, async (req, res) => {
   try {
     await clearAlerts(req.user.id);
     res.json({ ok: true });
