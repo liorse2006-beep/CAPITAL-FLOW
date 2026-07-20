@@ -62,12 +62,7 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
   const { scanMeta, setScanMeta, refreshQuota } = useScanQuota();
 
   const pollRef = useRef(null);
-  const controlsRef = useRef(null);
   const authH = () => ({ Authorization: 'Bearer ' + getToken() });
-
-  function revealFilters() {
-    controlsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
 
   useEffect(() => {
     refreshQuota();
@@ -230,74 +225,10 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
         )
       ),
 
-    // ── Empty state ──────────────────────────────────────────────────────────
-    !loading &&
-      !results &&
-      !error &&
-      !scanLimitReached &&
-      React.createElement(
-        'div',
-        { className: 'empty-rich' },
-        React.createElement(
-          'div',
-          { className: 'empty-rich-skeleton' },
-          [0, 1, 2, 3, 4, 5].map((i) =>
-            React.createElement(
-              'div',
-              { className: 'empty-rich-skeleton-card', key: i },
-              React.createElement('div', { className: 'empty-rich-skeleton-bar-label' }),
-              React.createElement('div', {
-                className: 'empty-rich-skeleton-bar-value' + (i % 2 === 0 ? ' accent' : ''),
-              })
-            )
-          )
-        ),
-        React.createElement(
-          'div',
-          { className: 'empty-rich-overlay' },
-          React.createElement(
-            'div',
-            { className: 'empty-rich-card' },
-            React.createElement(
-              'div',
-              { className: 'empty-rich-icon' },
-              React.createElement('img', { src: '/icon-192.png', alt: '' })
-            ),
-            React.createElement('h3', null, 'Moving Average Scanner'),
-            React.createElement(
-              'p',
-              null,
-              'Find stocks where price is touching a key moving average. Select your market universe, SMA period, tolerance, and timeframe — then run the scan.'
-            ),
-            React.createElement(
-              'div',
-              { className: 'empty-rich-pills' },
-              React.createElement('span', { className: 'empty-rich-pill' }, 'WHERE PRICE MEETS TREND'),
-              React.createElement('span', { className: 'empty-rich-pill' }, 'TUNED TO YOUR STYLE'),
-              React.createElement('span', { className: 'empty-rich-pill' }, 'CATCH IT EARLY')
-            ),
-            !isPremium &&
-              scanMeta &&
-              scanMeta.tier === 'premium' &&
-              React.createElement(
-                'p',
-                { style: { color: 'var(--text-2)', fontSize: 12, marginBottom: 12 } },
-                categoryQuota(scanMeta, 'maScanner').label
-              ),
-            React.createElement(
-              'button',
-              { className: 'empty-rich-cta', onClick: isLocked ? onSignIn : revealFilters },
-              'Run scan'
-            )
-          )
-        )
-      ),
-
     // ── Controls panel ───────────────────────────────────────────────────────
     React.createElement(
       'div',
       {
-        ref: controlsRef,
         className: 'ma-controls',
         style: isLocked ? { opacity: 0.4, pointerEvents: 'none', userSelect: 'none' } : undefined,
       },
