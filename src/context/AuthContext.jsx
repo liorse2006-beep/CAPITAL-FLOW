@@ -106,13 +106,11 @@ export function AuthProvider({ children }) {
 
   function logout() {
     localStorage.removeItem('vs_token');
-    // vs_quiz_done is device-scoped, not account-scoped — clearing it here
-    // means the next person to use this device (a different account signing
-    // up, e.g. a shared computer) sees the onboarding quiz fresh instead of
-    // silently inheriting whoever was logged in before them. A full reload
-    // is required because the quiz gate in main.jsx reads this flag once on
-    // mount, above this context, and won't otherwise notice the change.
-    localStorage.removeItem('vs_quiz_done');
+    // vs_quiz_done is intentionally left alone here — it should show exactly
+    // once per device, ever, not once per login session. Clearing it on
+    // logout made it reappear for the same person every time they signed
+    // out and back in (common during testing), which is the bug this
+    // comment used to defend.
     setUser(null);
     window.location.reload();
   }
