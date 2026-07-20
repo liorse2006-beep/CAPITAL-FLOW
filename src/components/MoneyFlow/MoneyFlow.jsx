@@ -8,7 +8,7 @@ import { SECTOR_ETFS } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
 import useScanQuota from '../../hooks/useScanQuota';
 
-export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn }) {
+export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn, onTrialEnded }) {
   const { user, getToken } = useAuth();
   const isPremium = !!(user && user.is_premium);
   const { scanMeta, setScanMeta, refreshQuota } = useScanQuota();
@@ -37,7 +37,7 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn }) {
         return;
       }
       if (!isPremium && categoryQuota(scanMeta, 'sectorMoving').exhausted) {
-        setShowUpgradeModal(true);
+        onTrialEnded();
         return;
       }
       setLoading(true);
@@ -65,7 +65,8 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn }) {
         })
         .catch(function (e) {
           if (e.code === 'SCAN_LIMIT') {
-            setShowUpgradeModal(true);
+            if (isPremium) setShowUpgradeModal(true);
+            else onTrialEnded();
             return;
           }
           setError(e.message);
@@ -74,7 +75,7 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn }) {
           setLoading(false);
         });
     },
-    [user, isPremium, scanMeta, getToken, onSignIn, setShowUpgradeModal, setScanMeta]
+    [user, isPremium, scanMeta, getToken, onSignIn, setShowUpgradeModal, setScanMeta, onTrialEnded]
   );
 
   const inflows = flowData

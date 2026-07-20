@@ -39,7 +39,7 @@ function fmtCap(v) {
   return '—';
 }
 
-export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
+export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade, onTrialEnded }) {
   const { getToken, user } = useAuth();
   const isPremium = !!(user && user.is_premium);
 
@@ -78,6 +78,10 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
 
   function startScan() {
     if (loading) return;
+    if (scanLimitReached) {
+      onTrialEnded();
+      return;
+    }
     setLoading(true);
     setError(null);
     setResults(null);
@@ -108,7 +112,10 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
         clearInterval(pollRef.current);
       })
       .catch((e) => {
-        if (e.code === 'SCAN_LIMIT') refreshQuota();
+        if (e.code === 'SCAN_LIMIT') {
+          refreshQuota();
+          if (!isPremium) onTrialEnded();
+        }
         setError(e.message);
         setLoading(false);
         clearInterval(pollRef.current);
@@ -186,7 +193,7 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
             {
               className: 'scan-btn',
               onClick: startScan,
-              disabled: loading || scanLimitReached,
+              disabled: loading,
             },
             loading
               ? React.createElement(
@@ -485,7 +492,7 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
           { className: 'error-bar-actions' },
           React.createElement(
             'button',
-            { className: 'error-retry-btn', onClick: startScan, disabled: scanLimitReached },
+            { className: 'error-retry-btn', onClick: startScan },
             'Retry'
           ),
           React.createElement('button', { className: 'error-dismiss-btn', onClick: () => setError(null) }, 'Dismiss')

@@ -11,6 +11,7 @@ import { track } from './analytics';
 import PushPermissionPrompt from './components/shared/PushPermissionPrompt';
 import InstallPrompt from './components/shared/InstallPrompt';
 import UpgradeModal from './components/shared/UpgradeModal';
+import TrialEndedModal from './components/shared/TrialEndedModal';
 import PilotGate from './components/shared/PilotGate';
 import AlertThresholdModal from './components/shared/AlertThresholdModal';
 import Topbar from './components/shared/Topbar';
@@ -222,6 +223,28 @@ function App() {
   // 7-day trial is active — NOT the daily scheduled-scan digest, which
   // stays strictly Elite (gated separately, see saveNotifTime/isElite below).
   var canNotify = isElite || (userTier === 'free' && !!(scanMeta && scanMeta.free && scanMeta.free.trialActive));
+
+  /* ── Trial-ended popup — auto-shown once per site visit the first time a
+        free-tier user's scanMeta confirms the 7-day trial has ended, and
+        again on demand every time a scan is attempted afterward (see
+        onTrialEnded below, threaded into startScan / MoneyFlow /
+        MAScannerPage). The ref guards against re-popping on every internal
+        page navigation, which also calls refreshQuota(). ── */
+  const [showTrialEndedModal, setShowTrialEndedModal] = useState(false);
+  const trialEndedAutoShownRef = useRef(false);
+  useEffect(
+    function () {
+      if (trialEndedAutoShownRef.current) return;
+      if (!user || userTier !== 'free' || !scanMeta || !scanMeta.free) return;
+      if (scanMeta.free.trialActive) return;
+      trialEndedAutoShownRef.current = true;
+      setShowTrialEndedModal(true);
+    },
+    [user, userTier, scanMeta]
+  );
+  function onTrialEnded() {
+    setShowTrialEndedModal(true);
+  }
 
   /* ── Scan Presets ── */
   const [presets, setPresets] = useState(function () {
@@ -680,7 +703,7 @@ function App() {
         return;
       }
       if (!isPremium && categoryQuota(scanMeta, 'capitalFlow').exhausted) {
-        setShowUpgradeModal(true);
+        setShowTrialEndedModal(true);
         return;
       }
 
@@ -740,7 +763,8 @@ function App() {
         })
         .catch(function (e) {
           if (e.code === 'SCAN_LIMIT') {
-            setShowUpgradeModal(true);
+            if (isPremium) setShowUpgradeModal(true);
+            else setShowTrialEndedModal(true);
             return;
           }
           setError(e.message);
@@ -847,6 +871,15 @@ function App() {
 
 
       {showUpgradeModal && <UpgradeModal userTier={userTier} onClose={() => setShowUpgradeModal(false)} />}
+      {showTrialEndedModal && (
+        <TrialEndedModal
+          onClose={() => setShowTrialEndedModal(false)}
+          onUpgrade={() => {
+            setShowTrialEndedModal(false);
+            setShowUpgradeModal(true);
+          }}
+        />
+      )}
 
       {alertModalSymbol && (
         <AlertThresholdModal
@@ -901,7 +934,12 @@ function App() {
             path="/ma"
             element={
               <Suspense fallback={<div className="page-loading">Loading…</div>}>
-                <MAScannerPage onOpenChart={openChart} onSignIn={() => setShowAuthModal(true)} onUpgrade={() => setShowUpgradeModal(true)} />
+                <MAScannerPage
+                  onOpenChart={openChart}
+                  onSignIn={() => setShowAuthModal(true)}
+                  onUpgrade={() => setShowUpgradeModal(true)}
+                  onTrialEnded={onTrialEnded}
+                />
               </Suspense>
             }
           />
@@ -914,6 +952,7 @@ function App() {
                   theme={theme}
                   setShowUpgradeModal={setShowUpgradeModal}
                   onSignIn={() => setShowAuthModal(true)}
+                  onTrialEnded={onTrialEnded}
                 />
               </Suspense>
             }
