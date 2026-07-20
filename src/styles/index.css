@@ -1951,6 +1951,11 @@ td {
 .empty-rich {
   position: relative;
   padding: 20px 0 40px;
+  /* The overlay card below is absolutely positioned and floats free of
+     this container's own (much shorter) content height — without a
+     floor here it can overlap whatever renders right after this block
+     (e.g. MA Scanner's controls panel for a logged-in user). */
+  min-height: 420px;
 }
 .empty-rich-skeleton {
   display: grid;
@@ -5133,27 +5138,6 @@ td {
   color: var(--text-3);
   letter-spacing: 0;
   font-family: var(--mono);
-}
-
-/* Search box inside results bar */
-.ma-search {
-  height: 28px;
-  padding: 0 10px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong);
-  background: var(--bg-2);
-  color: var(--text-1);
-  font-size: 12px;
-  font-family: var(--mono);
-  width: 160px;
-  transition: border-color var(--transition);
-}
-.ma-search:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-.ma-search::placeholder {
-  color: var(--text-3);
 }
 
 /* Sector grid inside MA controls */

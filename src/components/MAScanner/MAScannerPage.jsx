@@ -57,13 +57,17 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
 
   const [sortField, setSort] = useState('maDistance');
   const [sortDir, setSortDir] = useState('asc');
-  const [search, setSearch] = useState('');
   const [dirFilter, setDirFilter] = useState('all');
 
   const { scanMeta, setScanMeta, refreshQuota } = useScanQuota();
 
   const pollRef = useRef(null);
+  const controlsRef = useRef(null);
   const authH = () => ({ Authorization: 'Bearer ' + getToken() });
+
+  function revealFilters() {
+    controlsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   useEffect(() => {
     refreshQuota();
@@ -132,8 +136,7 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
 
   const filtered = (results || []).filter((r) => {
     if (dirFilter !== 'all' && r.direction !== dirFilter) return false;
-    if (!search) return true;
-    return r.symbol.includes(search.toUpperCase()) || (r.name || '').toLowerCase().includes(search.toLowerCase());
+    return true;
   });
 
   const sorted = [...filtered].sort((a, b) => {
@@ -283,7 +286,7 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
               ),
             React.createElement(
               'button',
-              { className: 'empty-rich-cta', onClick: startScan },
+              { className: 'empty-rich-cta', onClick: isLocked ? onSignIn : revealFilters },
               'Run scan'
             )
           )
@@ -294,6 +297,7 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
     React.createElement(
       'div',
       {
+        ref: controlsRef,
         className: 'ma-controls',
         style: isLocked ? { opacity: 0.4, pointerEvents: 'none', userSelect: 'none' } : undefined,
       },
@@ -584,18 +588,6 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade }) {
                   ' results' +
                   (filtered.length < results.length ? ` · ${results.length - filtered.length} filtered` : '')
               )
-            ),
-            React.createElement(
-              'div',
-              { style: { display: 'flex', gap: 8, alignItems: 'center' } },
-              // Search
-              React.createElement('input', {
-                className: 'ma-search',
-                type: 'text',
-                placeholder: 'Search ticker / name…',
-                value: search,
-                onChange: (e) => setSearch(e.target.value),
-              })
             )
           ),
 
