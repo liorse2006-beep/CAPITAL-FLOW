@@ -964,6 +964,8 @@ function App() {
                   onSignIn={() => setShowAuthModal(true)}
                   onUpgrade={() => setShowUpgradeModal(true)}
                   onTrialEnded={onTrialEnded}
+                  isInWatchlist={isInWatchlist}
+                  toggleWatchlistTicker={toggleWatchlistTicker}
                 />
               </Suspense>
             }

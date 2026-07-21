@@ -39,7 +39,14 @@ function fmtCap(v) {
   return '—';
 }
 
-export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade, onTrialEnded }) {
+export default function MAScannerPage({
+  onOpenChart,
+  onSignIn,
+  onUpgrade,
+  onTrialEnded,
+  isInWatchlist,
+  toggleWatchlistTicker,
+}) {
   const { getToken, user } = useAuth();
   const isPremium = !!(user && user.is_premium);
 
@@ -147,6 +154,36 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade, onTria
     if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     return sortDir === 'asc' ? av - bv : bv - av;
   });
+
+  const starBtn = (symbol) => {
+    const starred = isInWatchlist(symbol);
+    return React.createElement(
+      'button',
+      {
+        className: 'star-btn' + (starred ? ' starred' : ''),
+        onClick: (e) => {
+          e.stopPropagation();
+          toggleWatchlistTicker(symbol);
+        },
+        title: starred ? 'Remove from watchlist' : 'Add to watchlist',
+        'aria-label': starred ? 'Remove from watchlist' : 'Add to watchlist',
+      },
+      React.createElement(
+        'svg',
+        {
+          viewBox: '0 0 24 24',
+          width: 14,
+          height: 14,
+          fill: starred ? 'var(--accent)' : 'none',
+          stroke: starred ? 'var(--accent)' : 'var(--text-3)',
+          strokeWidth: 2,
+        },
+        React.createElement('polygon', {
+          points: '12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2',
+        })
+      )
+    );
+  };
 
   const TH = ({ label, field }) =>
     React.createElement(
@@ -551,8 +588,13 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade, onTria
                     React.createElement(
                       'div',
                       { className: 'mobile-card-top' },
-                      React.createElement('span', { className: 'mobile-card-ticker' }, r.symbol),
-                      r.name && React.createElement('span', { className: 'mobile-card-name' }, r.name),
+                      React.createElement(
+                        'div',
+                        { style: { display: 'flex', alignItems: 'center', gap: 6 } },
+                        starBtn(r.symbol),
+                        React.createElement('span', { className: 'mobile-card-ticker' }, r.symbol),
+                        r.name && React.createElement('span', { className: 'mobile-card-name' }, r.name)
+                      ),
                       React.createElement('span', { className: 'mobile-card-rank' }, '#' + (i + 1))
                     ),
                     React.createElement(
@@ -632,7 +674,11 @@ export default function MAScannerPage({ onOpenChart, onSignIn, onUpgrade, onTria
                         'tr',
                         { key: r.symbol, className: 'flow-row' },
                         React.createElement('td', { className: 'col-rank' }, i + 1),
-                        React.createElement('td', { className: 'col-ticker' }, r.symbol),
+                        React.createElement(
+                          'td',
+                          { className: 'col-ticker' },
+                          React.createElement('div', { className: 'ticker-cell' }, starBtn(r.symbol), r.symbol)
+                        ),
                         React.createElement('td', { className: 'col-name' }, r.name || '—'),
                         React.createElement('td', null, r.price ? '$' + r.price.toFixed(2) : '—'),
                         React.createElement(
