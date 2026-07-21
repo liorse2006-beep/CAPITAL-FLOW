@@ -1,6 +1,7 @@
 const yahooFinance = require('./yahoo');
 const { getQuotes } = require('./quoteCache');
 const { fetchFinnhubQuote, fetchFinnhubMetric } = require('./finnhub');
+const { fetchQuote: fetchAlphaVantageQuote } = require('./alphaVantage');
 const { getETMinutes, calculateRVOL } = require('./rvol');
 
 // ── Slow-data caches ─────────────────────────────────────────────────────────
@@ -244,10 +245,14 @@ async function scanTickers(tickers, options) {
 async function quickScan(symbols) {
   var quotesMap = await getQuotes(symbols);
   var results = [];
+  var missing = [];
 
   symbols.forEach(function (symbol) {
     var quote = quotesMap.get(symbol);
-    if (!quote || !quote.regularMarketVolume) return;
+    if (!quote || !quote.regularMarketVolume) {
+      missing.push(symbol);
+      return;
+    }
 
     var avgVolume = quote.averageDailyVolume10Day || 0;
     var volumeRatio = avgVolume > 0 ? Math.round((quote.regularMarketVolume / avgVolume) * 100) / 100 : 0;
@@ -270,6 +275,38 @@ async function quickScan(symbols) {
       fiftyTwoWeekLow: quote.fiftyTwoWeekLow || 0,
     });
   });
+
+  // Yahoo occasionally has no data for a watchlist symbol (delisted-looking
+  // gaps, odd tickers, transient outages). Fall back to Alpha Vantage for
+  // just those — this list is always small (watchlist, max 50 symbols),
+  // so it stays well within Alpha Vantage's tight free-tier quota.
+  if (missing.length > 0) {
+    var fallbacks = await Promise.all(
+      missing.map(function (symbol) {
+        return fetchAlphaVantageQuote(symbol);
+      })
+    );
+    fallbacks.forEach(function (q, i) {
+      if (!q) return;
+      results.push({
+        symbol: q.symbol,
+        name: missing[i],
+        price: q.price,
+        change: q.change,
+        volume: q.volume,
+        avgVolume: 0,
+        volumeRatio: 0,
+        marketCap: 0,
+        sector: 'N/A',
+        exchange: 'N/A',
+        dayHigh: 0,
+        dayLow: 0,
+        prevClose: q.prevClose,
+        fiftyTwoWeekHigh: 0,
+        fiftyTwoWeekLow: 0,
+      });
+    });
+  }
 
   return results;
 }

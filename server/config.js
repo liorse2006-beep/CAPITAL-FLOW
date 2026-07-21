@@ -49,6 +49,9 @@ module.exports = {
   // Extra Finnhub accounts for automatic rotation/failover — see services/finnhubKeyPool.js
   FINNHUB_API_KEY_POOL: [1, 2, 3, 4].map((i) => env('FINNHUB_API_KEY_POOL_' + i)).filter(Boolean),
   MASSIVE_API_KEY: env('MASSIVE_API_KEY'),
+  // Last-resort quote fallback (see services/alphaVantage.js) — only used
+  // when Yahoo returns nothing for a symbol, never for the bulk scanner.
+  ALPHA_VANTAGE_API_KEY: env('ALPHA_VANTAGE_API_KEY'),
   VAPID_PUBLIC_KEY: env('VAPID_PUBLIC_KEY'),
   VAPID_PRIVATE_KEY: env('VAPID_PRIVATE_KEY'),
   VAPID_SUBJECT: env('VAPID_SUBJECT'),
