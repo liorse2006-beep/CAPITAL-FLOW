@@ -208,7 +208,7 @@ router.get('/admin/api/coupons', asyncRoute(async (req, res) => {
 router.post('/admin/api/coupons', asyncRoute(async (req, res) => {
   const actor = await checkToken(req, res);
   if (!actor) return;
-  const { discountPercent, appliesTo, maxUses, expiresInDays, paddleDiscountId } = req.body;
+  const { discountPercent, appliesTo, maxUses, expiresInDays } = req.body;
   let { code } = req.body;
 
   const pct = parseInt(discountPercent, 10);
@@ -226,12 +226,10 @@ router.post('/admin/api/coupons', asyncRoute(async (req, res) => {
       ? Math.floor(Date.now() / 1000) + parseInt(expiresInDays, 10) * 86400
       : null;
 
-  const paddleId = paddleDiscountId && String(paddleDiscountId).trim() ? String(paddleDiscountId).trim() : null;
-
   try {
     await db.prepare(
-      'INSERT INTO coupons (code, discount_percent, applies_to, max_uses, expires_at, paddle_discount_id) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(code, pct, scope, max, expiresAt, paddleId);
+      'INSERT INTO coupons (code, discount_percent, applies_to, max_uses, expires_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(code, pct, scope, max, expiresAt);
   } catch (err) {
     if (String(err.message).includes('UNIQUE')) return res.status(409).json({ error: 'That code already exists' });
     throw err;
@@ -512,11 +510,11 @@ router.get('/admin', asyncRoute(async (req, res) => {
       </select>
       <input id="coupon-max-uses" type="number" min="1" placeholder="Max uses" style="width:90px" />
       <input id="coupon-expires" type="number" min="1" placeholder="Expires (days)" style="width:110px" />
-      <input id="coupon-paddle-id" placeholder="Paddle discount ID (optional)" style="width:180px" />
       <button id="btn-create-coupon">+ Create</button>
     </div>
     <div style="padding:0 20px 12px;font-size:11px;color:#71717A">
-      To actually charge the discounted price at checkout, create a matching discount in Paddle's dashboard and paste its ID here — otherwise this coupon only changes what's displayed, not what Paddle bills.
+      Coupons are validated and tracked here, but discounts aren't automatically applied at Whop checkout —
+      only the price shown to the customer changes.
     </div>
     <div id="coupon-wrap"><div class="loader">Loading…</div></div>
   </div>
@@ -653,15 +651,11 @@ async function loadCoupons() {
       const toggleBtn = c.active
         ? \`<button class="btn btn-pilot-off" data-act="toggle-coupon" data-code="\${escapeHtml(c.code)}" data-active="0">Disable</button>\`
         : \`<button class="btn btn-pilot-on" data-act="toggle-coupon" data-code="\${escapeHtml(c.code)}" data-active="1">Enable</button>\`;
-      const paddleBadge = c.paddle_discount_id
-        ? \`<span class="badge badge-ok" title="\${escapeHtml(c.paddle_discount_id)}">Paddle linked</span>\`
-        : \`<span class="badge badge-no" title="Discount won't be reflected at actual checkout">No Paddle link</span>\`;
       return \`<div class="coupon-row">
         <span class="coupon-code">\${escapeHtml(c.code)}</span>
         <span class="coupon-pct">\${c.discount_percent}% off</span>
         <span class="coupon-scope">\${SCOPE_LABEL[c.applies_to] || c.applies_to}</span>
         \${status}
-        \${paddleBadge}
         <span class="coupon-meta">\${uses}</span>
         <div class="actions">
           \${toggleBtn}
@@ -678,11 +672,10 @@ async function createCoupon() {
   const appliesTo = document.getElementById('coupon-scope').value;
   const maxUses = document.getElementById('coupon-max-uses').value;
   const expiresInDays = document.getElementById('coupon-expires').value;
-  const paddleDiscountId = document.getElementById('coupon-paddle-id').value.trim();
   if (!discountPercent) { toast('Enter a discount percentage', true); return; }
   const r = await fetch('/admin/api/coupons', {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
-    body: JSON.stringify({ code, discountPercent, appliesTo, maxUses, expiresInDays, paddleDiscountId })
+    body: JSON.stringify({ code, discountPercent, appliesTo, maxUses, expiresInDays })
   });
   const data = await r.json();
   if (r.ok) {
@@ -691,7 +684,6 @@ async function createCoupon() {
     document.getElementById('coupon-pct').value = '';
     document.getElementById('coupon-max-uses').value = '';
     document.getElementById('coupon-expires').value = '';
-    document.getElementById('coupon-paddle-id').value = '';
     loadCoupons();
   } else {
     toast(data.error || 'Error', true);

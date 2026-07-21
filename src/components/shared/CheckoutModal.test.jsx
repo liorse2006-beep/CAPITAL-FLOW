@@ -24,10 +24,9 @@ describe('CheckoutModal', () => {
     expect(screen.getByText('$14.90')).toBeInTheDocument();
   });
 
-  it('shows "not available yet" when Paddle has no client token configured (test env default)', () => {
+  it('shows the "Continue to Payment" button', () => {
     renderWithProviders(<CheckoutModal tier="elite" onClose={vi.fn()} />);
-    expect(screen.getByText(/checkout isn.t available yet/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /continue to payment/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /continue to payment/i })).toBeInTheDocument();
   });
 
   it('applies a coupon and shows the discounted price', async () => {

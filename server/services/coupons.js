@@ -30,7 +30,6 @@ async function validateCoupon(rawCode, tier) {
     code,
     discountPercent: coupon.discount_percent,
     appliesTo: coupon.applies_to,
-    paddleDiscountId: coupon.paddle_discount_id || null,
   };
 }
 

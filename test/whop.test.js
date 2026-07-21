@@ -1,11 +1,11 @@
-// server/services/paddle.js, the webhook receiver, and the checkout
-// transaction-creation endpoint. Sets Paddle env vars before requiring
+// server/services/whop.js, the webhook receiver, and the checkout
+// transaction-creation endpoint. Sets Whop env vars before requiring
 // anything that reads config — node:test runs each file in its own
 // process, so this doesn't leak into other test files.
-process.env.PADDLE_WEBHOOK_SECRET = 'test-webhook-secret';
-process.env.PADDLE_API_KEY = 'test-api-key';
-process.env.PADDLE_PREMIUM_PRICE_ID = 'pri_premium_test';
-process.env.PADDLE_ELITE_PRICE_ID = 'pri_elite_test';
+process.env.WHOP_WEBHOOK_SECRET = 'test-webhook-secret';
+process.env.WHOP_API_KEY = 'test-api-key';
+process.env.WHOP_PREMIUM_PLAN_ID = 'plan_premium_test';
+process.env.WHOP_ELITE_PLAN_ID = 'plan_elite_test';
 
 require('./helpers/testEnv');
 const { test, before } = require('node:test');
@@ -15,20 +15,20 @@ const express = require('express');
 
 const db = require('../server/db');
 const { issueToken } = require('../server/services/auth');
-const paddle = require('../server/services/paddle');
+const whop = require('../server/services/whop');
 const webhooksRouter = require('../server/routes/webhooks');
 const checkoutRouter = require('../server/routes/checkout');
 
 before(async () => { await db.ready; });
 
-function sign(rawBody, ts = Math.floor(Date.now() / 1000)) {
-  const h1 = crypto.createHmac('sha256', 'test-webhook-secret').update(`${ts}:${rawBody}`).digest('hex');
-  return `ts=${ts};h1=${h1}`;
+function sign(rawBody, { id = 'wh_test_id', ts = String(Math.floor(Date.now() / 1000)), secret = 'test-webhook-secret' } = {}) {
+  const sig = crypto.createHmac('sha256', secret).update(`${id}.${ts}.${rawBody}`).digest('base64');
+  return { 'webhook-id': id, 'webhook-timestamp': ts, 'webhook-signature': `v1,${sig}` };
 }
 
 function startWebhookApp() {
   const app = express();
-  app.use('/api/webhooks/paddle', express.raw({ type: 'application/json' }));
+  app.use('/api/webhooks/whop', express.raw({ type: 'application/json' }));
   app.use('/api', webhooksRouter);
   return new Promise((resolve) => {
     const server = app.listen(0, () => resolve(server));
@@ -49,31 +49,34 @@ async function makeUser(email, tier = 'free') {
   return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
 }
 
-// ── paddle.verifyWebhookSignature ──────────────────────────────────────────
+// ── whop.verifyWebhookSignature ────────────────────────────────────────────
 
 test('verifyWebhookSignature accepts a correctly signed body', () => {
-  const body = JSON.stringify({ event_type: 'transaction.completed' });
-  assert.strictEqual(paddle.verifyWebhookSignature(body, sign(body)), true);
+  const body = JSON.stringify({ type: 'payment_succeeded' });
+  assert.strictEqual(whop.verifyWebhookSignature(body, sign(body)), true);
 });
 
 test('verifyWebhookSignature rejects a tampered body', () => {
-  const body = JSON.stringify({ event_type: 'transaction.completed' });
-  const signature = sign(body);
-  const tampered = JSON.stringify({ event_type: 'transaction.completed', amount: 999999 });
-  assert.strictEqual(paddle.verifyWebhookSignature(tampered, signature), false);
+  const body = JSON.stringify({ type: 'payment_succeeded' });
+  const headers = sign(body);
+  const tampered = JSON.stringify({ type: 'payment_succeeded', amount: 999999 });
+  assert.strictEqual(whop.verifyWebhookSignature(tampered, headers), false);
 });
 
-test('verifyWebhookSignature rejects a missing signature header', () => {
-  assert.strictEqual(paddle.verifyWebhookSignature('{}', undefined), false);
+test('verifyWebhookSignature rejects missing signature headers', () => {
+  assert.strictEqual(whop.verifyWebhookSignature('{}', {}), false);
 });
 
 test('verifyWebhookSignature rejects a malformed signature header', () => {
-  assert.strictEqual(paddle.verifyWebhookSignature('{}', 'not-a-valid-header'), false);
+  assert.strictEqual(
+    whop.verifyWebhookSignature('{}', { 'webhook-id': 'x', 'webhook-timestamp': '1', 'webhook-signature': 'not-valid' }),
+    false
+  );
 });
 
-// ── POST /api/webhooks/paddle ───────────────────────────────────────────────
+// ── POST /api/webhooks/whop ─────────────────────────────────────────────────
 
-test('webhook upgrades the user tier on transaction.completed and redeems the coupon', async () => {
+test('webhook upgrades the user tier on payment_succeeded and redeems the coupon', async () => {
   const user = await makeUser('webhook-upgrade@test.local', 'free');
   await db.prepare('INSERT INTO coupons (code, discount_percent, applies_to, uses_count) VALUES (?, ?, ?, ?)').run(
     'WEBHOOK1',
@@ -83,16 +86,16 @@ test('webhook upgrades the user tier on transaction.completed and redeems the co
   );
 
   const payload = JSON.stringify({
-    event_type: 'transaction.completed',
-    data: { custom_data: { userId: user.id, tier: 'premium', couponCode: 'WEBHOOK1' } },
+    type: 'payment_succeeded',
+    data: { metadata: { userId: user.id, tier: 'premium', couponCode: 'WEBHOOK1' } },
   });
 
   const server = await startWebhookApp();
   const port = server.address().port;
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/paddle`, {
+    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'paddle-signature': sign(payload) },
+      headers: { 'Content-Type': 'application/json', ...sign(payload) },
       body: payload,
     });
     assert.strictEqual(res.status, 200);
@@ -108,7 +111,7 @@ test('webhook upgrades the user tier on transaction.completed and redeems the co
   }
 });
 
-test('webhook redelivery with the same event_id does not double-redeem the coupon', async () => {
+test('webhook redelivery with the same webhook-id does not double-redeem the coupon', async () => {
   const user = await makeUser('webhook-redelivery@test.local', 'free');
   await db.prepare('INSERT INTO coupons (code, discount_percent, applies_to, uses_count) VALUES (?, ?, ?, ?)').run(
     'WEBHOOK2',
@@ -118,18 +121,18 @@ test('webhook redelivery with the same event_id does not double-redeem the coupo
   );
 
   const payload = JSON.stringify({
-    event_id: 'evt_redelivery_test_1',
-    event_type: 'transaction.completed',
-    data: { custom_data: { userId: user.id, tier: 'premium', couponCode: 'WEBHOOK2' } },
+    type: 'payment_succeeded',
+    data: { metadata: { userId: user.id, tier: 'premium', couponCode: 'WEBHOOK2' } },
   });
+  const headers = sign(payload, { id: 'wh_redelivery_test_1' });
 
   const server = await startWebhookApp();
   const port = server.address().port;
   try {
     const send = () =>
-      fetch(`http://127.0.0.1:${port}/api/webhooks/paddle`, {
+      fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'paddle-signature': sign(payload) },
+        headers: { 'Content-Type': 'application/json', ...headers },
         body: payload,
       });
 
@@ -148,13 +151,18 @@ test('webhook redelivery with the same event_id does not double-redeem the coupo
 });
 
 test('webhook rejects a request with an invalid signature', async () => {
-  const payload = JSON.stringify({ event_type: 'transaction.completed', data: {} });
+  const payload = JSON.stringify({ type: 'payment_succeeded', data: {} });
   const server = await startWebhookApp();
   const port = server.address().port;
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/paddle`, {
+    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'paddle-signature': 'ts=1;h1=deadbeef' },
+      headers: {
+        'Content-Type': 'application/json',
+        'webhook-id': 'wh_bad',
+        'webhook-timestamp': '1',
+        'webhook-signature': 'v1,deadbeef',
+      },
       body: payload,
     });
     assert.strictEqual(res.status, 401);
@@ -163,18 +171,18 @@ test('webhook rejects a request with an invalid signature', async () => {
   }
 });
 
-test('webhook ignores event types other than transaction.completed', async () => {
+test('webhook ignores event types other than payment_succeeded', async () => {
   const user = await makeUser('webhook-ignore@test.local', 'free');
   const payload = JSON.stringify({
-    event_type: 'transaction.created',
-    data: { custom_data: { userId: user.id, tier: 'elite' } },
+    type: 'payment_created',
+    data: { metadata: { userId: user.id, tier: 'elite' } },
   });
   const server = await startWebhookApp();
   const port = server.address().port;
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/paddle`, {
+    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'paddle-signature': sign(payload) },
+      headers: { 'Content-Type': 'application/json', ...sign(payload) },
       body: payload,
     });
     assert.strictEqual(res.status, 200);
@@ -218,7 +226,7 @@ test('checkout/transaction rejects an invalid tier', async () => {
   }
 });
 
-test('checkout/transaction rejects an invalid coupon before calling Paddle', async () => {
+test('checkout/transaction rejects an invalid coupon before calling Whop', async () => {
   const user = await makeUser('checkout-badcoupon@test.local');
   const server = await startCheckoutApp();
   const port = server.address().port;

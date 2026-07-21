@@ -66,14 +66,12 @@ module.exports = {
   ADMIN_EMAIL: env('ADMIN_EMAIL'),
   OPENROUTER_API_KEY: env('OPENROUTER_API_KEY'),
   SENTRY_DSN: env('SENTRY_DSN'),
-  // Paddle (checkout) — all opt-in, same pattern as Sentry: features that
-  // depend on these simply no-op until they're set. PADDLE_ENV controls
-  // which Paddle API host is used (sandbox vs live).
-  PADDLE_API_KEY: env('PADDLE_API_KEY'),
-  PADDLE_WEBHOOK_SECRET: env('PADDLE_WEBHOOK_SECRET'),
-  PADDLE_ENV: env('PADDLE_ENV') === 'production' ? 'production' : 'sandbox',
-  PADDLE_PREMIUM_PRICE_ID: env('PADDLE_PREMIUM_PRICE_ID'),
-  PADDLE_ELITE_PRICE_ID: env('PADDLE_ELITE_PRICE_ID'),
+  // Whop (checkout) — opt-in, same pattern as Sentry: features that depend
+  // on these simply no-op until they're set.
+  WHOP_API_KEY: env('WHOP_API_KEY'),
+  WHOP_WEBHOOK_SECRET: env('WHOP_WEBHOOK_SECRET'),
+  WHOP_PREMIUM_PLAN_ID: env('WHOP_PREMIUM_PLAN_ID'),
+  WHOP_ELITE_PLAN_ID: env('WHOP_ELITE_PLAN_ID'),
   // Turso cloud SQLite — set for production (Koyeb). Omit for local dev (file-based).
   TURSO_DB_URL: env('TURSO_DB_URL'),
   TURSO_AUTH_TOKEN: env('TURSO_AUTH_TOKEN'),

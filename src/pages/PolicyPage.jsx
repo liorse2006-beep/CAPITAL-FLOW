@@ -89,8 +89,8 @@ export default function PolicyPage() {
           <p className="policy-paragraph">
             We rely on a small number of trusted providers to operate Capital Flow: Google, for optional sign-in
             via Google OAuth; Cloudflare Turnstile, to verify you're not a bot during sign-in; Gmail, which
-            delivers our account emails (verification codes, password resets, and notifications); Paddle, our
-            payment processor, which handles subscription billing (we never see or store your full card
+            delivers our account emails (verification codes, password resets, and notifications); Whop, our
+            payment processor, which handles checkout and billing (we never see or store your full card
             details); and, where enabled, the analytics and error-monitoring providers described above. Each
             provider processes data under its own privacy policy, and only to the extent necessary to provide
             its service to us.

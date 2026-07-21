@@ -30,7 +30,7 @@ const AuthModal = lazy(() => import('./components/Auth/AuthModal'));
 
 /* ── Main App ── */
 function App() {
-  const { user, logout, getToken, authError, clearAuthError, pendingGoogleToken, acceptPilotTerms } = useAuth();
+  const { user, logout, getToken, authError, clearAuthError, pendingGoogleToken, acceptPilotTerms, refreshUser } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   const [theme, setTheme] = useState('dark');
@@ -522,6 +522,24 @@ function App() {
       }
     },
     [authError]
+  );
+
+  // Whop's hosted checkout redirects back here on successful payment (see
+  // server/routes/checkout.js's redirectUrl). The tier upgrade itself lands
+  // via the server-side webhook, which can trail this redirect by a moment,
+  // so refresh a couple of times rather than trusting the first fetch.
+  useEffect(
+    function () {
+      if (new URLSearchParams(location.search).get('checkout') !== 'success') return;
+      navigate(location.pathname, { replace: true });
+      showToast('Payment received! Upgrading your account…');
+      refreshUser();
+      var retry = setTimeout(refreshUser, 3000);
+      return function () {
+        clearTimeout(retry);
+      };
+    },
+    [location.search]
   );
 
   // Open AuthModal automatically when Google OAuth returns (show consent screen)
