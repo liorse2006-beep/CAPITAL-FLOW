@@ -27,7 +27,10 @@ router.post('/checkout/transaction', requireAuth, async (req, res) => {
     const session = await whop.createCheckoutSession({
       planId,
       metadata: { userId: String(req.user.id), tier, couponCode: couponCode || null },
-      redirectUrl: `${FRONTEND_URL}/?checkout=success`,
+      // Whop redirects here regardless of outcome, appending its own
+      // ?status=success|error — never bake an assumed outcome into this
+      // URL ourselves (see src/App.jsx, which reads that param).
+      redirectUrl: `${FRONTEND_URL}/`,
     });
     res.json({ purchaseUrl: session.purchase_url });
   } catch (err) {

@@ -524,14 +524,21 @@ function App() {
     [authError]
   );
 
-  // Whop's hosted checkout redirects back here on successful payment (see
-  // server/routes/checkout.js's redirectUrl). The tier upgrade itself lands
-  // via the server-side webhook, which can trail this redirect by a moment,
-  // so refresh a couple of times rather than trusting the first fetch.
+  // Whop's hosted checkout redirects back here after EVERY checkout
+  // attempt — success or cancelled/failed alike — appending its own
+  // ?status=success|error (see server/routes/checkout.js's redirectUrl,
+  // which deliberately doesn't bake in an assumed outcome). Only a real
+  // "success" status gets the celebratory toast; anything else is treated
+  // as "nothing happened," matching reality. The tier upgrade itself lands
+  // via the server-side webhook, which can trail this redirect by a
+  // moment, so refresh a couple of times rather than trusting the first
+  // fetch.
   useEffect(
     function () {
-      if (new URLSearchParams(location.search).get('checkout') !== 'success') return;
+      var status = new URLSearchParams(location.search).get('status');
+      if (!status) return;
       navigate(location.pathname, { replace: true });
+      if (status !== 'success') return;
       showToast('Payment received! Upgrading your account…');
       refreshUser();
       var retry = setTimeout(refreshUser, 3000);
