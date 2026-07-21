@@ -20,7 +20,7 @@ import ScannerPage from './components/Scanner/ScannerPage';
 
 /* Code-split: none of these are needed for the very first paint (the default
    "scanner" tab). Splitting them into their own chunks means a user who
-   never opens Sector Moving, MA Scanner, a chart, the policy page, or the
+   never opens Hot Sectors, MA Scanner, a chart, the policy page, or the
    auth modal never pays to download that code at all. */
 const MoneyFlow = lazy(() => import('./components/MoneyFlow/MoneyFlow'));
 const ChartModal = lazy(() => import('./components/Chart/ChartModal'));
@@ -465,13 +465,6 @@ function App() {
     },
     [showUpgradeModal]
   );
-
-  /* ── Filter nudge banner ── */
-  const [showFilterNudge, setShowFilterNudge] = useState(false);
-  const filterNudgeTimer = useRef(null);
-  function triggerFilterNudge() {
-    setShowFilterNudge(true);
-  }
 
   /* ── Pagination ── */
   var visibleCountState = useState(50);
@@ -966,6 +959,8 @@ function App() {
                   onTrialEnded={onTrialEnded}
                   isInWatchlist={isInWatchlist}
                   toggleWatchlistTicker={toggleWatchlistTicker}
+                  alertLevels={alertLevels}
+                  promptCreateAlert={promptCreateAlert}
                 />
               </Suspense>
             }
@@ -980,6 +975,8 @@ function App() {
                   setShowUpgradeModal={setShowUpgradeModal}
                   onSignIn={() => setShowAuthModal(true)}
                   onTrialEnded={onTrialEnded}
+                  alertLevels={alertLevels}
+                  promptCreateAlert={promptCreateAlert}
                 />
               </Suspense>
             }
@@ -1031,8 +1028,6 @@ function App() {
                 startScan={startScan}
                 isPremium={isPremium}
                 isElite={isElite}
-                showFilterNudge={showFilterNudge}
-                setShowFilterNudge={setShowFilterNudge}
                 setShowUpgradeModal={setShowUpgradeModal}
                 results={results}
                 setResults={setResults}
@@ -1052,7 +1047,6 @@ function App() {
                 setMinPrice={setMinPrice}
                 maxPrice={maxPrice}
                 setMaxPrice={setMaxPrice}
-                triggerFilterNudge={triggerFilterNudge}
                 showPresetPanel={showPresetPanel}
                 setShowPresetPanel={setShowPresetPanel}
                 presetName={presetName}

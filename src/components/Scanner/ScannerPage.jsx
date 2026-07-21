@@ -100,8 +100,6 @@ export default function ScannerPage({
   startScan,
   isPremium,
   isElite,
-  showFilterNudge,
-  setShowFilterNudge,
   setShowUpgradeModal,
   results,
   setResults,
@@ -121,7 +119,6 @@ export default function ScannerPage({
   setMinPrice,
   maxPrice,
   setMaxPrice,
-  triggerFilterNudge,
   showPresetPanel,
   setShowPresetPanel,
   presetName,
@@ -153,6 +150,13 @@ export default function ScannerPage({
 }) {
   const lastCount = results ? results.length : null
   const mktOpen = isMarketOpenNow()
+  // Free-tier users get full filter access during their 7-day trial, same
+  // as premium — only locked once the trial has actually ended.
+  const trialActive = !!(scanMeta && scanMeta.free && scanMeta.free.trialActive)
+  const filtersUnlocked = isPremium || trialActive
+  function goToUpgrade() {
+    setShowUpgradeModal(true)
+  }
 
   return (
     <div className="page-content">
@@ -266,26 +270,6 @@ export default function ScannerPage({
         </div>
       )}
 
-      {/* Filter nudge banner — shown above the filters (both the pre-scan
-          scan-filters-panel and the post-scan filter-strip trigger it) */}
-      {showFilterNudge && (
-        <div className="filter-nudge">
-          <span>Custom filters require Premium — but you can still run a scan with default settings!</span>
-          <button
-            className="filter-nudge-upgrade"
-            onClick={() => {
-              setShowFilterNudge(false)
-              setShowUpgradeModal(true)
-            }}
-          >
-            Upgrade $19.90 — Lifetime Access
-          </button>
-          <button className="filter-nudge-close" onClick={() => setShowFilterNudge(false)}>
-            {'\xd7'}
-          </button>
-        </div>
-      )}
-
       {/* Scan mode selector — shown before scanning, FIRST thing user sees */}
       {!results && !scanning && (
         <div className="scan-mode-wrap">
@@ -298,7 +282,7 @@ export default function ScannerPage({
             <div
               className="scan-filter-group"
               style={{ '--filter-color': '#06B6D4' }}
-              onClick={!isPremium ? triggerFilterNudge : undefined}
+              onClick={!filtersUnlocked ? goToUpgrade : undefined}
             >
               <span className="scan-filter-label">Min Ratio</span>
               <div className="scan-filter-input-row">
@@ -308,15 +292,15 @@ export default function ScannerPage({
                   step="0.5"
                   min="1"
                   value={minRatio}
-                  onChange={isPremium ? (e) => setMinRatio(e.target.value) : undefined}
-                  readOnly={!isPremium}
+                  onChange={filtersUnlocked ? (e) => setMinRatio(e.target.value) : undefined}
+                  readOnly={!filtersUnlocked}
                 />
               </div>
             </div>
             <div
               className="scan-filter-group"
               style={{ '--filter-color': '#22C55E' }}
-              onClick={!isPremium ? triggerFilterNudge : undefined}
+              onClick={!filtersUnlocked ? goToUpgrade : undefined}
             >
               <span className="scan-filter-label">Min Cap $B</span>
               <div className="scan-filter-input-row">
@@ -326,15 +310,15 @@ export default function ScannerPage({
                   step="0.5"
                   min="0"
                   value={minCap}
-                  onChange={isPremium ? (e) => setMinCap(e.target.value) : undefined}
-                  readOnly={!isPremium}
+                  onChange={filtersUnlocked ? (e) => setMinCap(e.target.value) : undefined}
+                  readOnly={!filtersUnlocked}
                 />
               </div>
             </div>
             <div
               className="scan-filter-group"
               style={{ '--filter-color': '#F59E0B' }}
-              onClick={!isPremium ? triggerFilterNudge : undefined}
+              onClick={!filtersUnlocked ? goToUpgrade : undefined}
             >
               <span className="scan-filter-label">Min Vol</span>
               <div className="scan-filter-input-row">
@@ -343,8 +327,8 @@ export default function ScannerPage({
                   type="text"
                   placeholder="e.g. 1M"
                   value={minVol}
-                  onChange={isPremium ? (e) => setMinVol(e.target.value) : undefined}
-                  readOnly={!isPremium}
+                  onChange={filtersUnlocked ? (e) => setMinVol(e.target.value) : undefined}
+                  readOnly={!filtersUnlocked}
                 />
               </div>
             </div>
@@ -463,40 +447,40 @@ export default function ScannerPage({
       {/* Filter strip — only shown after scan completes */}
       {results && !scanning && (
         <div className="filter-strip">
-          <div className="filter-chip" onClick={!isPremium ? triggerFilterNudge : undefined}>
+          <div className="filter-chip" onClick={!filtersUnlocked ? goToUpgrade : undefined}>
             <label>Min Ratio</label>
             <input
               type="number"
               step="0.5"
               min="1"
               value={minRatio}
-              onChange={isPremium ? (e) => setMinRatio(e.target.value) : undefined}
-              readOnly={!isPremium}
-              style={!isPremium ? { cursor: 'pointer' } : undefined}
+              onChange={filtersUnlocked ? (e) => setMinRatio(e.target.value) : undefined}
+              readOnly={!filtersUnlocked}
+              style={!filtersUnlocked ? { cursor: 'pointer' } : undefined}
             />
           </div>
-          <div className="filter-chip" onClick={!isPremium ? triggerFilterNudge : undefined}>
+          <div className="filter-chip" onClick={!filtersUnlocked ? goToUpgrade : undefined}>
             <label>Min Cap $B</label>
             <input
               type="number"
               step="0.5"
               min="0"
               value={minCap}
-              onChange={isPremium ? (e) => setMinCap(e.target.value) : undefined}
-              readOnly={!isPremium}
-              style={!isPremium ? { cursor: 'pointer' } : undefined}
+              onChange={filtersUnlocked ? (e) => setMinCap(e.target.value) : undefined}
+              readOnly={!filtersUnlocked}
+              style={!filtersUnlocked ? { cursor: 'pointer' } : undefined}
             />
           </div>
-          <div className="filter-chip" onClick={!isPremium ? triggerFilterNudge : undefined}>
+          <div className="filter-chip" onClick={!filtersUnlocked ? goToUpgrade : undefined}>
             <label>Price</label>
             <input
               type="number"
               placeholder="Min"
               min="0"
               value={minPrice}
-              onChange={isPremium ? (e) => setMinPrice(e.target.value) : undefined}
-              readOnly={!isPremium}
-              style={{ width: 56, ...(!isPremium ? { cursor: 'pointer' } : {}) }}
+              onChange={filtersUnlocked ? (e) => setMinPrice(e.target.value) : undefined}
+              readOnly={!filtersUnlocked}
+              style={{ width: 56, ...(!filtersUnlocked ? { cursor: 'pointer' } : {}) }}
             />
             <span style={{ color: 'var(--text-3)', fontSize: 10 }}>–</span>
             <input
@@ -504,25 +488,25 @@ export default function ScannerPage({
               placeholder="Max"
               min="0"
               value={maxPrice}
-              onChange={isPremium ? (e) => setMaxPrice(e.target.value) : undefined}
-              readOnly={!isPremium}
-              style={{ width: 56, ...(!isPremium ? { cursor: 'pointer' } : {}) }}
+              onChange={filtersUnlocked ? (e) => setMaxPrice(e.target.value) : undefined}
+              readOnly={!filtersUnlocked}
+              style={{ width: 56, ...(!filtersUnlocked ? { cursor: 'pointer' } : {}) }}
             />
           </div>
-          <div className="filter-chip" onClick={!isPremium ? triggerFilterNudge : undefined}>
+          <div className="filter-chip" onClick={!filtersUnlocked ? goToUpgrade : undefined}>
             <label>Min Vol</label>
             <input
               type="text"
               placeholder="e.g. 1M"
               value={minVol}
-              onChange={isPremium ? (e) => setMinVol(e.target.value) : undefined}
-              readOnly={!isPremium}
-              style={{ width: 56, ...(!isPremium ? { cursor: 'pointer' } : {}) }}
+              onChange={filtersUnlocked ? (e) => setMinVol(e.target.value) : undefined}
+              readOnly={!filtersUnlocked}
+              style={{ width: 56, ...(!filtersUnlocked ? { cursor: 'pointer' } : {}) }}
             />
           </div>
           <button
             className={'filter-toggle' + (showPresetPanel ? ' active' : '')}
-            onClick={isPremium ? () => setShowPresetPanel(!showPresetPanel) : triggerFilterNudge}
+            onClick={filtersUnlocked ? () => setShowPresetPanel(!showPresetPanel) : goToUpgrade}
             style={{ marginLeft: 'auto' }}
           >
             Create Preset
@@ -531,7 +515,7 @@ export default function ScannerPage({
       )}
 
       {/* Preset panel */}
-      {isPremium && showPresetPanel && (
+      {filtersUnlocked && showPresetPanel && (
         <div className="preset-panel">
           <div className="preset-save">
             <input

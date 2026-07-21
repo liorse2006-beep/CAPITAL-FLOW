@@ -612,58 +612,6 @@ body {
   }
 }
 
-/* Filter nudge banner */
-.filter-nudge {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 20px;
-  background: rgba(245, 158, 11, 0.08);
-  border-bottom: 1px solid rgba(245, 158, 11, 0.2);
-  font-size: 13px;
-  color: var(--text-2);
-  animation: nudgeSlide 0.25s ease;
-}
-.filter-nudge span {
-  flex: 1;
-}
-.filter-nudge-upgrade {
-  background: var(--accent);
-  color: #000;
-  border: none;
-  padding: 5px 12px;
-  border-radius: var(--radius);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.filter-nudge-upgrade:hover {
-  opacity: 0.85;
-}
-.filter-nudge-close {
-  background: none;
-  border: none;
-  color: var(--text-3);
-  font-size: 16px;
-  cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
-}
-.filter-nudge-close:hover {
-  color: var(--text-1);
-}
-@keyframes nudgeSlide {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 /* Sector Picker */
 /* Sector Grid Cards */
 .sector-grid-wrap {
