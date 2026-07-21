@@ -132,7 +132,7 @@ export default function Topbar({
           Capital Flow
         </button>
         <button className={'nav-tab ' + (page === 'flow' ? 'active' : '')} onClick={() => setPage('flow')}>
-          Sector Moving
+          Hot Sectors
         </button>
         <button className={'nav-tab ' + (page === 'ma' ? 'active' : '')} onClick={() => setPage('ma')}>
           MA Scanner

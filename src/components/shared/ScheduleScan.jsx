@@ -4,7 +4,7 @@ import useScheduledScans from '../../hooks/useScheduledScans';
 const SCAN_LABELS = {
   capitalFlow: 'Capital Flow',
   maScanner: 'MA Scanner',
-  sectorMoving: 'Sector Flow',
+  sectorMoving: 'Hot Sectors',
 };
 
 function fmtTime(iso) {

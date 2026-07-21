@@ -49,7 +49,7 @@ async function executeScheduledScan(sched) {
       title = `Sector flow detected — ${results[0].symbol}`;
       body = `${results.length} sector movers right now. Tap to see the full scan.`;
     } else {
-      title = 'Sector Moving — Daily Scan';
+      title = 'Hot Sectors — Daily Scan';
       body = 'No sector flow right now. Markets look quiet.';
     }
   }
