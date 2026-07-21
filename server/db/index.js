@@ -177,7 +177,22 @@ async function initDb() {
       created_at     INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
-    CREATE INDEX IF NOT EXISTS idx_audit_log_created ON admin_audit_log(created_at)
+    CREATE INDEX IF NOT EXISTS idx_audit_log_created ON admin_audit_log(created_at);
+
+    -- Durable record of every alert/digest push sent to a user, so it still
+    -- shows up in the in-app bell even if the push never reached the device
+    -- (computer off, notification dismissed without being seen, etc).
+    CREATE TABLE IF NOT EXISTS notifications (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER NOT NULL,
+      symbol     TEXT,
+      title      TEXT    NOT NULL,
+      body       TEXT    NOT NULL,
+      is_read    INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at)
   `);
 
   // Safe migrations — silently ignored if the column already exists

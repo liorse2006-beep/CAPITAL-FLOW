@@ -107,6 +107,11 @@ async function checkWatchlistAlerts(results) {
         try {
           require('./webPush').sendPushToUser(Number(userId), alertPayload);
         } catch (_) {}
+        // Persisted so the alert still shows up in the in-app bell even if
+        // the push never reached the device (computer off, dismissed, etc).
+        require('./notifications')
+          .addNotification(Number(userId), { symbol: r.symbol, title: alertPayload.title, body: alertPayload.body })
+          .catch(() => {});
       });
     });
   } catch (err) {

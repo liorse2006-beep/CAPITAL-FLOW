@@ -185,12 +185,89 @@ function App() {
       localStorage.setItem('vs-alert-history', JSON.stringify(next));
       return next;
     });
+    if (typeof id === 'string' && id.indexOf('srv-') === 0) {
+      fetch('/api/notifications/' + id.slice(4), {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + getToken() },
+      }).catch(function () {});
+    }
   }
 
   function clearAllAlerts() {
     setAlertHistory([]);
     localStorage.removeItem('vs-alert-history');
+    if (user) {
+      fetch('/api/notifications', { method: 'DELETE', headers: { Authorization: 'Bearer ' + getToken() } }).catch(function () {});
+    }
   }
+
+  // Catches alerts the user missed while the app was closed (computer off,
+  // push dismissed before being read, etc) — the server persists every alert
+  // it sends (see checkWatchlistAlerts/runDigestTick), this pulls that
+  // history in on load and whenever the tab becomes visible again.
+  function refreshServerNotifications() {
+    if (!user) return;
+    fetch('/api/notifications', { headers: { Authorization: 'Bearer ' + getToken() } })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (d) {
+        if (!d || !d.notifications) return;
+        var serverEntries = d.notifications.map(function (n) {
+          return {
+            id: 'srv-' + n.id,
+            sym: n.symbol || '',
+            title: n.title,
+            body: n.body,
+            time: new Date(n.created_at * 1000).toISOString(),
+          };
+        });
+        setAlertHistory(function (prev) {
+          var localOnly = prev.filter(function (a) {
+            return typeof a.id !== 'string' || a.id.indexOf('srv-') !== 0;
+          });
+          // Drop server entries that duplicate something already added live
+          // via SSE/local polling during this same session.
+          var localKeys = new Set(
+            localOnly.map(function (a) {
+              return a.title + '|' + a.body;
+            })
+          );
+          var freshServer = serverEntries.filter(function (a) {
+            return !localKeys.has(a.title + '|' + a.body);
+          });
+          var merged = freshServer
+            .concat(localOnly)
+            .sort(function (a, b) {
+              return new Date(b.time) - new Date(a.time);
+            })
+            .slice(0, 100);
+          localStorage.setItem('vs-alert-history', JSON.stringify(merged));
+          return merged;
+        });
+        setUnreadCount(function (c) {
+          var next = Math.max(c, d.unreadCount || 0);
+          localStorage.setItem('vs-alert-unread', String(next));
+          return next;
+        });
+      })
+      .catch(function () {});
+  }
+
+  useEffect(
+    function () {
+      if (!user) return;
+      refreshServerNotifications();
+      function onVisible() {
+        if (document.visibilityState === 'visible') refreshServerNotifications();
+      }
+      document.addEventListener('visibilitychange', onVisible);
+      return function () {
+        document.removeEventListener('visibilitychange', onVisible);
+      };
+    },
+    [user]
+  );
 
   /* New filter state */
   const [minChange, setMinChange] = useState('');
@@ -687,6 +764,9 @@ function App() {
     if (opening) {
       setUnreadCount(0);
       localStorage.setItem('vs-alert-unread', '0');
+      if (user) {
+        fetch('/api/notifications/read', { method: 'POST', headers: { Authorization: 'Bearer ' + getToken() } }).catch(function () {});
+      }
       if (!notificationsEnabled) {
         if (window.Notification && Notification.permission === 'default') {
           Notification.requestPermission().then(function (perm) {
@@ -992,7 +1072,6 @@ function App() {
                 watchlistError={watchlistError}
                 refreshWatchlist={refreshWatchlist}
                 toggleWatchlistTicker={toggleWatchlistTicker}
-                openChart={openChart}
                 setWatchlistError={setWatchlistError}
                 isElite={isElite}
                 canNotify={canNotify}
@@ -1012,6 +1091,8 @@ function App() {
                   showToast('Your account has been permanently deleted.');
                   navigate('/');
                 }}
+                alertLevels={alertLevels}
+                promptCreateAlert={promptCreateAlert}
               />
             }
           />

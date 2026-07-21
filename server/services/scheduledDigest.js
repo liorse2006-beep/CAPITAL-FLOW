@@ -1,6 +1,7 @@
 const db = require('../db');
 const { getAllAlertsGrouped } = require('./watchlistAlerts');
 const { sendPushToUser } = require('./webPush');
+const { addNotification } = require('./notifications');
 
 // How many users' push sends run concurrently per batch. A plain
 // sequential for-loop here would mean 10,000 users sharing a
@@ -49,6 +50,7 @@ function buildDigestPayload(thresholds, results, asOf) {
       title: 'Capital Flow — Daily Scan',
       body: 'No stocks crossed your thresholds today (as of ' + asOf + ').',
       ts: Date.now(),
+      matched: false,
     };
   }
   var summary = matches
@@ -61,6 +63,7 @@ function buildDigestPayload(thresholds, results, asOf) {
     title: matches.length + ' stock' + (matches.length > 1 ? 's' : '') + ' crossed your threshold',
     body: summary + (matches.length > 5 ? ', +' + (matches.length - 5) + ' more' : ''),
     ts: Date.now(),
+    matched: true,
   };
 }
 
@@ -96,6 +99,9 @@ async function runDigestTick() {
         var thresholds = allAlerts[u.id] || {};
         if (Object.keys(thresholds).length === 0) return; // nothing to check against
         var payload = buildDigestPayload(thresholds, results, asOf);
+        if (payload.matched) {
+          addNotification(u.id, { title: payload.title, body: payload.body }).catch(function () {});
+        }
         return sendPushToUser(u.id, payload).catch(function () {});
       })
     );

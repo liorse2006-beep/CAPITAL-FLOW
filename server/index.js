@@ -161,6 +161,7 @@ app.use('/api', require('./routes/sectors'));
 app.use('/api', require('./routes/chart'));
 app.use('/api', require('./routes/watchlist'));
 app.use('/api', require('./routes/watchlistAlerts'));
+app.use('/api', require('./routes/notifications'));
 app.use('/api', require('./routes/news'));
 app.use('/api', require('./routes/volumeContext'));
 app.use('/api', require('./routes/background'));

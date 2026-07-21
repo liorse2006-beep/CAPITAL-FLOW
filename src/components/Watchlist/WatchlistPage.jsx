@@ -33,6 +33,41 @@ function isIosNotInstalled() {
   return isIos && !isStandalone
 }
 
+function ChartLink({ symbol }) {
+  return (
+    <a
+      className="chart-open-btn"
+      href={'https://www.tradingview.com/chart/?symbol=' + symbol}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Open in TradingView"
+      aria-label={'Open ' + symbol + ' in TradingView'}
+    >
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 3v18h18" />
+        <path d="M18.7 8l-5.1 5.1-4-4L3 15.6" />
+      </svg>
+    </a>
+  )
+}
+
+function AlertButton({ symbol, alertLevels, promptCreateAlert }) {
+  const level = alertLevels && alertLevels[symbol]
+  return (
+    <button
+      className={'alert-create-btn' + (level ? ' active' : '')}
+      onClick={() => promptCreateAlert(symbol)}
+      title={level ? 'Alert set at ' + level + 'x — click to edit' : 'Create a volume alert'}
+      aria-label={level ? 'Edit alert for ' + symbol : 'Create a volume alert for ' + symbol}
+    >
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+      </svg>
+    </button>
+  )
+}
+
 export default function WatchlistPage({
   watchlist,
   watchlistData,
@@ -40,7 +75,6 @@ export default function WatchlistPage({
   watchlistError,
   refreshWatchlist,
   toggleWatchlistTicker,
-  openChart,
   setWatchlistError,
   isElite,
   canNotify,
@@ -56,6 +90,8 @@ export default function WatchlistPage({
   setShowUpgradeModal,
   getToken,
   onAccountDeleted,
+  alertLevels,
+  promptCreateAlert,
 }) {
   const [showAddModal, setShowAddModal] = useState(false)
 
@@ -223,7 +259,7 @@ export default function WatchlistPage({
                   <th>Change</th>
                   <th>Vol Ratio</th>
                   <th>Mkt Cap</th>
-                  <th style={{ width: 40 }}></th>
+                  <th style={{ width: 90 }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -288,14 +324,8 @@ export default function WatchlistPage({
                         </>
                       )}
                       <td style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                        <button
-                          className="chart-open-btn"
-                          onClick={() => openChart(sym, d ? d.name : sym)}
-                          title="Open chart"
-                          aria-label={'Open chart for ' + sym}
-                        >
-                          📈
-                        </button>
+                        <ChartLink symbol={sym} />
+                        <AlertButton symbol={sym} alertLevels={alertLevels} promptCreateAlert={promptCreateAlert} />
                         <button
                           className="star-btn-remove"
                           onClick={() => toggleWatchlistTicker(sym)}
@@ -324,13 +354,17 @@ export default function WatchlistPage({
                       {d && <span className="mobile-card-name">{d.name}</span>}
                       {!d && watchlistLoading && <span className="skel skel-text" />}
                     </div>
-                    <button
-                      className="star-btn-remove"
-                      onClick={() => toggleWatchlistTicker(sym)}
-                      aria-label={'Remove ' + sym + ' from watchlist'}
-                    >
-                      {'\xd7'}
-                    </button>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <ChartLink symbol={sym} />
+                      <AlertButton symbol={sym} alertLevels={alertLevels} promptCreateAlert={promptCreateAlert} />
+                      <button
+                        className="star-btn-remove"
+                        onClick={() => toggleWatchlistTicker(sym)}
+                        aria-label={'Remove ' + sym + ' from watchlist'}
+                      >
+                        {'\xd7'}
+                      </button>
+                    </div>
                   </div>
                   {d && (
                     <div className="mobile-card-mid">
