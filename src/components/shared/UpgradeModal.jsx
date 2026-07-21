@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import useModalA11y from '../../hooks/useModalA11y';
-import CheckoutModal from './CheckoutModal';
+import { useAuth } from '../../context/AuthContext';
 
 function Check() {
   return (
@@ -47,11 +47,32 @@ const TIER_RANK = { free: 0, premium: 1, elite: 2 };
 // "Your plan" badge instead of a CTA button; only tiers above the current
 // one show a Get-<tier> button.
 //
-// No coupon field here on purpose — that lives on CheckoutModal, the actual
-// payment step, not this compare-plans table.
+// Clicking "Get <tier>" goes straight to Whop's hosted checkout page — no
+// confirmation screen of our own in between. Whop's own checkout page shows
+// the price and has its own promo-code field.
 export default function UpgradeModal({ userTier = 'free', onClose }) {
+  const { getToken } = useAuth();
   const panelRef = useModalA11y(onClose);
-  const [checkoutTier, setCheckoutTier] = useState(null);
+  const [payingTier, setPayingTier] = useState(null);
+  const [payError, setPayError] = useState('');
+
+  async function goToCheckout(tierKey) {
+    setPayError('');
+    setPayingTier(tierKey);
+    try {
+      const res = await fetch('/api/checkout/transaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+        body: JSON.stringify({ tier: tierKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not start checkout');
+      window.location.href = data.purchaseUrl;
+    } catch (err) {
+      setPayingTier(null);
+      setPayError(err.message || 'Something went wrong — please try again.');
+    }
+  }
 
   function ctaOrBadge(tierKey, tierLabel, ctaClass) {
     if (userTier === tierKey) {
@@ -59,14 +80,14 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
     }
     if (TIER_RANK[userTier] > TIER_RANK[tierKey]) return null; // already above this tier
     return (
-      <button className={'upgrade-cta ' + ctaClass} onClick={() => setCheckoutTier(tierKey)}>
-        {'Get ' + tierLabel}
+      <button
+        className={'upgrade-cta ' + ctaClass}
+        onClick={() => goToCheckout(tierKey)}
+        disabled={payingTier === tierKey}
+      >
+        {payingTier === tierKey ? 'Redirecting…' : 'Get ' + tierLabel}
       </button>
     );
-  }
-
-  if (checkoutTier) {
-    return <CheckoutModal tier={checkoutTier} onClose={onClose} />;
   }
 
   return (
@@ -122,6 +143,11 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
             </tbody>
           </table>
         </div>
+        {payError && (
+          <p className="coupon-apply-msg coupon-apply-error" style={{ textAlign: 'center', marginTop: 12 }}>
+            {payError}
+          </p>
+        )}
       </div>
     </div>
   );

@@ -2625,58 +2625,7 @@ td {
   font-family: var(--mono);
 }
 
-/* ── Checkout modal (Whop) ── */
-.checkout-price-row {
-  text-align: center;
-  margin-bottom: 20px;
-}
-.checkout-price-was {
-  display: block;
-  font-size: 13px;
-  color: var(--text-3);
-  text-decoration: line-through;
-  font-family: var(--mono);
-}
-.checkout-price-now {
-  display: block;
-  font-size: 28px;
-  font-weight: 800;
-  color: var(--text-0);
-  font-family: var(--mono);
-}
-.coupon-apply {
-  display: flex;
-  gap: 8px;
-}
-.coupon-apply-input {
-  flex: 1;
-  background: var(--bg-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  color: var(--text-0);
-  font-size: 12px;
-  padding: 8px 12px;
-  outline: none;
-  font-family: var(--font);
-}
-.coupon-apply-input::placeholder {
-  color: var(--text-3);
-}
-.coupon-apply-btn {
-  background: var(--tier-premium);
-  color: #1a0d00;
-  border: none;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-weight: 700;
-  padding: 8px 18px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.coupon-apply-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
+/* ── Upgrade modal payment feedback (Whop) ── */
 .coupon-apply-msg {
   font-size: 12px;
   margin: 10px 0 0;
