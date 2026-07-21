@@ -46,13 +46,15 @@ export default function MAScannerPage({
   onTrialEnded,
   isInWatchlist,
   toggleWatchlistTicker,
+  alertLevels,
+  promptCreateAlert,
 }) {
   const { getToken, user } = useAuth();
   const isPremium = !!(user && user.is_premium);
 
   const [ma, setMa] = useState(20);
   const [distance, setDistance] = useState(2);
-  const [interval, setInterval] = useState('1d');
+  const [timeframe, setTimeframe] = useState('1d');
   const [market, setMarket] = useState('all');
   const [selectedSectors, setSelectedSectors] = useState([]);
 
@@ -94,7 +96,7 @@ export default function MAScannerPage({
     setResults(null);
     setProgress({ processed: 0, total: 0, found: 0, phase: 1 });
 
-    const params = new URLSearchParams({ ma, distance, interval, market });
+    const params = new URLSearchParams({ ma, distance, interval: timeframe, market });
     if (market === 'sectors' && selectedSectors.length > 0) {
       params.set('sectors', selectedSectors.join(','));
     }
@@ -185,6 +187,48 @@ export default function MAScannerPage({
     );
   };
 
+  const chartBtn = (symbol) =>
+    React.createElement(
+      'a',
+      {
+        className: 'chart-open-btn',
+        href: 'https://www.tradingview.com/chart/?symbol=' + symbol,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        title: 'Open in TradingView',
+        'aria-label': 'Open in TradingView',
+        onClick: (e) => e.stopPropagation(),
+      },
+      React.createElement(
+        'svg',
+        { viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+        React.createElement('path', { d: 'M3 3v18h18' }),
+        React.createElement('path', { d: 'M18.7 8l-5.1 5.1-4-4L3 15.6' })
+      )
+    );
+
+  const alertBtn = (symbol) => {
+    const level = alertLevels && alertLevels[symbol];
+    return React.createElement(
+      'button',
+      {
+        className: 'alert-create-btn' + (level ? ' active' : ''),
+        onClick: (e) => {
+          e.stopPropagation();
+          promptCreateAlert(symbol);
+        },
+        title: level ? 'Alert set at ' + level + 'x — click to edit' : 'Create a volume alert',
+      },
+      React.createElement(
+        'svg',
+        { viewBox: '0 0 24 24', width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+        React.createElement('path', { d: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9' }),
+        React.createElement('path', { d: 'M13.73 21a2 2 0 0 1-3.46 0' })
+      ),
+      level ? level + 'x' : 'Alert'
+    );
+  };
+
   const TH = ({ label, field }) =>
     React.createElement(
       'th',
@@ -197,7 +241,7 @@ export default function MAScannerPage({
     );
 
   const scanLimitReached = !isPremium && categoryQuota(scanMeta, 'maScanner').exhausted;
-  const intervalLabel = interval === '1d' ? 'Daily' : 'Weekly';
+  const intervalLabel = timeframe === '1d' ? 'Daily' : 'Weekly';
   const isLocked = !user;
 
   const selectedMarket = MARKET_OPTIONS.find((m) => m.key === market);
@@ -334,8 +378,8 @@ export default function MAScannerPage({
           React.createElement(
             'button',
             {
-              className: 'ma-ctrl-btn' + (interval === '1d' ? ' active' : ''),
-              onClick: () => setInterval('1d'),
+              className: 'ma-ctrl-btn' + (timeframe === '1d' ? ' active' : ''),
+              onClick: () => setTimeframe('1d'),
               disabled: loading,
             },
             'Daily'
@@ -343,8 +387,8 @@ export default function MAScannerPage({
           React.createElement(
             'button',
             {
-              className: 'ma-ctrl-btn' + (interval === '1wk' ? ' active' : ''),
-              onClick: () => setInterval('1wk'),
+              className: 'ma-ctrl-btn' + (timeframe === '1wk' ? ' active' : ''),
+              onClick: () => setTimeframe('1wk'),
               disabled: loading,
             },
             'Weekly'
@@ -595,7 +639,13 @@ export default function MAScannerPage({
                         React.createElement('span', { className: 'mobile-card-ticker' }, r.symbol),
                         r.name && React.createElement('span', { className: 'mobile-card-name' }, r.name)
                       ),
-                      React.createElement('span', { className: 'mobile-card-rank' }, '#' + (i + 1))
+                      React.createElement(
+                        'div',
+                        { style: { display: 'flex', alignItems: 'center', gap: 4 } },
+                        chartBtn(r.symbol),
+                        alertBtn(r.symbol),
+                        React.createElement('span', { className: 'mobile-card-rank' }, '#' + (i + 1))
+                      )
                     ),
                     React.createElement(
                       'div',
@@ -641,7 +691,8 @@ export default function MAScannerPage({
                   React.createElement(TH, { label: 'Name', field: 'name' }),
                   React.createElement(TH, { label: 'Price', field: 'price' }),
                   React.createElement(TH, { label: `SMA${ma}`, field: 'maValue' }),
-                  React.createElement(TH, { label: 'Distance %', field: 'maDistance' })
+                  React.createElement(TH, { label: 'Distance %', field: 'maDistance' }),
+                  React.createElement('th', { style: { width: 90 } })
                 )
               ),
               React.createElement(
@@ -654,7 +705,7 @@ export default function MAScannerPage({
                       React.createElement(
                         'td',
                         {
-                          colSpan: 6,
+                          colSpan: 7,
                           style: {
                             textAlign: 'center',
                             padding: '32px',
@@ -694,6 +745,12 @@ export default function MAScannerPage({
                             { className: 'ma-distance-cell', style: { color: distColor } },
                             (r.maDistance >= 0 ? '+' : '') + r.maDistance.toFixed(2) + '%'
                           )
+                        ),
+                        React.createElement(
+                          'td',
+                          { style: { display: 'flex', gap: 5, alignItems: 'center' } },
+                          chartBtn(r.symbol),
+                          alertBtn(r.symbol)
                         )
                       );
                     })
