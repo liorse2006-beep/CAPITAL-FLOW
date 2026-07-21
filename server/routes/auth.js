@@ -77,8 +77,8 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
                 )
                 .run(email, profile.id, email, isPilot, tierForGoogle);
               user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-              sendWelcomeEmail(email).catch(() => {});
-              sendNewSignupAdminAlert(email, 'Google').catch(() => {});
+              sendWelcomeEmail(email).catch((err) => console.error('[welcome-email]', err));
+              sendNewSignupAdminAlert(email, 'Google').catch((err) => console.error('[admin-alert]', err));
             }
           }
           return done(null, user);
@@ -185,8 +185,8 @@ router.post('/verify-otp', otpLimiter, async (req, res) => {
     await db.prepare('UPDATE users SET is_verified = 1 WHERE email = ?').run(email);
     const user = withEffectivePremium(await db.prepare('SELECT * FROM users WHERE email = ?').get(email));
     const token = await issueToken(user);
-    sendWelcomeEmail(email).catch(() => {});
-    if (!wasAlreadyVerified) sendNewSignupAdminAlert(email, 'email').catch(() => {});
+    sendWelcomeEmail(email).catch((err) => console.error('[welcome-email]', err));
+    if (!wasAlreadyVerified) sendNewSignupAdminAlert(email, 'email').catch((err) => console.error('[admin-alert]', err));
 
     res.json({
       success: true,

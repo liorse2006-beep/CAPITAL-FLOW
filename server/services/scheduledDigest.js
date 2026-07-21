@@ -1,6 +1,13 @@
 const db = require('../db');
-const { getWatchlistAlerts } = require('./watchlistAlerts');
+const { getAllAlertsGrouped } = require('./watchlistAlerts');
 const { sendPushToUser } = require('./webPush');
+
+// How many users' push sends run concurrently per batch. A plain
+// sequential for-loop here would mean 10,000 users sharing a
+// notification_time turns into 10,000 serially-awaited DB queries and
+// push calls — this caps the fan-out instead of removing it entirely,
+// so one slow push endpoint can't stall everyone behind it.
+const DIGEST_CONCURRENCY = 20;
 
 /** Current Israel local time as "HH:MM" and "YYYY-MM-DD", for matching against users.notification_time */
 function israelNow() {
@@ -73,19 +80,25 @@ async function runDigestTick() {
     ? new Date(backgroundCache.scanTime).toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' })
     : 'unknown';
 
-  for (var i = 0; i < users.length; i++) {
-    var userId = users[i].id;
-    var dedupeKey = userId + ':' + now.date;
-    if (sentToday.has(dedupeKey)) continue;
+  var allAlerts = await getAllAlertsGrouped();
+
+  var pending = users.filter(function (u) {
+    var dedupeKey = u.id + ':' + now.date;
+    if (sentToday.has(dedupeKey)) return false;
     sentToday.add(dedupeKey);
+    return true;
+  });
 
-    var thresholds = await getWatchlistAlerts(userId);
-    if (Object.keys(thresholds).length === 0) continue; // nothing to check against
-
-    var payload = buildDigestPayload(thresholds, results, asOf);
-    try {
-      await sendPushToUser(userId, payload);
-    } catch (_) {}
+  for (var i = 0; i < pending.length; i += DIGEST_CONCURRENCY) {
+    var batch = pending.slice(i, i + DIGEST_CONCURRENCY);
+    await Promise.all(
+      batch.map(function (u) {
+        var thresholds = allAlerts[u.id] || {};
+        if (Object.keys(thresholds).length === 0) return; // nothing to check against
+        var payload = buildDigestPayload(thresholds, results, asOf);
+        return sendPushToUser(u.id, payload).catch(function () {});
+      })
+    );
   }
 }
 

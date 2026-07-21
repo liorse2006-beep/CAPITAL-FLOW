@@ -55,6 +55,11 @@ module.exports = {
   JWT_SECRET: requireSecret('JWT_SECRET'),
   GMAIL_USER: env('GMAIL_USER'),
   GMAIL_APP_PASSWORD: env('GMAIL_APP_PASSWORD'),
+  // Resend — the transactional email provider for everything user-facing
+  // (OTP, password reset, welcome, admin signup alerts). Gmail SMTP above
+  // stays wired up only for the daily DB backup, which has its own sender.
+  RESEND_API_KEY: env('RESEND_API_KEY'),
+  RESEND_FROM_EMAIL: env('RESEND_FROM_EMAIL', 'Capital Flow <onboarding@resend.dev>'),
   GOOGLE_CLIENT_ID: env('GOOGLE_CLIENT_ID'),
   GOOGLE_CLIENT_SECRET: env('GOOGLE_CLIENT_SECRET'),
   GOOGLE_CALLBACK_URL: env('GOOGLE_CALLBACK_URL', 'http://localhost:3001/api/auth/google/callback'),

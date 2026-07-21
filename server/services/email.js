@@ -1,31 +1,25 @@
-const nodemailer = require('nodemailer');
+const fs = require('fs');
 const path = require('path');
-const { GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_EMAIL } = require('../config');
+const { Resend } = require('resend');
+const { RESEND_API_KEY, RESEND_FROM_EMAIL, ADMIN_EMAIL } = require('../config');
+
+const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
 // Embedded via cid (not a hosted URL) so the logo renders regardless of
 // image-proxying/allow-listing in the recipient's mail client.
 const LOGO_ATTACHMENT = {
   filename: 'logo-gold.jpeg',
-  path: path.join(__dirname, '../assets/logo-gold.jpeg'),
-  cid: 'capitalflow-logo',
+  content: fs.readFileSync(path.join(__dirname, '../assets/logo-gold.jpeg')),
+  content_id: 'capitalflow-logo',
 };
 
-function createTransport() {
-  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) return null;
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
-  });
-}
-
 async function sendOTPEmail(email, code) {
-  const transport = createTransport();
-  if (!transport) {
+  if (!resend) {
     console.log(`[EMAIL DEV] OTP for ${email}: ${code}`);
     return;
   }
-  await transport.sendMail({
-    from: `"Capital Flow" <${GMAIL_USER}>`,
+  await resend.emails.send({
+    from: RESEND_FROM_EMAIL,
     to: email,
     subject: `Your verification code: ${code}`,
     html: `
@@ -43,13 +37,12 @@ async function sendOTPEmail(email, code) {
 }
 
 async function sendPasswordResetEmail(email, code) {
-  const transport = createTransport();
-  if (!transport) {
+  if (!resend) {
     console.log(`[EMAIL DEV] Reset OTP for ${email}: ${code}`);
     return;
   }
-  await transport.sendMail({
-    from: `"Capital Flow" <${GMAIL_USER}>`,
+  await resend.emails.send({
+    from: RESEND_FROM_EMAIL,
     to: email,
     subject: `Password reset code: ${code}`,
     html: `
@@ -67,13 +60,12 @@ async function sendPasswordResetEmail(email, code) {
 }
 
 async function sendWelcomeEmail(email) {
-  const transport = createTransport();
-  if (!transport) {
+  if (!resend) {
     console.log(`[EMAIL DEV] Welcome email for ${email}`);
     return;
   }
-  await transport.sendMail({
-    from: `"Capital Flow" <${GMAIL_USER}>`,
+  await resend.emails.send({
+    from: RESEND_FROM_EMAIL,
     to: email,
     subject: `Welcome to Capital Flow`,
     attachments: [LOGO_ATTACHMENT],
@@ -108,13 +100,12 @@ async function sendWelcomeEmail(email) {
 // Fires once per genuinely new account (not on every login) so the admin
 // finds out about signups in real time instead of only via the /admin panel.
 async function sendNewSignupAdminAlert(email, method) {
-  const transport = createTransport();
-  if (!transport || !ADMIN_EMAIL) {
+  if (!resend || !ADMIN_EMAIL) {
     console.log(`[EMAIL DEV] New signup alert: ${email} via ${method}`);
     return;
   }
-  await transport.sendMail({
-    from: `"Capital Flow" <${GMAIL_USER}>`,
+  await resend.emails.send({
+    from: RESEND_FROM_EMAIL,
     to: ADMIN_EMAIL,
     subject: `New signup — ${email}`,
     text: `${email} just signed up via ${method}.`,
