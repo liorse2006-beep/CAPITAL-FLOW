@@ -632,6 +632,26 @@ export default function ScannerPage({
                         <td className="col-rank">{i + 1}</td>
                         <td className="col-ticker">
                           <div className="ticker-cell">
+                            <button
+                              className={'star-btn' + (isInWatchlist(r.symbol) ? ' starred' : '')}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleWatchlistTicker(r.symbol)
+                              }}
+                              title={isInWatchlist(r.symbol) ? 'Remove from watchlist' : 'Add to watchlist'}
+                              aria-label={isInWatchlist(r.symbol) ? 'Remove from watchlist' : 'Add to watchlist'}
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                width="14"
+                                height="14"
+                                fill={isInWatchlist(r.symbol) ? 'var(--accent)' : 'none'}
+                                stroke={isInWatchlist(r.symbol) ? 'var(--accent)' : 'var(--text-3)'}
+                                strokeWidth="2"
+                              >
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                              </svg>
+                            </button>
                             <img
                               className="ticker-logo"
                               src={'https://assets.parqet.com/logos/symbol/' + r.symbol}
@@ -713,26 +733,6 @@ export default function ScannerPage({
                               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                             </svg>
                             {alertLevels && alertLevels[r.symbol] ? alertLevels[r.symbol] + 'x' : 'Alert'}
-                          </button>
-                          <button
-                            className={'star-btn' + (isInWatchlist(r.symbol) ? ' starred' : '')}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              toggleWatchlistTicker(r.symbol)
-                            }}
-                            title={isInWatchlist(r.symbol) ? 'Remove from watchlist' : 'Add to watchlist'}
-                            aria-label={isInWatchlist(r.symbol) ? 'Remove from watchlist' : 'Add to watchlist'}
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              width="14"
-                              height="14"
-                              fill={isInWatchlist(r.symbol) ? 'var(--accent)' : 'none'}
-                              stroke={isInWatchlist(r.symbol) ? 'var(--accent)' : 'var(--text-3)'}
-                              strokeWidth="2"
-                            >
-                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                            </svg>
                           </button>
                         </td>
                       </tr>
