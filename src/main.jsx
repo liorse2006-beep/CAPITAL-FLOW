@@ -25,7 +25,18 @@ if ('serviceWorker' in navigator) {
 
 function Root() {
   const { isLoading } = useAuth();
-  const [quizDone, setQuizDone] = useState(() => !!localStorage.getItem('vs_quiz_done'));
+  // A Whop checkout redirect (?status=success|error) must always reach
+  // App.jsx, which is the only place that cleans the URL, shows the
+  // "Payment received" toast, and refreshes the user's tier — none of
+  // that runs if this load gets routed to the onboarding quiz instead.
+  // vs_quiz_done can only be missing here for an existing, already-paying
+  // user if their localStorage was wiped between clicking Upgrade and
+  // Whop redirecting back, but treat that as unrecoverable-by-quiz-gate
+  // regardless: showing "what kind of trader are you?" instead of a
+  // payment confirmation would be broken UX even if it were rare.
+  const [quizDone, setQuizDone] = useState(
+    () => !!localStorage.getItem('vs_quiz_done') || new URLSearchParams(window.location.search).has('status')
+  );
 
   function handleQuizComplete() {
     setQuizDone(true);
