@@ -28,6 +28,7 @@ const MAScannerPage = lazy(() => import('./components/MAScanner/MAScannerPage'))
 const PolicyPage = lazy(() => import('./pages/PolicyPage'));
 const AuthModal = lazy(() => import('./components/Auth/AuthModal'));
 const NewsModal = lazy(() => import('./components/shared/NewsModal'));
+const ChatWidget = lazy(() => import('./components/shared/ChatWidget'));
 
 /* ── Main App ── */
 function App() {
@@ -1043,6 +1044,12 @@ function App() {
             onClose={() => setNewsModalSymbol(null)}
             onRequireUpgrade={() => setShowUpgradeModal(true)}
           />
+        </Suspense>
+      )}
+
+      {user && (
+        <Suspense fallback={null}>
+          <ChatWidget user={user} getToken={getToken} />
         </Suspense>
       )}
 

@@ -53,4 +53,15 @@ const adminLimiter = rateLimit({
   message: { error: 'Too many requests. Please wait a few minutes and try again.' },
 });
 
-module.exports = { authLimiter, otpLimiter, scanLimiter, apiLimiter, adminLimiter };
+// Capi (chat) calls a metered external API — this is tighter than
+// scanLimiter to keep one chatty user from burning through the app-wide
+// daily Gemini quota (see services/chatbot.js's own DAILY_CALL_CAP too).
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 12,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many messages. Please slow down.' },
+});
+
+module.exports = { authLimiter, otpLimiter, scanLimiter, apiLimiter, adminLimiter, chatLimiter };

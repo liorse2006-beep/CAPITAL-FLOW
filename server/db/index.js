@@ -205,7 +205,19 @@ async function initDb() {
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
-    CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at)
+    CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at);
+
+    -- Capi chat history — persisted per account (not just per session) so
+    -- a returning user still sees their earlier conversation.
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER NOT NULL,
+      role       TEXT    NOT NULL CHECK(role IN ('user','assistant')),
+      content    TEXT    NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages(user_id, created_at)
   `);
 
   // Safe migrations — silently ignored if the column already exists
@@ -225,6 +237,9 @@ async function initDb() {
     `ALTER TABLE users ADD COLUMN premium_scan_window_start INTEGER`,
     `ALTER TABLE users ADD COLUMN last_login_at INTEGER`,
     `ALTER TABLE coupons ADD COLUMN paddle_discount_id TEXT`,
+    // Chains multi-turn Capi conversations server-side on Gemini's end —
+    // see services/chatbot.js. Null just means "start a fresh conversation".
+    `ALTER TABLE users ADD COLUMN gemini_interaction_id TEXT`,
   ];
 
   for (const sql of migrations) {
