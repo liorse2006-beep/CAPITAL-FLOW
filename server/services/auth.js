@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('../db');
-const { JWT_SECRET } = require('../config');
+const { JWT_SECRET, ADMIN_EMAIL } = require('../config');
 
 function hashPassword(password) {
   return bcrypt.hash(password, 12);
@@ -13,13 +13,15 @@ function verifyPassword(password, hash) {
 }
 
 /**
- * Pilot accounts get full (Elite) access for as long as they're tagged.
- * Call this on any user row read directly from the DB (outside
- * authMiddleware.resolveToken, which already applies it) before that row's
- * tier/is_premium value is shown to the client or embedded in a token.
+ * Pilot accounts (and the configured admin's own account) get full (Elite)
+ * access for as long as that's true. Call this on any user row read directly
+ * from the DB (outside authMiddleware.resolveToken, which already applies
+ * it) before that row's tier/is_premium value is shown to the client or
+ * embedded in a token.
  */
 function withEffectivePremium(user) {
-  if (user.is_pilot) return { ...user, tier: 'elite', is_premium: 1 };
+  const isAdminOwner = !!ADMIN_EMAIL && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  if (user.is_pilot || isAdminOwner) return { ...user, tier: 'elite', is_premium: 1 };
   return { ...user, is_premium: user.tier !== 'free' ? 1 : 0 };
 }
 

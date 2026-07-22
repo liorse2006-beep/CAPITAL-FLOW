@@ -12,9 +12,6 @@ function timingSafeStringEqual(a, b) {
 
 const DB_ENV = TURSO_DB_URL ? 'PRODUCTION (Turso)' : 'LOCAL (SQLite)';
 const { verifyToken } = require('../services/auth');
-const pilotAllowlist = require('../services/pilotAllowlist');
-
-const EMAIL_RE = /^[^\s@<>"'`]+@[^\s@<>"'`]+\.[^\s@<>"'`]+$/;
 
 // Catches unhandled promise rejections in async route handlers (Express 4 doesn't do this natively)
 function asyncRoute(fn) {
@@ -141,30 +138,6 @@ router.post('/admin/api/users/:id/pilot', asyncRoute(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// ── Admin API: pilot allowlist (pre-approved emails) ────────────────────────
-router.get('/admin/api/pilot-allowlist', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
-  res.json(await pilotAllowlist.listAllowlist());
-}));
-
-router.post('/admin/api/pilot-allowlist', asyncRoute(async (req, res) => {
-  const actor = await checkToken(req, res);
-  if (!actor) return;
-  const email = String(req.body.email || '').trim();
-  if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Valid email required' });
-  await pilotAllowlist.addToAllowlist(email);
-  logAction(actor, 'pilot_allowlist_add', null, email);
-  res.json({ ok: true });
-}));
-
-router.delete('/admin/api/pilot-allowlist/:email', asyncRoute(async (req, res) => {
-  const actor = await checkToken(req, res);
-  if (!actor) return;
-  await pilotAllowlist.removeFromAllowlist(req.params.email);
-  logAction(actor, 'pilot_allowlist_remove', null, req.params.email);
-  res.json({ ok: true });
-}));
-
 // ── Admin API: feedback submissions ────────────────────────────────────────
 router.get('/admin/api/feedback', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
@@ -184,74 +157,6 @@ router.get('/admin/api/feedback', asyncRoute(async (req, res) => {
 router.delete('/admin/api/feedback/:id', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   await db.prepare('DELETE FROM feedback WHERE id = ?').run(req.params.id);
-  res.json({ ok: true });
-}));
-
-// ── Admin API: coupons ──────────────────────────────────────────────────────
-const VALID_APPLIES_TO = new Set(['both', 'premium', 'elite']);
-// Excludes visually-ambiguous characters (0/O, 1/I/L) since codes are meant
-// to be typed by hand or read off a shared screenshot.
-const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-
-function generateCode() {
-  let code = '';
-  for (let i = 0; i < 8; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
-  return code;
-}
-
-router.get('/admin/api/coupons', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
-  const rows = await db.prepare('SELECT * FROM coupons ORDER BY id DESC').all();
-  res.json(rows);
-}));
-
-router.post('/admin/api/coupons', asyncRoute(async (req, res) => {
-  const actor = await checkToken(req, res);
-  if (!actor) return;
-  const { discountPercent, appliesTo, maxUses, expiresInDays } = req.body;
-  let { code } = req.body;
-
-  const pct = parseInt(discountPercent, 10);
-  if (!(pct >= 1 && pct <= 100)) return res.status(400).json({ error: 'Discount must be between 1 and 100' });
-  const scope = VALID_APPLIES_TO.has(appliesTo) ? appliesTo : 'both';
-
-  code = code && String(code).trim() ? String(code).trim().toUpperCase() : generateCode();
-  if (!/^[A-Z0-9_-]{3,32}$/.test(code)) {
-    return res.status(400).json({ error: 'Code must be 3-32 letters/numbers/dashes' });
-  }
-
-  const max = maxUses != null && maxUses !== '' ? parseInt(maxUses, 10) : null;
-  const expiresAt =
-    expiresInDays != null && expiresInDays !== ''
-      ? Math.floor(Date.now() / 1000) + parseInt(expiresInDays, 10) * 86400
-      : null;
-
-  try {
-    await db.prepare(
-      'INSERT INTO coupons (code, discount_percent, applies_to, max_uses, expires_at) VALUES (?, ?, ?, ?, ?)'
-    ).run(code, pct, scope, max, expiresAt);
-  } catch (err) {
-    if (String(err.message).includes('UNIQUE')) return res.status(409).json({ error: 'That code already exists' });
-    throw err;
-  }
-  logAction(actor, 'coupon_create', null, code);
-  res.json({ ok: true, code });
-}));
-
-router.post('/admin/api/coupons/:code/toggle', asyncRoute(async (req, res) => {
-  const actor = await checkToken(req, res);
-  if (!actor) return;
-  const { active } = req.body;
-  await db.prepare('UPDATE coupons SET active = ? WHERE code = ?').run(active ? 1 : 0, req.params.code.toUpperCase());
-  logAction(actor, active ? 'coupon_enable' : 'coupon_disable', null, req.params.code.toUpperCase());
-  res.json({ ok: true });
-}));
-
-router.delete('/admin/api/coupons/:code', asyncRoute(async (req, res) => {
-  const actor = await checkToken(req, res);
-  if (!actor) return;
-  await db.prepare('DELETE FROM coupons WHERE code = ?').run(req.params.code.toUpperCase());
-  logAction(actor, 'coupon_delete', null, req.params.code.toUpperCase());
   res.json({ ok: true });
 }));
 
@@ -386,32 +291,7 @@ router.get('/admin', asyncRoute(async (req, res) => {
   .btn-logout    { background: rgba(59,130,246,0.10); color: #3B82F6; border-color: rgba(59,130,246,0.25); }
   .btn-push-test { background: rgba(0,255,136,0.10); color: #00FF88; border-color: rgba(0,255,136,0.25); }
   .badge-push    { background: rgba(34,197,94,0.12); color: #22C55E; border: 1px solid rgba(34,197,94,0.2); }
-  .pilot-add { display: flex; gap: 8px; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); }
-  .pilot-add input { flex: 1; background: #1C1C1C; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;
-                      color: #E4E4E7; font-size: 13px; padding: 6px 12px; outline: none; }
-  .pilot-add button { background: rgba(168,85,247,0.14); color: #A855F7; border: 1px solid rgba(168,85,247,0.3);
-                       border-radius: 6px; font-size: 12px; font-weight: 600; padding: 6px 16px; cursor: pointer; }
-  .pilot-list { padding: 4px 20px 16px; display: flex; flex-wrap: wrap; gap: 8px; }
-  .pilot-chip { display: inline-flex; align-items: center; gap: 8px; background: rgba(168,85,247,0.08);
-                border: 1px solid rgba(168,85,247,0.2); border-radius: 100px; padding: 4px 6px 4px 12px;
-                font-size: 12px; font-family: monospace; color: #D4B3F7; }
-  .pilot-chip button { background: none; border: none; color: #A855F7; cursor: pointer; font-size: 14px;
-                        width: 18px; height: 18px; border-radius: 50%; line-height: 1; }
-  .pilot-chip button:hover { background: rgba(168,85,247,0.2); }
-  .pilot-empty { padding: 4px 20px 16px; font-size: 12px; color: #555; }
   .actions    { display: flex; gap: 4px; flex-wrap: wrap; }
-  .coupon-add { display: flex; gap: 8px; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); flex-wrap: wrap; }
-  .coupon-add input, .coupon-add select { background: #1C1C1C; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;
-                      color: #E4E4E7; font-size: 13px; padding: 6px 12px; outline: none; }
-  .coupon-add button { background: rgba(249,115,22,0.14); color: #F97316; border: 1px solid rgba(249,115,22,0.3);
-                       border-radius: 6px; font-size: 12px; font-weight: 600; padding: 6px 16px; cursor: pointer; white-space: nowrap; }
-  .coupon-row { display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-bottom: 1px solid rgba(255,255,255,0.04); flex-wrap: wrap; }
-  .coupon-row:last-child { border-bottom: none; }
-  .coupon-code { font-family: monospace; font-size: 13px; color: #E4E4E7; font-weight: 700; min-width: 100px; }
-  .coupon-pct { font-size: 11px; background: rgba(249,115,22,0.12); color: #F97316; padding: 2px 8px; border-radius: 4px; }
-  .coupon-scope { font-size: 11px; color: #71717A; }
-  .coupon-meta { font-size: 11px; color: #71717A; margin-left: auto; }
-  .coupon-empty { padding: 20px; font-size: 12px; color: #555; text-align: center; }
   .refresh-btn { background: none; border: 1px solid rgba(255,255,255,0.1); color: #A0A0A8;
                  font-size: 12px; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
   .refresh-btn:hover { background: rgba(255,255,255,0.05); color: #E4E4E7; }
@@ -469,18 +349,6 @@ router.get('/admin', asyncRoute(async (req, res) => {
 
   <div class="card" style="margin-bottom:20px">
     <div class="card-hdr">
-      <h2>Pilot Program — Invite Allowlist</h2>
-      <span style="font-size:11px;color:#71717A">Emails below auto-tag as PILOT on signup</span>
-    </div>
-    <div class="pilot-add">
-      <input id="pilot-email" placeholder="tester@company.com" />
-      <button id="btn-add-pilot">+ Add to pilot</button>
-    </div>
-    <div class="pilot-list" id="pilot-list"><span class="pilot-empty">Loading…</span></div>
-  </div>
-
-  <div class="card" style="margin-bottom:20px">
-    <div class="card-hdr">
       <h2>Activity Log</h2>
       <button class="refresh-btn" id="btn-refresh-audit">↻ Refresh</button>
     </div>
@@ -493,30 +361,6 @@ router.get('/admin', asyncRoute(async (req, res) => {
       <button class="refresh-btn" id="btn-refresh-feedback">↻ Refresh</button>
     </div>
     <div id="feedback-wrap"><div class="loader">Loading…</div></div>
-  </div>
-
-  <div class="card" style="margin-bottom:20px">
-    <div class="card-hdr">
-      <h2>Coupons</h2>
-      <span id="coupon-count" style="font-size:11px;color:#71717A"></span>
-    </div>
-    <div class="coupon-add">
-      <input id="coupon-code" placeholder="CODE (blank = auto)" style="text-transform:uppercase" />
-      <input id="coupon-pct" type="number" min="1" max="100" placeholder="% off" style="width:70px" />
-      <select id="coupon-scope">
-        <option value="both">Both tiers</option>
-        <option value="premium">Premium only</option>
-        <option value="elite">Elite only</option>
-      </select>
-      <input id="coupon-max-uses" type="number" min="1" placeholder="Max uses" style="width:90px" />
-      <input id="coupon-expires" type="number" min="1" placeholder="Expires (days)" style="width:110px" />
-      <button id="btn-create-coupon">+ Create</button>
-    </div>
-    <div style="padding:0 20px 12px;font-size:11px;color:#71717A">
-      Coupons are validated and tracked here, but discounts aren't automatically applied at Whop checkout —
-      only the price shown to the customer changes.
-    </div>
-    <div id="coupon-wrap"><div class="loader">Loading…</div></div>
   </div>
 
   <div class="card">
@@ -563,7 +407,6 @@ async function load() {
   } catch(e) {
     document.getElementById('table-wrap').innerHTML = '<div class="loader">Failed to fetch.</div>';
   }
-  loadPilotAllowlist();
 }
 
 async function loadFeedback() {
@@ -629,112 +472,6 @@ async function loadAuditLog() {
 async function deleteFeedback(id) {
   const r = await fetch('/admin/api/feedback/' + id, { method: 'DELETE', headers: AUTH_HEADERS });
   if (r.ok) loadFeedback();
-}
-
-const SCOPE_LABEL = { both: 'Both tiers', premium: 'Premium only', elite: 'Elite only' };
-
-async function loadCoupons() {
-  try {
-    const r = await fetch('/admin/api/coupons', { headers: AUTH_HEADERS });
-    const rows = r.ok ? await r.json() : [];
-    document.getElementById('coupon-count').textContent = rows.filter(c => c.active).length + ' active';
-    const el = document.getElementById('coupon-wrap');
-    if (!rows.length) { el.innerHTML = '<div class="coupon-empty">No coupons yet — create one above.</div>'; return; }
-    el.innerHTML = rows.map(function(c) {
-      const uses = c.uses_count + (c.max_uses ? ' / ' + c.max_uses : '') + ' used';
-      const expired = c.expires_at && c.expires_at < Math.floor(Date.now() / 1000);
-      const status = !c.active
-        ? '<span class="badge badge-free">Disabled</span>'
-        : expired
-          ? '<span class="badge badge-no">Expired</span>'
-          : '<span class="badge badge-ok">Active</span>';
-      const toggleBtn = c.active
-        ? \`<button class="btn btn-pilot-off" data-act="toggle-coupon" data-code="\${escapeHtml(c.code)}" data-active="0">Disable</button>\`
-        : \`<button class="btn btn-pilot-on" data-act="toggle-coupon" data-code="\${escapeHtml(c.code)}" data-active="1">Enable</button>\`;
-      return \`<div class="coupon-row">
-        <span class="coupon-code">\${escapeHtml(c.code)}</span>
-        <span class="coupon-pct">\${c.discount_percent}% off</span>
-        <span class="coupon-scope">\${SCOPE_LABEL[c.applies_to] || c.applies_to}</span>
-        \${status}
-        <span class="coupon-meta">\${uses}</span>
-        <div class="actions">
-          \${toggleBtn}
-          <button class="btn btn-del" data-act="del-coupon" data-code="\${escapeHtml(c.code)}">✕</button>
-        </div>
-      </div>\`;
-    }).join('');
-  } catch(e) {}
-}
-
-async function createCoupon() {
-  const code = document.getElementById('coupon-code').value.trim();
-  const discountPercent = document.getElementById('coupon-pct').value;
-  const appliesTo = document.getElementById('coupon-scope').value;
-  const maxUses = document.getElementById('coupon-max-uses').value;
-  const expiresInDays = document.getElementById('coupon-expires').value;
-  if (!discountPercent) { toast('Enter a discount percentage', true); return; }
-  const r = await fetch('/admin/api/coupons', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
-    body: JSON.stringify({ code, discountPercent, appliesTo, maxUses, expiresInDays })
-  });
-  const data = await r.json();
-  if (r.ok) {
-    toast('Coupon ' + data.code + ' created');
-    document.getElementById('coupon-code').value = '';
-    document.getElementById('coupon-pct').value = '';
-    document.getElementById('coupon-max-uses').value = '';
-    document.getElementById('coupon-expires').value = '';
-    loadCoupons();
-  } else {
-    toast(data.error || 'Error', true);
-  }
-}
-
-async function toggleCoupon(code, active) {
-  const r = await fetch('/admin/api/coupons/' + code + '/toggle', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
-    body: JSON.stringify({ active })
-  });
-  if (r.ok) loadCoupons();
-  else toast('Error', true);
-}
-
-async function deleteCoupon(code) {
-  if (!confirm('Delete coupon ' + code + '?')) return;
-  const r = await fetch('/admin/api/coupons/' + code, { method: 'DELETE', headers: AUTH_HEADERS });
-  if (r.ok) { toast('Coupon deleted'); loadCoupons(); }
-  else toast('Error', true);
-}
-
-async function loadPilotAllowlist() {
-  try {
-    const r = await fetch('/admin/api/pilot-allowlist', { headers: AUTH_HEADERS });
-    const list = r.ok ? await r.json() : [];
-    const el = document.getElementById('pilot-list');
-    if (!list.length) { el.innerHTML = '<span class="pilot-empty">No pilot invites yet — add an email above.</span>'; return; }
-    el.innerHTML = list.map(function(row) {
-      const safe = escapeHtml(row.email);
-      return \`<span class="pilot-chip">\${safe}<button data-act="remove-pilot" data-email="\${safe}" title="Remove">✕</button></span>\`;
-    }).join('');
-  } catch(e) {}
-}
-
-async function addPilotEmail() {
-  const input = document.getElementById('pilot-email');
-  const email = input.value.trim();
-  if (!email || !email.includes('@')) { toast('Enter a valid email', true); return; }
-  const r = await fetch('/admin/api/pilot-allowlist', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
-    body: JSON.stringify({ email })
-  });
-  if (r.ok) { input.value = ''; toast('Added to pilot allowlist'); loadPilotAllowlist(); }
-  else toast('Error', true);
-}
-
-async function removePilotEmail(email) {
-  const r = await fetch('/admin/api/pilot-allowlist/' + encodeURIComponent(email), { method: 'DELETE', headers: AUTH_HEADERS });
-  if (r.ok) { toast('Removed'); loadPilotAllowlist(); }
-  else toast('Error', true);
 }
 
 async function setPilot(id, value) {
@@ -932,31 +669,21 @@ document.addEventListener('click', function (e) {
     case 'force-logout':  return forceLogout(d.id);
     case 'push-test':     return sendTestPush(d.id);
     case 'del-user':      return deleteUser(d.id, d.email);
-    case 'toggle-coupon': return toggleCoupon(d.code, Number(d.active));
-    case 'del-coupon':    return deleteCoupon(d.code);
     case 'del-feedback':  return deleteFeedback(d.id);
-    case 'remove-pilot':  return removePilotEmail(d.email);
   }
 });
 
 // Static controls (present in the initial HTML, not regenerated)
-document.getElementById('btn-add-pilot').addEventListener('click', addPilotEmail);
-document.getElementById('pilot-email').addEventListener('keydown', function (e) {
-  if (e.key === 'Enter') addPilotEmail();
-});
 document.getElementById('btn-refresh-feedback').addEventListener('click', loadFeedback);
 document.getElementById('btn-refresh-audit').addEventListener('click', loadAuditLog);
-document.getElementById('btn-create-coupon').addEventListener('click', createCoupon);
 document.getElementById('btn-refresh-users').addEventListener('click', load);
 document.getElementById('search').addEventListener('input', filterTable);
 
 load();
 loadFeedback();
-loadCoupons();
 loadAuditLog();
 setInterval(load, 60000);
 setInterval(loadFeedback, 60000);
-setInterval(loadCoupons, 60000);
 setInterval(loadAuditLog, 60000);
 </script>
 </body>

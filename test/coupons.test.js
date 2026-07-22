@@ -1,5 +1,7 @@
-// Coupon validation (server/services/coupons.js), the public validate
-// endpoint, and the admin CRUD endpoints (server/routes/admin.js).
+// Coupon validation (server/services/coupons.js) and the public validate
+// endpoint. Coupons are now created/managed exclusively through Whop's own
+// promo codes — there is no admin CRUD for this app's internal coupon
+// system anymore, so there's nothing to test there.
 require('./helpers/testEnv');
 const { test, before } = require('node:test');
 const assert = require('node:assert');
@@ -8,30 +10,16 @@ const express = require('express');
 const db = require('../server/db');
 
 before(async () => { await db.ready; });
-const { issueToken } = require('../server/services/auth');
 const { validateCoupon } = require('../server/services/coupons');
 const couponsRouter = require('../server/routes/coupons');
-const adminRouter = require('../server/routes/admin');
 
 function startTestApp() {
   const app = express();
   app.use(express.json());
   app.use('/api', couponsRouter);
-  app.use('/', adminRouter);
   return new Promise((resolve) => {
     const server = app.listen(0, () => resolve(server));
   });
-}
-
-async function adminAuthHeader() {
-  let user = await db.prepare('SELECT * FROM users WHERE email = ?').get('admin@test.local');
-  if (!user) {
-    const result = await db
-      .prepare('INSERT INTO users (email, is_verified, tier) VALUES (?, 1, ?)')
-      .run('admin@test.local', 'elite');
-    user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-  }
-  return { Authorization: 'Bearer ' + (await issueToken(user)) };
 }
 
 async function insertCoupon(overrides = {}) {
@@ -119,109 +107,6 @@ test('POST /api/coupons/validate rejects an invalid tier', async () => {
       body: JSON.stringify({ code: 'X', tier: 'free' }),
     });
     assert.strictEqual(res.status, 400);
-  } finally {
-    server.close();
-  }
-});
-
-test('admin can create a coupon with an explicit code and scope', async () => {
-  const server = await startTestApp();
-  const port = server.address().port;
-  const headers = { 'Content-Type': 'application/json', ...(await adminAuthHeader()) };
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/admin/api/coupons`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ code: 'mycode', discountPercent: 30, appliesTo: 'elite' }),
-    });
-    const body = await res.json();
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(body.code, 'MYCODE');
-
-    const row = await db.prepare('SELECT * FROM coupons WHERE code = ?').get('MYCODE');
-    assert.strictEqual(row.discount_percent, 30);
-    assert.strictEqual(row.applies_to, 'elite');
-  } finally {
-    server.close();
-  }
-});
-
-test('admin creating a coupon with no code gets an auto-generated one', async () => {
-  const server = await startTestApp();
-  const port = server.address().port;
-  const headers = { 'Content-Type': 'application/json', ...(await adminAuthHeader()) };
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/admin/api/coupons`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ discountPercent: 10 }),
-    });
-    const body = await res.json();
-    assert.strictEqual(res.status, 200);
-    assert.ok(body.code && body.code.length >= 3);
-  } finally {
-    server.close();
-  }
-});
-
-test('admin cannot create two coupons with the same code', async () => {
-  await insertCoupon({ code: 'DUPE1' });
-  const server = await startTestApp();
-  const port = server.address().port;
-  const headers = { 'Content-Type': 'application/json', ...(await adminAuthHeader()) };
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/admin/api/coupons`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ code: 'dupe1', discountPercent: 10 }),
-    });
-    assert.strictEqual(res.status, 409);
-  } finally {
-    server.close();
-  }
-});
-
-test('admin coupon routes reject requests without a valid token', async () => {
-  const server = await startTestApp();
-  const port = server.address().port;
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/admin/api/coupons`);
-    assert.strictEqual(res.status, 401);
-  } finally {
-    server.close();
-  }
-});
-
-test('admin can toggle a coupon inactive, and it then fails validation', async () => {
-  await insertCoupon({ code: 'TOGGLEME' });
-  const server = await startTestApp();
-  const port = server.address().port;
-  const headers = { 'Content-Type': 'application/json', ...(await adminAuthHeader()) };
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/admin/api/coupons/TOGGLEME/toggle`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ active: false }),
-    });
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual((await validateCoupon('TOGGLEME', 'premium')).valid, false);
-  } finally {
-    server.close();
-  }
-});
-
-test('admin can delete a coupon', async () => {
-  await insertCoupon({ code: 'DELETEME' });
-  const server = await startTestApp();
-  const port = server.address().port;
-  const headers = await adminAuthHeader();
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/admin/api/coupons/DELETEME`, {
-      method: 'DELETE',
-      headers,
-    });
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(await db.prepare('SELECT * FROM coupons WHERE code = ?').get('DELETEME'), undefined);
   } finally {
     server.close();
   }

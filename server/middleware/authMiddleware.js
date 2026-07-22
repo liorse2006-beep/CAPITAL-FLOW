@@ -1,6 +1,7 @@
 const { verifyToken } = require('../services/auth');
 const db = require('../db');
 const { canScan, quotaFor, freeTrialActive } = require('../services/scanQuota');
+const { ADMIN_EMAIL } = require('../config');
 
 /** Resolve a JWT string → verified DB user, or null on failure */
 async function resolveToken(token) {
@@ -23,13 +24,16 @@ async function resolveToken(token) {
     // (see auth.issueToken), so only the most recently issued token for
     // an account is ever valid — one active device at a time, site-wide.
     if ((payload.sv || 0) !== user.session_version) return null;
-    // Pilot accounts get full (Elite) access for as long as they're tagged —
-    // this is the ONLY place that needs to know that, since every tier
-    // check (requirePremium, requireElite, requireScanQuota, the frontend's
-    // `isPremium`/`tier`, etc.) reads whatever resolveToken returns. The
-    // underlying `tier`/`is_premium` columns are left untouched, so removing
-    // the pilot tag cleanly reverts them to their real subscription status.
-    if (user.is_pilot) {
+    // Pilot accounts (and the configured admin's own account) get full
+    // (Elite) access for as long as that's true — this is the ONLY place
+    // that needs to know that, since every tier check (requirePremium,
+    // requireElite, requireScanQuota, the frontend's `isPremium`/`tier`,
+    // etc.) reads whatever resolveToken returns. The underlying
+    // `tier`/`is_premium` columns are left untouched, so removing the pilot
+    // tag (or changing ADMIN_EMAIL) cleanly reverts them to their real
+    // subscription status.
+    const isAdminOwner = !!ADMIN_EMAIL && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    if (user.is_pilot || isAdminOwner) {
       user.tier = 'elite';
       user.is_premium = 1;
     } else {

@@ -64,3 +64,28 @@ test('the JWT issued for a free pilot embeds is_premium=1', async () => {
   const payload = verifyToken(token);
   assert.strictEqual(payload.is_premium, 1);
 });
+
+test('the account matching ADMIN_EMAIL always resolves as elite, even on the free tier', async () => {
+  const user = await makeUser('admin@test.local', { isPilot: false, isPremium: false });
+  const token = await issueToken(user);
+  const resolved = await resolveToken(token);
+
+  assert.strictEqual(resolved.tier, 'elite');
+  assert.strictEqual(resolved.is_premium, 1);
+  const dbRow = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
+  assert.strictEqual(dbRow.tier, 'free', 'the real tier column must stay untouched in the DB');
+});
+
+test('ADMIN_EMAIL matching is case-insensitive', async () => {
+  const user = await makeUser('Admin@Test.Local', { isPilot: false, isPremium: false });
+  const token = await issueToken(user);
+  const resolved = await resolveToken(token);
+  assert.strictEqual(resolved.is_premium, 1);
+});
+
+test('an unrelated free account is not affected by the ADMIN_EMAIL override', async () => {
+  const user = await makeUser('not-the-admin@test.local', { isPilot: false, isPremium: false });
+  const token = await issueToken(user);
+  const resolved = await resolveToken(token);
+  assert.strictEqual(resolved.is_premium, 0);
+});
