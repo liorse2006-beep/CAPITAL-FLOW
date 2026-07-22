@@ -105,12 +105,62 @@ test('a successful result is cached for subsequent calls within the TTL', async 
   let calls = 0;
   global.fetch = async () => {
     calls++;
+    // Serves both the Massive lookup and the summarizer's Gemini call —
+    // the summarizer just fails to parse this shape and returns null,
+    // which is fine, only the call *count* matters for this test.
     return jsonResponse({
       results: [{ title: 'Cached headline', publisher: {}, published_utc: '2026-01-01T00:00:00Z', article_url: 'https://x.com' }],
     });
   };
 
   await fetchNewsForSymbol('CACH');
+  const callsAfterFirst = calls;
   await fetchNewsForSymbol('CACH');
-  assert.strictEqual(calls, 1, 'the second call must be served from cache, not refetched');
+  assert.strictEqual(calls, callsAfterFirst, 'the second call must be served from cache, not refetched at all');
+});
+
+test('a successful Gemini summary is merged onto the article, but real provider sentiment wins over the AI guess', async () => {
+  global.fetch = async (url) => {
+    if (url.includes('massive.com')) {
+      return jsonResponse({
+        results: [
+          {
+            title: 'Enriched headline',
+            description: 'Real description text.',
+            publisher: { name: 'Wire' },
+            published_utc: '2026-01-01T00:00:00Z',
+            article_url: 'https://x.com/enriched',
+            insights: [{ ticker: 'ENRI', sentiment: 'negative' }],
+          },
+        ],
+      });
+    }
+    // Gemini call
+    return jsonResponse({
+      output_text: JSON.stringify([
+        { index: 1, summary: 'Two sentence AI summary.', sentiment: 'positive', impact: 'This may add volatility.' },
+      ]),
+    });
+  };
+
+  const result = await fetchNewsForSymbol('ENRI');
+  const article = result.articles[0];
+  assert.strictEqual(article.summary, 'Two sentence AI summary.');
+  assert.strictEqual(article.impact, 'This may add volatility.');
+  assert.strictEqual(article.sentiment, 'negative', "Massive's real per-ticker sentiment must win over Gemini's guess");
+});
+
+test('summarizer failure leaves the raw article untouched — no summary field appears', async () => {
+  global.fetch = async (url) => {
+    if (url.includes('massive.com')) {
+      return jsonResponse({
+        results: [{ title: 'Unenriched headline', publisher: {}, published_utc: '2026-01-01T00:00:00Z', article_url: 'https://x.com' }],
+      });
+    }
+    return jsonResponse({ output_text: 'not valid json' });
+  };
+
+  const result = await fetchNewsForSymbol('RAWW');
+  assert.strictEqual(result.articles[0].summary, undefined);
+  assert.strictEqual(result.articles[0].headline, 'Unenriched headline');
 });

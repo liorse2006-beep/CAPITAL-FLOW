@@ -86,14 +86,39 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
             <div className="news-article-list">
               {articles.map(function (a, i) {
                 return (
-                  <a key={i} className="news-article" href={a.url} target="_blank" rel="noopener noreferrer">
+                  <div key={i} className="news-article">
                     <div className="news-article-headline">{a.headline}</div>
                     <div className="news-article-meta">
                       <span>{a.source}</span>
                       {a.datetime > 0 && <span>{' · ' + timeAgo(a.datetime)}</span>}
-                      {a.sentiment && <span className={'news-sentiment ' + a.sentiment}>{a.sentiment}</span>}
                     </div>
-                  </a>
+
+                    <p className="news-article-summary">{a.summary || 'No AI summary available for this article — see the source below.'}</p>
+
+                    <a className="news-article-link" href={a.url} target="_blank" rel="noopener noreferrer">
+                      Read the full article
+                      <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M7 17L17 7" /><path d="M7 7h10v10" />
+                      </svg>
+                    </a>
+
+                    {(a.sentiment || a.impact) && (
+                      <div className="news-article-analysis">
+                        {a.sentiment && (
+                          <div className="news-analysis-row">
+                            <span className="news-analysis-label">Sentiment</span>
+                            <span className={'news-sentiment ' + a.sentiment}>{a.sentiment}</span>
+                          </div>
+                        )}
+                        {a.impact && (
+                          <div className="news-analysis-row">
+                            <span className="news-analysis-label">Short-term impact</span>
+                            <span className="news-analysis-impact">{a.impact}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )
               })}
             </div>

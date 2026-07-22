@@ -1,4 +1,5 @@
 const { finnhubFetch } = require('./finnhub');
+const { summarizeArticles } = require('./newsSummarizer');
 const { MASSIVE_API_KEY, MARKETAUX_API_KEY } = require('../config');
 
 const newsCache = new Map();
@@ -29,11 +30,12 @@ async function fetchFromFinnhub(symbol) {
     return data.slice(0, 8).map(function (a) {
       return {
         headline: a.headline || '',
+        description: a.summary || '',
         source: a.source || '',
         datetime: a.datetime || 0,
         url: a.url || '',
         image: a.image || '',
-        sentiment: null,
+        sentiment: null, // Finnhub's company-news endpoint doesn't include sentiment
       };
     });
   } catch (e) {
@@ -55,13 +57,20 @@ async function fetchFromMassive(symbol) {
     if (!Array.isArray(data.results) || data.results.length === 0) return null;
 
     return data.results.map(function (a) {
+      // insights[] carries per-ticker sentiment when Massive has scored the
+      // article — real provider data, preferred over an AI-guessed label.
+      var insight =
+        Array.isArray(a.insights) && a.insights.length > 0
+          ? a.insights.find(function (ins) { return ins.ticker === symbol; }) || a.insights[0]
+          : null;
       return {
         headline: a.title || '',
+        description: a.description || '',
         source: (a.publisher && a.publisher.name) || '',
         datetime: a.published_utc ? Math.floor(new Date(a.published_utc).getTime() / 1000) : 0,
         url: a.article_url || '',
         image: a.image_url || '',
-        sentiment: null,
+        sentiment: insight ? insight.sentiment || null : null,
       };
     });
   } catch (e) {
@@ -85,6 +94,7 @@ async function fetchFromMarketaux(symbol) {
     return data.data.map(function (a) {
       return {
         headline: a.title || '',
+        description: a.description || a.snippet || '',
         source: a.source || '',
         datetime: a.published_at ? Math.floor(new Date(a.published_at).getTime() / 1000) : 0,
         url: a.url || '',
@@ -116,6 +126,25 @@ async function fetchNewsForSymbol(symbol) {
     if (articles && articles.length > 0) {
       source = providers[i].name;
       break;
+    }
+  }
+
+  // Enrich with a Gemini-generated summary/sentiment/impact per article,
+  // strictly grounded in the real headline+description above — never
+  // fabricated. A failure here is silent: articles keep their raw headline
+  // and no summary is shown, rather than inventing one.
+  if (articles && articles.length > 0) {
+    var enrichment = await summarizeArticles(symbol, articles);
+    if (enrichment) {
+      articles = articles.map(function (a, i) {
+        var e = enrichment[i + 1];
+        if (!e) return a;
+        return Object.assign({}, a, {
+          summary: e.summary,
+          impact: e.impact,
+          sentiment: a.sentiment || e.sentiment, // real provider sentiment wins over the AI guess
+        });
+      });
     }
   }
 
