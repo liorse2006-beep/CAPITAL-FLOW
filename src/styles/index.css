@@ -6188,6 +6188,23 @@ td {
   color: var(--text-0);
   border-bottom-left-radius: 4px;
 }
+.chat-bullet-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 2px 0;
+}
+.chat-bullet-line.nested {
+  margin-inline-start: 16px;
+}
+.chat-bullet-dot {
+  flex-shrink: 0;
+  color: var(--accent);
+  line-height: 1.45;
+}
+.chat-line-gap {
+  height: 6px;
+}
 .chat-typing {
   display: flex;
   align-items: center;

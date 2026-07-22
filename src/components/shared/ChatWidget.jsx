@@ -1,5 +1,36 @@
 import React, { useEffect, useRef, useState } from 'react'
 
+// Capi's persona leans on **bold** and bullets to stay scannable — a tiny
+// line-based parser is enough here, no need for a full markdown library.
+// Gemini doesn't always use the literal • character even when asked to
+// (sometimes "*" or "-"), so every bullet marker is normalized to the
+// same dot rather than trusting the model's exact character choice.
+function renderCapiInline(text, keyPrefix) {
+  return text.split(/(\*\*[^*]+\*\*)/g).map(function (part, i) {
+    if (part.length > 4 && part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={keyPrefix + '-' + i}>{part.slice(2, -2)}</strong>
+    }
+    return part
+  })
+}
+
+function renderCapiMessage(text) {
+  return text.split('\n').map(function (line, li) {
+    var bulletMatch = line.match(/^(\s*)[•*-]\s+(.*)/)
+    if (bulletMatch) {
+      var nested = bulletMatch[1].length > 0
+      return (
+        <div key={li} className={'chat-bullet-line' + (nested ? ' nested' : '')}>
+          <span className="chat-bullet-dot">•</span>
+          <span>{renderCapiInline(bulletMatch[2], li)}</span>
+        </div>
+      )
+    }
+    if (line.trim() === '') return <div key={li} className="chat-line-gap" />
+    return <div key={li}>{renderCapiInline(line, li)}</div>
+  })
+}
+
 export default function ChatWidget({ user, getToken }) {
   const [open, setOpen] = useState(false)
   const [showTeaser, setShowTeaser] = useState(false)
@@ -108,7 +139,9 @@ export default function ChatWidget({ user, getToken }) {
               <div className="chat-empty">Ask me about scan types, tiers, alerts, or anything else about Capital Flow.</div>
             )}
             {messages.map((m, i) => (
-              <div key={i} className={'chat-bubble ' + m.role}>{m.content}</div>
+              <div key={i} className={'chat-bubble ' + m.role}>
+                {m.role === 'assistant' ? renderCapiMessage(m.content) : m.content}
+              </div>
             ))}
             {sending && (
               <div className="chat-bubble assistant chat-typing">
