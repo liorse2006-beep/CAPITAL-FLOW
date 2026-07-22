@@ -126,8 +126,18 @@ export default function ChatWidget({ user, getToken }) {
         <div className="chat-panel" role="dialog" aria-label="Chat with Capi">
           <div className="chat-panel-header">
             <div className="chat-panel-title">
-              <img src="/icon-192.png" alt="" className="chat-avatar" />
-              Capi
+              <div className="chat-avatar-wrap">
+                <img src="/icon-192.png" alt="" className="chat-avatar" />
+              </div>
+              <div className="chat-title-stack">
+                <div className="chat-title-name">
+                  Capi <span className="chat-title-tag">Market Mentor</span>
+                </div>
+                <div className="chat-title-status">
+                  <span className="chat-status-dot" />
+                  Ready to help
+                </div>
+              </div>
             </div>
             <div className="chat-panel-actions">
               <button className="chat-clear-btn" onClick={clearChat} title="Clear chat">Clear</button>
@@ -139,13 +149,19 @@ export default function ChatWidget({ user, getToken }) {
               <div className="chat-empty">Ask me about scan types, tiers, alerts, or anything else about Capital Flow.</div>
             )}
             {messages.map((m, i) => (
-              <div key={i} className={'chat-bubble ' + m.role}>
-                {m.role === 'assistant' ? renderCapiMessage(m.content) : m.content}
+              <div key={i} className={'chat-bubble-row ' + m.role}>
+                {m.role === 'assistant' && <img src="/icon-192.png" alt="" className="chat-msg-avatar" />}
+                <div className={'chat-bubble ' + m.role}>
+                  {m.role === 'assistant' ? renderCapiMessage(m.content) : m.content}
+                </div>
               </div>
             ))}
             {sending && (
-              <div className="chat-bubble assistant chat-typing">
-                <span /><span /><span />
+              <div className="chat-bubble-row assistant">
+                <img src="/icon-192.png" alt="" className="chat-msg-avatar" />
+                <div className="chat-bubble assistant chat-typing">
+                  <span /><span /><span />
+                </div>
               </div>
             )}
           </div>

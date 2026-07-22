@@ -6218,11 +6218,25 @@ td {
   max-height: calc(100vh - 120px);
   display: flex;
   flex-direction: column;
-  background: var(--bg-1);
-  border: 1px solid var(--border-strong);
+  border: 1px solid transparent;
   border-radius: 14px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  background:
+    radial-gradient(120% 60% at 50% 0%, var(--bg-2), var(--bg-1) 65%) padding-box,
+    linear-gradient(135deg, rgba(245, 158, 11, 0.5), rgba(245, 158, 11, 0.04) 45%, rgba(245, 158, 11, 0.3)) border-box;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 26px rgba(245, 158, 11, 0.09);
   overflow: hidden;
+  transform-origin: bottom right;
+  animation: chatPanelIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes chatPanelIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 .chat-panel-header {
   display: flex;
@@ -6234,16 +6248,70 @@ td {
 .chat-panel-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-0);
+  gap: 10px;
+}
+.chat-avatar-wrap {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.chat-avatar-wrap::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.4), transparent 70%);
+  filter: blur(2px);
 }
 .chat-avatar {
-  width: 22px;
-  height: 22px;
+  position: relative;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   object-fit: cover;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+.chat-title-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.chat-title-name {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text-0);
+}
+.chat-title-tag {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--accent);
+  opacity: 0.9;
+}
+.chat-title-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-2);
+}
+.chat-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 4px rgba(34, 197, 94, 0.7);
+  flex-shrink: 0;
 }
 .chat-panel-actions {
   display: flex;
@@ -6286,9 +6354,26 @@ td {
   text-align: center;
   margin: auto;
 }
+.chat-bubble-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.chat-bubble-row.user {
+  justify-content: flex-end;
+}
+.chat-msg-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  margin-bottom: 2px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
 .chat-bubble {
   max-width: 85%;
-  padding: 8px 12px;
+  padding: 9px 13px;
   border-radius: 12px;
   font-size: 13px;
   line-height: 1.45;
@@ -6296,17 +6381,18 @@ td {
   word-break: break-word;
 }
 .chat-bubble.user {
-  align-self: flex-end;
-  background: var(--accent);
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
   color: #0a0a0a;
+  font-weight: 500;
   border-bottom-right-radius: 4px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
 }
 .chat-bubble.assistant {
-  align-self: flex-start;
   background: var(--bg-2);
-  border: 1px solid var(--border);
+  border: none;
+  border-left: 2px solid var(--accent);
   color: var(--text-0);
-  border-bottom-left-radius: 4px;
+  border-radius: 3px 12px 12px 3px;
 }
 .chat-bullet-line {
   display: flex;
@@ -6375,23 +6461,31 @@ td {
 }
 .chat-panel-input input:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12), 0 0 10px rgba(245, 158, 11, 0.25);
 }
 .chat-panel-input button {
   width: 34px;
   height: 34px;
   border-radius: 50%;
   border: none;
-  background: var(--accent);
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
   color: #0a0a0a;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.chat-panel-input button:hover:not(:disabled) {
+  transform: scale(1.06);
+  box-shadow: 0 2px 14px rgba(245, 158, 11, 0.5);
 }
 .chat-panel-input button:disabled {
   opacity: 0.4;
   cursor: default;
+  box-shadow: none;
 }
 
 @media (max-width: 480px) {
