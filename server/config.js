@@ -52,9 +52,6 @@ module.exports = {
   MASSIVE_API_KEY: env('MASSIVE_API_KEY'),
   MARKETAUX_API_KEY: env('MARKETAUX_API_KEY'),
   GOOGLE_AI_STUDIO_KEY: env('GOOGLE_AI_STUDIO_KEY'),
-  // Last-resort quote fallback (see services/alphaVantage.js) — only used
-  // when Yahoo returns nothing for a symbol, never for the bulk scanner.
-  ALPHA_VANTAGE_API_KEY: env('ALPHA_VANTAGE_API_KEY'),
   VAPID_PUBLIC_KEY: env('VAPID_PUBLIC_KEY'),
   VAPID_PRIVATE_KEY: env('VAPID_PRIVATE_KEY'),
   VAPID_SUBJECT: env('VAPID_SUBJECT'),
