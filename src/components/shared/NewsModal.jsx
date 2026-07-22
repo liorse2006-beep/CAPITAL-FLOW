@@ -12,15 +12,45 @@ function timeAgo(unixSeconds) {
   return new Date(unixSeconds * 1000).toLocaleDateString()
 }
 
+// The AI/provider sentiment field is stored as positive/negative/neutral
+// (the class names below still key off those raw values for color), but
+// traders think in bullish/bearish/flat — this is display-only.
+var SENTIMENT_LABEL = { positive: 'Bullish', negative: 'Bearish', neutral: 'Flat' }
+var SENTIMENT_ARROW = { positive: '▲', negative: '▼', neutral: '—' }
+
+var SCAN_MESSAGES = [
+  'Scanning verified wire sources…',
+  'Cross-referencing coverage…',
+  'Reading sentiment signals…',
+  'Compiling market outlook…',
+]
+
 export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade }) {
   const [status, setStatus] = useState('loading') // loading | found | empty | error
   const [articles, setArticles] = useState([])
+  const [scanMsgIndex, setScanMsgIndex] = useState(0)
   const panelRef = useModalA11y(onClose)
+
+  useEffect(
+    function () {
+      if (status !== 'loading') return
+      var t = setInterval(function () {
+        setScanMsgIndex(function (i) {
+          return (i + 1) % SCAN_MESSAGES.length
+        })
+      }, 1400)
+      return function () {
+        clearInterval(t)
+      }
+    },
+    [status]
+  )
 
   useEffect(
     function () {
       let cancelled = false
       setStatus('loading')
+      setScanMsgIndex(0)
       fetch('/api/news/' + encodeURIComponent(symbol), { headers: { Authorization: 'Bearer ' + getToken() } })
         .then(function (r) {
           if (r.status === 403) {
@@ -72,9 +102,17 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
         <h2 className="upgrade-title" style={{ fontSize: 17 }}>{'News — ' + symbol}</h2>
 
         {status === 'loading' && (
-          <div className="news-status-row">
-            <div className="spinner" />
-            <span>Scanning verified news sources for {symbol}…</span>
+          <div className="news-loading">
+            <div className="news-loading-radar">
+              <div className="news-loading-bars">
+                {[0, 1, 2, 3, 4].map(function (i) {
+                  return <span key={i} style={{ animationDelay: i * 0.12 + 's' }} />
+                })}
+              </div>
+              <div className="news-loading-ring" />
+            </div>
+            <div className="news-loading-symbol">{symbol}</div>
+            <div className="news-loading-msg" key={scanMsgIndex}>{SCAN_MESSAGES[scanMsgIndex]}</div>
           </div>
         )}
 
@@ -85,9 +123,21 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
             </p>
             <div className="news-article-list">
               {articles.map(function (a, i) {
+                var sentimentKey = a.sentiment && SENTIMENT_LABEL[a.sentiment] ? a.sentiment : null
                 return (
-                  <div key={i} className="news-article">
-                    <div className="news-article-headline">{a.headline}</div>
+                  <div
+                    key={i}
+                    className={'news-article' + (sentimentKey ? ' sentiment-' + sentimentKey : '')}
+                    style={{ animationDelay: i * 0.07 + 's' }}
+                  >
+                    <div className="news-article-top">
+                      <div className="news-article-headline">{a.headline}</div>
+                      {sentimentKey && (
+                        <span className={'news-sentiment ' + sentimentKey}>
+                          {SENTIMENT_ARROW[sentimentKey]} {SENTIMENT_LABEL[sentimentKey]}
+                        </span>
+                      )}
+                    </div>
                     <div className="news-article-meta">
                       <span>{a.source}</span>
                       {a.datetime > 0 && <span>{' · ' + timeAgo(a.datetime)}</span>}
@@ -95,29 +145,14 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
 
                     <p className="news-article-summary">{a.summary || 'No AI summary available for this article — see the source below.'}</p>
 
+                    {a.impact && <p className="news-article-impact">{a.impact}</p>}
+
                     <a className="news-article-link" href={a.url} target="_blank" rel="noopener noreferrer">
-                      Read the full article
+                      Full article
                       <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M7 17L17 7" /><path d="M7 7h10v10" />
                       </svg>
                     </a>
-
-                    {(a.sentiment || a.impact) && (
-                      <div className="news-article-analysis">
-                        {a.sentiment && (
-                          <div className="news-analysis-row">
-                            <span className="news-analysis-label">Sentiment</span>
-                            <span className={'news-sentiment ' + a.sentiment}>{a.sentiment}</span>
-                          </div>
-                        )}
-                        {a.impact && (
-                          <div className="news-analysis-row">
-                            <span className="news-analysis-label">Short-term impact</span>
-                            <span className="news-analysis-impact">{a.impact}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 )
               })}
