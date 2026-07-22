@@ -4768,19 +4768,91 @@ td {
   color: var(--accent);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   PRE-MARKET TAB BADGE
-   ═══════════════════════════════════════════════════════════════════════════ */
+.news-open-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  opacity: 0.5;
+  color: var(--text-1);
+  transition:
+    opacity 0.15s,
+    color 0.15s;
+  line-height: 1;
+}
+.news-open-btn:hover {
+  opacity: 1;
+  color: var(--accent);
+}
 
-.tab-badge-pre {
-  background: rgba(6, 182, 212, 0.15) !important;
-  color: var(--cyan) !important;
-  border: 1px solid rgba(6, 182, 212, 0.25);
-  font-size: 8px !important;
-  padding: 1px 5px !important;
-  border-radius: 4px !important;
+.news-modal {
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.news-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-1);
+  font-size: 13px;
+  padding: 8px 0;
+}
+.news-article-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.news-article {
+  display: block;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  text-decoration: none;
+  transition: border-color var(--transition);
+}
+.news-article:hover {
+  border-color: var(--accent);
+}
+.news-article-headline {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-0);
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+.news-article-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-2);
+  font-family: var(--mono);
+}
+.news-sentiment {
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  text-transform: uppercase;
   font-weight: 700;
-  letter-spacing: 0.04em;
+}
+.news-sentiment.positive {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+}
+.news-sentiment.negative {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+.news-sentiment.neutral {
+  background: rgba(113, 113, 122, 0.12);
+  color: var(--text-2);
 }
 
 .tab-badge-ma {

@@ -27,6 +27,7 @@ const ChartModal = lazy(() => import('./components/Chart/ChartModal'));
 const MAScannerPage = lazy(() => import('./components/MAScanner/MAScannerPage'));
 const PolicyPage = lazy(() => import('./pages/PolicyPage'));
 const AuthModal = lazy(() => import('./components/Auth/AuthModal'));
+const NewsModal = lazy(() => import('./components/shared/NewsModal'));
 
 /* ── Main App ── */
 function App() {
@@ -433,6 +434,18 @@ function App() {
       return;
     }
     setAlertModalSymbol(symbol);
+  }
+
+  /* ── News — same access policy as alerts/push (Elite, or free during the
+     7-day trial), enforced again server-side by requireEliteOrTrial. ── */
+  const [newsModalSymbol, setNewsModalSymbol] = useState(null);
+
+  function promptShowNews(symbol) {
+    if (!canNotify) {
+      setShowUpgradeModal(true);
+      return;
+    }
+    setNewsModalSymbol(symbol);
   }
 
   /* ── Push Notifications — real device push that fires even with the app
@@ -1022,6 +1035,17 @@ function App() {
         />
       )}
 
+      {newsModalSymbol && (
+        <Suspense fallback={null}>
+          <NewsModal
+            symbol={newsModalSymbol}
+            getToken={getToken}
+            onClose={() => setNewsModalSymbol(null)}
+            onRequireUpgrade={() => setShowUpgradeModal(true)}
+          />
+        </Suspense>
+      )}
+
       <div className="app">
         <Topbar
           user={user}
@@ -1068,6 +1092,7 @@ function App() {
                   toggleWatchlistTicker={toggleWatchlistTicker}
                   alertLevels={alertLevels}
                   promptCreateAlert={promptCreateAlert}
+                  promptShowNews={promptShowNews}
                 />
               </Suspense>
             }
@@ -1084,6 +1109,7 @@ function App() {
                   onTrialEnded={onTrialEnded}
                   alertLevels={alertLevels}
                   promptCreateAlert={promptCreateAlert}
+                  promptShowNews={promptShowNews}
                 />
               </Suspense>
             }
@@ -1120,6 +1146,7 @@ function App() {
                 }}
                 alertLevels={alertLevels}
                 promptCreateAlert={promptCreateAlert}
+                promptShowNews={promptShowNews}
               />
             }
           />
@@ -1174,6 +1201,7 @@ function App() {
                 handleSortDoubleClick={handleSortDoubleClick}
                 alertLevels={alertLevels}
                 promptCreateAlert={promptCreateAlert}
+                promptShowNews={promptShowNews}
                 isInWatchlist={isInWatchlist}
                 toggleWatchlistTicker={toggleWatchlistTicker}
                 openChart={openChart}

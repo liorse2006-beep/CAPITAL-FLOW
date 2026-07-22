@@ -48,7 +48,10 @@ module.exports = {
   FINNHUB_API_KEY: env('FINNHUB_API_KEY'),
   // Extra Finnhub accounts for automatic rotation/failover — see services/finnhubKeyPool.js
   FINNHUB_API_KEY_POOL: [1, 2, 3, 4].map((i) => env('FINNHUB_API_KEY_POOL_' + i)).filter(Boolean),
+  // Per-symbol news fallback chain — see services/newsService.js
   MASSIVE_API_KEY: env('MASSIVE_API_KEY'),
+  MARKETAUX_API_KEY: env('MARKETAUX_API_KEY'),
+  GOOGLE_AI_STUDIO_KEY: env('GOOGLE_AI_STUDIO_KEY'),
   // Last-resort quote fallback (see services/alphaVantage.js) — only used
   // when Yahoo returns nothing for a symbol, never for the bulk scanner.
   ALPHA_VANTAGE_API_KEY: env('ALPHA_VANTAGE_API_KEY'),

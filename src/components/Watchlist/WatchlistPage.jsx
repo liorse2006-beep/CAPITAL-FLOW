@@ -51,6 +51,24 @@ function ChartLink({ symbol }) {
   )
 }
 
+function NewsButton({ symbol, promptShowNews }) {
+  return (
+    <button
+      className="news-open-btn"
+      onClick={() => promptShowNews(symbol)}
+      title="Scan news for this ticker"
+      aria-label={'Scan news for ' + symbol}
+    >
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+      </svg>
+    </button>
+  )
+}
+
 function AlertButton({ symbol, alertLevels, promptCreateAlert }) {
   const level = alertLevels && alertLevels[symbol]
   return (
@@ -92,6 +110,7 @@ export default function WatchlistPage({
   onAccountDeleted,
   alertLevels,
   promptCreateAlert,
+  promptShowNews,
 }) {
   const [showAddModal, setShowAddModal] = useState(false)
 
@@ -259,7 +278,7 @@ export default function WatchlistPage({
                   <th>Change</th>
                   <th>Vol Ratio</th>
                   <th>Mkt Cap</th>
-                  <th style={{ width: 90 }}></th>
+                  <th style={{ width: 120 }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -325,6 +344,7 @@ export default function WatchlistPage({
                       )}
                       <td style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                         <ChartLink symbol={sym} />
+                        <NewsButton symbol={sym} promptShowNews={promptShowNews} />
                         <AlertButton symbol={sym} alertLevels={alertLevels} promptCreateAlert={promptCreateAlert} />
                         <button
                           className="star-btn-remove"
@@ -356,6 +376,7 @@ export default function WatchlistPage({
                     </div>
                     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                       <ChartLink symbol={sym} />
+                      <NewsButton symbol={sym} promptShowNews={promptShowNews} />
                       <AlertButton symbol={sym} alertLevels={alertLevels} promptCreateAlert={promptCreateAlert} />
                       <button
                         className="star-btn-remove"

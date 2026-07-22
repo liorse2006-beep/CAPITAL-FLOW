@@ -8,7 +8,7 @@ import { SECTOR_ETFS } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
 import useScanQuota from '../../hooks/useScanQuota';
 
-export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn, onTrialEnded, alertLevels, promptCreateAlert }) {
+export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn, onTrialEnded, alertLevels, promptCreateAlert, promptShowNews }) {
   const { user, getToken } = useAuth();
   const isPremium = !!(user && user.is_premium);
   const { scanMeta, setScanMeta, refreshQuota } = useScanQuota();
@@ -288,7 +288,7 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn, onTria
                       <FTH label="Vol Ratio" field="volRatio" />
                       <th>Volume</th>
                       <FTH label="Flow" field="flow" />
-                      <th style={{ width: 90 }}></th>
+                      <th style={{ width: 120 }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -359,6 +359,23 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn, onTria
                                 { viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
                                 React.createElement('path', { d: 'M3 3v18h18' }),
                                 React.createElement('path', { d: 'M18.7 8l-5.1 5.1-4-4L3 15.6' })
+                              )
+                            ),
+                            React.createElement(
+                              'button',
+                              {
+                                className: 'news-open-btn',
+                                onClick: () => promptShowNews(d.symbol),
+                                title: 'Scan news for this ticker',
+                                'aria-label': 'Scan news for ' + d.symbol,
+                              },
+                              React.createElement(
+                                'svg',
+                                { viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+                                React.createElement('path', { d: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' }),
+                                React.createElement('polyline', { points: '14 2 14 8 20 8' }),
+                                React.createElement('line', { x1: 16, y1: 13, x2: 8, y2: 13 }),
+                                React.createElement('line', { x1: 16, y1: 17, x2: 8, y2: 17 })
                               )
                             ),
                             React.createElement(
