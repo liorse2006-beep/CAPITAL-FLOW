@@ -109,6 +109,19 @@ async function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_wl_alerts_user ON watchlist_alerts(user_id);
 
+    -- Which tickers a user has starred — separate from watchlist_alerts
+    -- (that table is the ratio threshold for notifications, this one is
+    -- just "which symbols show up on my Watchlist page"). Server-backed so
+    -- it follows the account across devices, not just the browser that set it.
+    CREATE TABLE IF NOT EXISTS watchlist (
+      user_id    INTEGER NOT NULL,
+      symbol     TEXT    NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      PRIMARY KEY (user_id, symbol)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_watchlist_user ON watchlist(user_id);
+
     CREATE TABLE IF NOT EXISTS pilot_allowlist (
       email      TEXT    PRIMARY KEY,
       added_at   INTEGER NOT NULL DEFAULT (unixepoch())

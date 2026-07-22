@@ -476,7 +476,10 @@ function App() {
     }).catch(function () {});
   }
 
-  /* ── Watchlist ── */
+  /* ── Watchlist — backed by the server so starred tickers follow the
+     account across devices, not just the browser that starred them.
+     localStorage is kept only as an instant-paint cache (same pattern as
+     alertLevels above). ── */
   const [watchlist, setWatchlist] = useState(function () {
     try {
       return JSON.parse(localStorage.getItem('vs-watchlist')) || [];
@@ -488,7 +491,25 @@ function App() {
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [watchlistError, setWatchlistError] = useState(null);
 
+  useEffect(
+    function () {
+      if (!user) return;
+      fetch('/api/watchlist', { headers: { Authorization: 'Bearer ' + getToken() } })
+        .then(function (r) {
+          return r.ok ? r.json() : null;
+        })
+        .then(function (list) {
+          if (!Array.isArray(list)) return;
+          setWatchlist(list);
+          localStorage.setItem('vs-watchlist', JSON.stringify(list));
+        })
+        .catch(function () {});
+    },
+    [user]
+  );
+
   function toggleWatchlistTicker(symbol) {
+    var wasStarred = watchlist.indexOf(symbol) >= 0;
     setWatchlist(function (prev) {
       var idx = prev.indexOf(symbol);
       var next;
@@ -502,6 +523,12 @@ function App() {
       localStorage.setItem('vs-watchlist', JSON.stringify(next));
       return next;
     });
+    if (user) {
+      fetch('/api/watchlist/' + symbol, {
+        method: wasStarred ? 'DELETE' : 'POST',
+        headers: { Authorization: 'Bearer ' + getToken() },
+      }).catch(function () {});
+    }
   }
 
   function isInWatchlist(symbol) {

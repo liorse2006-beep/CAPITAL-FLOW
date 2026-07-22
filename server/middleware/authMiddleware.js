@@ -61,7 +61,7 @@ async function requireAuth(req, res, next) {
  * Require a valid JWT AND a paid tier (premium or elite) — always checked
  * against the DB, never trusted from the JWT payload alone (prevents
  * stale-token bypass). Gates features available to Premium and Elite alike
- * (charts, premarket scanning) — see requireElite for Elite-only features.
+ * (charts) — see requireElite for Elite-only features.
  */
 async function requirePremium(req, res, next) {
   const header = req.headers.authorization;
