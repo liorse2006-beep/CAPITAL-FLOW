@@ -51,6 +51,7 @@ module.exports = {
   // Per-symbol news fallback chain — see services/newsService.js
   MASSIVE_API_KEY: env('MASSIVE_API_KEY'),
   MARKETAUX_API_KEY: env('MARKETAUX_API_KEY'),
+  NEWSDATA_API_KEY: env('NEWSDATA_API_KEY'),
   GOOGLE_AI_STUDIO_KEY: env('GOOGLE_AI_STUDIO_KEY'),
   VAPID_PUBLIC_KEY: env('VAPID_PUBLIC_KEY'),
   VAPID_PRIVATE_KEY: env('VAPID_PRIVATE_KEY'),

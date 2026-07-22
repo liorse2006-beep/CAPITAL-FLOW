@@ -6039,22 +6039,19 @@ td {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  border: 1px solid var(--border-strong);
-  background: var(--bg-1);
+  border: none;
+  background: transparent;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-  transition:
-    transform var(--transition),
-    border-color var(--transition);
+  transition: transform var(--transition), filter var(--transition);
 }
 .chat-fab:hover {
-  transform: scale(1.05);
-  border-color: var(--accent);
+  transform: scale(1.06);
+  filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.55));
 }
 .chat-fab img {
   width: 100%;
@@ -6066,13 +6063,23 @@ td {
   position: relative;
   max-width: 240px;
   background: var(--bg-1);
-  border: 1px solid var(--border-strong);
+  border: 1.5px solid var(--accent);
   border-radius: 12px;
   padding: 12px 28px 12px 14px;
   font-size: 13px;
   color: var(--text-0);
   line-height: 1.4;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 0 rgba(245, 158, 11, 0.5);
+  animation: chatTeaserGlow 2.2s ease-in-out infinite;
+}
+@keyframes chatTeaserGlow {
+  0%,
+  100% {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 6px 1px rgba(245, 158, 11, 0.35);
+  }
+  50% {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 18px 4px rgba(245, 158, 11, 0.75);
+  }
 }
 .chat-teaser-close {
   position: absolute;

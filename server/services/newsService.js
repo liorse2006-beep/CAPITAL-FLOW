@@ -1,6 +1,6 @@
 const { finnhubFetch } = require('./finnhub');
 const { summarizeArticles } = require('./newsSummarizer');
-const { MASSIVE_API_KEY, MARKETAUX_API_KEY } = require('../config');
+const { MASSIVE_API_KEY, MARKETAUX_API_KEY, NEWSDATA_API_KEY } = require('../config');
 
 const newsCache = new Map();
 const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -107,6 +107,36 @@ async function fetchFromMarketaux(symbol) {
   }
 }
 
+async function fetchFromNewsdata(symbol) {
+  if (!NEWSDATA_API_KEY) return null;
+  try {
+    var url =
+      'https://newsdata.io/api/1/latest?apikey=' +
+      NEWSDATA_API_KEY +
+      '&q=' +
+      encodeURIComponent(symbol) +
+      '&language=en';
+    var res = await fetch(url);
+    if (!res.ok) return null;
+    var data = await res.json();
+    if (!Array.isArray(data.results) || data.results.length === 0) return null;
+
+    return data.results.slice(0, 8).map(function (a) {
+      return {
+        headline: a.title || '',
+        description: a.description || '',
+        source: a.source_id || a.source_name || '',
+        datetime: a.pubDate ? Math.floor(new Date(a.pubDate).getTime() / 1000) : 0,
+        url: a.link || '',
+        image: a.image_url || '',
+        sentiment: a.sentiment || null,
+      };
+    });
+  } catch (e) {
+    return null;
+  }
+}
+
 async function fetchNewsForSymbol(symbol) {
   var cached = newsCache.get(symbol);
   if (cached && Date.now() - cached.fetchTime < NEWS_CACHE_TTL_MS) {
@@ -117,6 +147,7 @@ async function fetchNewsForSymbol(symbol) {
     { name: 'finnhub', fn: fetchFromFinnhub },
     { name: 'massive', fn: fetchFromMassive },
     { name: 'marketaux', fn: fetchFromMarketaux },
+    { name: 'newsdata', fn: fetchFromNewsdata },
   ];
 
   var articles = null;

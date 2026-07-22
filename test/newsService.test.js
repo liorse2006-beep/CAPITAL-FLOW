@@ -1,13 +1,14 @@
 // Per-symbol news fallback chain (server/services/newsService.js): Finnhub
-// → Massive → MarketAux, and the golden rule that drives it — never
-// fabricate an article; an exhausted chain must report an empty result,
-// not invented content.
+// → Massive → MarketAux → NewsData.io, and the golden rule that drives it —
+// never fabricate an article; an exhausted chain must report an empty
+// result, not invented content.
 require('./helpers/testEnv');
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 
 process.env.MASSIVE_API_KEY = 'test-massive-key';
 process.env.MARKETAUX_API_KEY = 'test-marketaux-key';
+process.env.NEWSDATA_API_KEY = 'test-newsdata-key';
 delete require.cache[require.resolve('../server/config')];
 
 // finnhubFetch is destructured (by value) into newsService at require time,
@@ -78,6 +79,30 @@ test('falls back to MarketAux when both Finnhub and Massive have nothing', async
   assert.strictEqual(result.source, 'marketaux');
   assert.strictEqual(result.articles.length, 1);
   assert.strictEqual(result.articles[0].sentiment, 'positive');
+});
+
+test('falls back to NewsData.io when Finnhub, Massive, and MarketAux all have nothing', async () => {
+  global.fetch = async (url) => {
+    if (url.includes('massive.com')) return jsonResponse({ results: [] });
+    if (url.includes('marketaux.com')) return jsonResponse({ data: [] });
+    assert.match(url, /newsdata\.io/);
+    return jsonResponse({
+      results: [
+        {
+          title: 'NewsData headline',
+          description: 'A snippet of the article.',
+          source_id: 'newsdata_wire',
+          pubDate: '2026-01-01 00:00:00',
+          link: 'https://example.com/c',
+        },
+      ],
+    });
+  };
+
+  const result = await fetchNewsForSymbol('NDAT');
+  assert.strictEqual(result.source, 'newsdata');
+  assert.strictEqual(result.articles.length, 1);
+  assert.strictEqual(result.articles[0].headline, 'NewsData headline');
 });
 
 test('every provider empty → reports zero articles, never invents content', async () => {

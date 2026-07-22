@@ -118,7 +118,7 @@ export default function ChatWidget({ user, getToken }) {
       {showTeaser && !open && (
         <div className="chat-teaser">
           <button className="chat-teaser-close" onClick={dismissTeaser} aria-label="Dismiss">×</button>
-          <span>Hi, I&apos;m Capi 👋 Ask me anything about Capital Flow.</span>
+          <span>Hi, I&apos;m Capi 👋</span>
         </div>
       )}
 
