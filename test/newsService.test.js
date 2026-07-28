@@ -163,7 +163,7 @@ test('a successful Gemini summary is merged onto the article, but real provider 
     // Gemini call
     return jsonResponse({
       output_text: JSON.stringify([
-        { index: 1, summary: 'Two sentence AI summary.', sentiment: 'positive', impact: 'This may add volatility.' },
+        { index: 1, summary: 'Two sentence AI summary.', sentiment: 'positive', impact: 'This may add volatility.', catalyst: 'earnings' },
       ]),
     });
   };
@@ -174,6 +174,7 @@ test('a successful Gemini summary is merged onto the article, but real provider 
   assert.strictEqual(article.impact, 'This may add volatility.');
   assert.strictEqual(article.sentiment, 'negative', "Massive's real per-ticker sentiment must win over Gemini's guess");
   assert.strictEqual(article.url, 'https://x.com/enriched', 'the real source link must survive the enrichment merge unchanged');
+  assert.strictEqual(article.catalyst, 'earnings');
 });
 
 test('an article with no source link is dropped — never shown as "verified" with nowhere to verify it', async () => {

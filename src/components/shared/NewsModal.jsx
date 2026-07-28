@@ -27,6 +27,38 @@ var SCAN_MESSAGES = [
 
 var BIAS_LABEL = { positive: 'BULLISH BIAS', negative: 'BEARISH BIAS', neutral: 'FLAT', mixed: 'MIXED SIGNAL' }
 
+// Mirrors the closed taxonomy in server/services/newsSummarizer.js —
+// "other" has no label because it isn't worth surfacing as "the reason."
+var CATALYST_LABEL = {
+  earnings: 'Earnings',
+  guidance_change: 'Guidance Change',
+  analyst_action: 'Analyst Action',
+  ma_deal: 'M&A / Deal',
+  insider_activity: 'Insider Activity',
+  regulatory_legal: 'Regulatory / Legal',
+  product_business: 'Product / Business',
+  index_fund_activity: 'Index / Fund Flow',
+  macro_sector: 'Macro / Sector',
+}
+
+// Most common real catalyst tag across the batch — a quick "why is this
+// moving" answer. Zero-cost past the classification Gemini already did per
+// article; never invents a reason when the articles don't actually agree.
+function computePrimaryCatalyst(articles) {
+  var counts = {}
+  articles.forEach(function (a) {
+    if (a.catalyst && CATALYST_LABEL[a.catalyst]) {
+      counts[a.catalyst] = (counts[a.catalyst] || 0) + 1
+    }
+  })
+  var keys = Object.keys(counts)
+  if (keys.length === 0) return null
+  keys.sort(function (x, y) {
+    return counts[y] - counts[x]
+  })
+  return CATALYST_LABEL[keys[0]]
+}
+
 // Deterministic, zero-cost readout computed from whatever real sentiment
 // data the articles already carry — no extra AI call, and it stays
 // available even if the per-article summarizer partially failed.
@@ -113,6 +145,7 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
   )
 
   var overallBias = status === 'found' ? computeOverallBias(articles) : null
+  var primaryCatalyst = status === 'found' ? computePrimaryCatalyst(articles) : null
 
   return (
     <div
@@ -178,6 +211,7 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
             </div>
             <p className="news-scan-meta">
               {articles.length + ' article' + (articles.length > 1 ? 's' : '') + ' · ' + symbol + ' · last 48h'}
+              {primaryCatalyst && <span className="news-scan-catalyst"> · why: {primaryCatalyst}</span>}
             </p>
             <div className="news-article-list">
               {articles.map(function (a, i) {
@@ -199,6 +233,9 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
                     <div className="news-article-meta">
                       <span>{a.source}</span>
                       {a.datetime > 0 && <span>{' · ' + timeAgo(a.datetime)}</span>}
+                      {a.catalyst && CATALYST_LABEL[a.catalyst] && (
+                        <span className="news-catalyst-tag">{' · ' + CATALYST_LABEL[a.catalyst]}</span>
+                      )}
                     </div>
 
                     <p className="news-article-summary">{a.summary || 'No AI summary available for this article — see the source below.'}</p>

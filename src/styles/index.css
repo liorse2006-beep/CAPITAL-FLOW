@@ -4789,6 +4789,60 @@ td {
   color: var(--accent);
 }
 
+.explain-capi-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--mono);
+  color: var(--text-2);
+  white-space: nowrap;
+  transition: all var(--transition);
+}
+.explain-capi-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Signal Strength — a deterministic, heuristic read (never a prediction)
+   telling the user which results deserve a look first instead of scanning
+   a wall of rows unaided. Deliberately not green/red (that axis is reserved
+   for bullish/bearish sentiment elsewhere) — gold for "look here first",
+   neutral tones below that. */
+.signal-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-family: var(--mono);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.signal-badge.strong {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--accent);
+}
+.signal-badge.solid {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+.signal-badge.early {
+  background: rgba(113, 113, 122, 0.1);
+  color: var(--text-3);
+}
+
 /* News gets its own "trading terminal" visual language — green phosphor
    accents, monospace, sharp corners, hairline borders — deliberately
    distinct from Capi's warm gold/gradient chrome so each feature reads as
@@ -5024,6 +5078,13 @@ td {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin: 0 0 10px;
+}
+.news-scan-catalyst {
+  color: var(--accent);
+  font-weight: 700;
+}
+.news-catalyst-tag {
+  color: var(--accent);
 }
 
 .news-article-list {

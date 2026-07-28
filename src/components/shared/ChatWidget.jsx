@@ -37,7 +37,7 @@ function renderCapiMessage(text) {
 // opening the chat) an older version of it.
 var TEASER_VERSION = 'v2'
 
-export default function ChatWidget({ user, getToken }) {
+export default function ChatWidget({ user, getToken, externalPrompt, onExternalPromptSent }) {
   const [open, setOpen] = useState(false)
   const [showTeaser, setShowTeaser] = useState(false)
   const [messages, setMessages] = useState([])
@@ -45,6 +45,7 @@ export default function ChatWidget({ user, getToken }) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const listRef = useRef(null)
+  const historyLoadingRef = useRef(false)
 
   const teaserKey = user ? 'vs_capi_teased_' + TEASER_VERSION + '_' + user.id : null
 
@@ -68,18 +69,22 @@ export default function ChatWidget({ user, getToken }) {
     setOpen((o) => !o)
   }
 
+  function loadHistory() {
+    if (historyLoadingRef.current) return Promise.resolve()
+    historyLoadingRef.current = true
+    return fetch('/api/chat/history', { headers: { Authorization: 'Bearer ' + getToken() } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) => {
+        setMessages((rows || []).map((r) => ({ role: r.role, content: r.content })))
+        setHistoryLoaded(true)
+      })
+      .catch(() => setHistoryLoaded(true))
+  }
+
   useEffect(
     function () {
       if (!open || historyLoaded) return
-      fetch('/api/chat/history', { headers: { Authorization: 'Bearer ' + getToken() } })
-        .then((r) => (r.ok ? r.json() : []))
-        .then((rows) => {
-          setMessages(
-            (rows || []).map((r) => ({ role: r.role, content: r.content }))
-          )
-          setHistoryLoaded(true)
-        })
-        .catch(() => setHistoryLoaded(true))
+      loadHistory()
     },
     [open]
   )
@@ -91,8 +96,8 @@ export default function ChatWidget({ user, getToken }) {
     [messages, sending]
   )
 
-  function send() {
-    var text = input.trim()
+  function send(overrideText) {
+    var text = (typeof overrideText === 'string' ? overrideText : input).trim()
     if (!text || sending) return
     setInput('')
     setMessages((prev) => prev.concat([{ role: 'user', content: text }]))
@@ -111,6 +116,24 @@ export default function ChatWidget({ user, getToken }) {
       })
       .finally(() => setSending(false))
   }
+
+  // Lets other parts of the app (e.g. an "Explain This" button on a scan
+  // result) hand Capi a message and have it actually ask it — opens the
+  // panel, makes sure existing history is loaded first so the new message
+  // lands after it rather than racing it, then sends.
+  useEffect(
+    function () {
+      if (!externalPrompt || !user) return
+      dismissTeaser()
+      setOpen(true)
+      var ready = historyLoaded ? Promise.resolve() : loadHistory()
+      ready.then(function () {
+        send(externalPrompt)
+      })
+      if (onExternalPromptSent) onExternalPromptSent()
+    },
+    [externalPrompt]
+  )
 
   function clearChat() {
     setMessages([])

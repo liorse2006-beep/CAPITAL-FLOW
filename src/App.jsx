@@ -449,6 +449,27 @@ function App() {
     setNewsModalSymbol(symbol);
   }
 
+  /* ── "Explain This" — hands a scan result's own data to Capi and asks it
+     to walk the user through it in plain English. Reuses the existing chat
+     pipeline (persona, honesty rules, persisted history) rather than a
+     separate one-off explainer, so Capi's "never call a buy/sell" guardrail
+     applies here automatically. ── */
+  const [capiExternalPrompt, setCapiExternalPrompt] = useState(null);
+
+  function explainWithCapi(r) {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    var parts = [
+      r.symbol + ' just showed up on my scan.',
+      'Price $' + r.price.toFixed(2) + ' (' + (r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '% today), volume running at ' + r.volumeRatio.toFixed(2) + 'x its average.',
+    ];
+    if (r.sector && r.sector !== 'N/A') parts.push('Sector: ' + r.sector + '.');
+    parts.push('In plain English, what does this combination usually mean, and what should I actually pay attention to here?');
+    setCapiExternalPrompt(parts.join(' '));
+  }
+
   /* ── Push Notifications — real device push that fires even with the app
      closed. Delivery is driven server-side (server/services/webPush.js +
      scheduledDigest.js) against the same thresholds set above. Subscribing
@@ -1049,7 +1070,12 @@ function App() {
 
       {user && (
         <Suspense fallback={null}>
-          <ChatWidget user={user} getToken={getToken} />
+          <ChatWidget
+            user={user}
+            getToken={getToken}
+            externalPrompt={capiExternalPrompt}
+            onExternalPromptSent={() => setCapiExternalPrompt(null)}
+          />
         </Suspense>
       )}
 
@@ -1209,6 +1235,7 @@ function App() {
                 alertLevels={alertLevels}
                 promptCreateAlert={promptCreateAlert}
                 promptShowNews={promptShowNews}
+                explainWithCapi={explainWithCapi}
                 isInWatchlist={isInWatchlist}
                 toggleWatchlistTicker={toggleWatchlistTicker}
                 openChart={openChart}

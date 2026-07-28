@@ -28,15 +28,33 @@ function withinDailyCap() {
   return callCount < DAILY_CALL_CAP;
 }
 
+// Closed taxonomy — the model must pick the single best-fitting category
+// from this exact list (or "other"), never invent a new one. This is what
+// lets the catalyst field stay honest: it's a classification of text that
+// is already real, not a new fact being introduced.
+const CATALYST_TYPES = [
+  'earnings',
+  'guidance_change',
+  'analyst_action',
+  'ma_deal',
+  'insider_activity',
+  'regulatory_legal',
+  'product_business',
+  'index_fund_activity',
+  'macro_sector',
+  'other',
+];
+
 const SYSTEM_PROMPT = `You are a financial-news summarizer for Capital Flow, a stock volume-scanner app. You will get a stock ticker and a numbered list of real news articles (headline + description) about it.
 
 For EACH article, produce:
 - "summary": exactly two plain sentences summarizing ONLY what the provided headline and description actually say. Never add a fact, number, date, or event that is not present in the text given to you. If the description is empty or too thin to summarize, write one neutral sentence paraphrasing the headline only — do not invent supporting detail.
 - "sentiment": one of "positive", "negative", or "neutral", based strictly on the tone of the given text.
 - "impact": one short sentence of general, hedged, informational commentary (never advice, never a price prediction, never "will") about how this kind of news can typically affect short-term trading activity or volatility for a stock. Always use "may" or "could", never "will".
+- "catalyst": classify what KIND of event this article is about, choosing the single best match from EXACTLY this list — no other values allowed: earnings, guidance_change, analyst_action, ma_deal, insider_activity, regulatory_legal, product_business, index_fund_activity, macro_sector, other. Base this only on what the text actually says; use "other" if nothing fits.
 
 Respond with ONLY a JSON array, no prose before or after, in exactly this shape:
-[{"index": 1, "summary": "...", "sentiment": "neutral", "impact": "..."}]`;
+[{"index": 1, "summary": "...", "sentiment": "neutral", "impact": "...", "catalyst": "other"}]`;
 
 function extractText(data) {
   if (data.output_text) return data.output_text;
@@ -102,6 +120,7 @@ async function summarizeArticles(symbol, articles) {
           summary: item.summary,
           sentiment: ['positive', 'negative', 'neutral'].includes(item.sentiment) ? item.sentiment : null,
           impact: typeof item.impact === 'string' ? item.impact : null,
+          catalyst: CATALYST_TYPES.includes(item.catalyst) ? item.catalyst : null,
         };
       }
     });
@@ -111,4 +130,4 @@ async function summarizeArticles(symbol, articles) {
   }
 }
 
-module.exports = { summarizeArticles };
+module.exports = { summarizeArticles, CATALYST_TYPES };

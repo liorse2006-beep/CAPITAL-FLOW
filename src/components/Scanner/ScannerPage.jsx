@@ -2,7 +2,7 @@ import React from 'react'
 import ScanLoader from '../shared/ScanLoader'
 import ScheduleScan from '../shared/ScheduleScan'
 import useSmoothProgress from '../../hooks/useSmoothProgress'
-import { fmt, friendlyError } from '../../utils/format'
+import { fmt, friendlyError, signalStrength } from '../../utils/format'
 import { SECTOR_ICONS } from '../../constants/sectorIcons'
 
 const ALL_SECTORS = [
@@ -140,6 +140,7 @@ export default function ScannerPage({
   alertLevels,
   promptCreateAlert,
   promptShowNews,
+  explainWithCapi,
   isInWatchlist,
   toggleWatchlistTicker,
   openChart,
@@ -612,7 +613,9 @@ export default function ScannerPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {sorted.slice(0, visibleCount).map((r, i) => (
+                    {sorted.slice(0, visibleCount).map((r, i) => {
+                      const signal = signalStrength(r)
+                      return (
                       <tr key={r.symbol}>
                         <td className="col-rank">{i + 1}</td>
                         <td className="col-ticker">
@@ -648,6 +651,7 @@ export default function ScannerPage({
                               }}
                             />
                             {r.symbol}
+                            <span className={'signal-badge ' + signal.tier} title={signal.label}>{signal.label}</span>
                           </div>
                         </td>
                         <td className="col-name" title={r.name}>
@@ -732,9 +736,23 @@ export default function ScannerPage({
                             </svg>
                             {alertLevels && alertLevels[r.symbol] ? alertLevels[r.symbol] + 'x' : 'Alert'}
                           </button>
+                          <button
+                            className="explain-capi-btn"
+                            onClick={() => explainWithCapi(r)}
+                            title="Ask Capi to explain this result"
+                            aria-label={'Ask Capi to explain ' + r.symbol}
+                          >
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 18h.01" />
+                              <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 4" />
+                              <circle cx="12" cy="12" r="10" />
+                            </svg>
+                            Explain
+                          </button>
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -751,6 +769,7 @@ export default function ScannerPage({
               <div className="mobile-cards">
                 {sorted.map((r, i) => {
                   const ratioClass = r.volumeRatio >= 5 ? 'ratio-hot' : r.volumeRatio >= 3.5 ? 'ratio-warm' : 'ratio-ok'
+                  const signal = signalStrength(r)
                   return (
                     <div key={r.symbol} className={'mobile-card ' + ratioClass}>
                       <div className="mobile-card-top">
@@ -835,6 +854,21 @@ export default function ScannerPage({
                               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                             </svg>
                           </button>
+                          <button
+                            className="explain-capi-btn"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              explainWithCapi(r)
+                            }}
+                            title="Ask Capi to explain this result"
+                            aria-label={'Ask Capi to explain ' + r.symbol}
+                          >
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 18h.01" />
+                              <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 4" />
+                              <circle cx="12" cy="12" r="10" />
+                            </svg>
+                          </button>
                           <span className="mobile-card-rank">{'#' + (i + 1)}</span>
                         </div>
                       </div>
@@ -843,6 +877,7 @@ export default function ScannerPage({
                         <span className={'mobile-card-change ' + (r.change >= 0 ? 'pos' : 'neg')}>
                           {(r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '%'}
                         </span>
+                        <span className={'signal-badge ' + signal.tier}>{signal.label}</span>
                       </div>
                       <div className="mobile-card-bottom">
                         <span className="mobile-card-ratio">

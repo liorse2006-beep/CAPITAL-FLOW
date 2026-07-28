@@ -187,6 +187,7 @@ async function fetchNewsForSymbol(symbol) {
         return Object.assign({}, a, {
           summary: e.summary,
           impact: e.impact,
+          catalyst: e.catalyst,
           sentiment: a.sentiment || e.sentiment, // real provider sentiment wins over the AI guess
         });
       });
