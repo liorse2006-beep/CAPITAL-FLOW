@@ -2,7 +2,7 @@ import React from 'react'
 import ScanLoader from '../shared/ScanLoader'
 import ScheduleScan from '../shared/ScheduleScan'
 import useSmoothProgress from '../../hooks/useSmoothProgress'
-import { fmt, friendlyError, signalStrength } from '../../utils/format'
+import { fmt, friendlyError } from '../../utils/format'
 import { SECTOR_ICONS } from '../../constants/sectorIcons'
 
 const ALL_SECTORS = [
@@ -613,9 +613,7 @@ export default function ScannerPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {sorted.slice(0, visibleCount).map((r, i) => {
-                      const signal = signalStrength(r)
-                      return (
+                    {sorted.slice(0, visibleCount).map((r, i) => (
                       <tr key={r.symbol}>
                         <td className="col-rank">{i + 1}</td>
                         <td className="col-ticker">
@@ -651,7 +649,6 @@ export default function ScannerPage({
                               }}
                             />
                             {r.symbol}
-                            <span className={'signal-badge ' + signal.tier} title={signal.label}>{signal.label}</span>
                           </div>
                         </td>
                         <td className="col-name" title={r.name}>
@@ -751,8 +748,7 @@ export default function ScannerPage({
                           </button>
                         </td>
                       </tr>
-                      )
-                    })}
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -769,7 +765,6 @@ export default function ScannerPage({
               <div className="mobile-cards">
                 {sorted.map((r, i) => {
                   const ratioClass = r.volumeRatio >= 5 ? 'ratio-hot' : r.volumeRatio >= 3.5 ? 'ratio-warm' : 'ratio-ok'
-                  const signal = signalStrength(r)
                   return (
                     <div key={r.symbol} className={'mobile-card ' + ratioClass}>
                       <div className="mobile-card-top">
@@ -877,7 +872,6 @@ export default function ScannerPage({
                         <span className={'mobile-card-change ' + (r.change >= 0 ? 'pos' : 'neg')}>
                           {(r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '%'}
                         </span>
-                        <span className={'signal-badge ' + signal.tier}>{signal.label}</span>
                       </div>
                       <div className="mobile-card-bottom">
                         <span className="mobile-card-ratio">

@@ -31,11 +31,12 @@ function renderCapiMessage(text) {
   })
 }
 
-// Bump this whenever the teaser's copy changes meaningfully — it's baked
-// into the localStorage key below, so a version bump makes the teaser show
-// once more even for users who already dismissed (or triggered, by simply
-// opening the chat) an older version of it.
-var TEASER_VERSION = 'v2'
+// The teaser isn't a one-time "seen it" intro — it's a recurring nudge so
+// people actually notice Capi while using the app, not just on their very
+// first visit. It reappears on this interval whenever the chat is closed,
+// and auto-hides itself after TEASER_VISIBLE_MS if nobody interacts with it.
+var TEASER_INTERVAL_MS = 3 * 60 * 1000
+var TEASER_VISIBLE_MS = 8000
 
 export default function ChatWidget({ user, getToken, externalPrompt, onExternalPromptSent }) {
   const [open, setOpen] = useState(false)
@@ -46,22 +47,47 @@ export default function ChatWidget({ user, getToken, externalPrompt, onExternalP
   const [sending, setSending] = useState(false)
   const listRef = useRef(null)
   const historyLoadingRef = useRef(false)
-
-  const teaserKey = user ? 'vs_capi_teased_' + TEASER_VERSION + '_' + user.id : null
+  const openRef = useRef(open)
 
   useEffect(
     function () {
-      if (!user || !teaserKey) return
-      if (localStorage.getItem(teaserKey)) return
-      var t = setTimeout(() => setShowTeaser(true), 2000)
-      return () => clearTimeout(t)
+      openRef.current = open
+    },
+    [open]
+  )
+
+  useEffect(
+    function () {
+      if (!user) return
+      var initial = setTimeout(function () {
+        if (!openRef.current) setShowTeaser(true)
+      }, 2000)
+      var interval = setInterval(function () {
+        if (!openRef.current) setShowTeaser(true)
+      }, TEASER_INTERVAL_MS)
+      return function () {
+        clearTimeout(initial)
+        clearInterval(interval)
+      }
     },
     [user]
   )
 
+  useEffect(
+    function () {
+      if (!showTeaser) return
+      var t = setTimeout(function () {
+        setShowTeaser(false)
+      }, TEASER_VISIBLE_MS)
+      return function () {
+        clearTimeout(t)
+      }
+    },
+    [showTeaser]
+  )
+
   function dismissTeaser() {
     setShowTeaser(false)
-    if (teaserKey) localStorage.setItem(teaserKey, '1')
   }
 
   function toggleOpen() {
