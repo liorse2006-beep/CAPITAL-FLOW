@@ -22,7 +22,7 @@ router.post('/chat/message', requireAuth, chatLimiter, async (req, res) => {
     if (message.length > MAX_MESSAGE_LEN) return res.status(400).json({ error: 'Message is too long' });
 
     await addMessage(req.user.id, 'user', message);
-    const reply = await askCapi(req.user.id, message);
+    const reply = await askCapi(req.user.id);
     await addMessage(req.user.id, 'assistant', reply);
 
     res.json({ reply });

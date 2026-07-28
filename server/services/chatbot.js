@@ -4,13 +4,26 @@
 // account-specific answers ("how many scans do I have left") — the system
 // prompt tells it to say so plainly instead of making something up, the
 // same honesty rule the news feature follows.
+//
+// Conversation memory is read explicitly from the persisted chat_messages
+// history (services/chatMessages.js) on every call rather than trusted to
+// Gemini's own previous_interaction_id chaining — that opaque server-side
+// link was the actual cause of Capi "forgetting" things earlier in the
+// same conversation (a stock the user asked about a few turns back, etc.)
+// whenever the chain silently broke. Rebuilding the transcript from our
+// own database on every request is the source of truth and can't drift.
 
-const db = require('../db');
 const { GOOGLE_AI_STUDIO_KEY } = require('../config');
+const { getHistory } = require('./chatMessages');
 
 const MODEL = 'gemini-3.6-flash';
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 const API_REVISION = '2026-05-20';
+
+// How many prior turns to feed back as context — enough to cover a real
+// back-and-forth (including "that stock we discussed earlier") without
+// letting the prompt grow unbounded over a long-lived conversation.
+const MAX_HISTORY_TURNS = 24;
 
 // Free-tier Gemini quota is shared across every user of the app — this cap
 // stays comfortably under it so one heavy day doesn't lock everyone out.
@@ -37,6 +50,8 @@ VOICE — this matters as much as what you say:
 - Stay relevant: answer only what matters to the user right now. Cut background noise, tangents, and obvious disclaimers unless they're truly necessary.
 - Keep messages short, scannable, and mobile-friendly: use • bullets and **bold** for key terms instead of dense paragraphs.
 - Your mission: help the user actually understand the market, build real financial confidence, and feel like they have a top-tier market expert in their pocket who genuinely wants them to win.
+
+MEMORY — the message below includes the recent conversation history (each prior turn labeled User/Capi) followed by the user's new message. Actually read it: if the user already told you a ticker, a number, or a preference earlier in that history, use it — don't ask them to repeat themselves or act like the conversation just started.
 
 LANGUAGE — critical: automatically detect whichever language the user writes to you in (Hebrew, English, Arabic, or anything else) and reply ONLY in that same language, every message. Keep the exact same warm, confident, sharp tone in every language — this is a voice, not just words, and it must carry over regardless of language.
 
@@ -70,13 +85,22 @@ function extractText(data) {
   return null;
 }
 
-async function callGemini(userMessage, previousInteractionId) {
-  const body = { model: MODEL, input: userMessage };
-  if (previousInteractionId) {
-    body.previous_interaction_id = previousInteractionId;
-  } else {
-    body.system_instruction = SYSTEM_PROMPT;
-  }
+// Renders the recent turns as a plain transcript Gemini can read back, e.g.:
+//   User: what's unusual volume mean?
+//   Capi: it means...
+//   User: what about for TSLA specifically?
+// The last row is always the user's newest message (chat.js persists it
+// before calling askCapi), so no separate "current message" param is needed.
+function buildPrompt(history) {
+  const turns = history
+    .slice(-MAX_HISTORY_TURNS)
+    .map((m) => (m.role === 'user' ? 'User: ' : 'Capi: ') + m.content)
+    .join('\n');
+  return turns;
+}
+
+async function callGemini(promptText) {
+  const body = { model: MODEL, input: promptText, system_instruction: SYSTEM_PROMPT };
   const res = await fetch(API_BASE, {
     method: 'POST',
     headers: {
@@ -90,11 +114,11 @@ async function callGemini(userMessage, previousInteractionId) {
   const data = await res.json();
   const text = extractText(data);
   if (!text) return null;
-  return { text, interactionId: data.id };
+  return text;
 }
 
 /** Never throws — always returns a user-facing string, even on failure. */
-async function askCapi(userId, userMessage) {
+async function askCapi(userId) {
   if (!GOOGLE_AI_STUDIO_KEY) {
     return "I'm not switched on yet — the team hasn't finished setting me up.";
   }
@@ -103,21 +127,15 @@ async function askCapi(userId, userMessage) {
   }
 
   try {
-    const row = await db.prepare('SELECT gemini_interaction_id FROM users WHERE id = ?').get(userId);
-    const previousId = row ? row.gemini_interaction_id : null;
+    const history = await getHistory(userId);
+    const prompt = buildPrompt(history);
 
     callCount++;
-    let result = await callGemini(userMessage, previousId);
-    if (!result && previousId) {
-      // The stored interaction id may have expired — retry as a fresh conversation.
-      result = await callGemini(userMessage, null);
-    }
-    if (!result) {
+    const text = await callGemini(prompt);
+    if (!text) {
       return "Sorry, I couldn't reach my brain just now — try again in a moment.";
     }
-
-    await db.prepare('UPDATE users SET gemini_interaction_id = ? WHERE id = ?').run(result.interactionId, userId);
-    return result.text;
+    return text;
   } catch (e) {
     return "Sorry, I couldn't reach my brain just now — try again in a moment.";
   }
