@@ -31,43 +31,32 @@ function renderCapiMessage(text) {
   })
 }
 
-// The teaser isn't a one-time "seen it" intro — it's a recurring nudge so
-// people actually notice Capi while using the app, not just on their very
-// first visit. It reappears on this interval whenever the chat is closed,
-// and auto-hides itself after TEASER_VISIBLE_MS if nobody interacts with it.
-var TEASER_INTERVAL_MS = 3 * 60 * 1000
-var TEASER_VISIBLE_MS = 8000
+// The teaser is a permanent fixture next to the launcher, not a one-time
+// intro — it's showing any time the chat is closed. "dismissed" only hides
+// it for the current closed stretch: opening the chat and closing it again
+// brings it right back, so a user can wave it away without killing it
+// forever the way the old localStorage flag did.
+var TEASER_READY_DELAY_MS = 1500
 
 export default function ChatWidget({ user, getToken, externalPrompt, onExternalPromptSent }) {
   const [open, setOpen] = useState(false)
-  const [showTeaser, setShowTeaser] = useState(false)
+  const [teaserReady, setTeaserReady] = useState(false)
+  const [teaserDismissed, setTeaserDismissed] = useState(false)
   const [messages, setMessages] = useState([])
   const [historyLoaded, setHistoryLoaded] = useState(false)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const listRef = useRef(null)
   const historyLoadingRef = useRef(false)
-  const openRef = useRef(open)
-
-  useEffect(
-    function () {
-      openRef.current = open
-    },
-    [open]
-  )
 
   useEffect(
     function () {
       if (!user) return
-      var initial = setTimeout(function () {
-        if (!openRef.current) setShowTeaser(true)
-      }, 2000)
-      var interval = setInterval(function () {
-        if (!openRef.current) setShowTeaser(true)
-      }, TEASER_INTERVAL_MS)
+      var t = setTimeout(function () {
+        setTeaserReady(true)
+      }, TEASER_READY_DELAY_MS)
       return function () {
-        clearTimeout(initial)
-        clearInterval(interval)
+        clearTimeout(t)
       }
     },
     [user]
@@ -75,25 +64,20 @@ export default function ChatWidget({ user, getToken, externalPrompt, onExternalP
 
   useEffect(
     function () {
-      if (!showTeaser) return
-      var t = setTimeout(function () {
-        setShowTeaser(false)
-      }, TEASER_VISIBLE_MS)
-      return function () {
-        clearTimeout(t)
-      }
+      if (open) setTeaserDismissed(false)
     },
-    [showTeaser]
+    [open]
   )
 
   function dismissTeaser() {
-    setShowTeaser(false)
+    setTeaserDismissed(true)
   }
 
   function toggleOpen() {
-    dismissTeaser()
     setOpen((o) => !o)
   }
+
+  var showTeaser = teaserReady && !open && !teaserDismissed
 
   function loadHistory() {
     if (historyLoadingRef.current) return Promise.resolve()
@@ -150,7 +134,6 @@ export default function ChatWidget({ user, getToken, externalPrompt, onExternalP
   useEffect(
     function () {
       if (!externalPrompt || !user) return
-      dismissTeaser()
       setOpen(true)
       var ready = historyLoaded ? Promise.resolve() : loadHistory()
       ready.then(function () {
@@ -170,7 +153,7 @@ export default function ChatWidget({ user, getToken, externalPrompt, onExternalP
 
   return (
     <div className="chat-widget">
-      {showTeaser && !open && (
+      {showTeaser && (
         <div className="chat-teaser">
           <button className="chat-teaser-close" onClick={dismissTeaser} aria-label="Dismiss">×</button>
           <span>Hi, I&apos;m Capi — your market mentor 👋</span>
