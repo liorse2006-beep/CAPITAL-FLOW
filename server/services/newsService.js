@@ -159,6 +159,14 @@ async function fetchNewsForSymbol(symbol) {
   var source = null;
   for (var i = 0; i < providers.length; i++) {
     articles = await providers[i].fn(symbol);
+    // An article the user can't actually open isn't "verified news" —
+    // drop anything a provider returned without a real source link before
+    // it ever reaches a slot (or a Gemini summarization call).
+    if (articles) {
+      articles = articles.filter(function (a) {
+        return !!a.url;
+      });
+    }
     if (articles && articles.length > 0) {
       source = providers[i].name;
       articles = articles.slice(0, MAX_ARTICLES);

@@ -205,12 +205,14 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
 
                     {a.impact && <p className="news-article-impact">{a.impact}</p>}
 
-                    <a className="news-article-link" href={a.url} target="_blank" rel="noopener noreferrer">
-                      Full article
-                      <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M7 17L17 7" /><path d="M7 7h10v10" />
-                      </svg>
-                    </a>
+                    {a.url && (
+                      <a className="news-article-link" href={a.url} target="_blank" rel="noopener noreferrer">
+                        Full article
+                        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M7 17L17 7" /><path d="M7 7h10v10" />
+                        </svg>
+                      </a>
+                    )}
                   </div>
                 )
               })}

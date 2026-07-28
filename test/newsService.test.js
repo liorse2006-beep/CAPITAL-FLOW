@@ -173,6 +173,26 @@ test('a successful Gemini summary is merged onto the article, but real provider 
   assert.strictEqual(article.summary, 'Two sentence AI summary.');
   assert.strictEqual(article.impact, 'This may add volatility.');
   assert.strictEqual(article.sentiment, 'negative', "Massive's real per-ticker sentiment must win over Gemini's guess");
+  assert.strictEqual(article.url, 'https://x.com/enriched', 'the real source link must survive the enrichment merge unchanged');
+});
+
+test('an article with no source link is dropped — never shown as "verified" with nowhere to verify it', async () => {
+  global.fetch = async (url) => {
+    if (url.includes('massive.com')) {
+      return jsonResponse({
+        results: [
+          { title: 'No link here', publisher: {}, published_utc: '2026-01-01T00:00:00Z', article_url: '' },
+          { title: 'Has a real link', publisher: {}, published_utc: '2026-01-01T00:00:00Z', article_url: 'https://x.com/real' },
+        ],
+      });
+    }
+    return jsonResponse({ output_text: 'not valid json' });
+  };
+
+  const result = await fetchNewsForSymbol('NOLINK');
+  assert.strictEqual(result.articles.length, 1);
+  assert.strictEqual(result.articles[0].headline, 'Has a real link');
+  assert.strictEqual(result.articles[0].url, 'https://x.com/real');
 });
 
 test('summarizer failure leaves the raw article untouched — no summary field appears', async () => {
