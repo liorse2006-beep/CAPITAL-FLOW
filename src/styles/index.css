@@ -6370,7 +6370,7 @@ td {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 10px;
+  gap: 4px;
 }
 
 .chat-fab {
@@ -6396,6 +6396,20 @@ td {
   height: 100%;
   object-fit: cover;
 }
+/* Glows in sync with the teaser bubble while it's showing, so the two read
+   as one connected unit instead of an unrelated button + a floating box. */
+.chat-fab.teaser-active {
+  animation: chatFabGlow 2.2s ease-in-out infinite;
+}
+@keyframes chatFabGlow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.4));
+  }
+  50% {
+    filter: drop-shadow(0 0 14px rgba(245, 158, 11, 0.8));
+  }
+}
 
 .chat-teaser {
   position: relative;
@@ -6409,6 +6423,27 @@ td {
   line-height: 1.4;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 0 rgba(245, 158, 11, 0.5);
   animation: chatTeaserGlow 2.2s ease-in-out infinite;
+}
+/* Speech-bubble tail pointing down at the launcher button — two stacked
+   triangles (border-colored, then a smaller background-colored one on top)
+   to fake a bordered pointer, roughly centered over the 56px circle below. */
+.chat-teaser::before,
+.chat-teaser::after {
+  content: '';
+  position: absolute;
+  right: 20px;
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+}
+.chat-teaser::before {
+  bottom: -9px;
+  border-top: 9px solid var(--accent);
+}
+.chat-teaser::after {
+  bottom: -6.5px;
+  border-top: 7px solid var(--bg-1);
 }
 @keyframes chatTeaserGlow {
   0%,

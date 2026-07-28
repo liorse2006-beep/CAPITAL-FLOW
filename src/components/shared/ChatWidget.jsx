@@ -224,7 +224,11 @@ export default function ChatWidget({ user, getToken, externalPrompt, onExternalP
         </div>
       )}
 
-      <button className="chat-fab" onClick={toggleOpen} aria-label={open ? 'Close chat' : 'Open chat with Capi'}>
+      <button
+        className={'chat-fab' + (showTeaser ? ' teaser-active' : '')}
+        onClick={toggleOpen}
+        aria-label={open ? 'Close chat' : 'Open chat with Capi'}
+      >
         <img src="/icon-192.png" alt="" />
       </button>
     </div>
