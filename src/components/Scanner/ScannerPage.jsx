@@ -1,6 +1,7 @@
 import React from 'react'
 import ScanLoader from '../shared/ScanLoader'
 import ScheduleScan from '../shared/ScheduleScan'
+import useSmoothProgress from '../../hooks/useSmoothProgress'
 import { fmt, friendlyError } from '../../utils/format'
 import { SECTOR_ICONS } from '../../constants/sectorIcons'
 
@@ -151,6 +152,8 @@ export default function ScannerPage({
 }) {
   const lastCount = results ? results.length : null
   const mktOpen = isMarketOpenNow()
+  const rawProgressPct = progress && progress.total ? (progress.processed / progress.total) * 100 : 0
+  const displayProgressPct = useSmoothProgress(rawProgressPct, scanning && !!progress)
   // Free-tier users get full filter access during their 7-day trial, same
   // as premium — only locked once the trial has actually ended.
   const trialActive = !!(scanMeta && scanMeta.free && scanMeta.free.trialActive)
@@ -184,13 +187,10 @@ export default function ScannerPage({
                 })}
             </div>
             <div className="radar-info" role="status" aria-live="polite" aria-atomic="true">
-              <div className="radar-pct">{Math.round((progress.processed / progress.total) * 100) + '%'}</div>
+              <div className="radar-pct">{displayProgressPct + '%'}</div>
               <div className="scan-progress-mini">
                 <div className="scan-progress-track">
-                  <div
-                    className="scan-progress-fill"
-                    style={{ width: Math.round((progress.processed / progress.total) * 100) + '%' }}
-                  />
+                  <div className="scan-progress-fill" style={{ width: displayProgressPct + '%' }} />
                 </div>
               </div>
               <div className="radar-stat">Scanning the market...</div>

@@ -138,6 +138,12 @@ async function scanTickers(tickers, options) {
   // Only fetchFinnhubQuote is called every scan (price/change% must be live).
   // Metric, sparkline, and sector are served from slow caches (24h / 7d) and
   // only fetched from the network when the cache entry is missing or expired.
+  // This is the slow half of a scan (real per-match network calls, one at a
+  // time per match) — Phase 1 had onProgress calls throughout, but until now
+  // Phase 2 reported nothing at all, so the progress bar sat frozen at 100%
+  // of Phase 1's range for however long enrichment actually took.
+  var enrichedCount = 0;
+  var enrichTotal = results.length || 1;
   var enrichPromises = results.map(function (r) {
     return (async function () {
       try {
@@ -216,6 +222,17 @@ async function scanTickers(tickers, options) {
         r.sector = sector;
       } catch (e) {
         r.sector = 'N/A';
+      } finally {
+        enrichedCount++;
+        if (onProgress) {
+          // Second half of the bar — mirrors Phase 1's "first half" mapping.
+          var enrichApprox = Math.round((enrichedCount / enrichTotal) * (tickers.length * 0.5));
+          onProgress({
+            processed: Math.round(tickers.length * 0.5) + enrichApprox,
+            total: tickers.length,
+            found: results.length,
+          });
+        }
       }
     })();
   });

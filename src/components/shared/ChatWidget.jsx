@@ -31,6 +31,12 @@ function renderCapiMessage(text) {
   })
 }
 
+// Bump this whenever the teaser's copy changes meaningfully — it's baked
+// into the localStorage key below, so a version bump makes the teaser show
+// once more even for users who already dismissed (or triggered, by simply
+// opening the chat) an older version of it.
+var TEASER_VERSION = 'v2'
+
 export default function ChatWidget({ user, getToken }) {
   const [open, setOpen] = useState(false)
   const [showTeaser, setShowTeaser] = useState(false)
@@ -40,7 +46,7 @@ export default function ChatWidget({ user, getToken }) {
   const [sending, setSending] = useState(false)
   const listRef = useRef(null)
 
-  const teaserKey = user ? 'vs_capi_teased_' + user.id : null
+  const teaserKey = user ? 'vs_capi_teased_' + TEASER_VERSION + '_' + user.id : null
 
   useEffect(
     function () {
