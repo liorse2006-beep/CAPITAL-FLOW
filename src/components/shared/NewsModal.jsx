@@ -19,11 +19,34 @@ var SENTIMENT_LABEL = { positive: 'Bullish', negative: 'Bearish', neutral: 'Flat
 var SENTIMENT_ARROW = { positive: '▲', negative: '▼', neutral: '—' }
 
 var SCAN_MESSAGES = [
-  'Scanning verified wire sources…',
-  'Cross-referencing coverage…',
-  'Reading sentiment signals…',
-  'Compiling market outlook…',
+  '> scanning verified wire sources',
+  '> cross-referencing coverage',
+  '> reading sentiment signals',
+  '> compiling market outlook',
 ]
+
+var BIAS_LABEL = { positive: 'BULLISH BIAS', negative: 'BEARISH BIAS', neutral: 'FLAT', mixed: 'MIXED SIGNAL' }
+
+// Deterministic, zero-cost readout computed from whatever real sentiment
+// data the articles already carry — no extra AI call, and it stays
+// available even if the per-article summarizer partially failed.
+function computeOverallBias(articles) {
+  var counts = { positive: 0, negative: 0, neutral: 0 }
+  var scored = 0
+  articles.forEach(function (a) {
+    if (a.sentiment && Object.prototype.hasOwnProperty.call(counts, a.sentiment)) {
+      counts[a.sentiment]++
+      scored++
+    }
+  })
+  if (scored === 0) return null
+  var max = Math.max(counts.positive, counts.negative, counts.neutral)
+  var leaders = Object.keys(counts).filter(function (k) {
+    return counts[k] === max
+  })
+  var key = leaders.length > 1 ? 'mixed' : leaders[0]
+  return { key: key, label: BIAS_LABEL[key], counts: counts }
+}
 
 export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade }) {
   const [status, setStatus] = useState('loading') // loading | found | empty | error
@@ -82,6 +105,8 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
     [symbol]
   )
 
+  var overallBias = status === 'found' ? computeOverallBias(articles) : null
+
   return (
     <div
       className="upgrade-overlay"
@@ -99,7 +124,10 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
       >
         <button className="upgrade-close" onClick={onClose} aria-label="Close">×</button>
 
-        <h2 className="upgrade-title" style={{ fontSize: 17 }}>{'News — ' + symbol}</h2>
+        <div className="news-terminal-header">
+          <span className="news-terminal-dot" />
+          <h2 className="news-terminal-title">{'NEWS · ' + symbol}</h2>
+        </div>
 
         {status === 'loading' && (
           <div className="news-loading">
@@ -112,14 +140,37 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
               <div className="news-loading-ring" />
             </div>
             <div className="news-loading-symbol">{symbol}</div>
-            <div className="news-loading-msg" key={scanMsgIndex}>{SCAN_MESSAGES[scanMsgIndex]}</div>
+            <div className="news-loading-msg" key={scanMsgIndex}>
+              {SCAN_MESSAGES[scanMsgIndex]}
+              <span className="news-loading-cursor">▌</span>
+            </div>
           </div>
         )}
 
         {status === 'found' && (
           <>
-            <p className="upgrade-desc" style={{ marginBottom: 14 }}>
-              {articles.length + ' verified article' + (articles.length > 1 ? 's' : '') + ' found for ' + symbol + ' in the last 48 hours'}
+            <div className="news-bias-bar">
+              <div className="news-bias-readout">
+                <span className="news-bias-label-lead">[</span>
+                {overallBias ? (
+                  <span className={'news-bias-value ' + overallBias.key}>{overallBias.label}</span>
+                ) : (
+                  <span className="news-bias-value neutral">NO SIGNAL DATA</span>
+                )}
+                <span className="news-bias-label-lead">]</span>
+              </div>
+              <div className="news-bias-counts">
+                {overallBias && (
+                  <>
+                    <span className="news-bias-chip positive">{overallBias.counts.positive} ▲</span>
+                    <span className="news-bias-chip negative">{overallBias.counts.negative} ▼</span>
+                    <span className="news-bias-chip neutral">{overallBias.counts.neutral} —</span>
+                  </>
+                )}
+              </div>
+            </div>
+            <p className="news-scan-meta">
+              {articles.length + ' article' + (articles.length > 1 ? 's' : '') + ' · ' + symbol + ' · last 48h'}
             </p>
             <div className="news-article-list">
               {articles.map(function (a, i) {

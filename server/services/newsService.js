@@ -5,6 +5,11 @@ const { MASSIVE_API_KEY, MARKETAUX_API_KEY, NEWSDATA_API_KEY } = require('../con
 const newsCache = new Map();
 const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
 
+// Quality over quantity: a wall of 8 headlines nobody reads is worse than
+// the 4 most recent from a single trustworthy provider — also keeps the
+// per-symbol Gemini summarization call small and fast.
+const MAX_ARTICLES = 4;
+
 // Every provider below returns null on any failure (bad response, network
 // error, missing key, empty result) — never throws. That lets
 // fetchNewsForSymbol try them in order and only report "no verified news
@@ -156,6 +161,7 @@ async function fetchNewsForSymbol(symbol) {
     articles = await providers[i].fn(symbol);
     if (articles && articles.length > 0) {
       source = providers[i].name;
+      articles = articles.slice(0, MAX_ARTICLES);
       break;
     }
   }
