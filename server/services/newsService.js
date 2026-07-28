@@ -18,12 +18,12 @@ const MAX_ARTICLES = 4;
 async function fetchFromFinnhub(symbol) {
   try {
     var today = new Date();
-    var twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    var sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     var url =
       'https://finnhub.io/api/v1/company-news?symbol=' +
       encodeURIComponent(symbol) +
       '&from=' +
-      twoDaysAgo.toISOString().slice(0, 10) +
+      sevenDaysAgo.toISOString().slice(0, 10) +
       '&to=' +
       today.toISOString().slice(0, 10);
 
@@ -112,6 +112,18 @@ async function fetchFromMarketaux(symbol) {
   }
 }
 
+// NewsData.io's /latest is a generic full-text search (q=<ticker>), unlike
+// the other three providers which are natively ticker-scoped (company-news,
+// reference/news?ticker=, news/all?symbols=) and don't need this — a short
+// ticker like "ALL" or "IT" can match plain English words in unrelated
+// articles. Require the exact ticker to actually appear as a whole word in
+// the headline or description before trusting a result from this provider.
+function mentionsTicker(article, symbol) {
+  var escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  var re = new RegExp('\\b' + escaped + '\\b', 'i');
+  return re.test(article.headline) || re.test(article.description || '');
+}
+
 async function fetchFromNewsdata(symbol) {
   if (!NEWSDATA_API_KEY) return null;
   try {
@@ -126,17 +138,22 @@ async function fetchFromNewsdata(symbol) {
     var data = await res.json();
     if (!Array.isArray(data.results) || data.results.length === 0) return null;
 
-    return data.results.slice(0, 8).map(function (a) {
-      return {
-        headline: a.title || '',
-        description: a.description || '',
-        source: a.source_id || a.source_name || '',
-        datetime: a.pubDate ? Math.floor(new Date(a.pubDate).getTime() / 1000) : 0,
-        url: a.link || '',
-        image: a.image_url || '',
-        sentiment: a.sentiment || null,
-      };
-    });
+    return data.results
+      .slice(0, 8)
+      .map(function (a) {
+        return {
+          headline: a.title || '',
+          description: a.description || '',
+          source: a.source_id || a.source_name || '',
+          datetime: a.pubDate ? Math.floor(new Date(a.pubDate).getTime() / 1000) : 0,
+          url: a.link || '',
+          image: a.image_url || '',
+          sentiment: a.sentiment || null,
+        };
+      })
+      .filter(function (a) {
+        return mentionsTicker(a, symbol);
+      });
   } catch (e) {
     return null;
   }

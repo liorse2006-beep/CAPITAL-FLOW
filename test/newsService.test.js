@@ -89,7 +89,7 @@ test('falls back to NewsData.io when Finnhub, Massive, and MarketAux all have no
     return jsonResponse({
       results: [
         {
-          title: 'NewsData headline',
+          title: 'NDAT posts strong quarterly results',
           description: 'A snippet of the article.',
           source_id: 'newsdata_wire',
           pubDate: '2026-01-01 00:00:00',
@@ -102,7 +102,25 @@ test('falls back to NewsData.io when Finnhub, Massive, and MarketAux all have no
   const result = await fetchNewsForSymbol('NDAT');
   assert.strictEqual(result.source, 'newsdata');
   assert.strictEqual(result.articles.length, 1);
-  assert.strictEqual(result.articles[0].headline, 'NewsData headline');
+  assert.strictEqual(result.articles[0].headline, 'NDAT posts strong quarterly results');
+});
+
+test('NewsData.io results that never actually mention the ticker are dropped — its search is generic full-text, unlike the other providers', async () => {
+  global.fetch = async (url) => {
+    if (url.includes('massive.com')) return jsonResponse({ results: [] });
+    if (url.includes('marketaux.com')) return jsonResponse({ data: [] });
+    assert.match(url, /newsdata\.io/);
+    return jsonResponse({
+      results: [
+        { title: 'Completely unrelated market roundup', description: 'General commentary with no ticker mention.', link: 'https://example.com/unrelated' },
+        { title: 'ALLX reports strong demand', description: 'ALLX shares moved on the news.', link: 'https://example.com/real' },
+      ],
+    });
+  };
+
+  const result = await fetchNewsForSymbol('ALLX');
+  assert.strictEqual(result.articles.length, 1);
+  assert.strictEqual(result.articles[0].headline, 'ALLX reports strong demand');
 });
 
 test('every provider empty → reports zero articles, never invents content', async () => {

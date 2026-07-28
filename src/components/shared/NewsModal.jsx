@@ -210,7 +210,7 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
               </div>
             </div>
             <p className="news-scan-meta">
-              {articles.length + ' article' + (articles.length > 1 ? 's' : '') + ' · ' + symbol + ' · last 48h'}
+              {articles.length + ' article' + (articles.length > 1 ? 's' : '') + ' · ' + symbol + ' · last 7d'}
               {primaryCatalyst && <span className="news-scan-catalyst"> · why: {primaryCatalyst}</span>}
             </p>
             <div className="news-article-list">
@@ -267,7 +267,7 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
             </div>
             <h3 className="news-status-heading">No Recent Coverage</h3>
             <p className="news-status-body">
-              No verified news articles were found for {symbol} in the last 48 hours. We only display confirmed
+              No verified news articles were found for {symbol} in the last 7 days. We only display confirmed
               reporting from real sources — no listing here means nothing has been published, not that nothing
               happened.
             </p>
