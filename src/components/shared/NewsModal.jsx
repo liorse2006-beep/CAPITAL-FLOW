@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import useModalA11y from '../../hooks/useModalA11y'
 
 function timeAgo(unixSeconds) {
@@ -53,6 +53,42 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
   const [articles, setArticles] = useState([])
   const [scanMsgIndex, setScanMsgIndex] = useState(0)
   const panelRef = useModalA11y(onClose)
+  // Tracks the most recent request so a stale in-flight response (from the
+  // initial load, or an earlier retry click) can never overwrite a newer one.
+  const requestIdRef = useRef(0)
+
+  const loadNews = useCallback(
+    function () {
+      var requestId = ++requestIdRef.current
+      setStatus('loading')
+      setScanMsgIndex(0)
+      fetch('/api/news/' + encodeURIComponent(symbol), { headers: { Authorization: 'Bearer ' + getToken() } })
+        .then(function (r) {
+          if (r.status === 403) {
+            if (requestId === requestIdRef.current) {
+              onClose()
+              onRequireUpgrade()
+            }
+            return null
+          }
+          if (!r.ok) throw new Error('request failed')
+          return r.json()
+        })
+        .then(function (d) {
+          if (requestId !== requestIdRef.current || !d) return
+          if (d.articles && d.articles.length > 0) {
+            setArticles(d.articles)
+            setStatus('found')
+          } else {
+            setStatus('empty')
+          }
+        })
+        .catch(function () {
+          if (requestId === requestIdRef.current) setStatus('error')
+        })
+    },
+    [symbol, getToken, onClose, onRequireUpgrade]
+  )
 
   useEffect(
     function () {
@@ -71,38 +107,9 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
 
   useEffect(
     function () {
-      let cancelled = false
-      setStatus('loading')
-      setScanMsgIndex(0)
-      fetch('/api/news/' + encodeURIComponent(symbol), { headers: { Authorization: 'Bearer ' + getToken() } })
-        .then(function (r) {
-          if (r.status === 403) {
-            if (!cancelled) {
-              onClose()
-              onRequireUpgrade()
-            }
-            return null
-          }
-          if (!r.ok) throw new Error('request failed')
-          return r.json()
-        })
-        .then(function (d) {
-          if (cancelled || !d) return
-          if (d.articles && d.articles.length > 0) {
-            setArticles(d.articles)
-            setStatus('found')
-          } else {
-            setStatus('empty')
-          }
-        })
-        .catch(function () {
-          if (!cancelled) setStatus('error')
-        })
-      return function () {
-        cancelled = true
-      }
+      loadNews()
     },
-    [symbol]
+    [loadNews]
   )
 
   var overallBias = status === 'found' ? computeOverallBias(articles) : null
@@ -212,14 +219,37 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
         )}
 
         {status === 'empty' && (
-          <p className="upgrade-desc">
-            No verified news found for {symbol} in the last 48 hours. We only show confirmed articles from real
-            sources — no data here means nothing was found, not that nothing happened.
-          </p>
+          <div className="news-status-block">
+            <div className="news-status-icon neutral">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="7" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </div>
+            <h3 className="news-status-heading">No Recent Coverage</h3>
+            <p className="news-status-body">
+              No verified news articles were found for {symbol} in the last 48 hours. We only display confirmed
+              reporting from real sources — no listing here means nothing has been published, not that nothing
+              happened.
+            </p>
+          </div>
         )}
 
         {status === 'error' && (
-          <p className="upgrade-desc">Couldn&apos;t reach any verified news source right now. Try again in a moment.</p>
+          <div className="news-status-block">
+            <div className="news-status-icon warn">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86 2.11 18.04A1.5 1.5 0 0 0 3.5 20.5h17a1.5 1.5 0 0 0 1.39-2.46L13.71 3.86a1.5 1.5 0 0 0-2.42 0Z" />
+                <path d="M12 9v4" /><path d="M12 17h.01" />
+              </svg>
+            </div>
+            <h3 className="news-status-heading">Unable to Reach News Sources</h3>
+            <p className="news-status-body">
+              We&apos;re sorry — we weren&apos;t able to retrieve verified news for {symbol} at this time. This is
+              usually temporary. Please try again in a moment.
+            </p>
+            <button className="news-retry-btn" onClick={loadNews}>Try Again</button>
+          </div>
         )}
       </div>
     </div>
