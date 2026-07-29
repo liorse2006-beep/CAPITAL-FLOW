@@ -494,6 +494,17 @@ body {
   padding: 12px 20px;
   border-bottom: 1px solid var(--border);
 }
+.table-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.table-new-scan-btn {
+  height: 28px;
+  padding: 0 14px;
+  font-size: 11px;
+}
 .table-bar h2 {
   font-size: 14px;
   font-weight: 600;

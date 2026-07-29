@@ -13,7 +13,6 @@ function baseProps(overrides = {}) {
     results: null,
     scanning: false,
     scanMeta: null,
-    onNewScan: vi.fn(),
     onUpgrade: vi.fn(),
     onSignIn: vi.fn(),
     notificationsEnabled: false,

@@ -51,7 +51,6 @@ export default function Topbar({
   results,
   scanning,
   scanMeta,
-  onNewScan,
   onUpgrade,
   onSignIn,
   notificationsEnabled,
@@ -114,15 +113,8 @@ export default function Topbar({
             onRemoveAlert={onRemoveAlert}
             onToggleNotifications={onToggleNotifications}
           />
-          {page === 'scanner' && results && !scanning && (
-            <>
-              <button className="scan-btn" onClick={onNewScan}>
-                New Scan
-              </button>
-              {!isPremium && scanMeta && scanMeta.tier === 'premium' && (
-                <span className="scan-limit-topbar">{(scanMeta.premium ? scanMeta.premium.used : 0) + '/5 today'}</span>
-              )}
-            </>
+          {page === 'scanner' && results && !scanning && !isPremium && scanMeta && scanMeta.tier === 'premium' && (
+            <span className="scan-limit-topbar">{(scanMeta.premium ? scanMeta.premium.used : 0) + '/5 today'}</span>
           )}
         </div>
       </header>

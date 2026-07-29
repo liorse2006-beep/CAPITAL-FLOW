@@ -1090,10 +1090,6 @@ function App() {
           results={results}
           scanning={scanning}
           scanMeta={scanMeta}
-          onNewScan={() => {
-            setResults(null);
-            setScanTime(null);
-          }}
           onUpgrade={() => setShowUpgradeModal(true)}
           onSignIn={() => setShowAuthModal(true)}
           notificationsEnabled={notificationsEnabled}

@@ -585,11 +585,24 @@ export default function ScannerPage({
                 );
               })()}
             </div>
-            {sorted.length > 50 && (
-              <span className="load-more-count">
-                {'Showing ' + Math.min(visibleCount, sorted.length) + ' of ' + sorted.length}
-              </span>
-            )}
+            <div className="table-bar-right">
+              {sorted.length > 50 && (
+                <span className="load-more-count">
+                  {'Showing ' + Math.min(visibleCount, sorted.length) + ' of ' + sorted.length}
+                </span>
+              )}
+              {!scanning && (
+                <button
+                  className="scan-btn table-new-scan-btn"
+                  onClick={() => {
+                    setResults(null)
+                    setScanTime(null)
+                  }}
+                >
+                  New Scan
+                </button>
+              )}
+            </div>
           </div>
 
           {sorted.length === 0 ? (
