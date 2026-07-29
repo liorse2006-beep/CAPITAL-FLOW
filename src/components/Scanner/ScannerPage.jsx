@@ -746,7 +746,7 @@ export default function ScannerPage({
                               <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 4" />
                               <circle cx="12" cy="12" r="10" />
                             </svg>
-                            Explain
+                            AI Insights
                           </button>
                         </td>
                       </tr>
