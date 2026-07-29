@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { fetchNewsForSymbol } = require('../services/newsService');
+const { fetchNewsForSymbol, newsCache, resolveFinalUrl } = require('../services/newsService');
 const { scanLimiter } = require('../middleware/rateLimiters');
 const { requireEliteOrTrial } = require('../middleware/authMiddleware');
 
@@ -24,6 +24,26 @@ router.get('/news/:symbol', requireEliteOrTrial, scanLimiter, async function (re
     console.error('[news]', err);
     return res.status(500).json({ error: 'Server error' });
   }
+});
+
+// Only ever resolves a URL we ourselves already returned for this exact
+// symbol's cached articles — never an arbitrary caller-supplied URL, which
+// would otherwise let this endpoint be used as an open server-side fetch
+// proxy (SSRF) against anything reachable from the server.
+router.get('/news/:symbol/resolve', requireEliteOrTrial, scanLimiter, async function (req, res) {
+  var symbol = (req.params.symbol || '').toUpperCase();
+  if (!SYMBOL_RE.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
+
+  var targetUrl = req.query.url;
+  if (typeof targetUrl !== 'string' || !targetUrl) return res.status(400).json({ error: 'Missing url' });
+
+  var cached = newsCache.get(symbol);
+  var known = cached && Array.isArray(cached.articles) && cached.articles.some(function (a) {
+    return a.url === targetUrl;
+  });
+  if (!known) return res.status(400).json({ error: 'Unknown article URL' });
+
+  return res.json({ url: await resolveFinalUrl(targetUrl) });
 });
 
 module.exports = router;

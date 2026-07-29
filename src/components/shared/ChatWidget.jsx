@@ -101,9 +101,13 @@ export default function ChatWidget({ user, getToken, externalPrompt, onExternalP
 
   useEffect(
     function () {
+      // Also keyed on `open`: the panel unmounts on close and remounts fresh
+      // on reopen, so without this a reopen with unchanged history (already
+      // loaded, nothing new since) would sit at the top instead of jumping
+      // straight to the most recent message like a chat should.
       if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
     },
-    [messages, sending]
+    [messages, sending, open]
   )
 
   function send(overrideText) {

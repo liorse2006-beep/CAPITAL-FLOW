@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import useModalA11y from '../../hooks/useModalA11y'
+import useSmoothProgress from '../../hooks/useSmoothProgress'
 
 function timeAgo(unixSeconds) {
   if (!unixSeconds) return ''
@@ -10,6 +11,47 @@ function timeAgo(unixSeconds) {
   var diffH = Math.floor(diffMin / 60)
   if (diffH < 24) return diffH + 'h ago'
   return new Date(unixSeconds * 1000).toLocaleDateString()
+}
+
+var ARTICLE_LOADING_HTML =
+  '<!doctype html><html><head><meta charset="utf-8"><title>Opening article…</title><style>' +
+  'body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;' +
+  'background:#141414;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}' +
+  '.wrap{text-align:center}' +
+  '.ring{width:34px;height:34px;border-radius:50%;border:2.5px solid #2a2a2a;border-top-color:#f59e0b;' +
+  'margin:0 auto 14px;animation:spin .8s linear infinite}' +
+  '@keyframes spin{to{transform:rotate(360deg)}}' +
+  '.txt{font-size:12px;color:#a0a0a8;font-family:ui-monospace,"SF Mono",monospace;letter-spacing:.03em}' +
+  '</style></head><body><div class="wrap"><div class="ring"></div><div class="txt">Opening article…</div></div></body></html>'
+
+// Some providers hand back a tracking/redirect link rather than the
+// publisher's real URL, so navigating straight to it flashes the
+// intermediate domain before landing on the article. Opens a blank tab
+// synchronously (required for it to survive popup blockers, since it has to
+// happen inside the click's own call stack) showing a small branded loading
+// screen, resolves the real destination server-side, then forwards the tab
+// there — the user only ever sees our screen, then the article.
+function openArticle(symbol, url, getToken) {
+  var win = window.open('', '_blank', 'noopener,noreferrer')
+  if (win) {
+    win.document.write(ARTICLE_LOADING_HTML)
+    win.document.close()
+  }
+  fetch('/api/news/' + encodeURIComponent(symbol) + '/resolve?url=' + encodeURIComponent(url), {
+    headers: { Authorization: 'Bearer ' + getToken() },
+  })
+    .then(function (r) {
+      return r.ok ? r.json() : { url: url }
+    })
+    .then(function (d) {
+      var dest = (d && d.url) || url
+      if (win && !win.closed) win.location.href = dest
+      else window.open(dest, '_blank', 'noopener,noreferrer')
+    })
+    .catch(function () {
+      if (win && !win.closed) win.location.href = url
+      else window.open(url, '_blank', 'noopener,noreferrer')
+    })
 }
 
 // The AI/provider sentiment field is stored as positive/negative/neutral
@@ -24,6 +66,15 @@ var SCAN_MESSAGES = [
   '> reading sentiment signals',
   '> compiling market outlook',
 ]
+
+// NewsModal fully unmounts every time it's closed (App.jsx only renders it
+// while a symbol is set), so a cache inside the component would reset on
+// every reopen — this lives at module scope instead, matching the server's
+// own 5-minute TTL. Without it, reopening News for the same ticker (e.g.
+// after switching tabs and coming back) replayed the whole loading
+// animation and re-fetched even when nothing could have changed yet.
+var clientNewsCache = new Map()
+var CLIENT_CACHE_TTL_MS = 5 * 60 * 1000
 
 var BIAS_LABEL = { positive: 'BULLISH BIAS', negative: 'BEARISH BIAS', neutral: 'FLAT', mixed: 'MIXED SIGNAL' }
 
@@ -91,6 +142,13 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
 
   const loadNews = useCallback(
     function () {
+      var cached = clientNewsCache.get(symbol)
+      if (cached && Date.now() - cached.fetchTime < CLIENT_CACHE_TTL_MS) {
+        setArticles(cached.articles)
+        setStatus(cached.articles.length > 0 ? 'found' : 'empty')
+        return
+      }
+
       var requestId = ++requestIdRef.current
       setStatus('loading')
       setScanMsgIndex(0)
@@ -108,7 +166,9 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
         })
         .then(function (d) {
           if (requestId !== requestIdRef.current || !d) return
-          if (d.articles && d.articles.length > 0) {
+          var found = d.articles && d.articles.length > 0
+          clientNewsCache.set(symbol, { articles: found ? d.articles : [], fetchTime: Date.now() })
+          if (found) {
             setArticles(d.articles)
             setStatus('found')
           } else {
@@ -146,6 +206,12 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
 
   var overallBias = status === 'found' ? computeOverallBias(articles) : null
   var primaryCatalyst = status === 'found' ? computePrimaryCatalyst(articles) : null
+  // No real backend progress signal for a single news fetch (unlike the
+  // multi-phase scan) — target climbs a step with each status-message
+  // change so the percentage still reads as continuous progress rather
+  // than a static number sitting there.
+  var loadingTarget = Math.min((scanMsgIndex + 1) * (100 / SCAN_MESSAGES.length), 92)
+  var loadingPct = useSmoothProgress(loadingTarget, status === 'loading')
 
   return (
     <div
@@ -179,6 +245,7 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
               </div>
               <div className="news-loading-ring" />
             </div>
+            <div className="news-loading-pct">{loadingPct + '%'}</div>
             <div className="news-loading-symbol">{symbol}</div>
             <div className="news-loading-msg" key={scanMsgIndex}>
               {SCAN_MESSAGES[scanMsgIndex]}
@@ -243,12 +310,12 @@ export default function NewsModal({ symbol, onClose, getToken, onRequireUpgrade 
                     {a.impact && <p className="news-article-impact">{a.impact}</p>}
 
                     {a.url && (
-                      <a className="news-article-link" href={a.url} target="_blank" rel="noopener noreferrer">
+                      <button className="news-article-link" onClick={() => openArticle(symbol, a.url, getToken)}>
                         Full article
                         <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M7 17L17 7" /><path d="M7 7h10v10" />
                         </svg>
-                      </a>
+                      </button>
                     )}
                   </div>
                 )

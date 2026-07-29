@@ -1,17 +1,14 @@
-const fs = require('fs');
-const path = require('path');
 const { Resend } = require('resend');
-const { RESEND_API_KEY, RESEND_FROM_EMAIL, ADMIN_EMAIL } = require('../config');
+const { RESEND_API_KEY, RESEND_FROM_EMAIL, ADMIN_EMAIL, FRONTEND_URL } = require('../config');
 
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
-// Embedded via cid (not a hosted URL) so the logo renders regardless of
-// image-proxying/allow-listing in the recipient's mail client.
-const LOGO_ATTACHMENT = {
-  filename: 'logo-gold.jpeg',
-  content: fs.readFileSync(path.join(__dirname, '../assets/logo-gold.jpeg')),
-  content_id: 'capitalflow-logo',
-};
+// A plain hosted URL, not a cid attachment — Resend (like most providers)
+// still exposes cid-embedded images as a downloadable attachment chip in
+// several mail clients even with an inline content-disposition, since the
+// image still travels as its own MIME part either way. A hosted <img src>
+// is a normal remote image with no attachment UI at all.
+const LOGO_URL = FRONTEND_URL + '/logo-gold.jpeg';
 
 async function sendOTPEmail(email, code) {
   if (!resend) {
@@ -68,14 +65,13 @@ async function sendWelcomeEmail(email) {
     from: RESEND_FROM_EMAIL,
     to: email,
     subject: `Welcome to Capital Flow`,
-    attachments: [LOGO_ATTACHMENT],
     html: `
       <div style="background:#0A0A0A;padding:40px;font-family:sans-serif;color:#e4e4e7;max-width:480px;margin:0 auto;border-radius:8px;">
         <table role="presentation" width="100%" style="margin-bottom:24px;">
           <tr>
             <td style="color:#F59E0B;font-size:13px;font-weight:700;letter-spacing:.12em;vertical-align:middle;">CAPITAL FLOW</td>
             <td style="text-align:right;vertical-align:middle;">
-              <img src="cid:capitalflow-logo" width="40" height="40" alt="Capital Flow" style="border-radius:50%;display:inline-block;" />
+              <img src="${LOGO_URL}" width="40" height="40" alt="Capital Flow" style="border-radius:50%;display:inline-block;" />
             </td>
           </tr>
         </table>

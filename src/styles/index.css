@@ -4938,6 +4938,13 @@ td {
     opacity: 1;
   }
 }
+.news-loading-pct {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: #22c55e;
+  font-variant-numeric: tabular-nums;
+}
 .news-loading-symbol {
   font-family: var(--mono);
   font-size: 13px;
@@ -5136,8 +5143,13 @@ td {
   gap: 4px;
   font-size: 11px;
   font-weight: 600;
+  font-family: inherit;
   color: var(--accent);
   text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
 }
 .news-article-link:hover {
   text-decoration: underline;

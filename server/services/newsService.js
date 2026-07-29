@@ -221,4 +221,24 @@ async function fetchNewsForSymbol(symbol) {
   return { articles: articles || [], fetchTime: fetchTime, source: source };
 }
 
-module.exports = { newsCache, NEWS_CACHE_TTL_MS, fetchNewsForSymbol };
+// Some providers (Finnhub in particular) hand back a tracking/redirect link
+// rather than the publisher's real URL, so opening it directly flashes the
+// intermediate domain before landing on the article. HEAD-follows the
+// redirect chain server-side and returns wherever it actually lands — never
+// throws, falls back to the original url on any failure or timeout so a
+// slow/broken destination never leaves the user stuck.
+async function resolveFinalUrl(url) {
+  try {
+    var controller = new AbortController();
+    var timeout = setTimeout(function () {
+      controller.abort();
+    }, 5000);
+    var res = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
+    clearTimeout(timeout);
+    return res.url || url;
+  } catch (e) {
+    return url;
+  }
+}
+
+module.exports = { newsCache, NEWS_CACHE_TTL_MS, fetchNewsForSymbol, resolveFinalUrl };
