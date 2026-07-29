@@ -6397,32 +6397,23 @@ td {
   object-fit: cover;
 }
 /* Glows in sync with the teaser bubble while it's showing, so the two read
-   as one connected unit instead of an unrelated button + a floating box. */
+   as one connected unit instead of an unrelated button + a floating box.
+   Static, not pulsing — a steady glow reads as "there" without blinking. */
 .chat-fab.teaser-active {
-  animation: chatFabGlow 2.2s ease-in-out infinite;
-}
-@keyframes chatFabGlow {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.4));
-  }
-  50% {
-    filter: drop-shadow(0 0 14px rgba(245, 158, 11, 0.8));
-  }
+  filter: drop-shadow(0 0 9px rgba(245, 158, 11, 0.65));
 }
 
 .chat-teaser {
   position: relative;
-  max-width: 240px;
+  max-width: 190px;
   background: var(--bg-1);
   border: 1.5px solid var(--accent);
-  border-radius: 12px;
-  padding: 12px 28px 12px 14px;
-  font-size: 13px;
+  border-radius: 10px;
+  padding: 8px 22px 8px 11px;
+  font-size: 12px;
   color: var(--text-0);
-  line-height: 1.4;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 0 rgba(245, 158, 11, 0.5);
-  animation: chatTeaserGlow 2.2s ease-in-out infinite;
+  line-height: 1.35;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 12px 2px rgba(245, 158, 11, 0.5);
 }
 /* Speech-bubble tail pointing down at the launcher button — two stacked
    triangles (border-colored, then a smaller background-colored one on top)
@@ -6444,15 +6435,6 @@ td {
 .chat-teaser::after {
   bottom: -6.5px;
   border-top: 7px solid var(--bg-1);
-}
-@keyframes chatTeaserGlow {
-  0%,
-  100% {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 6px 1px rgba(245, 158, 11, 0.35);
-  }
-  50% {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 18px 4px rgba(245, 158, 11, 0.75);
-  }
 }
 .chat-teaser-close {
   position: absolute;
