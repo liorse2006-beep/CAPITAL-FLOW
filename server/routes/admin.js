@@ -190,6 +190,13 @@ router.post('/admin/api/users/:id/push-test', asyncRoute(async (req, res) => {
   }
 }));
 
+// ── Admin API: last successful DB backup ────────────────────────────────────
+router.get('/admin/api/backup-status', asyncRoute(async (req, res) => {
+  if (!(await checkToken(req, res))) return;
+  const row = await db.prepare("SELECT value FROM app_meta WHERE key = 'last_backup_at'").get();
+  res.json({ lastBackupAt: row ? Number(row.value) : null });
+}));
+
 // ── Admin UI ───────────────────────────────────────────────────────────────
 router.get('/admin', asyncRoute(async (req, res) => {
   // The page shell is public — no server-side auth here.
@@ -345,6 +352,7 @@ router.get('/admin', asyncRoute(async (req, res) => {
     <div class="stat"><div class="stat-val" id="s-active">—</div><div class="stat-lbl">Active (7d)</div></div>
     <div class="stat"><div class="stat-val" id="s-push">—</div><div class="stat-lbl">Push Enabled</div></div>
     <div class="stat"><div class="stat-val" id="s-alerts">—</div><div class="stat-lbl">Watchlist Alerts Set</div></div>
+    <div class="stat"><div class="stat-val" id="s-backup">—</div><div class="stat-lbl">Last DB Backup</div></div>
   </div>
 
   <div class="card" style="margin-bottom:20px">
@@ -467,6 +475,27 @@ async function loadAuditLog() {
       </div>\`;
     }).join('');
   } catch(e) {}
+}
+
+const BACKUP_STALE_HOURS = 48;
+
+async function loadBackupStatus() {
+  const el = document.getElementById('s-backup');
+  try {
+    const r = await fetch('/admin/api/backup-status', { headers: AUTH_HEADERS });
+    const data = r.ok ? await r.json() : { lastBackupAt: null };
+    if (!data.lastBackupAt) {
+      el.textContent = 'Never';
+      el.style.color = '#EF4444';
+      return;
+    }
+    const hoursAgo = (Date.now() / 1000 - data.lastBackupAt) / 3600;
+    const stale = hoursAgo > BACKUP_STALE_HOURS;
+    el.textContent = hoursAgo < 1 ? '<1h ago' : hoursAgo < 48 ? Math.round(hoursAgo) + 'h ago' : Math.round(hoursAgo / 24) + 'd ago';
+    el.style.color = stale ? '#EF4444' : '#F59E0B';
+  } catch (e) {
+    el.textContent = '—';
+  }
 }
 
 async function deleteFeedback(id) {
@@ -682,9 +711,11 @@ document.getElementById('search').addEventListener('input', filterTable);
 load();
 loadFeedback();
 loadAuditLog();
+loadBackupStatus();
 setInterval(load, 60000);
 setInterval(loadFeedback, 60000);
 setInterval(loadAuditLog, 60000);
+setInterval(loadBackupStatus, 60000);
 </script>
 </body>
 </html>`);

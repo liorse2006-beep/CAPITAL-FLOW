@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react'
 import { NASDAQ100, SP500_TOP, SECTOR_TICKERS } from '../../data/tickers'
+import useModalA11y from '../../hooks/useModalA11y'
 
 export default function AddTickerModal({ watchlist, onAdd, onClose }) {
   const [query, setQuery] = useState('')
+  const panelRef = useModalA11y(onClose)
 
   const allTickers = useMemo(() => {
     const set = new Set([...NASDAQ100, ...SP500_TOP, ...Object.values(SECTOR_TICKERS).flat()])
@@ -43,7 +45,15 @@ export default function AddTickerModal({ watchlist, onAdd, onClose }) {
 
   return (
     <div className="atm-overlay" onClick={onClose}>
-      <div className="atm-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="atm-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add Ticker"
+        ref={panelRef}
+        tabIndex={-1}
+      >
 
         {/* Header */}
         <div className="atm-header">

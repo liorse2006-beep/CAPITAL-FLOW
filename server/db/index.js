@@ -217,7 +217,15 @@ async function initDb() {
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
-    CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages(user_id, created_at)
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages(user_id, created_at);
+
+    -- Small durable key/value store for app-level facts that need to survive
+    -- restarts (Render's filesystem doesn't) but don't warrant their own
+    -- table — e.g. the last successful DB backup timestamp.
+    CREATE TABLE IF NOT EXISTS app_meta (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
   `);
 
   // Safe migrations — silently ignored if the column already exists

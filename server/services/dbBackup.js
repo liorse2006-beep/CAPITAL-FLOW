@@ -49,6 +49,14 @@ async function runBackupTick() {
       },
     ],
   });
+
+  // Only reached once the email actually sent — a failed send (bad creds,
+  // Gmail rate limit, etc.) leaves the previous timestamp in place, so the
+  // admin panel's staleness badge reflects reality instead of resetting on
+  // every attempt regardless of success.
+  await db
+    .prepare("INSERT INTO app_meta (key, value) VALUES ('last_backup_at', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .run(String(Math.floor(Date.now() / 1000)));
 }
 
 function startScheduledBackup() {

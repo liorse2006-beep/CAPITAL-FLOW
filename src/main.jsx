@@ -1,10 +1,12 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import CookieConsent from './components/shared/CookieConsent';
+import UpdateToast from './components/shared/UpdateToast';
+import ScanLoader from './components/shared/ScanLoader';
 import './sentry';
 import './analytics';
 import './styles/index.css';
@@ -14,13 +16,42 @@ import './styles/index.css';
 // doesn't belong in the bundle every visitor downloads up front.
 const OnboardingQuiz = lazy(() => import('./pages/OnboardingQuiz'));
 
+// Same animated ticker-tape loader used during scans, reused here for the
+// (rare, but real on Render's free tier) case where the initial /api/auth/me
+// check is slow because the server was asleep. Imported eagerly, not lazily
+// — ScannerPage already imports it statically, so it's in the main bundle
+// regardless; a dynamic import() here would just add an ineffective split.
+const COLD_START_MESSAGES = [
+  'Waking up the server…',
+  'This can take up to 30 seconds on the first load of the day',
+  'Almost there…',
+];
+
 // Push notifications depend on an active service worker — App.jsx waits on
 // navigator.serviceWorker.ready, which never resolves without a prior
 // register() call. This was previously done in a now-unused legacy HTML
 // file, so on a fresh browser (no leftover registration from that old file)
 // "Enable Push Notifications" would hang forever.
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(function () {});
+  navigator.serviceWorker
+    .register('/sw.js')
+    .then(function (reg) {
+      // Only treat a controller handoff as a real "new version" event if a
+      // controller already existed — the very first-ever visit also fires
+      // controllerchange (no controller -> claimed), which isn't an update.
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          window.dispatchEvent(new CustomEvent('vs:sw-update-available'));
+        });
+      }
+      // The browser checks for a new SW automatically on navigation, but an
+      // SPA tab can stay open for hours without one — also check whenever
+      // the tab regains focus so a long-lived session still notices deploys.
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') reg.update().catch(function () {});
+      });
+    })
+    .catch(function () {});
 }
 
 function Root() {
@@ -42,7 +73,20 @@ function Root() {
     setQuizDone(true);
   }
 
-  const loadingScreen = (
+  // Most loads resolve in well under a second — only switch to the fuller
+  // animated "waking up" screen once the wait has gone on long enough that
+  // it's plausibly a cold Render instance, not a flash on every visit.
+  const [showColdStart, setShowColdStart] = useState(false);
+  useEffect(() => {
+    if (!isLoading) {
+      setShowColdStart(false);
+      return;
+    }
+    const t = setTimeout(() => setShowColdStart(true), 1200);
+    return () => clearTimeout(t);
+  }, [isLoading]);
+
+  const plainLoadingScreen = (
     <div
       style={{
         display: 'flex',
@@ -54,6 +98,25 @@ function Root() {
     >
       <div style={{ color: '#F59E0B', fontFamily: 'monospace', fontSize: 13, letterSpacing: '0.1em' }}>Loading…</div>
     </div>
+  );
+
+  const loadingScreen = showColdStart ? (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        background: '#0A0A0A',
+        padding: 24,
+      }}
+    >
+      <div style={{ width: '100%', maxWidth: 340 }}>
+        <ScanLoader label="Capital Flow" statusMessages={COLD_START_MESSAGES} />
+      </div>
+    </div>
+  ) : (
+    plainLoadingScreen
   );
 
   if (isLoading) {
@@ -78,6 +141,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <BrowserRouter>
           <Root />
           <CookieConsent />
+          <UpdateToast />
         </BrowserRouter>
       </AuthProvider>
     </ErrorBoundary>

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { fmt } from '../../utils/format';
 import { useAuth } from '../../context/AuthContext';
+import useModalA11y from '../../hooks/useModalA11y';
 
 const PERIODS = ['1D', '1W', '1M', '3M', '1Y'];
 
@@ -246,14 +247,7 @@ export default function ChartModal({ symbol, name, onClose }) {
     return () => ro.disconnect();
   }, [period]);
 
-  // Keyboard close
-  useEffect(() => {
-    const handler = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+  const panelRef = useModalA11y(onClose);
 
   function handleMouseMove(e) {
     const h = helpersRef.current;
@@ -333,7 +327,7 @@ export default function ChartModal({ symbol, name, onClose }) {
     },
     React.createElement(
       'div',
-      { className: 'chart-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': `${symbol} chart` },
+      { className: 'chart-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': `${symbol} chart`, ref: panelRef, tabIndex: -1 },
 
       // ── Header ──────────────────────────────────────────────────────────
       React.createElement(

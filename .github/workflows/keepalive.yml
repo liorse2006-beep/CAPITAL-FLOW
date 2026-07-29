@@ -2,8 +2,11 @@ name: Keep-alive ping
 
 on:
   schedule:
-    # Every 14 minutes — keeps the Render free instance from sleeping
-    - cron: '*/14 * * * *'
+    # Every 10 minutes — keeps the Render free instance from sleeping.
+    # GitHub Actions cron is best-effort and can run a few minutes late; a
+    # 10-min interval leaves real margin under Render's 15-min idle timeout
+    # even when a run is delayed, unlike the previous 14-min interval.
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 jobs:
