@@ -11,7 +11,7 @@ const CACHE_TTL_MS = 60 * 1000;
 
 router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) => {
   if (flowCache.results && flowCache.expiresAt > Date.now()) {
-    await spendScan(req.user, 'sectorMoving');
+    // Cache hit — free, same policy as the main scanner.
     return res.json({
       results: flowCache.results,
       fetchTime: flowCache.fetchTime,

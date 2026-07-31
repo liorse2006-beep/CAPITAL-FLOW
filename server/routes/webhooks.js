@@ -49,6 +49,40 @@ router.post('/webhooks/whop', async (req, res) => {
       }
     }
 
+    // A refunded / disputed payment takes the paid access back. Without
+    // this, anyone could buy Elite, request a refund from Whop, and keep
+    // the subscription forever — a free-money hole. The metadata is the
+    // same object our checkout session attached, so it names exactly which
+    // tier this payment bought.
+    if (
+      event.type === 'payment_refunded' ||
+      event.type === 'payment.refunded' ||
+      event.type === 'refund_created' ||
+      event.type === 'dispute_created'
+    ) {
+      const metadata = event.data && event.data.metadata;
+      if (metadata && metadata.userId && metadata.tier) {
+        const user = await db.prepare('SELECT id, tier FROM users WHERE id = ?').get(metadata.userId);
+        // Only strip the tier this refunded payment actually bought — a user
+        // who bought Premium, upgraded to Elite, then refunded the OLD
+        // Premium payment keeps the Elite they still paid for.
+        if (user && user.tier === metadata.tier) {
+          await db.prepare(`UPDATE users SET tier = 'free', is_premium = 0 WHERE id = ?`).run(user.id);
+          console.log(`[webhooks/whop] ${event.type}: user ${user.id} downgraded from ${metadata.tier} to free`);
+          // Best-effort audit trail — visible in the admin panel's activity log.
+          db.prepare('INSERT INTO admin_audit_log (actor, action, target_user_id, detail) VALUES (?, ?, ?, ?)')
+            .run('whop-webhook', 'refund_downgrade', user.id, metadata.tier)
+            .catch(() => {});
+        } else if (user) {
+          console.log(
+            `[webhooks/whop] ${event.type}: user ${user.id} refunded a ${metadata.tier} payment but holds ${user.tier} — no change`
+          );
+        }
+      } else {
+        console.warn('[webhooks/whop] refund event with unrecognized metadata', metadata);
+      }
+    }
+
     res.json({ ok: true });
   } catch (err) {
     console.error('[webhooks/whop]', err);

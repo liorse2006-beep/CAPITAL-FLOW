@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
-import NewsModal from './NewsModal'
+import NewsModal, { prefetchNews } from './NewsModal'
 
 function jsonResponse(body, status = 200) {
   return Promise.resolve({ ok: status < 400, status, json: () => Promise.resolve(body) })
@@ -46,6 +46,22 @@ describe('NewsModal', () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalled())
     expect(onRequireUpgrade).toHaveBeenCalled()
+  })
+
+  it('prefetchNews warms the cache so the modal later opens with zero fetches', async () => {
+    global.fetch = vi.fn(() =>
+      jsonResponse({ articles: [{ headline: 'Prefetched Headline', source: 'WSJ', datetime: 0 }] })
+    )
+    prefetchNews('PREF1', () => 't')
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1))
+
+    render(<NewsModal symbol="PREF1" onClose={vi.fn()} getToken={() => 't'} onRequireUpgrade={vi.fn()} />)
+    expect(screen.getByText('Prefetched Headline')).toBeInTheDocument()
+    expect(fetch).toHaveBeenCalledTimes(1)
+
+    // A second prefetch within the TTL is a no-op
+    prefetchNews('PREF1', () => 't')
+    expect(fetch).toHaveBeenCalledTimes(1)
   })
 
   it('reuses the client-side cache on a re-mount for the same symbol, without re-fetching', async () => {

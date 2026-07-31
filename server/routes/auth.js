@@ -37,7 +37,11 @@ const EMAIL_RE = /^[^\s@<>"'`]+@[^\s@<>"'`]+\.[^\s@<>"'`]+$/;
 async function verifyTurnstile(token) {
   const secret = TURNSTILE_SECRET || HCAPTCHA_SECRET; // fallback for legacy env
   if (!secret) return true; // bypass when not configured
-  if (!token) return true;  // widget failed to load — degrade gracefully; rate limiter protects
+  // Once a secret is configured, a missing token is a hard failure — the
+  // old "degrade gracefully" path meant any bot could skip the CAPTCHA
+  // entirely by simply not sending one, leaving the rate limiter as the
+  // only signup protection.
+  if (!token) return false;
   const params = new URLSearchParams({ secret, response: token });
   const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: params });
   const data = await res.json();

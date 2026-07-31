@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import ScanLoader from '../shared/ScanLoader'
 import ScheduleScan from '../shared/ScheduleScan'
 import useSmoothProgress from '../../hooks/useSmoothProgress'
 import { fmt, friendlyError } from '../../utils/format'
 import { SECTOR_ICONS } from '../../constants/sectorIcons'
+import { useAuth } from '../../context/AuthContext'
 
 const ALL_SECTORS = [
   'Technology',
@@ -174,6 +175,32 @@ export default function ScannerPage({
     localStorage.setItem('vs_action_hint_seen', '1')
     setShowActionHint(false)
   }
+
+  // Warm the news cache for the strongest results the moment a scan lands,
+  // so clicking News on them opens instantly instead of replaying the
+  // loading screen. Only for accounts that can actually access news (Elite
+  // or an active free trial) — anyone else would just collect 403s.
+  const { getToken } = useAuth() || {}
+  const canAccessNews = isElite || trialActive
+  useEffect(
+    function () {
+      if (!results || results.length === 0 || !canAccessNews || !getToken) return
+      var top = results
+        .slice()
+        .sort(function (a, b) {
+          return b.volumeRatio - a.volumeRatio
+        })
+        .slice(0, 3)
+      import('../shared/NewsModal')
+        .then(function (m) {
+          top.forEach(function (r) {
+            m.prefetchNews(r.symbol, getToken)
+          })
+        })
+        .catch(function () {})
+    },
+    [results, canAccessNews] // eslint-disable-line react-hooks/exhaustive-deps
+  )
 
   return (
     <div className="page-content">

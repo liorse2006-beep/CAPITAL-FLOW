@@ -76,6 +76,24 @@ var SCAN_MESSAGES = [
 var clientNewsCache = new Map()
 var CLIENT_CACHE_TTL_MS = 5 * 60 * 1000
 
+// Warms the client cache for a symbol before the user ever clicks News —
+// ScannerPage calls this for the top results right after a scan renders, so
+// opening the modal for those tickers skips the whole loading animation.
+// Silently does nothing on any failure; this is purely a hint.
+export function prefetchNews(symbol, getToken) {
+  var cached = clientNewsCache.get(symbol)
+  if (cached && Date.now() - cached.fetchTime < CLIENT_CACHE_TTL_MS) return
+  fetch('/api/news/' + encodeURIComponent(symbol), { headers: { Authorization: 'Bearer ' + getToken() } })
+    .then(function (r) {
+      return r.ok ? r.json() : null
+    })
+    .then(function (d) {
+      if (!d || !Array.isArray(d.articles)) return
+      clientNewsCache.set(symbol, { articles: d.articles, fetchTime: Date.now() })
+    })
+    .catch(function () {})
+}
+
 var BIAS_LABEL = { positive: 'BULLISH BIAS', negative: 'BEARISH BIAS', neutral: 'FLAT', mixed: 'MIXED SIGNAL' }
 
 // Mirrors the closed taxonomy in server/services/newsSummarizer.js —

@@ -193,6 +193,62 @@ test('webhook ignores event types other than payment_succeeded', async () => {
   }
 });
 
+test('payment_refunded downgrades the user whose current tier matches the refunded payment', async () => {
+  const user = await makeUser('webhook-refund@test.local', 'elite');
+  await db.prepare('UPDATE users SET is_premium = 1 WHERE id = ?').run(user.id);
+
+  const payload = JSON.stringify({
+    type: 'payment_refunded',
+    data: { metadata: { userId: user.id, tier: 'elite' } },
+  });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(payload, { id: 'wh_refund_1' }) },
+      body: payload,
+    });
+    assert.strictEqual(res.status, 200);
+
+    const updated = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
+    assert.strictEqual(updated.tier, 'free', 'refunded tier must be revoked');
+    assert.strictEqual(updated.is_premium, 0);
+
+    const audit = await db
+      .prepare("SELECT * FROM admin_audit_log WHERE action = 'refund_downgrade' AND target_user_id = ?")
+      .get(user.id);
+    assert.ok(audit, 'refund downgrade must appear in the audit log');
+  } finally {
+    server.close();
+  }
+});
+
+test('refunding an old premium payment does NOT strip a user who since upgraded to elite', async () => {
+  const user = await makeUser('webhook-refund-upgraded@test.local', 'elite');
+
+  const payload = JSON.stringify({
+    type: 'payment_refunded',
+    data: { metadata: { userId: user.id, tier: 'premium' } },
+  });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(payload, { id: 'wh_refund_2' }) },
+      body: payload,
+    });
+    assert.strictEqual(res.status, 200);
+    const unchanged = await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id);
+    assert.strictEqual(unchanged.tier, 'elite', 'the elite they still paid for must survive');
+  } finally {
+    server.close();
+  }
+});
+
 // ── POST /api/checkout/transaction ──────────────────────────────────────────
 
 test('checkout/transaction requires auth', async () => {

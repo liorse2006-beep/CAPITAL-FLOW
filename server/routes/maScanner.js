@@ -33,7 +33,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
   const cacheKey = cacheKeyFor(ma, distance, interval, market, sectors);
   const cached = resultCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
-    await spendScan(req.user, 'maScanner');
+    // Cache hit — free, same policy as the main scanner.
     return res.json({
       results: cached.results,
       scanTime: cached.scanTime,

@@ -1,6 +1,12 @@
 const db = require('../db');
 
-function israelNowHHMM() {
+// A schedule fires when Israel local time is within this many minutes AFTER
+// its scan_time (never before). Exact-minute matching used to mean that if
+// the server was asleep, redeploying, or mid-scan at that one minute, the
+// user's daily push silently never went out.
+const FIRE_WINDOW_MIN = 3;
+
+function israelNowMinutes() {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Jerusalem',
     hour: '2-digit',
@@ -9,52 +15,65 @@ function israelNowHHMM() {
   }).formatToParts(new Date());
   const map = {};
   parts.forEach((p) => { map[p.type] = p.value; });
-  return map.hour + ':' + map.minute;
+  return Number(map.hour) * 60 + Number(map.minute);
 }
 
-async function executeScheduledScan(sched) {
-  const { ALL_TICKERS } = require('../../tickers');
-  let results = [];
-  let title = '';
-  let body = '';
+function hhmmToMinutes(hhmm) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
 
-  if (sched.scan_type === 'capitalFlow') {
-    const { scanTickers } = require('./scanner');
-    const res = await scanTickers(ALL_TICKERS, { minVolumeRatio: 2.5, minMarketCap: 1_000_000_000 });
-    results = res.results || [];
-    if (results.length > 0) {
-      const top = results[0];
-      title = `Volume spike detected — ${top.symbol} ${top.volumeRatio.toFixed(1)}×`;
-      body = `${results.length} stocks moving right now. Tap to see the full scan.`;
-    } else {
-      title = 'Capital Flow — Daily Scan';
-      body = 'No unusual volume right now. Markets look quiet.';
-    }
-  } else if (sched.scan_type === 'maScanner') {
+/** True when `hhmm` is due: now is 0..FIRE_WINDOW_MIN minutes past it (with midnight wrap). */
+function isDue(hhmm, nowMinutes) {
+  const t = hhmmToMinutes(hhmm);
+  if (t === null) return false;
+  const sinceScheduled = (nowMinutes - t + 1440) % 1440;
+  return sinceScheduled <= FIRE_WINDOW_MIN;
+}
+
+// One scan per scan_type per tick, shared by every user scheduled for that
+// window — ten Elite users scheduled for 16:30 used to trigger ten separate
+// full-market scans back-to-back.
+async function runScanForType(scanType) {
+  const { ALL_TICKERS } = require('../../tickers');
+  if (scanType === 'maScanner') {
     const { scanMA } = require('./maScanner');
     const res = await scanMA(ALL_TICKERS, { ma: 20, distance: 2, interval: '1d' });
-    results = res.results || [];
-    if (results.length > 0) {
-      title = `MA signal detected — ${results[0].symbol}`;
-      body = `${results.length} stocks near their moving average. Tap to see the full scan.`;
-    } else {
-      title = 'MA Scanner — Daily Scan';
-      body = 'No MA signals right now. Check back later.';
-    }
-  } else if (sched.scan_type === 'sectorMoving') {
-    const { scanTickers } = require('./scanner');
-    const res = await scanTickers(ALL_TICKERS, { minVolumeRatio: 2.0, minMarketCap: 500_000_000 });
-    results = res.results || [];
-    if (results.length > 0) {
-      title = `Sector flow detected — ${results[0].symbol}`;
-      body = `${results.length} sector movers right now. Tap to see the full scan.`;
-    } else {
-      title = 'Hot Sectors — Daily Scan';
-      body = 'No sector flow right now. Markets look quiet.';
-    }
+    return res.results || [];
   }
+  const { scanTickers } = require('./scanner');
+  const params =
+    scanType === 'sectorMoving'
+      ? { minVolumeRatio: 2.0, minMarketCap: 500_000_000 }
+      : { minVolumeRatio: 2.5, minMarketCap: 1_000_000_000 };
+  const res = await scanTickers(ALL_TICKERS, params);
+  return res.results || [];
+}
 
-  const SCAN_URL = { capitalFlow: '/scanner', maScanner: '/ma', sectorMoving: '/flow' };
+function payloadForType(scanType, results) {
+  if (scanType === 'maScanner') {
+    return results.length > 0
+      ? { title: `MA signal detected — ${results[0].symbol}`, body: `${results.length} stocks near their moving average. Tap to see the full scan.` }
+      : { title: 'MA Scanner — Daily Scan', body: 'No MA signals right now. Check back later.' };
+  }
+  if (scanType === 'sectorMoving') {
+    return results.length > 0
+      ? { title: `Sector flow detected — ${results[0].symbol}`, body: `${results.length} sector movers right now. Tap to see the full scan.` }
+      : { title: 'Hot Sectors — Daily Scan', body: 'No sector flow right now. Markets look quiet.' };
+  }
+  return results.length > 0
+    ? {
+        title: `Volume spike detected — ${results[0].symbol} ${results[0].volumeRatio.toFixed(1)}×`,
+        body: `${results.length} stocks moving right now. Tap to see the full scan.`,
+      }
+    : { title: 'Capital Flow — Daily Scan', body: 'No unusual volume right now. Markets look quiet.' };
+}
+
+const SCAN_URL = { capitalFlow: '/scanner', maScanner: '/ma', sectorMoving: '/flow' };
+
+async function notifyScheduledUser(sched, results) {
+  const { title, body } = payloadForType(sched.scan_type, results);
 
   await db
     .prepare('UPDATE scheduled_scans SET last_run_at = ?, last_result_count = ? WHERE id = ?')
@@ -78,7 +97,7 @@ async function executeScheduledScan(sched) {
 }
 
 async function runScheduledScans() {
-  const hhmm = israelNowHHMM();
+  const nowMinutes = israelNowMinutes();
   const oneHourAgo = Math.floor(Date.now() / 1000) - 3600;
 
   let rows;
@@ -87,20 +106,38 @@ async function runScheduledScans() {
       .prepare(
         `SELECT * FROM scheduled_scans
          WHERE active = 1
-           AND scan_time = ?
            AND (last_run_at IS NULL OR last_run_at < ?)`
       )
-      .all(hhmm, oneHourAgo);
+      .all(oneHourAgo);
   } catch (err) {
     console.error('[ScheduledScans] DB error:', err.message);
     return;
   }
 
-  for (const sched of rows) {
+  const due = rows.filter((sched) => isDue(sched.scan_time, nowMinutes));
+  if (due.length === 0) return;
+
+  // Group by scan type → one scan each, fanned out to every subscriber.
+  const byType = new Map();
+  due.forEach((sched) => {
+    if (!byType.has(sched.scan_type)) byType.set(sched.scan_type, []);
+    byType.get(sched.scan_type).push(sched);
+  });
+
+  for (const [scanType, scheds] of byType) {
+    let results;
     try {
-      await executeScheduledScan(sched);
+      results = await runScanForType(scanType);
     } catch (err) {
-      console.error(`[ScheduledScans] Error running scan ${sched.id}:`, err.message);
+      console.error(`[ScheduledScans] ${scanType} scan failed:`, err.message);
+      continue;
+    }
+    for (const sched of scheds) {
+      try {
+        await notifyScheduledUser(sched, results);
+      } catch (err) {
+        console.error(`[ScheduledScans] Error notifying scan ${sched.id}:`, err.message);
+      }
     }
   }
 }
@@ -109,4 +146,4 @@ function startScheduledScanRunner() {
   setInterval(runScheduledScans, 60 * 1000).unref();
 }
 
-module.exports = { startScheduledScanRunner };
+module.exports = { startScheduledScanRunner, runScheduledScans, isDue, FIRE_WINDOW_MIN };

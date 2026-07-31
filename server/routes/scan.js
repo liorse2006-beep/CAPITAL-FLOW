@@ -1,10 +1,24 @@
 const router = require('express').Router();
-const { scanTickers } = require('../services/scanner');
+const scanner = require('../services/scanner');
 const { backgroundCache, filterCachedResults } = require('../services/backgroundScan');
-const { scanState } = require('../state');
+const { getUserScanState } = require('../state');
 const { SP500, NASDAQ100, ALL_TICKERS, SECTOR_TICKERS } = require('../../tickers');
 const { requireAuth, requireScanQuota } = require('../middleware/authMiddleware');
 const { spendScan: spendScanQuota, quotaFor } = require('../services/scanQuota');
+
+// The broadest (most permissive) filter set a shared scan runs with. Any
+// request at-or-above this floor can be served by one shared scan and
+// filtered down per user; a below-floor request (custom API callers only —
+// the UI never goes below these) runs privately with its own filters.
+const FLOOR_RATIO = 1.5;
+const FLOOR_CAP = 500_000_000;
+
+// One in-flight scan per ticker universe, shared by every user who asks for
+// that universe while it runs. Two users clicking "Run Scan" seconds apart
+// used to mean either a blunt 409 for the second or double the upstream
+// load — now the second request subscribes to the first's scan and both get
+// their own filtered view of the same result set.
+const inFlightScans = new Map(); // universeKey → { promise, subscribers: Set<{state, opts}> }
 
 function isMarketOpen() {
   const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
@@ -13,16 +27,65 @@ function isMarketOpen() {
   return day !== 0 && day !== 6 && mins >= 570 && mins < 960;
 }
 
-async function spendScan(req) {
-  await spendScanQuota(req.user, 'capitalFlow');
-  return quotaFor(req.user);
+function parseVol(str) {
+  if (!str) return 0;
+  const s = str.toString().toUpperCase().trim();
+  if (s.endsWith('B')) return parseFloat(s) * 1e9;
+  if (s.endsWith('M')) return parseFloat(s) * 1e6;
+  if (s.endsWith('K')) return parseFloat(s) * 1e3;
+  return parseFloat(s) || 0;
+}
+
+/** Does one already-enriched result row pass this user's own filters? */
+function rowPasses(r, opts) {
+  if (r.volumeRatio < opts.minVolumeRatio) return false;
+  if (r.marketCap < opts.minMarketCap) return false;
+  if (opts.minPrice > 0 && r.price < opts.minPrice) return false;
+  if (opts.maxPrice > 0 && r.price > opts.maxPrice) return false;
+  if (opts.minVolNum > 0 && r.volume < opts.minVolNum) return false;
+  return true;
+}
+
+function universeKeyFor(list, sectors) {
+  if (list === 'nasdaq100') return 'nasdaq100';
+  if (list === 'sp500') return 'sp500';
+  if (sectors.length > 0) return 'sectors:' + sectors.slice().sort().join('+');
+  return 'all';
+}
+
+/**
+ * Join (or start) the shared floor-filter scan for a universe. Every
+ * subscriber's per-user state gets live progress and its own filtered live
+ * match feed while the single underlying scan runs.
+ */
+function joinSharedScan(universeKey, tickers, state, opts) {
+  let entry = inFlightScans.get(universeKey);
+  if (!entry) {
+    entry = { subscribers: new Set() };
+    entry.promise = scanner
+      .scanTickers(tickers, {
+        minVolumeRatio: FLOOR_RATIO,
+        minMarketCap: FLOOR_CAP,
+        onProgress: (p) => {
+          entry.subscribers.forEach((sub) => {
+            sub.state.progress = p;
+          });
+        },
+        onMatch: (m) => {
+          entry.subscribers.forEach((sub) => {
+            if (rowPasses(m, sub.opts)) sub.state.liveResults.push(m);
+          });
+        },
+      })
+      .finally(() => inFlightScans.delete(universeKey));
+    inFlightScans.set(universeKey, entry);
+  }
+  const sub = { state, opts };
+  entry.subscribers.add(sub);
+  return entry.promise.finally(() => entry.subscribers.delete(sub));
 }
 
 router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
-  if (scanState.running) {
-    return res.status(409).json({ error: 'Scan already in progress' });
-  }
-
   const minVolumeRatio = parseFloat(req.query.minVolumeRatio) || 1.5;
   const minMarketCap = parseFloat(req.query.minMarketCap) || 1_000_000_000;
   const minPrice = parseFloat(req.query.minPrice) || 0;
@@ -31,38 +94,47 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
   const sectors = req.query.sectors ? req.query.sectors.split(',') : [];
   const list = req.query.list || '';
 
+  const userOpts = {
+    minVolumeRatio,
+    minMarketCap,
+    minPrice,
+    maxPrice,
+    minVolRaw,
+    minVolNum: parseVol(minVolRaw),
+  };
+
   // Return background cache instantly if fresh and compatible.
   // When market is closed extend TTL to 24 h so users always see last-session data.
-  var marketOpen = isMarketOpen();
-  var maxCacheAge = marketOpen ? 15 * 60 * 1000 : 24 * 60 * 60 * 1000;
+  const marketOpen = isMarketOpen();
+  const maxCacheAge = marketOpen ? 15 * 60 * 1000 : 24 * 60 * 60 * 1000;
 
   if (backgroundCache.results && backgroundCache.scanTime && list !== 'sectors' && sectors.length === 0) {
-    var cacheAgeMs = Date.now() - new Date(backgroundCache.scanTime).getTime();
-    if (cacheAgeMs < maxCacheAge) {
-      var minRatioReq = minVolumeRatio;
-      var minCapReq = minMarketCap;
-      if (minRatioReq >= 1.5 && minCapReq >= 500000000) {
-        var opts = {
-          minVolumeRatio: minVolumeRatio,
-          minMarketCap: minMarketCap,
-          minPrice: minPrice,
-          maxPrice: maxPrice,
-          minVolRaw: minVolRaw,
-          list: list,
-          sectors: sectors,
-        };
-        var cachedFiltered = filterCachedResults(backgroundCache.results, opts);
-        return res.json({
-          results: cachedFiltered,
-          scanTime: backgroundCache.scanTime,
-          tickersScanned: ALL_TICKERS.length,
-          errors: 0,
-          fromCache: true,
-          cacheAge: Math.round(cacheAgeMs / 1000),
-          marketClosed: !marketOpen,
-          ...(await spendScan(req)),
-        });
-      }
+    const cacheAgeMs = Date.now() - new Date(backgroundCache.scanTime).getTime();
+    if (cacheAgeMs < maxCacheAge && minVolumeRatio >= FLOOR_RATIO && minMarketCap >= FLOOR_CAP) {
+      const cachedFiltered = filterCachedResults(backgroundCache.results, {
+        minVolumeRatio,
+        minMarketCap,
+        minPrice,
+        maxPrice,
+        minVolRaw,
+        list,
+        sectors,
+      });
+      const state = getUserScanState(req.user.id);
+      state.lastResults = cachedFiltered;
+      state.lastScanTime = backgroundCache.scanTime;
+      // Served from cache — no real work happened, so it costs no quota.
+      // Premium's 5/day pool only ever pays for scans that hit the market.
+      return res.json({
+        results: cachedFiltered,
+        scanTime: backgroundCache.scanTime,
+        tickersScanned: ALL_TICKERS.length,
+        errors: 0,
+        fromCache: true,
+        cacheAge: Math.round(cacheAgeMs / 1000),
+        marketClosed: !marketOpen,
+        ...quotaFor(req.user),
+      });
     }
   }
 
@@ -80,58 +152,91 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
     tickersToScan = [...sectorSet];
   }
 
-  scanState.running = true;
-  scanState.progress = { processed: 0, total: tickersToScan.length, found: 0 };
-  scanState.liveResults = [];
+  const state = getUserScanState(req.user.id);
+  // Double-click protection only — scans by OTHER users never block this one.
+  if (state.running) {
+    return res.status(409).json({ error: 'Scan already in progress' });
+  }
+
+  state.running = true;
+  state.progress = { processed: 0, total: tickersToScan.length, found: 0 };
+  state.liveResults = [];
+
+  // A request below the shared floor can't reuse the shared scan (its
+  // baseline filters would hide rows this user asked to see) — run private.
+  const canShare = minVolumeRatio >= FLOOR_RATIO && minMarketCap >= FLOOR_CAP;
+  const universeKey = universeKeyFor(list, sectors);
 
   try {
-    const { results, errors, processed } = await scanTickers(tickersToScan, {
-      minVolumeRatio,
-      minMarketCap,
-      minPrice,
-      maxPrice,
-      minVolRaw,
-      onProgress: (p) => {
-        scanState.progress = p;
-      },
-      onMatch: (match) => {
-        scanState.liveResults.push(match);
-      },
-    });
+    let results;
+    let errors = [];
+    let processed = tickersToScan.length;
 
-    scanState.lastResults = results;
-    scanState.lastScanTime = new Date().toISOString();
-    backgroundCache.results = results;
-    backgroundCache.scanTime = scanState.lastScanTime;
-    scanState.running = false;
+    if (canShare) {
+      const raw = await joinSharedScan(universeKey, tickersToScan, state, userOpts);
+      errors = raw.errors;
+      processed = raw.processed;
+      results = raw.results.filter((r) => rowPasses(r, userOpts));
+      // The full-universe floor scan is byte-for-byte what the background
+      // scheduler produces — refresh the shared cache so the next caller
+      // gets an instant hit.
+      if (universeKey === 'all') {
+        backgroundCache.results = raw.results;
+        backgroundCache.scanTime = new Date().toISOString();
+      }
+    } else {
+      const raw = await scanner.scanTickers(tickersToScan, {
+        minVolumeRatio,
+        minMarketCap,
+        minPrice,
+        maxPrice,
+        minVolRaw,
+        onProgress: (p) => {
+          state.progress = p;
+        },
+        onMatch: (match) => {
+          state.liveResults.push(match);
+        },
+      });
+      errors = raw.errors;
+      processed = raw.processed;
+      results = raw.results;
+    }
+
+    state.lastResults = results;
+    state.lastScanTime = new Date().toISOString();
+    state.running = false;
+    await spendScanQuota(req.user, 'capitalFlow');
 
     res.json({
       results,
-      scanTime: scanState.lastScanTime,
+      scanTime: state.lastScanTime,
       tickersScanned: processed,
       errors: errors.length,
       marketClosed: !isMarketOpen(),
-      ...(await spendScan(req)),
+      ...quotaFor(req.user),
     });
   } catch (err) {
-    scanState.running = false;
+    state.running = false;
     console.error('[scan]', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 router.get('/progress', requireAuth, (req, res) => {
+  const state = getUserScanState(req.user.id);
   res.json({
-    running: scanState.running,
-    progress: scanState.progress,
-    liveResults: scanState.liveResults || [],
+    running: state.running,
+    progress: state.progress,
+    liveResults: state.liveResults || [],
   });
 });
 
 router.get('/last-results', requireAuth, (req, res) => {
+  const state = getUserScanState(req.user.id);
   res.json({
-    results: scanState.lastResults,
-    scanTime: scanState.lastScanTime,
+    results: state.lastResults,
+    scanTime: state.lastScanTime,
   });
 });
 
