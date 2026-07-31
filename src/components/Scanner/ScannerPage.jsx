@@ -724,7 +724,7 @@ export default function ScannerPage({
                           {(r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '%'}
                         </td>
                         <td>
-                          <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                             {r.rvol && r.rvol > 0 ? (
                               <>
                                 <span className="vol-ratio-pill rvol-active">{r.rvol + 'x'}</span>

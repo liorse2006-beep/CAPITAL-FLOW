@@ -244,11 +244,10 @@ export default function MAScannerPage({
       },
       React.createElement(
         'svg',
-        { viewBox: '0 0 24 24', width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+        { viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
         React.createElement('path', { d: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9' }),
         React.createElement('path', { d: 'M13.73 21a2 2 0 0 1-3.46 0' })
-      ),
-      level ? level + 'x' : 'Alert'
+      )
     );
   };
 
