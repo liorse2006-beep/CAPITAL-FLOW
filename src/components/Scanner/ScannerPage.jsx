@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import ScanLoader from '../shared/ScanLoader'
 import ScheduleScan from '../shared/ScheduleScan'
 import useSmoothProgress from '../../hooks/useSmoothProgress'
@@ -161,6 +161,18 @@ export default function ScannerPage({
   const filtersUnlocked = isPremium || trialActive
   function goToUpgrade() {
     setShowUpgradeModal(true)
+  }
+
+  // The desktop results table's per-row actions (Chart/News/Alert/AI
+  // Insights) are icon-only, no text — this one-time legend explains them
+  // the first time a table is ever shown, then never appears again
+  // (localStorage flag, not per-session).
+  const [showActionHint, setShowActionHint] = useState(function () {
+    return !localStorage.getItem('vs_action_hint_seen')
+  })
+  function dismissActionHint() {
+    localStorage.setItem('vs_action_hint_seen', '1')
+    setShowActionHint(false)
   }
 
   return (
@@ -609,6 +621,44 @@ export default function ScannerPage({
             <div className="no-match">No stocks matched your filters.</div>
           ) : (
             <>
+              {showActionHint && (
+                <div className="action-hint-bar">
+                  <span className="action-hint-item">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 3v18h18" />
+                      <path d="M18.7 8l-5.1 5.1-4-4L3 15.6" />
+                    </svg>
+                    Chart
+                  </span>
+                  <span className="action-hint-item">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="16" y1="13" x2="8" y2="13" />
+                      <line x1="16" y1="17" x2="8" y2="17" />
+                    </svg>
+                    News
+                  </span>
+                  <span className="action-hint-item">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                    Volume alert
+                  </span>
+                  <span className="action-hint-item">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 18h.01" />
+                      <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 4" />
+                      <circle cx="12" cy="12" r="10" />
+                    </svg>
+                    Ask Capi
+                  </span>
+                  <button className="action-hint-close" onClick={dismissActionHint} aria-label="Dismiss">
+                    ×
+                  </button>
+                </div>
+              )}
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -620,7 +670,6 @@ export default function ScannerPage({
                       <TH label="Price" field="price" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
                       <TH label="Change" field="change" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
                       <TH label="RVOL" field="volumeRatio" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
-                      <th>Avg / Vol</th>
                       <TH label="Sector" field="sector" sortField={sortField} sortDir={sortDir} isPremium={isPremium} onSort={handleSort} onSortReset={handleSortDoubleClick} />
                       <th style={{ width: 36 }}></th>
                     </tr>
@@ -675,28 +724,26 @@ export default function ScannerPage({
                           {(r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '%'}
                         </td>
                         <td>
-                          {r.rvol && r.rvol > 0 ? (
-                            <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
-                              <span className="vol-ratio-pill rvol-active">{r.rvol + 'x'}</span>
-                              <div className="rvol-label">RVOL</div>
-                            </div>
-                          ) : (
-                            <span
-                              className={
-                                'vol-hero' +
-                                (r.volumeRatio >= 5 ? ' vol-extreme' : r.volumeRatio >= 3 ? ' vol-high' : r.volumeRatio >= 2 ? ' vol-moderate' : '')
-                              }
-                            >
-                              {r.volumeRatio.toFixed(2) + 'x'}
+                          <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
+                            {r.rvol && r.rvol > 0 ? (
+                              <>
+                                <span className="vol-ratio-pill rvol-active">{r.rvol + 'x'}</span>
+                                <div className="rvol-label">RVOL</div>
+                              </>
+                            ) : (
+                              <span
+                                className={
+                                  'vol-hero' +
+                                  (r.volumeRatio >= 5 ? ' vol-extreme' : r.volumeRatio >= 3 ? ' vol-high' : r.volumeRatio >= 2 ? ' vol-moderate' : '')
+                                }
+                              >
+                                {r.volumeRatio.toFixed(2) + 'x'}
+                              </span>
+                            )}
+                            <span className="vol-stack-mini" title="Avg / Current volume">
+                              {fmt(r.avgVolume) + ' / ' + fmt(r.volume)}
                             </span>
-                          )}
-                        </td>
-                        <td>
-                          <span className="vol-stack">
-                            <span className="vol-stack-avg">{fmt(r.avgVolume)}</span>
-                            <span className="vol-stack-sep">/</span>
-                            <span className="vol-stack-cur">{fmt(r.volume)}</span>
-                          </span>
+                          </div>
                         </td>
                         <td>
                           <span className="sector-chip">{r.sector}</span>
@@ -709,28 +756,24 @@ export default function ScannerPage({
                             rel="noopener noreferrer"
                             title="Open in TradingView"
                             aria-label="Open in TradingView"
-                            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 500 }}
                           >
-                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M3 3v18h18" />
                               <path d="M18.7 8l-5.1 5.1-4-4L3 15.6" />
                             </svg>
-                            Chart
                           </a>
                           <button
                             className="news-open-btn"
                             onClick={() => promptShowNews(r.symbol)}
                             title="Scan news for this ticker"
                             aria-label={'Scan news for ' + r.symbol}
-                            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 500 }}
                           >
-                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                               <polyline points="14 2 14 8 20 8" />
                               <line x1="16" y1="13" x2="8" y2="13" />
                               <line x1="16" y1="17" x2="8" y2="17" />
                             </svg>
-                            News
                           </button>
                           <button
                             className={'alert-create-btn' + (alertLevels && alertLevels[r.symbol] ? ' active' : '')}
@@ -740,13 +783,11 @@ export default function ScannerPage({
                                 ? 'Alert set at ' + alertLevels[r.symbol] + 'x — click to edit'
                                 : 'Create a volume alert'
                             }
-                            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 500 }}
                           >
-                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                             </svg>
-                            {alertLevels && alertLevels[r.symbol] ? alertLevels[r.symbol] + 'x' : 'Alert'}
                           </button>
                           <button
                             className="explain-capi-btn"
@@ -754,12 +795,11 @@ export default function ScannerPage({
                             title="Ask Capi to explain this result"
                             aria-label={'Ask Capi to explain ' + r.symbol}
                           >
-                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M12 18h.01" />
                               <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 4" />
                               <circle cx="12" cy="12" r="10" />
                             </svg>
-                            AI Insights
                           </button>
                         </td>
                       </tr>
