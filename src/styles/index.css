@@ -6483,6 +6483,21 @@ html.a11y-highlight-links a {
   from { opacity: 0; transform: translateX(-50%) translateY(20px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
+/* On phone widths the banner's width == 100vw - 24px, so its right edge
+   (where the close button sits) always lands under the Capi launcher —
+   both are bottom:20px, and the launcher's z-index (1500) sits above the
+   banner's (1100), silently swallowing the close tap. Lift the banner clear
+   of the launcher's 56px circle instead of letting them share a row. */
+@media (max-width: 640px) {
+  .install-prompt {
+    bottom: 88px;
+  }
+}
+@media (max-width: 480px) {
+  .install-prompt {
+    bottom: 80px;
+  }
+}
 .install-prompt-icon {
   flex-shrink: 0;
   width: 40px;
@@ -7184,7 +7199,15 @@ html.a11y-highlight-links a {
 }
 .chat-panel-body {
   flex: 1;
+  /* Without this, a flex child's default min-height:auto refuses to shrink
+     below its content's intrinsic height — so on a short mobile viewport the
+     message list just grows past the panel's own bounds (clipped by
+     .chat-panel's overflow:hidden) instead of becoming scrollable. This is
+     the actual reason "can't scroll" only ever showed up on phones. */
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 14px;
   display: flex;
   flex-direction: column;
@@ -7472,6 +7495,22 @@ html.a11y-highlight-links a {
   }
   .chat-panel {
     width: calc(100vw - 24px);
+  }
+}
+
+/* iOS Safari auto-zooms the whole page on focus of any text input whose
+   computed font-size is under 16px — every text field in the app is sized
+   well below that for visual density, which is what triggered a zoom on
+   literally every tap. Forcing 16px here (mobile only, so desktop's
+   deliberately compact look is untouched) makes the browser simply not
+   trigger it — the correct fix, unlike disabling user-scalable in the
+   viewport meta tag, which would break pinch-zoom for everyone including
+   the people the accessibility widget exists for. */
+@media (max-width: 640px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px !important;
   }
 }
 
