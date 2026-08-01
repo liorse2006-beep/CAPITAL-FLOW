@@ -79,6 +79,18 @@ async function notifyScheduledUser(sched, results) {
     .prepare('UPDATE scheduled_scans SET last_run_at = ?, last_result_count = ? WHERE id = ?')
     .run(Math.floor(Date.now() / 1000), results.length, sched.id);
 
+  // Persist to the in-app bell FIRST, so the user has proof the scheduled
+  // scan actually ran even if they never granted push permission (or the
+  // push silently fails). This is the fix for "I scheduled a scan and
+  // nothing happened" — previously the only output was a push, which is
+  // invisible with no subscription.
+  try {
+    const topSymbol = results.length > 0 ? results[0].symbol : null;
+    await require('./notifications').addNotification(sched.user_id, { symbol: topSymbol, title, body });
+  } catch (notifErr) {
+    console.error(`[ScheduledScans] Persisting notification failed for user ${sched.user_id}:`, notifErr.message);
+  }
+
   try {
     const { sendPushToUser } = require('./webPush');
     await sendPushToUser(sched.user_id, {

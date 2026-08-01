@@ -298,11 +298,17 @@ function App() {
     [refreshQuota, page]
   );
 
-  // Notifications (push subscribe + watchlist alert thresholds) are Elite
-  // features, opened up temporarily to a free account for as long as its
-  // 7-day trial is active — NOT the daily scheduled-scan digest, which
-  // stays strictly Elite (gated separately, see saveNotifTime/isElite below).
-  var canNotify = isElite || (userTier === 'free' && !!(scanMeta && scanMeta.free && scanMeta.free.trialActive));
+  // The 7-day free trial grants the COMPLETE Elite feature set — Capi, push,
+  // watchlist alerts, AND daily scheduled scans — to every account, free.
+  // `user.elite_access` is the server's authoritative answer (Elite OR still
+  // in-trial), available immediately from /me; the scanMeta fallback covers a
+  // cached /me response that predates that field. `canNotify` is kept as an
+  // alias since it's threaded through many call sites already.
+  var eliteAccess =
+    isElite ||
+    !!(user && user.elite_access) ||
+    (userTier === 'free' && !!(scanMeta && scanMeta.free && scanMeta.free.trialActive));
+  var canNotify = eliteAccess;
 
   /* ── Trial-ended popup — auto-shown once per site visit the first time a
         free-tier user's scanMeta confirms the 7-day trial has ended, and
@@ -462,7 +468,7 @@ function App() {
       setShowAuthModal(true);
       return;
     }
-    if (!isElite) {
+    if (!eliteAccess) {
       setShowUpgradeModal(true);
       return;
     }
@@ -494,7 +500,7 @@ function App() {
 
   useEffect(
     function () {
-      if (!isElite || !pushSupported) return;
+      if (!eliteAccess || !pushSupported) return;
       fetch('/api/push/notification-time', { headers: { Authorization: 'Bearer ' + getToken() } })
         .then(function (r) {
           return r.ok ? r.json() : {};
@@ -504,7 +510,7 @@ function App() {
         })
         .catch(function () {});
     },
-    [isElite, pushSupported]
+    [eliteAccess, pushSupported]
   );
 
   function saveNotifTime(time) {
@@ -1053,7 +1059,7 @@ function App() {
         </Suspense>
       )}
 
-      <PushPermissionPrompt user={user} />
+      <PushPermissionPrompt user={user} canNotify={eliteAccess} />
       <InstallPrompt />
 
 
@@ -1099,7 +1105,7 @@ function App() {
         <Suspense fallback={null}>
           <ChatWidget
             user={user}
-            isElite={isElite}
+            isElite={eliteAccess}
             getToken={getToken}
             externalPrompt={capiExternalPrompt}
             onExternalPromptSent={() => setCapiExternalPrompt(null)}

@@ -11,6 +11,19 @@ import './sentry';
 import './analytics';
 import './styles/index.css';
 
+// Count one site visit per browser session (not per reload) — a coarse
+// "how many people opened the site" metric surfaced in the admin panel.
+// sessionStorage-guarded so refreshes and SPA navigation don't inflate it;
+// fire-and-forget, never blocks or surfaces an error to the visitor.
+try {
+  if (!sessionStorage.getItem('vs_visit_logged')) {
+    sessionStorage.setItem('vs_visit_logged', '1');
+    fetch('/api/visit', { method: 'POST' }).catch(function () {});
+  }
+} catch (_) {
+  /* private mode with no storage — skip silently */
+}
+
 // Split out — OnboardingQuiz is only ever seen by first-time visitors
 // (returning users skip straight past it via the vs_quiz_done flag), and
 // doesn't belong in the bundle every visitor downloads up front.

@@ -134,9 +134,9 @@ export default function WatchlistPage({
         </div>
       </div>
 
-      {/* Notification Settings — push + alert thresholds are Elite, or a
-          free account still inside its 7-day trial (canNotify). The daily
-          scheduled digest below stays strictly Elite (isElite). */}
+      {/* Notification Settings — push, alert thresholds AND the daily scan
+          time are the full Elite feature set, granted to Elite and to any
+          free account still inside its 7-day trial (canNotify). */}
       {user && !canNotify && (
         <div className="notif-settings-panel notif-settings-upsell">
           <div className="notif-settings-row">
@@ -181,7 +181,7 @@ export default function WatchlistPage({
             )}
           </div>
           {pushError && <div className="notif-settings-error">{pushError}</div>}
-          {isElite && pushSupported && pushEnabled && (
+          {canNotify && pushSupported && pushEnabled && (
             <div className="notif-settings-row">
               <div>
                 <div className="notif-settings-title">Daily Scan Time</div>

@@ -1,14 +1,15 @@
 const router = require('express').Router();
-const { requireElite } = require('../middleware/authMiddleware');
+const { requireEliteOrTrial } = require('../middleware/authMiddleware');
 const { chatLimiter } = require('../middleware/rateLimiters');
 const { getHistory, addMessage, clearHistory } = require('../services/chatMessages');
 const { askCapi } = require('../services/chatbot');
 
 const MAX_MESSAGE_LEN = 2000;
 
-// Capi is an Elite-only feature — every route here requires Elite (not just
-// login), matching the frontend's own gate on rendering the chat launcher.
-router.get('/chat/history', requireElite, async (req, res) => {
+// Capi is an Elite feature, opened up in full during the 7-day free trial —
+// every route here requires Elite OR an in-trial free account, matching the
+// frontend's own gate on rendering the chat launcher.
+router.get('/chat/history', requireEliteOrTrial, async (req, res) => {
   try {
     res.json(await getHistory(req.user.id));
   } catch (err) {
@@ -17,7 +18,7 @@ router.get('/chat/history', requireElite, async (req, res) => {
   }
 });
 
-router.post('/chat/message', requireElite, chatLimiter, async (req, res) => {
+router.post('/chat/message', requireEliteOrTrial, chatLimiter, async (req, res) => {
   try {
     const message = String(req.body.message || '').trim();
     if (!message) return res.status(400).json({ error: 'Message is required' });
@@ -34,7 +35,7 @@ router.post('/chat/message', requireElite, chatLimiter, async (req, res) => {
   }
 });
 
-router.delete('/chat/history', requireElite, async (req, res) => {
+router.delete('/chat/history', requireEliteOrTrial, async (req, res) => {
   try {
     await clearHistory(req.user.id);
     res.json({ ok: true });

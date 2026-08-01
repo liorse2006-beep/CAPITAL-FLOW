@@ -197,6 +197,13 @@ router.get('/admin/api/backup-status', asyncRoute(async (req, res) => {
   res.json({ lastBackupAt: row ? Number(row.value) : null });
 }));
 
+// ── Admin API: site-visit counts (sessions that opened the site) ────────────
+router.get('/admin/api/visits', asyncRoute(async (req, res) => {
+  if (!(await checkToken(req, res))) return;
+  const { getVisitStats } = require('../services/siteVisits');
+  res.json(await getVisitStats());
+}));
+
 // ── Admin UI ───────────────────────────────────────────────────────────────
 router.get('/admin', asyncRoute(async (req, res) => {
   // The page shell is public — no server-side auth here.
@@ -341,6 +348,9 @@ router.get('/admin', asyncRoute(async (req, res) => {
 </div>
 <div class="wrap">
   <div class="stats" id="stats">
+    <div class="stat"><div class="stat-val" id="s-visits-today">—</div><div class="stat-lbl">Visits Today</div></div>
+    <div class="stat"><div class="stat-val" id="s-visits-week">—</div><div class="stat-lbl">Visits (7d)</div></div>
+    <div class="stat"><div class="stat-val" id="s-visits-total">—</div><div class="stat-lbl">Visits (all time)</div></div>
     <div class="stat"><div class="stat-val" id="s-total">—</div><div class="stat-lbl">Total Users</div></div>
     <div class="stat"><div class="stat-val" id="s-verified">—</div><div class="stat-lbl">Verified</div></div>
     <div class="stat"><div class="stat-val" id="s-premium">—</div><div class="stat-lbl">Premium</div></div>
@@ -496,6 +506,16 @@ async function loadBackupStatus() {
   } catch (e) {
     el.textContent = '—';
   }
+}
+
+async function loadVisits() {
+  try {
+    const r = await fetch('/admin/api/visits', { headers: AUTH_HEADERS });
+    const d = r.ok ? await r.json() : { today: 0, last7: 0, total: 0 };
+    document.getElementById('s-visits-today').textContent = (d.today || 0).toLocaleString();
+    document.getElementById('s-visits-week').textContent  = (d.last7 || 0).toLocaleString();
+    document.getElementById('s-visits-total').textContent = (d.total || 0).toLocaleString();
+  } catch (e) {}
 }
 
 async function deleteFeedback(id) {
@@ -712,10 +732,12 @@ load();
 loadFeedback();
 loadAuditLog();
 loadBackupStatus();
+loadVisits();
 setInterval(load, 60000);
 setInterval(loadFeedback, 60000);
 setInterval(loadAuditLog, 60000);
 setInterval(loadBackupStatus, 60000);
+setInterval(loadVisits, 60000);
 </script>
 </body>
 </html>`);

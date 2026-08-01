@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import usePushSubscription from '../../hooks/usePushSubscription';
 
-export default function PushPermissionPrompt({ user }) {
+export default function PushPermissionPrompt({ user, canNotify }) {
   const { pushSupported, pushBusy, enablePush } = usePushSubscription();
   const [dismissed, setDismissed] = useState(false);
 
-  const isElite = !!(user && user.tier === 'elite');
+  // Everyone with Elite feature access gets asked — that includes every
+  // account during its 7-day free trial, not just paid Elite. Fall back to
+  // the raw tier check if the parent didn't pass canNotify (e.g. in tests).
+  const hasAccess = canNotify != null ? !!canNotify : !!(user && (user.tier === 'elite' || user.elite_access));
   const storageKey = user ? 'vs_push_prompted_' + user.id : null;
   const [alreadyPrompted, setAlreadyPrompted] = useState(true);
 
@@ -15,7 +18,7 @@ export default function PushPermissionPrompt({ user }) {
   }, [storageKey]);
 
   const canShow =
-    isElite &&
+    hasAccess &&
     pushSupported &&
     typeof Notification !== 'undefined' &&
     Notification.permission === 'default' &&

@@ -225,6 +225,15 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS app_meta (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
+    );
+
+    -- Lightweight daily site-visit counter — one row per calendar day (UTC),
+    -- incremented once per browser session (see POST /api/visit). Aggregated,
+    -- not per-request, so it never grows without bound the way a raw pageview
+    -- log would. Surfaced in the admin panel ("Visits today / this week").
+    CREATE TABLE IF NOT EXISTS site_visits (
+      day   TEXT PRIMARY KEY,
+      count INTEGER NOT NULL DEFAULT 0
     )
   `);
 

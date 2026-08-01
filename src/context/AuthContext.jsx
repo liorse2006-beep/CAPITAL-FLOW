@@ -72,30 +72,49 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   async function fetchMe(token, isRevalidation) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    try {
-      const res = await fetch('/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: controller.signal,
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
-      } else {
+    // A sleeping Render free instance can take 30-50s to answer the very
+    // first request while it wakes up. The old 8s timeout aborted long
+    // before that and then DELETED the token, silently logging the user out
+    // on every cold start — which is what made their watchlist and Capi
+    // history "disappear" until they signed in again. So: a generous
+    // timeout, and a couple of retries on the initial load. Only a genuine
+    // auth failure (a real 401/403 response) ever removes the token now.
+    const MAX_ATTEMPTS = isRevalidation ? 1 : 3;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data.user);
+          return;
+        }
+        // A real auth failure — the token is genuinely no longer valid
+        // (expired, or this account signed in on another device). This is
+        // the ONLY path that signs the user out.
         localStorage.removeItem('vs_token');
         setUser(null);
         if (isRevalidation) setAuthError('session_replaced');
+        return;
+      } catch {
+        clearTimeout(timeout);
+        // Network error or timeout — NOT an auth failure. Keep the token.
+        // Retry the initial load a few times (the first request is what
+        // wakes the server); a background revalidation just leaves the
+        // existing session in place and tries again on its next tick.
+        if (attempt < MAX_ATTEMPTS) {
+          await new Promise((r) => setTimeout(r, 1500 * attempt));
+          continue;
+        }
+        // Retries exhausted — keep the token so the next open (or a manual
+        // reload once the server is up) recovers cleanly. Don't wipe it.
+        return;
       }
-    } catch {
-      // A network hiccup during a background revalidation shouldn't log the
-      // user out — only drop the session on the initial load's own failure.
-      if (!isRevalidation) {
-        localStorage.removeItem('vs_token');
-        setUser(null);
-      }
-    } finally {
-      clearTimeout(timeout);
     }
   }
 

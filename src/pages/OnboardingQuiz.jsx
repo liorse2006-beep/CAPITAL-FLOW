@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const QUESTIONS = [
   {
@@ -49,6 +49,18 @@ export default function OnboardingQuiz({ onComplete }) {
   const [step, setStep] = useState(0);
   const [selected, setSelected] = useState({});
   const [direction, setDirection] = useState('forward');
+
+  // Mark the quiz as seen the instant it's shown — not only when the user
+  // reaches the final CTA. This guarantees it appears exactly once per
+  // device, ever: someone who abandons it halfway, or whose app reloads
+  // mid-quiz (a deploy, a refresh), never sees it again from scratch.
+  useEffect(function () {
+    try {
+      localStorage.setItem('vs_quiz_done', '1');
+    } catch (_) {
+      /* private mode — nothing we can do, but don't crash the quiz */
+    }
+  }, []);
 
   const isQuestion = step < QUESTIONS.length;
   const isCTA = step === QUESTIONS.length;

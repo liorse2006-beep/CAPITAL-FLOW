@@ -41,6 +41,18 @@ function freeTrialActive(user) {
   return Date.now() - createdAtMs(user) < FREE_TRIAL_MS;
 }
 
+/**
+ * True if this user has access to the full Elite feature set right now —
+ * either they're actually Elite (or a pilot/admin resolved to Elite), OR
+ * they're a free account still inside the 7-day trial. This is the single
+ * source of truth for "can use Capi / push / alerts / scheduled scans",
+ * surfaced to the client as user.elite_access on /me and enforced on the
+ * server by requireEliteOrTrial.
+ */
+function eliteAccess(user) {
+  return user.tier === 'elite' || (user.tier === 'free' && freeTrialActive(user));
+}
+
 /** Can this user run one more scan in `category` right now? */
 function canScan(user, category) {
   if (user.tier === 'elite') return true;
@@ -112,4 +124,5 @@ module.exports = {
   spendScan,
   quotaFor,
   freeTrialActive,
+  eliteAccess,
 };

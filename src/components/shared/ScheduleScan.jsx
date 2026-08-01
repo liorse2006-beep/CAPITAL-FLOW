@@ -14,7 +14,9 @@ function fmtTime(iso) {
 }
 
 export default function ScheduleScan({ scanType, user, onUpgrade }) {
-  const isElite = !!(user && user.tier === 'elite');
+  // Scheduled scans are a full Elite feature, included in the 7-day free
+  // trial — user.elite_access is true for Elite AND in-trial free accounts.
+  const hasAccess = !!(user && (user.tier === 'elite' || user.elite_access));
   const { mySchedules, loading, error, addSchedule, toggleSchedule, removeSchedule } =
     useScheduledScans(scanType);
 
@@ -67,7 +69,7 @@ export default function ScheduleScan({ scanType, user, onUpgrade }) {
               <button className="schedule-scan-close" onClick={() => setOpen(false)} aria-label="Close">✕</button>
             </div>
 
-            {!isElite ? (
+            {!hasAccess ? (
               <div className="schedule-scan-upsell">
                 <div className="schedule-scan-upsell-icon">⏰</div>
                 <p className="schedule-scan-upsell-title">Automated Scans</p>

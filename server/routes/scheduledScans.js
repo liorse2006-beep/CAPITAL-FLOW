@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { requireAuth, requireElite } = require('../middleware/authMiddleware');
+const { requireAuth, requireEliteOrTrial } = require('../middleware/authMiddleware');
 const db = require('../db');
 
 const VALID_TYPES = ['capitalFlow', 'maScanner', 'sectorMoving'];
@@ -18,8 +18,8 @@ router.get('/scheduled-scans', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/scheduled-scans — Elite only
-router.post('/scheduled-scans', requireElite, async (req, res) => {
+// POST /api/scheduled-scans — Elite, or a free account still in its 7-day trial
+router.post('/scheduled-scans', requireEliteOrTrial, async (req, res) => {
   const { scan_type, scan_time } = req.body;
   if (!VALID_TYPES.includes(scan_type)) {
     return res.status(400).json({ error: 'Invalid scan_type' });
@@ -44,8 +44,8 @@ router.post('/scheduled-scans', requireElite, async (req, res) => {
   }
 });
 
-// PUT /api/scheduled-scans/:id — toggle active or update time (Elite only)
-router.put('/scheduled-scans/:id', requireElite, async (req, res) => {
+// PUT /api/scheduled-scans/:id — toggle active or update time (Elite or trial)
+router.put('/scheduled-scans/:id', requireEliteOrTrial, async (req, res) => {
   const { active, scan_time } = req.body;
   try {
     const existing = await db
@@ -67,8 +67,8 @@ router.put('/scheduled-scans/:id', requireElite, async (req, res) => {
   }
 });
 
-// DELETE /api/scheduled-scans/:id (Elite only)
-router.delete('/scheduled-scans/:id', requireElite, async (req, res) => {
+// DELETE /api/scheduled-scans/:id (Elite or trial)
+router.delete('/scheduled-scans/:id', requireEliteOrTrial, async (req, res) => {
   try {
     const result = await db
       .prepare('DELETE FROM scheduled_scans WHERE id = ? AND user_id = ?')

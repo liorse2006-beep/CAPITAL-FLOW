@@ -1,6 +1,7 @@
-// GET/POST/DELETE /api/chat/* — Elite-gated (Capi is an Elite-only
-// feature), and the message round-trip actually persists both sides of
-// the conversation.
+// GET/POST/DELETE /api/chat/* — Capi is an Elite feature, opened up in full
+// during the 7-day free trial (requireEliteOrTrial): Elite and in-trial free
+// accounts get in, premium and past-trial free accounts are rejected. The
+// message round-trip actually persists both sides of the conversation.
 require('./helpers/testEnv');
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
@@ -32,6 +33,19 @@ async function makeUser(email, tier = 'elite') {
   return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
 }
 
+// A free account created 8 days ago — its 7-day trial has elapsed, so it no
+// longer has Elite access.
+async function makePastTrialFreeUser(email) {
+  const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .replace('T', ' ')
+    .slice(0, 19);
+  const result = await db
+    .prepare("INSERT INTO users (email, is_verified, tier, is_premium, created_at) VALUES (?, 1, 'free', 0, ?)")
+    .run(email, eightDaysAgo);
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+}
+
 const originalFetch = global.fetch;
 after(() => {
   global.fetch = originalFetch;
@@ -56,13 +70,13 @@ test('all three chat routes require auth', async () => {
   }
 });
 
-test('a non-Elite user (free or premium) is rejected with NOT_ELITE on every chat route', async () => {
-  const free = await makeUser('chat-free@test.local', 'free');
+test('premium and past-trial free are rejected with NOT_ELITE on every chat route', async () => {
   const premium = await makeUser('chat-premium@test.local', 'premium');
+  const pastTrial = await makePastTrialFreeUser('chat-free-expired@test.local');
   const server = await startTestApp();
   const port = server.address().port;
   try {
-    for (const user of [free, premium]) {
+    for (const user of [premium, pastTrial]) {
       const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)) };
       const get = await fetch(`http://127.0.0.1:${port}/api/chat/history`, { headers });
       assert.strictEqual(get.status, 403);
@@ -78,6 +92,21 @@ test('a non-Elite user (free or premium) is rejected with NOT_ELITE on every cha
       const del = await fetch(`http://127.0.0.1:${port}/api/chat/history`, { method: 'DELETE', headers });
       assert.strictEqual(del.status, 403);
     }
+  } finally {
+    server.close();
+  }
+});
+
+test('a free account still inside its 7-day trial gets full Capi access', async () => {
+  const freshFree = await makeUser('chat-free-trial@test.local', 'free');
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(freshFree)) };
+    // GET history doesn't call Gemini — a clean 200 proves the gate let them in.
+    const get = await fetch(`http://127.0.0.1:${port}/api/chat/history`, { headers });
+    assert.strictEqual(get.status, 200);
+    assert.ok(Array.isArray(await get.json()));
   } finally {
     server.close();
   }

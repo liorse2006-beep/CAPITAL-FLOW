@@ -84,3 +84,42 @@ test('two users scheduled for the same window share ONE scan and both get pushed
     assert.strictEqual(r.last_result_count, 1);
   });
 });
+
+test('a scheduled scan persists an in-app notification, so it is visible even with no push subscription', async (t) => {
+  const u = await db.prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)').run('sched-notif@test.local');
+  const userId = u.lastInsertRowid;
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date());
+  const map = {};
+  parts.forEach((p) => {
+    map[p.type] = p.value;
+  });
+  const hhmm = map.hour + ':' + map.minute;
+
+  await db
+    .prepare("INSERT INTO scheduled_scans (user_id, scan_type, scan_time, active) VALUES (?, 'capitalFlow', ?, 1)")
+    .run(userId, hhmm);
+
+  t.mock.method(scanner, 'scanTickers', async () => ({
+    results: [{ symbol: 'NVDA', volumeRatio: 4.1 }],
+    errors: [],
+    processed: 500,
+  }));
+  // No push subscription exists for this user — the ONLY thing they should
+  // still see is the persisted in-app notification.
+  t.mock.method(webPush, 'sendPushToUser', async () => {});
+
+  await runScheduledScans();
+
+  const notif = await db
+    .prepare('SELECT symbol, title, body FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+    .get(userId);
+  assert.ok(notif, 'a scheduled scan must leave a notification in the in-app bell');
+  assert.strictEqual(notif.symbol, 'NVDA');
+  assert.match(notif.title, /NVDA/);
+});

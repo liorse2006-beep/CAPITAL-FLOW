@@ -6406,18 +6406,24 @@ td {
 }
 .install-prompt-close {
   flex-shrink: 0;
-  background: none;
-  border: none;
-  color: var(--text-3);
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-strong);
+  color: var(--text-1);
+  font-size: 17px;
   cursor: pointer;
-  padding: 4px;
   line-height: 1;
-  border-radius: 6px;
-  transition: color 0.15s;
+  border-radius: 50%;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .install-prompt-close:hover {
-  color: var(--text-1);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-0);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* ── Schedule Scan ─────────────────────────────────────────────────────────── */

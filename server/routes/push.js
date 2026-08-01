@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { requireElite, requireEliteOrTrial } = require('../middleware/authMiddleware');
+const { requireEliteOrTrial } = require('../middleware/authMiddleware');
 const { VAPID_PUBLIC_KEY } = require('../config');
 const { saveSubscription, removeSubscription } = require('../services/webPush');
 const db = require('../db');
@@ -34,7 +34,7 @@ router.post('/push/unsubscribe', requireEliteOrTrial, async (req, res) => {
   }
 });
 
-router.get('/push/notification-time', requireElite, async (req, res) => {
+router.get('/push/notification-time', requireEliteOrTrial, async (req, res) => {
   try {
     const row = await db.prepare('SELECT notification_time FROM users WHERE id = ?').get(req.user.id);
     res.json({ time: (row && row.notification_time) || null });
@@ -44,7 +44,7 @@ router.get('/push/notification-time', requireElite, async (req, res) => {
   }
 });
 
-router.post('/push/notification-time', requireElite, async (req, res) => {
+router.post('/push/notification-time', requireEliteOrTrial, async (req, res) => {
   try {
     const time = req.body ? req.body.time : undefined;
     if (time !== null && !TIME_RE.test(time || '')) {

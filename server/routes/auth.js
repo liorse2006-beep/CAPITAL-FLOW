@@ -14,6 +14,7 @@ const {
 } = require('../services/auth');
 const { sendOTPEmail, sendPasswordResetEmail, sendWelcomeEmail, sendNewSignupAdminAlert } = require('../services/email');
 const { requireAuth } = require('../middleware/authMiddleware');
+const { eliteAccess } = require('../services/scanQuota');
 const { authLimiter, otpLimiter } = require('../middleware/rateLimiters');
 const pilotAllowlist = require('../services/pilotAllowlist');
 const {
@@ -341,6 +342,11 @@ router.get('/me', requireAuth, (req, res) => {
     is_admin: !!(ADMIN_EMAIL && req.user.email === ADMIN_EMAIL),
     tier: safeUser.tier || 'free',
     is_elite: safeUser.tier === 'elite',
+    // True for Elite AND for any free account still inside its 7-day trial —
+    // the trial grants the complete Elite feature set (Capi, push, alerts,
+    // scheduled scans). The single flag every client-side Elite-feature gate
+    // reads, so trial access can't drift between features.
+    elite_access: eliteAccess(req.user),
   };
   res.json({ user });
 });
