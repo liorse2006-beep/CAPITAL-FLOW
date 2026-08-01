@@ -182,8 +182,11 @@ router.post('/admin/api/users/:id/push-test', asyncRoute(async (req, res) => {
   try {
     const { sendPushToUser, configured } = require('../services/webPush');
     if (!configured) return res.status(503).json({ error: 'VAPID keys not configured' });
-    await sendPushToUser(userId, { title, body, tag: 'admin-test', data: { url: '/' } });
-    res.json({ ok: true });
+    const result = await sendPushToUser(userId, { title, body, tag: 'admin-test', data: { url: '/' } });
+    // Surface the real delivery outcome so the admin can PROVE a push reached
+    // the push service (delivered = a 2xx from FCM/Mozilla → the device gets
+    // it even with the app closed), not just that the request didn't error.
+    res.json({ ok: true, ...result });
   } catch (err) {
     console.error('[admin push-test]', err);
     res.status(500).json({ error: 'Server error' });
@@ -688,7 +691,12 @@ async function deleteUser(id, email) {
 
 async function sendTestPush(id) {
   const r = await fetch(\`/admin/api/users/\${id}/push-test\`, { method: 'POST', headers: { ...AUTH_HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Capital Flow — Test', body: 'Push notifications are working! 🎉 You will receive alerts automatically.' }) });
-  if (r.ok) toast('🔔 Test push sent!');
+  if (r.ok) {
+    const d = await r.json();
+    if (d.devices === 0) toast('No subscribed devices for this user', true);
+    else if (d.delivered > 0) toast(\`🔔 Delivered to \${d.delivered}/\${d.devices} device(s) — push service accepted it\`);
+    else toast(\`Sent to \${d.devices} device(s) but none accepted (\${d.removed} expired)\`, true);
+  }
   else { const d = await r.json(); toast('Push error: ' + (d.error || r.status), true); }
 }
 

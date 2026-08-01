@@ -32,24 +32,43 @@ async function removeSubscription(endpoint, userId) {
   }
 }
 
-/** Sends one push payload to every device the user has subscribed on. Prunes dead subscriptions automatically. */
+/**
+ * Sends one push payload to every device the user has subscribed on, in
+ * parallel. Prunes dead subscriptions automatically. Returns a delivery
+ * summary so callers (admin test-push, diagnostics) can PROVE the push was
+ * accepted by the push service — a 201 means it will reach the device even
+ * with the app closed. `configured:false` means VAPID isn't set up.
+ *
+ * @returns {{ configured: boolean, devices: number, delivered: number,
+ *             removed: number, results: Array<{statusCode?: number, error?: string}> }}
+ */
 async function sendPushToUser(userId, payload) {
-  if (!configured) return;
+  if (!configured) return { configured: false, devices: 0, delivered: 0, removed: 0, results: [] };
   const rows = await db.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?').all(userId);
   const body = JSON.stringify(payload);
 
-  await Promise.all(
+  const results = await Promise.all(
     rows.map(async (row) => {
       const sub = { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } };
       try {
-        await webpush.sendNotification(sub, body);
+        const res = await webpush.sendNotification(sub, body);
+        return { statusCode: res && res.statusCode };
       } catch (err) {
+        // 404/410 mean the browser dropped this subscription — prune it so we
+        // never keep trying a dead endpoint (this is how uninstalls / cleared
+        // site data self-heal without any manual cleanup).
         if (err && (err.statusCode === 404 || err.statusCode === 410)) {
           await removeSubscription(row.endpoint);
+          return { statusCode: err.statusCode, error: 'expired-removed' };
         }
+        return { statusCode: err && err.statusCode, error: (err && err.message) || 'send-failed' };
       }
     })
   );
+
+  const delivered = results.filter((r) => r.statusCode && r.statusCode >= 200 && r.statusCode < 300).length;
+  const removed = results.filter((r) => r.error === 'expired-removed').length;
+  return { configured: true, devices: rows.length, delivered, removed, results };
 }
 
 module.exports = { configured, saveSubscription, removeSubscription, sendPushToUser };

@@ -57,6 +57,25 @@ test('sendPushToUser calls sendNotification once per subscription owned by that 
   assert.strictEqual(calls[0].sub.endpoint, 'https://push.example/2');
 });
 
+test('sendPushToUser returns a delivery summary proving the push service accepted it (201)', async () => {
+  const u = await makeUser('push-summary@test.local');
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/sum', keys: { p256dh: 'p', auth: 'a' } });
+
+  const original = webpushLib.sendNotification;
+  webpushLib.sendNotification = async () => ({ statusCode: 201 });
+  let summary;
+  try {
+    summary = await webPush.sendPushToUser(u, { title: 'hi' });
+  } finally {
+    webpushLib.sendNotification = original;
+  }
+
+  assert.strictEqual(summary.configured, true);
+  assert.strictEqual(summary.devices, 1);
+  assert.strictEqual(summary.delivered, 1, 'a 2xx from the push service counts as delivered');
+  assert.strictEqual(summary.removed, 0);
+});
+
 test('sendPushToUser prunes a subscription that the push service reports as gone (410)', async () => {
   const u = await makeUser('push-c@test.local');
   await webPush.saveSubscription(u, { endpoint: 'https://push.example/3', keys: { p256dh: 'p', auth: 'a' } });

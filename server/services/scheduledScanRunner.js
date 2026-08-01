@@ -1,5 +1,25 @@
 const db = require('../db');
 
+// Runs `worker` over every item with at most `limit` in flight at once — a
+// bounded fan-out. Used so that when hundreds of users are all scheduled for
+// the same minute, their notifications go out concurrently (fast) without
+// opening hundreds of simultaneous DB writes and push sends (which would
+// spike load). Never rejects: a single failure is isolated to its own item.
+async function mapWithConcurrency(items, limit, worker) {
+  let i = 0;
+  const runners = new Array(Math.min(limit, items.length)).fill(0).map(async () => {
+    while (i < items.length) {
+      const idx = i++;
+      try {
+        await worker(items[idx]);
+      } catch (err) {
+        console.error('[ScheduledScans] item failed:', err && err.message);
+      }
+    }
+  });
+  await Promise.all(runners);
+}
+
 // A schedule fires when Israel local time is within this many minutes AFTER
 // its scan_time (never before). Exact-minute matching used to mean that if
 // the server was asleep, redeploying, or mid-scan at that one minute, the
@@ -144,13 +164,11 @@ async function runScheduledScans() {
       console.error(`[ScheduledScans] ${scanType} scan failed:`, err.message);
       continue;
     }
-    for (const sched of scheds) {
-      try {
-        await notifyScheduledUser(sched, results);
-      } catch (err) {
-        console.error(`[ScheduledScans] Error notifying scan ${sched.id}:`, err.message);
-      }
-    }
+    // Fan out to every subscriber concurrently (bounded), so a 16:30 window
+    // shared by hundreds of users clears in a fraction of the time a
+    // sequential loop would take — and one slow/failed push never blocks the
+    // rest.
+    await mapWithConcurrency(scheds, 10, (sched) => notifyScheduledUser(sched, results));
   }
 }
 
