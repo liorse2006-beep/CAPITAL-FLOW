@@ -1,6 +1,6 @@
-// GET /api/news/:symbol gating — Elite gets it always, free-tier only
-// during their 7-day trial, matching the same requireEliteOrTrial policy
-// already used for watchlist alerts.
+// GET /api/news/:symbol gating — News is available to every signed-in
+// tier (not a paid differentiator), so this only needs to check auth, not
+// tier or trial status.
 require('./helpers/testEnv');
 const { test, before } = require('node:test');
 const assert = require('node:assert');
@@ -42,16 +42,16 @@ test('GET /api/news/:symbol requires auth', async () => {
   }
 });
 
-test('a free-tier account past its 7-day trial is rejected with NOT_ELITE', async () => {
+test('a free-tier account past its 7-day trial can still reach news (not a paid differentiator)', async () => {
   const eightDaysAgo = Math.floor(Date.now() / 1000) - 8 * 24 * 60 * 60;
   const user = await makeUser('news-expired-trial@test.local', { createdAt: eightDaysAgo });
   const server = await startTestApp();
   const port = server.address().port;
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/api/news/AAPL`, {
+    const res = await fetch(`http://127.0.0.1:${port}/api/news/${encodeURIComponent('not a symbol!')}`, {
       headers: { Authorization: 'Bearer ' + (await issueToken(user)) },
     });
-    assert.strictEqual(res.status, 403);
+    assert.strictEqual(res.status, 400, 'auth passed — the request got far enough to hit symbol validation');
   } finally {
     server.close();
   }

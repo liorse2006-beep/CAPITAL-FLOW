@@ -1,5 +1,6 @@
-// GET/POST/DELETE /api/chat/* — auth-gated, and the message round-trip
-// actually persists both sides of the conversation.
+// GET/POST/DELETE /api/chat/* — Elite-gated (Capi is an Elite-only
+// feature), and the message round-trip actually persists both sides of
+// the conversation.
 require('./helpers/testEnv');
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
@@ -24,8 +25,10 @@ function startTestApp() {
   });
 }
 
-async function makeUser(email) {
-  const result = await db.prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)').run(email);
+async function makeUser(email, tier = 'elite') {
+  const result = await db
+    .prepare('INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, ?, ?)')
+    .run(email, tier, tier !== 'free' ? 1 : 0);
   return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
 }
 
@@ -48,6 +51,33 @@ test('all three chat routes require auth', async () => {
     assert.strictEqual(post.status, 401);
     const del = await fetch(`http://127.0.0.1:${port}/api/chat/history`, { method: 'DELETE' });
     assert.strictEqual(del.status, 401);
+  } finally {
+    server.close();
+  }
+});
+
+test('a non-Elite user (free or premium) is rejected with NOT_ELITE on every chat route', async () => {
+  const free = await makeUser('chat-free@test.local', 'free');
+  const premium = await makeUser('chat-premium@test.local', 'premium');
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    for (const user of [free, premium]) {
+      const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)) };
+      const get = await fetch(`http://127.0.0.1:${port}/api/chat/history`, { headers });
+      assert.strictEqual(get.status, 403);
+      assert.strictEqual((await get.json()).code, 'NOT_ELITE');
+
+      const post = await fetch(`http://127.0.0.1:${port}/api/chat/message`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ message: 'hi' }),
+      });
+      assert.strictEqual(post.status, 403);
+
+      const del = await fetch(`http://127.0.0.1:${port}/api/chat/history`, { method: 'DELETE', headers });
+      assert.strictEqual(del.status, 403);
+    }
   } finally {
     server.close();
   }

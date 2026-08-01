@@ -6,6 +6,7 @@ process.env.WHOP_WEBHOOK_SECRET = 'test-webhook-secret';
 process.env.WHOP_API_KEY = 'test-api-key';
 process.env.WHOP_PREMIUM_PLAN_ID = 'plan_premium_test';
 process.env.WHOP_ELITE_PLAN_ID = 'plan_elite_test';
+process.env.WHOP_ELITE_UPGRADE_PLAN_ID = 'plan_elite_upgrade_test';
 
 require('./helpers/testEnv');
 const { test, before } = require('node:test');
@@ -295,6 +296,59 @@ test('checkout/transaction rejects an invalid coupon before calling Whop', async
     assert.strictEqual(res.status, 400);
     const body = await res.json();
     assert.match(body.error, /invalid coupon/i);
+  } finally {
+    server.close();
+  }
+});
+
+// ── POST /api/checkout/transaction — tier:'eliteUpgrade' ────────────────────
+// The one-time, half-price Elite upgrade offered on the Premium welcome
+// screen. The exclusivity has to be enforced server-side (only a CURRENTLY
+// Premium account may start it), not just claimed in the frontend copy.
+
+test('eliteUpgrade is rejected for an account that is not currently Premium', async () => {
+  const free = await makeUser('checkout-upgrade-free@test.local', 'free');
+  const elite = await makeUser('checkout-upgrade-elite@test.local', 'elite');
+  const server = await startCheckoutApp();
+  const port = server.address().port;
+  try {
+    for (const user of [free, elite]) {
+      const res = await fetch(`http://127.0.0.1:${port}/api/checkout/transaction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)) },
+        body: JSON.stringify({ tier: 'eliteUpgrade' }),
+      });
+      assert.strictEqual(res.status, 403, `tier=${user.tier} must be rejected`);
+    }
+  } finally {
+    server.close();
+  }
+});
+
+test('eliteUpgrade creates a checkout session on the upgrade plan, granting elite once paid', async (t) => {
+  const captured = [];
+  t.mock.method(whop, 'createCheckoutSession', async (args) => {
+    captured.push(args);
+    return { purchase_url: 'https://whop.com/checkout/plan_elite_upgrade_test/?session=ch_upgrade' };
+  });
+
+  const user = await makeUser('checkout-upgrade-premium@test.local', 'premium');
+  const server = await startCheckoutApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/checkout/transaction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)) },
+      body: JSON.stringify({ tier: 'eliteUpgrade' }),
+    });
+    assert.strictEqual(res.status, 200);
+    const body = await res.json();
+    assert.strictEqual(body.purchaseUrl, 'https://whop.com/checkout/plan_elite_upgrade_test/?session=ch_upgrade');
+
+    assert.strictEqual(captured.length, 1);
+    assert.strictEqual(captured[0].planId, 'plan_elite_upgrade_test', 'must charge the discounted plan, not the normal Elite plan');
+    assert.strictEqual(captured[0].metadata.tier, 'elite', 'must still grant the real elite tier once paid');
+    assert.strictEqual(captured[0].metadata.userId, String(user.id));
   } finally {
     server.close();
   }

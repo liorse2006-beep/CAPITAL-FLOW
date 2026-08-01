@@ -28,13 +28,21 @@ describe('ChatWidget', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it('renders nothing for a logged-in user who is not Elite', () => {
+    const { container } = render(<ChatWidget user={USER} isElite={false} getToken={() => 't'} />)
+    act(() => {
+      vi.advanceTimersByTime(1500)
+    })
+    expect(container).toBeEmptyDOMElement()
+  })
+
   it('does not show the teaser immediately on mount', () => {
-    render(<ChatWidget user={USER} getToken={() => 't'} />)
+    render(<ChatWidget user={USER} isElite={true} getToken={() => 't'} />)
     expect(screen.queryByText(/Hi, I.m Capi/)).not.toBeInTheDocument()
   })
 
   it('shows the teaser after the ready delay while the chat is closed', () => {
-    render(<ChatWidget user={USER} getToken={() => 't'} />)
+    render(<ChatWidget user={USER} isElite={true} getToken={() => 't'} />)
     act(() => {
       vi.advanceTimersByTime(1500)
     })
@@ -43,7 +51,7 @@ describe('ChatWidget', () => {
 
   it('hides the teaser while the chat panel is open, and shows it again once closed', async () => {
     global.fetch = historyFetchMock([])
-    const { container } = render(<ChatWidget user={USER} getToken={() => 't'} />)
+    const { container } = render(<ChatWidget user={USER} isElite={true} getToken={() => 't'} />)
     act(() => {
       vi.advanceTimersByTime(1500)
     })
@@ -61,7 +69,7 @@ describe('ChatWidget', () => {
 
   it('dismissing the teaser hides it for the current closed stretch, but it reappears after an open/close cycle', async () => {
     global.fetch = historyFetchMock([])
-    const { container } = render(<ChatWidget user={USER} getToken={() => 't'} />)
+    const { container } = render(<ChatWidget user={USER} isElite={true} getToken={() => 't'} />)
     act(() => {
       vi.advanceTimersByTime(1500)
     })

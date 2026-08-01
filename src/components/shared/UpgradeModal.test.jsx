@@ -60,4 +60,20 @@ describe('UpgradeModal', () => {
     );
     expect(screen.queryByText(/continue to payment/i)).not.toBeInTheDocument();
   });
+
+  it('stashes the requested tier before redirecting, so the welcome screen knows what was bought', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ purchaseUrl: 'https://whop.com/checkout/plan_test/?session=ch_test' }),
+      })
+    );
+    renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /get elite/i }));
+
+    await waitFor(() => expect(localStorage.getItem('vs_pending_tier')).toBe('elite'));
+  });
 });

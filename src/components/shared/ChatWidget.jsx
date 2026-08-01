@@ -38,7 +38,7 @@ function renderCapiMessage(text) {
 // forever the way the old localStorage flag did.
 var TEASER_READY_DELAY_MS = 1500
 
-export default function ChatWidget({ user, getToken, externalPrompt, onExternalPromptSent }) {
+export default function ChatWidget({ user, isElite, getToken, externalPrompt, onExternalPromptSent }) {
   const [open, setOpen] = useState(false)
   const [teaserReady, setTeaserReady] = useState(false)
   const [teaserDismissed, setTeaserDismissed] = useState(false)
@@ -153,7 +153,9 @@ export default function ChatWidget({ user, getToken, externalPrompt, onExternalP
     fetch('/api/chat/history', { method: 'DELETE', headers: { Authorization: 'Bearer ' + getToken() } }).catch(() => {})
   }
 
-  if (!user) return null
+  // Capi is an Elite feature — Free and Premium never see the launcher at
+  // all, matching the backend's own requireElite gate on every /chat route.
+  if (!user || !isElite) return null
 
   return (
     <div className="chat-widget">

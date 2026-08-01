@@ -2,17 +2,40 @@ const router = require('express').Router();
 const { requireAuth } = require('../middleware/authMiddleware');
 const { validateCoupon } = require('../services/coupons');
 const whop = require('../services/whop');
-const { WHOP_PREMIUM_PLAN_ID, WHOP_ELITE_PLAN_ID, FRONTEND_URL } = require('../config');
+const { WHOP_PREMIUM_PLAN_ID, WHOP_ELITE_PLAN_ID, WHOP_ELITE_UPGRADE_PLAN_ID, FRONTEND_URL } = require('../config');
 
 const PLAN_ID = { premium: WHOP_PREMIUM_PLAN_ID, elite: WHOP_ELITE_PLAN_ID };
 
-// Creates a Whop checkout session for the requesting user's chosen tier —
-// the frontend redirects to the returned purchase_url. Requires auth so
-// metadata can carry the user id the webhook needs to know who to upgrade.
+// The one-time, half-price Elite upgrade offered on the Premium welcome
+// screen. It charges a DIFFERENT Whop plan (a discounted price configured
+// directly in Whop, not something this app can apply on its own) but still
+// grants the normal 'elite' tier once paid — see the webhook, which only
+// ever reads metadata.tier, never which plan was actually charged.
 router.post('/checkout/transaction', requireAuth, async (req, res) => {
   if (!whop.enabled) return res.status(503).json({ error: 'Checkout is not configured yet' });
 
   const { tier, couponCode } = req.body;
+
+  if (tier === 'eliteUpgrade') {
+    if (!WHOP_ELITE_UPGRADE_PLAN_ID) return res.status(503).json({ error: 'This offer is not configured yet' });
+    // The exclusivity is enforced here, not just claimed in the copy — only
+    // an account that is CURRENTLY Premium may start this checkout.
+    if (req.user.tier !== 'premium') {
+      return res.status(403).json({ error: 'This offer is only available to Premium accounts' });
+    }
+    try {
+      const session = await whop.createCheckoutSession({
+        planId: WHOP_ELITE_UPGRADE_PLAN_ID,
+        metadata: { userId: String(req.user.id), tier: 'elite' },
+        redirectUrl: `${FRONTEND_URL}/`,
+      });
+      return res.json({ purchaseUrl: session.purchase_url });
+    } catch (err) {
+      console.error('[checkout/transaction eliteUpgrade]', err);
+      return res.status(502).json({ error: 'Could not start checkout — please try again' });
+    }
+  }
+
   const planId = PLAN_ID[tier];
   if (!planId) return res.status(400).json({ error: 'tier must be premium or elite, and its Whop plan must be configured' });
 

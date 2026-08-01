@@ -178,13 +178,12 @@ export default function ScannerPage({
 
   // Warm the news cache for the strongest results the moment a scan lands,
   // so clicking News on them opens instantly instead of replaying the
-  // loading screen. Only for accounts that can actually access news (Elite
-  // or an active free trial) — anyone else would just collect 403s.
+  // loading screen. News is open to every signed-in tier — the only
+  // requirement is being logged in at all.
   const { getToken } = useAuth() || {}
-  const canAccessNews = isElite || trialActive
   useEffect(
     function () {
-      if (!results || results.length === 0 || !canAccessNews || !getToken) return
+      if (!results || results.length === 0 || !user) return
       var top = results
         .slice()
         .sort(function (a, b) {
@@ -199,7 +198,7 @@ export default function ScannerPage({
         })
         .catch(function () {})
     },
-    [results, canAccessNews] // eslint-disable-line react-hooks/exhaustive-deps
+    [results, user] // eslint-disable-line react-hooks/exhaustive-deps
   )
 
   return (

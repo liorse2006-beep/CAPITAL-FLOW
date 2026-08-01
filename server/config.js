@@ -81,6 +81,12 @@ module.exports = {
   WHOP_WEBHOOK_SECRET: env('WHOP_WEBHOOK_SECRET'),
   WHOP_PREMIUM_PLAN_ID: env('WHOP_PREMIUM_PLAN_ID'),
   WHOP_ELITE_PLAN_ID: env('WHOP_ELITE_PLAN_ID'),
+  // A separate, half-price Whop plan offered exactly once — on the Premium
+  // welcome screen, right after purchase. See routes/checkout.js: only an
+  // account that is CURRENTLY on Premium can start a checkout against this
+  // plan, which is what makes the offer genuinely exclusive rather than a
+  // copy-only claim. Leave unset to hide the offer entirely.
+  WHOP_ELITE_UPGRADE_PLAN_ID: env('WHOP_ELITE_UPGRADE_PLAN_ID'),
   // Turso cloud SQLite — set for production (Koyeb). Omit for local dev (file-based).
   TURSO_DB_URL: env('TURSO_DB_URL'),
   TURSO_AUTH_TOKEN: env('TURSO_AUTH_TOKEN'),

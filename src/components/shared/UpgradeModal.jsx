@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import useModalA11y from '../../hooks/useModalA11y';
 import { useAuth } from '../../context/AuthContext';
+import { TIER_ROWS } from '../../constants/tierFeatures';
 
 function Check() {
   return (
@@ -9,18 +10,6 @@ function Check() {
     </svg>
   );
 }
-
-// Feature rows in display order — Price is last, right above the CTA row.
-const ROWS = [
-  { label: 'Scans', free: 'Unlimited for 7 days', premium: '5 / 24h', elite: 'Unlimited' },
-  { label: 'Advanced filters & presets', free: false, premium: true, elite: true },
-  { label: 'Float & short interest data', free: false, premium: true, elite: true },
-  { label: 'Ticker notes & charts', free: false, premium: true, elite: true },
-  { label: 'Push notifications', free: false, premium: false, elite: true },
-  { label: 'Daily scheduled scan', free: false, premium: false, elite: true },
-  { label: 'Custom watchlist alerts', free: false, premium: false, elite: true },
-  { label: 'Price', free: 'Free', premium: '$14.90', elite: '$29.90', isPrice: true },
-];
 
 function Cell({ value, tierClass, isPrice }) {
   if (typeof value === 'string') {
@@ -67,6 +56,10 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not start checkout');
+      // Whop's redirect back here only carries ?status=success|error, not
+      // which tier was bought — stash it so the welcome screen can show the
+      // right badge/copy immediately instead of waiting on the webhook.
+      localStorage.setItem('vs_pending_tier', tierKey);
       window.location.href = data.purchaseUrl;
     } catch (err) {
       setPayingTier(null);
@@ -122,7 +115,7 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
               </tr>
             </thead>
             <tbody>
-              {ROWS.map((row) => (
+              {TIER_ROWS.map((row) => (
                 <tr key={row.label}>
                   <td className="tier-table-feature">{row.label}</td>
                   <Cell value={row.free} tierClass="" isPrice={row.isPrice} />

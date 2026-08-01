@@ -29,6 +29,7 @@ const PolicyPage = lazy(() => import('./pages/PolicyPage'));
 const AuthModal = lazy(() => import('./components/Auth/AuthModal'));
 const NewsModal = lazy(() => import('./components/shared/NewsModal'));
 const ChatWidget = lazy(() => import('./components/shared/ChatWidget'));
+const WelcomeTierModal = lazy(() => import('./components/shared/WelcomeTierModal'));
 
 /* ── Main App ── */
 function App() {
@@ -461,6 +462,10 @@ function App() {
       setShowAuthModal(true);
       return;
     }
+    if (!isElite) {
+      setShowUpgradeModal(true);
+      return;
+    }
     var parts = [
       r.symbol + ' just showed up on my scan.',
       'Price $' + r.price.toFixed(2) + ' (' + (r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '% today), volume running at ' + r.volumeRatio.toFixed(2) + 'x its average.',
@@ -660,18 +665,40 @@ function App() {
   // attempt — success or cancelled/failed alike — appending its own
   // ?status=success|error (see server/routes/checkout.js's redirectUrl,
   // which deliberately doesn't bake in an assumed outcome). Only a real
-  // "success" status gets the celebratory toast; anything else is treated
-  // as "nothing happened," matching reality. The tier upgrade itself lands
-  // via the server-side webhook, which can trail this redirect by a
-  // moment, so refresh a couple of times rather than trusting the first
-  // fetch.
+  // "success" status shows anything; anything else is treated as "nothing
+  // happened," matching reality. The tier upgrade itself lands via the
+  // server-side webhook, which can trail this redirect by a moment, so
+  // refresh a couple of times rather than trusting the first fetch.
+  //
+  // Which tier was actually bought isn't in this URL at all — UpgradeModal
+  // stashes it in localStorage right before redirecting to Whop so the
+  // welcome screen can show the right badge/copy immediately, rather than
+  // sitting blank until the webhook confirms.
+  //
+  // handledStatusRef guards against React StrictMode's dev-only
+  // mount→cleanup→mount replay of this effect: without it, the first pass
+  // reads and clears vs_pending_tier, then the second pass finds it already
+  // gone and falls through to the "just a toast" branch — showing BOTH the
+  // welcome modal AND the generic toast for the same purchase. The ref
+  // survives that replay (only a full unmount would reset it), so it makes
+  // the localStorage read-and-clear effectively run exactly once.
+  const [welcomeTier, setWelcomeTier] = useState(null);
+  const handledStatusRef = useRef(false);
   useEffect(
     function () {
       var status = new URLSearchParams(location.search).get('status');
       if (!status) return;
       navigate(location.pathname, { replace: true });
       if (status !== 'success') return;
-      showToast('Payment received! Upgrading your account…');
+      if (handledStatusRef.current) return;
+      handledStatusRef.current = true;
+      var pendingTier = localStorage.getItem('vs_pending_tier');
+      localStorage.removeItem('vs_pending_tier');
+      if (pendingTier === 'premium' || pendingTier === 'elite') {
+        setWelcomeTier(pendingTier);
+      } else {
+        showToast('Payment received! Upgrading your account…');
+      }
       refreshUser();
       var retry = setTimeout(refreshUser, 3000);
       return function () {
@@ -1072,9 +1099,20 @@ function App() {
         <Suspense fallback={null}>
           <ChatWidget
             user={user}
+            isElite={isElite}
             getToken={getToken}
             externalPrompt={capiExternalPrompt}
             onExternalPromptSent={() => setCapiExternalPrompt(null)}
+          />
+        </Suspense>
+      )}
+
+      {welcomeTier && (
+        <Suspense fallback={null}>
+          <WelcomeTierModal
+            tier={welcomeTier}
+            confirmed={userTier === welcomeTier}
+            onClose={() => setWelcomeTier(null)}
           />
         </Suspense>
       )}

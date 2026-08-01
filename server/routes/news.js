@@ -1,14 +1,16 @@
 const router = require('express').Router();
 const { fetchNewsForSymbol, newsCache, resolveFinalUrl } = require('../services/newsService');
 const { scanLimiter } = require('../middleware/rateLimiters');
-const { requireEliteOrTrial } = require('../middleware/authMiddleware');
+const { requireAuth } = require('../middleware/authMiddleware');
 
 // Real ticker symbols only — letters, digits, and . or - for share classes
 // (e.g. BRK.B). Blocks malformed/oversized input before it reaches the
 // external news API.
 var SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
 
-router.get('/news/:symbol', requireEliteOrTrial, scanLimiter, async function (req, res) {
+// News is available to every signed-in tier (Free/Premium/Elite alike) —
+// unlike Capi or push, it isn't a paid-tier differentiator, just login-gated.
+router.get('/news/:symbol', requireAuth, scanLimiter, async function (req, res) {
   var symbol = (req.params.symbol || '').toUpperCase();
   if (!SYMBOL_RE.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
 
@@ -30,7 +32,7 @@ router.get('/news/:symbol', requireEliteOrTrial, scanLimiter, async function (re
 // symbol's cached articles — never an arbitrary caller-supplied URL, which
 // would otherwise let this endpoint be used as an open server-side fetch
 // proxy (SSRF) against anything reachable from the server.
-router.get('/news/:symbol/resolve', requireEliteOrTrial, scanLimiter, async function (req, res) {
+router.get('/news/:symbol/resolve', requireAuth, scanLimiter, async function (req, res) {
   var symbol = (req.params.symbol || '').toUpperCase();
   if (!SYMBOL_RE.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
 
