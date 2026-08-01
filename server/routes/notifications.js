@@ -1,6 +1,29 @@
 const router = require('express').Router();
 const { requireAuth } = require('../middleware/authMiddleware');
-const { getNotifications, getUnreadCount, markAllRead, removeNotification, clearAll } = require('../services/notifications');
+const {
+  getNotifications,
+  getNotificationDetail,
+  getUnreadCount,
+  markAllRead,
+  removeNotification,
+  clearAll,
+} = require('../services/notifications');
+
+// One notification's full detail — used when tapping a scheduled-scan push
+// notification: it carries that scan's own results, so the app can show
+// exactly what the user was notified about instead of a blank/current page.
+router.get('/notifications/:id', requireAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    const detail = await getNotificationDetail(req.user.id, id);
+    if (!detail) return res.status(404).json({ error: 'Not found' });
+    res.json(detail);
+  } catch (err) {
+    console.error('[notifications/:id GET]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 router.get('/notifications', requireAuth, async (req, res) => {
   try {

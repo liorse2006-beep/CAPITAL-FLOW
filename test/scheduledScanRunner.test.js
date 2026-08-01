@@ -112,14 +112,25 @@ test('a scheduled scan persists an in-app notification, so it is visible even wi
   }));
   // No push subscription exists for this user — the ONLY thing they should
   // still see is the persisted in-app notification.
-  t.mock.method(webPush, 'sendPushToUser', async () => {});
+  const pushMock = t.mock.method(webPush, 'sendPushToUser', async () => {});
 
   await runScheduledScans();
 
   const notif = await db
-    .prepare('SELECT symbol, title, body FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+    .prepare('SELECT id, symbol, title, body, scan_type, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
     .get(userId);
   assert.ok(notif, 'a scheduled scan must leave a notification in the in-app bell');
   assert.strictEqual(notif.symbol, 'NVDA');
   assert.match(notif.title, /NVDA/);
+
+  // The notification must carry the scan's own results and type, so tapping
+  // it can show exactly what that run found — not just "something happened".
+  assert.strictEqual(notif.scan_type, 'capitalFlow');
+  const storedResults = JSON.parse(notif.results_json);
+  assert.deepStrictEqual(storedResults, [{ symbol: 'NVDA', volumeRatio: 4.1 }]);
+
+  // The push payload's deep link must point at this exact notification.
+  assert.strictEqual(pushMock.mock.callCount(), 1);
+  const pushPayload = pushMock.mock.calls[0].arguments[1];
+  assert.strictEqual(pushPayload.data.url, '/scanner?notif=' + notif.id);
 });

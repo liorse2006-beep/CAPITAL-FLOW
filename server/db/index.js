@@ -257,6 +257,12 @@ async function initDb() {
     // Chains multi-turn Capi conversations server-side on Gemini's end —
     // see services/chatbot.js. Null just means "start a fresh conversation".
     `ALTER TABLE users ADD COLUMN gemini_interaction_id TEXT`,
+    // Lets a scheduled-scan notification carry its own scan's actual results,
+    // so tapping the push notification can show exactly what that run found
+    // instead of dropping the user on an empty/unrelated page. Null for every
+    // other notification kind (watchlist alerts, etc).
+    `ALTER TABLE notifications ADD COLUMN scan_type TEXT`,
+    `ALTER TABLE notifications ADD COLUMN results_json TEXT`,
   ];
 
   for (const sql of migrations) {

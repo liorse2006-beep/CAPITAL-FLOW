@@ -103,21 +103,36 @@ async function notifyScheduledUser(sched, results) {
   // scan actually ran even if they never granted push permission (or the
   // push silently fails). This is the fix for "I scheduled a scan and
   // nothing happened" — previously the only output was a push, which is
-  // invisible with no subscription.
+  // invisible with no subscription. The notification carries the scan's own
+  // results too, so tapping it (in-app or from the push) shows exactly what
+  // that run found instead of dropping the user on the homepage as if
+  // nothing had happened.
+  var notifId = null;
   try {
     const topSymbol = results.length > 0 ? results[0].symbol : null;
-    await require('./notifications').addNotification(sched.user_id, { symbol: topSymbol, title, body });
+    notifId = await require('./notifications').addNotification(sched.user_id, {
+      symbol: topSymbol,
+      title,
+      body,
+      scanType: sched.scan_type,
+      results,
+    });
   } catch (notifErr) {
     console.error(`[ScheduledScans] Persisting notification failed for user ${sched.user_id}:`, notifErr.message);
   }
 
   try {
     const { sendPushToUser } = require('./webPush');
+    var baseUrl = SCAN_URL[sched.scan_type] || '/scanner';
     await sendPushToUser(sched.user_id, {
       title,
       body,
       tag: 'scheduled-scan-' + sched.scan_type,
-      data: { scanType: sched.scan_type, resultCount: results.length, url: SCAN_URL[sched.scan_type] || '/scanner' },
+      data: {
+        scanType: sched.scan_type,
+        resultCount: results.length,
+        url: notifId ? baseUrl + '?notif=' + notifId : baseUrl,
+      },
     });
   } catch (pushErr) {
     console.error(`[ScheduledScans] Push failed for user ${sched.user_id}:`, pushErr.message);

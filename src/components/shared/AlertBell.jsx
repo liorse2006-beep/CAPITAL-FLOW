@@ -23,6 +23,7 @@ function AlertBell(props) {
   var onClearAll = props.onClearAll;
   var onClosePanel = props.onClosePanel;
   var onRemoveAlert = props.onRemoveAlert;
+  var onOpenNotification = props.onOpenNotification;
   var onToggleNotifications = props.onToggleNotifications;
 
   return React.createElement(
@@ -115,8 +116,14 @@ function AlertBell(props) {
                   'div',
                   { key: alert.id, className: 'alert-hist-item' },
                   React.createElement(
-                    'div',
-                    { className: 'alert-hist-left' },
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'alert-hist-left',
+                      onClick: function () {
+                        if (onOpenNotification) onOpenNotification(alert.id);
+                      },
+                    },
                     React.createElement(
                       'div',
                       { className: 'alert-hist-top' },

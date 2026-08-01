@@ -26,10 +26,12 @@ const MoneyFlow = lazy(() => import('./components/MoneyFlow/MoneyFlow'));
 const ChartModal = lazy(() => import('./components/Chart/ChartModal'));
 const MAScannerPage = lazy(() => import('./components/MAScanner/MAScannerPage'));
 const PolicyPage = lazy(() => import('./pages/PolicyPage'));
+const AccessibilityStatementPage = lazy(() => import('./pages/AccessibilityStatementPage'));
 const AuthModal = lazy(() => import('./components/Auth/AuthModal'));
 const NewsModal = lazy(() => import('./components/shared/NewsModal'));
 const ChatWidget = lazy(() => import('./components/shared/ChatWidget'));
 const WelcomeTierModal = lazy(() => import('./components/shared/WelcomeTierModal'));
+const ScheduledScanResultsModal = lazy(() => import('./components/shared/ScheduledScanResultsModal'));
 
 /* ── Main App ── */
 function App() {
@@ -714,6 +716,39 @@ function App() {
     [location.search]
   );
 
+  // Tapping a scheduled-scan push notification (or clicking one in the bell
+  // panel) lands here as ?notif=<id> — fetch that exact notification's own
+  // scan results and show them in a dedicated modal, instead of silently
+  // dropping the user on whatever the current page happens to show. Query
+  // param is always stripped so a refresh doesn't re-fetch/re-open it.
+  const [scheduledScanNotif, setScheduledScanNotif] = useState(null);
+  function openScheduledNotification(rawId) {
+    // Local-only alert entries (a Date.now()+Math.random() id) never made it
+    // to the server, so there's nothing to fetch — only 'srv-<id>' entries
+    // (persisted via addNotification) can possibly have scan results.
+    if (typeof rawId !== 'string' || rawId.indexOf('srv-') !== 0) return;
+    var id = rawId.slice(4);
+    if (!id || !user) return;
+    fetch('/api/notifications/' + id, { headers: { Authorization: 'Bearer ' + getToken() } })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (data) {
+        if (data && data.scanType) setScheduledScanNotif(data);
+      })
+      .catch(function () {});
+  }
+  useEffect(
+    function () {
+      var notifId = new URLSearchParams(location.search).get('notif');
+      if (!notifId) return;
+      navigate(location.pathname, { replace: true });
+      if (!user) return;
+      openScheduledNotification(notifId);
+    },
+    [location.search, user]
+  );
+
   // Open AuthModal automatically when Google OAuth returns (show consent screen)
   useEffect(
     function () {
@@ -1123,6 +1158,18 @@ function App() {
         </Suspense>
       )}
 
+      {scheduledScanNotif && (
+        <Suspense fallback={null}>
+          <ScheduledScanResultsModal
+            notification={scheduledScanNotif}
+            onClose={() => setScheduledScanNotif(null)}
+            openChart={openChart}
+            isInWatchlist={isInWatchlist}
+            toggleWatchlistTicker={toggleWatchlistTicker}
+          />
+        </Suspense>
+      )}
+
       <div className="app">
         <Topbar
           user={user}
@@ -1144,6 +1191,7 @@ function App() {
           onClearAll={clearAllAlerts}
           onClosePanel={() => setShowAlertPanel(false)}
           onRemoveAlert={removeAlertFromHistory}
+          onOpenNotification={openScheduledNotification}
           onToggleNotifications={toggleNotifications}
           setPage={setPage}
           watchlistCount={watchlist.length}
@@ -1294,6 +1342,15 @@ function App() {
             element={
               <Suspense fallback={<div className="page-loading">Loading…</div>}>
                 <PolicyPage />
+              </Suspense>
+            }
+          />
+
+          <Route
+            path="/accessibility"
+            element={
+              <Suspense fallback={<div className="page-loading">Loading…</div>}>
+                <AccessibilityStatementPage />
               </Suspense>
             }
           />

@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import CookieConsent from './components/shared/CookieConsent';
 import UpdateToast from './components/shared/UpdateToast';
+import AccessibilityWidget from './components/shared/AccessibilityWidget';
 import ScanLoader from './components/shared/ScanLoader';
 import './sentry';
 import './analytics';
@@ -155,6 +156,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Root />
           <CookieConsent />
           <UpdateToast />
+          <AccessibilityWidget />
         </BrowserRouter>
       </AuthProvider>
     </ErrorBoundary>

@@ -227,6 +227,9 @@ export default function ChatWidget({ user, isElite, getToken, externalPrompt, on
               </svg>
             </button>
           </div>
+          <p className="chat-disclaimer">
+            Capi is AI and can make mistakes. For educational and informational purposes only — not financial advice.
+          </p>
         </div>
       )}
 

@@ -61,6 +61,7 @@ export default function Topbar({
   onClearAll,
   onClosePanel,
   onRemoveAlert,
+  onOpenNotification,
   onToggleNotifications,
   setPage,
   watchlistCount,
@@ -111,6 +112,7 @@ export default function Topbar({
             onClearAll={onClearAll}
             onClosePanel={onClosePanel}
             onRemoveAlert={onRemoveAlert}
+            onOpenNotification={onOpenNotification}
             onToggleNotifications={onToggleNotifications}
           />
           {page === 'scanner' && results && !scanning && !isPremium && scanMeta && scanMeta.tier === 'premium' && (
