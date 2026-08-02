@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 
 var STORAGE_KEY = 'vs_a11y_settings'
 var FONT_STEPS = [1, 1.1, 1.25, 1.4] // multiplier applied via zoom — 100% / 110% / 125% / 140%
-var DEFAULT_SETTINGS = { fontStep: 0, highContrast: false, highlightLinks: false }
+var DEFAULT_SETTINGS = { fontStep: 0, highContrast: false, highlightLinks: false, theme: 'dark' }
 
 function loadSettings() {
   try {
@@ -13,6 +13,7 @@ function loadSettings() {
       fontStep: FONT_STEPS[raw.fontStep] ? raw.fontStep : 0,
       highContrast: !!raw.highContrast,
       highlightLinks: !!raw.highlightLinks,
+      theme: raw.theme === 'light' ? 'light' : 'dark',
     }
   } catch (e) {
     return DEFAULT_SETTINGS
@@ -24,14 +25,17 @@ function applySettings(s) {
   root.style.zoom = FONT_STEPS[s.fontStep] || 1
   root.classList.toggle('a11y-high-contrast', s.highContrast)
   root.classList.toggle('a11y-highlight-links', s.highlightLinks)
+  root.setAttribute('data-theme', s.theme)
 }
 
 /* Floating accessibility toolbar — real, functioning controls (not
-   decorative): text zoom, a high-contrast mode, and link highlighting, all
-   persisted per-device and applied globally via classes/zoom on <html> so
-   they hold across every page and reload. Rendered once, outside the app's
-   own routing, so it's available even on the onboarding quiz / loading
-   screens. */
+   decorative): text zoom, a light/dark theme switch, a high-contrast mode,
+   and link highlighting, all persisted per-device and applied globally via
+   attributes/classes/zoom on <html> so they hold across every page and
+   reload. Rendered once, outside the app's own routing, so it's available
+   even on the onboarding quiz / loading screens. This component is the sole
+   owner of the `data-theme` attribute — nothing else in the app should set
+   it, or it'll fight this widget's saved preference. */
 export default function AccessibilityWidget() {
   const [open, setOpen] = useState(false)
   const [settings, setSettings] = useState(loadSettings)
@@ -55,6 +59,9 @@ export default function AccessibilityWidget() {
   function toggleLinks() {
     setSettings((s) => ({ ...s, highlightLinks: !s.highlightLinks }))
   }
+  function setTheme(theme) {
+    setSettings((s) => ({ ...s, theme: theme }))
+  }
   function resetSettings() {
     setSettings(DEFAULT_SETTINGS)
   }
@@ -62,59 +69,79 @@ export default function AccessibilityWidget() {
   return (
     <div className="a11y-widget">
       {open && (
-        <div className="a11y-panel" dir="rtl" lang="he" role="dialog" aria-modal="true" aria-label="נגישות">
+        <div className="a11y-panel" role="dialog" aria-modal="true" aria-label="Accessibility">
           <div className="a11y-panel-header">
-            <span>נגישות</span>
-            <button className="a11y-panel-close" onClick={() => setOpen(false)} aria-label="סגור">
+            <span>Accessibility</span>
+            <button className="a11y-panel-close" onClick={() => setOpen(false)} aria-label="Close">
               &times;
             </button>
           </div>
 
           <div className="a11y-row">
-            <span className="a11y-row-label">גודל טקסט</span>
+            <span className="a11y-row-label">Text Size</span>
             <div className="a11y-btn-group">
-              <button className="a11y-btn" onClick={decreaseFont} disabled={settings.fontStep === 0} aria-label="הקטן טקסט">
-                א-
+              <button className="a11y-btn" onClick={decreaseFont} disabled={settings.fontStep === 0} aria-label="Decrease text size">
+                A-
               </button>
               <button
                 className="a11y-btn"
                 onClick={increaseFont}
                 disabled={settings.fontStep === FONT_STEPS.length - 1}
-                aria-label="הגדל טקסט"
+                aria-label="Increase text size"
               >
-                א+
+                A+
               </button>
             </div>
           </div>
 
           <div className="a11y-row">
-            <span className="a11y-row-label">ניגודיות גבוהה</span>
+            <span className="a11y-row-label">Theme</span>
+            <div className="a11y-btn-group">
+              <button
+                className={'a11y-btn a11y-toggle' + (settings.theme === 'dark' ? ' on' : '')}
+                onClick={() => setTheme('dark')}
+                aria-pressed={settings.theme === 'dark'}
+              >
+                Dark
+              </button>
+              <button
+                className={'a11y-btn a11y-toggle' + (settings.theme === 'light' ? ' on' : '')}
+                onClick={() => setTheme('light')}
+                aria-pressed={settings.theme === 'light'}
+              >
+                Light
+              </button>
+            </div>
+          </div>
+
+          <div className="a11y-row">
+            <span className="a11y-row-label">High Contrast</span>
             <button
               className={'a11y-btn a11y-toggle' + (settings.highContrast ? ' on' : '')}
               onClick={toggleContrast}
               aria-pressed={settings.highContrast}
             >
-              {settings.highContrast ? 'כבוי' : 'הפעל'}
+              {settings.highContrast ? 'On' : 'Off'}
             </button>
           </div>
 
           <div className="a11y-row">
-            <span className="a11y-row-label">הדגשת קישורים</span>
+            <span className="a11y-row-label">Highlight Links</span>
             <button
               className={'a11y-btn a11y-toggle' + (settings.highlightLinks ? ' on' : '')}
               onClick={toggleLinks}
               aria-pressed={settings.highlightLinks}
             >
-              {settings.highlightLinks ? 'כבוי' : 'הפעל'}
+              {settings.highlightLinks ? 'On' : 'Off'}
             </button>
           </div>
 
           <button className="a11y-reset-btn" onClick={resetSettings}>
-            איפוס הגדרות
+            Reset Settings
           </button>
 
           <Link className="a11y-statement-link" to="/accessibility" onClick={() => setOpen(false)}>
-            הצהרת נגישות ‹
+            Accessibility Statement ›
           </Link>
         </div>
       )}
@@ -122,9 +149,9 @@ export default function AccessibilityWidget() {
       <button
         className="a11y-fab"
         onClick={() => setOpen((o) => !o)}
-        aria-label="פתח תפריט נגישות"
+        aria-label="Open accessibility menu"
         aria-expanded={open}
-        title="נגישות"
+        title="Accessibility"
       >
         <span aria-hidden="true">&#9855;</span>
       </button>

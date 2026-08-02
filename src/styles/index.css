@@ -75,6 +75,41 @@
   --transition: 0.2s ease;
 }
 
+/* Light theme — set from the accessibility widget, defaults to dark (the
+   app's original look) for everyone who hasn't chosen otherwise. The accent
+   gold and the status colors (green/red/cyan) are all darkened from their
+   dark-mode values, not just carried over as-is: they're used as TEXT color
+   directly on the page background in ~100 places (badges, prices, the active
+   nav tab), and the original #f59e0b-family values read at roughly 2:1
+   contrast on white — well under the 4.5:1 WCAG AA floor. Same hue family,
+   genuinely readable. */
+:root[data-theme='light'] {
+  --bg-0: #ffffff;
+  --bg-1: #f7f7f8;
+  --bg-2: #eeeef1;
+  --bg-3: #e2e2e7;
+  --bg-4: #cfcfd7;
+  --bg-5: #a8a8b3;
+  --border: rgba(0, 0, 0, 0.09);
+  --border-strong: rgba(0, 0, 0, 0.16);
+  --text-0: #18181b;
+  --text-1: #52525b;
+  --text-2: #71717a;
+  --text-3: #b4b4bd;
+  --accent: #92400e;
+  --accent-2: #b45309;
+  --accent-dim: rgba(146, 64, 14, 0.08);
+  --green: #15803d;
+  --green-dim: rgba(21, 128, 61, 0.08);
+  --red: #b91c1c;
+  --red-dim: rgba(185, 28, 28, 0.08);
+  --orange: #92400e;
+  --orange-dim: rgba(146, 64, 14, 0.08);
+  --cyan: #0e7490;
+  --cyan-dim: rgba(14, 116, 144, 0.08);
+  --tier-premium: #c2410c;
+}
+
 *,
 *::before,
 *::after {
@@ -2843,13 +2878,18 @@ td {
   transform: translateY(-1px);
   box-shadow: 0 4px 20px rgba(245, 158, 11, 0.45);
 }
+/* The panel is intentionally always a black card with light text, regardless
+   of the light/dark theme choice made inside it — so every color below is a
+   literal value, not a themed CSS variable. Those variables flip to
+   dark-on-white in light mode, which would make the panel illegible against
+   its own always-black background. */
 .a11y-panel {
   position: absolute;
   bottom: 42px;
   left: 0;
   width: 250px;
   background: #000;
-  border: 1px solid var(--border-strong);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: var(--radius-sm);
   padding: 16px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
@@ -2861,19 +2901,19 @@ td {
   margin-bottom: 14px;
   font-size: 14px;
   font-weight: 700;
-  color: var(--accent);
+  color: #ffc107;
 }
 .a11y-panel-close {
   border: none;
   background: none;
-  color: var(--text-3);
+  color: #a1a1aa;
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
   padding: 0;
 }
 .a11y-panel-close:hover {
-  color: var(--text-0);
+  color: #fff;
 }
 .a11y-row {
   display: flex;
@@ -2884,7 +2924,7 @@ td {
 }
 .a11y-row-label {
   font-size: 12.5px;
-  color: var(--text-1);
+  color: #d4d4d8;
 }
 .a11y-btn-group {
   display: flex;
@@ -2895,52 +2935,52 @@ td {
   height: 30px;
   padding: 0 10px;
   border-radius: var(--radius-xs);
-  border: 1px solid var(--border-strong);
-  background: var(--bg-2);
-  color: var(--text-0);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #1a1a1a;
+  color: #fff;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: border-color var(--transition), color var(--transition);
 }
 .a11y-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: #ffc107;
+  color: #ffc107;
 }
 .a11y-btn:disabled {
   opacity: 0.4;
   cursor: default;
 }
 .a11y-toggle.on {
-  border-color: var(--accent);
-  background: rgba(245, 158, 11, 0.12);
-  color: var(--accent);
+  border-color: #ffc107;
+  background: rgba(255, 193, 7, 0.14);
+  color: #ffc107;
 }
 .a11y-reset-btn {
   width: 100%;
   height: 32px;
   border-radius: var(--radius-xs);
-  border: 1px solid var(--border-strong);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   background: none;
-  color: var(--text-1);
+  color: #d4d4d8;
   font-size: 12px;
   cursor: pointer;
   margin: 4px 0 10px;
   transition: border-color var(--transition), color var(--transition);
 }
 .a11y-reset-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: #ffc107;
+  color: #ffc107;
 }
 .a11y-statement-link {
   display: block;
   text-align: center;
   font-size: 11.5px;
-  color: var(--text-2);
+  color: #a1a1aa;
   text-decoration: none;
 }
 .a11y-statement-link:hover {
-  color: var(--accent);
+  color: #ffc107;
   text-decoration: underline;
 }
 /* A real high-contrast theme, not a blunt filter() on the whole page — a
@@ -2950,22 +2990,28 @@ td {
    from these CSS variables, redefining them here re-themes the entire app
    into true black/white with a brighter, still-on-brand gold — the same
    palette, tuned for maximum legibility, not a distorted version of it. */
+/* !important on every line: high contrast must always win over whichever
+   theme (light or dark) is also selected — it's a readability override that
+   sits on top of theme choice, not an alternative to it. Without this, the
+   light-theme block below would outrank it on plain CSS specificity (an
+   attribute-selected :root beats a single class) and silently cancel it out
+   the moment someone picked Light + High Contrast together. */
 html.a11y-high-contrast {
-  --bg-0: #000000;
-  --bg-1: #000000;
-  --bg-2: #0d0d0d;
-  --bg-3: #1a1a1a;
-  --bg-4: #262626;
-  --bg-5: #3d3d3d;
-  --border: rgba(255, 255, 255, 0.35);
-  --border-strong: rgba(255, 255, 255, 0.55);
-  --text-0: #ffffff;
-  --text-1: #f2f2f2;
-  --text-2: #d4d4d8;
-  --text-3: #b0b0b8;
-  --accent: #ffc107;
-  --accent-2: #ffda6a;
-  --tier-premium: #ff9142;
+  --bg-0: #000000 !important;
+  --bg-1: #000000 !important;
+  --bg-2: #0d0d0d !important;
+  --bg-3: #1a1a1a !important;
+  --bg-4: #262626 !important;
+  --bg-5: #3d3d3d !important;
+  --border: rgba(255, 255, 255, 0.35) !important;
+  --border-strong: rgba(255, 255, 255, 0.55) !important;
+  --text-0: #ffffff !important;
+  --text-1: #f2f2f2 !important;
+  --text-2: #d4d4d8 !important;
+  --text-3: #b0b0b8 !important;
+  --accent: #ffc107 !important;
+  --accent-2: #ffda6a !important;
+  --tier-premium: #ff9142 !important;
 }
 html.a11y-highlight-links a {
   text-decoration: underline !important;

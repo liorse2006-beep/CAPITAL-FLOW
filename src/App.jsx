@@ -760,10 +760,6 @@ function App() {
   );
 
   useEffect(function () {
-    document.documentElement.setAttribute('data-theme', 'dark');
-  }, []);
-
-  useEffect(function () {
     if (!user) return; // don't auto-show cached results to guests
     fetch('/api/last-results', { headers: { Authorization: 'Bearer ' + getToken() } })
       .then(function (r) {

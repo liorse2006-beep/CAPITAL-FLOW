@@ -12,37 +12,39 @@ function Part({ number, title, children }) {
 }
 
 const MEASURES = [
-  'אפשרות להגדיל ולהקטין את גודל הטקסט באתר.',
-  'מצב ניגודיות גבוהה להגברת הקריאות.',
-  'הדגשת קישורים (קו תחתון ומסגרת) לזיהוי קל יותר.',
-  'תמיכה מלאה בניווט וניתוב עמודים באמצעות מקלדת (Tab / Enter / Escape).',
-  'תוויות טקסט (aria-label) לכפתורים ואייקונים, לשימוש עם קוראי מסך.',
-  'ניגודיות צבעים נבחרת בקפידה בין טקסט לרקע בכל האתר.',
-  'מבנה סמנטי (כותרות, כפתורים, טפסים) התומך בטכנולוגיות מסייעות.',
+  'The ability to increase and decrease the site’s text size.',
+  'A light/dark theme switch, so you can pick whichever is easier to read.',
+  'A high-contrast mode to improve readability.',
+  'Link highlighting (underline and outline) for easier identification.',
+  'Full keyboard navigation and page routing support (Tab / Enter / Escape).',
+  'Text labels (aria-label) on buttons and icons, for use with screen readers.',
+  'Carefully chosen color contrast between text and background across the site.',
+  'Semantic structure (headings, buttons, forms) that supports assistive technologies.',
 ];
 
 const LIMITATIONS = [
-  'חלק מהתכנים המגיעים מספקי מידע חיצוניים (כגון נתוני שוק וחדשות) אינם בשליטתנו המלאה ועשויים שלא לעמוד בכל דרישות הנגישות.',
-  'האתר מצוי בתהליך שיפור מתמשך של רמת הנגישות, וייתכנו רכיבים בודדים שטרם הותאמו במלואם.',
+  'Some content comes from external data providers (such as market data and news) that is not fully within our control and may not meet every accessibility requirement.',
+  'The site is under continuous accessibility improvement, and a small number of individual components may not yet be fully adapted.',
 ];
 
 export default function AccessibilityStatementPage() {
   return (
-    <div className="page-content policy-page" dir="rtl" lang="he">
-      <h2 className="flow-title policy-title">הצהרת נגישות</h2>
+    <div className="page-content policy-page">
+      <h2 className="flow-title policy-title">Accessibility Statement</h2>
       <div className="policy-card">
-        <p className="policy-paragraph policy-updated">עודכן לאחרונה: 1 באוגוסט 2026</p>
+        <p className="policy-paragraph policy-updated">Last updated: August 1, 2026</p>
 
-        <Part number={1} title="מחויבותנו לנגישות">
+        <Part number={1} title="Our Commitment to Accessibility">
           <p className="policy-paragraph">
-            אנו ב-Capital Flow רואים חשיבות רבה במתן שירות שוויוני ונגיש לכלל המשתמשים, לרבות אנשים עם מוגבלות.
-            אנו פועלים בהתאם לתקנות שוויון זכויות לאנשים עם מוגבלות (התאמות נגישות לשירות), ולתקן הישראלי
-            ת"י 5568 המבוסס על הנחיות WCAG 2.0 ברמה AA, ככל שהדבר ניתן ורלוונטי לאופי האתר.
+            At Capital Flow, we place great importance on providing an equal and accessible service to all users,
+            including people with disabilities. We act in accordance with the Equal Rights for Persons with
+            Disabilities Regulations (Service Accessibility Adjustments), and the Israeli Standard IS 5568, based on
+            WCAG 2.0 Level AA guidelines, to the extent applicable and relevant to the nature of the site.
           </p>
         </Part>
 
-        <Part number={2} title="אמצעי הנגישות באתר">
-          <p className="policy-paragraph">בנוסף לתפריט הנגישות הצף (הסמל בפינה השמאלית התחתונה של המסך), האתר כולל:</p>
+        <Part number={2} title="Accessibility Features on the Site">
+          <p className="policy-paragraph">In addition to the floating accessibility menu (the icon in the bottom-left corner of the screen), the site includes:</p>
           <ul className="policy-list">
             {MEASURES.map((m, i) => (
               <li key={i}>{m}</li>
@@ -50,7 +52,7 @@ export default function AccessibilityStatementPage() {
           </ul>
         </Part>
 
-        <Part number={3} title="מגבלות ידועות">
+        <Part number={3} title="Known Limitations">
           <ul className="policy-list">
             {LIMITATIONS.map((l, i) => (
               <li key={i}>{l}</li>
@@ -58,14 +60,15 @@ export default function AccessibilityStatementPage() {
           </ul>
         </Part>
 
-        <Part number={4} title="פנייה בנושא נגישות">
+        <Part number={4} title="Contact Us About Accessibility">
           <p className="policy-paragraph">
-            אם נתקלתם בבעיית נגישות באתר, או שיש לכם הצעה לשיפור — נשמח שתפנו אלינו במייל
+            If you encounter an accessibility issue on the site, or have a suggestion for improvement, we&apos;d be
+            glad to hear from you by email at
             {' '}
             <a className="policy-inline-link" href="mailto:liormenaiot@gmail.com">
               liormenaiot@gmail.com
             </a>
-            . אנו נעשה כמיטב יכולתנו לטפל בפנייה בהקדם האפשרי.
+            . We will do our best to address your inquiry as soon as possible.
           </p>
         </Part>
       </div>
