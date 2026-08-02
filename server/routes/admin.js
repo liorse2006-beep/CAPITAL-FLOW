@@ -337,9 +337,6 @@ router.get('/admin', asyncRoute(async (req, res) => {
   .feedback-row-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
   .feedback-who { font-size: 12px; font-weight: 600; color: #E4E4E7; }
   .feedback-date { font-size: 11px; color: #71717A; font-family: monospace; margin-left: auto; }
-  .feedback-del { background: none; border: none; color: #7F1D1D; cursor: pointer; font-size: 12px; padding: 0 4px; }
-  .feedback-del:hover { color: #EF4444; }
-  .feedback-msg { font-size: 13px; color: #D4D4D8; line-height: 1.5; white-space: pre-wrap; }
   .toast { position: fixed; bottom: 24px; right: 24px; background: #1C1C1C;
            border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
            padding: 12px 18px; font-size: 13px; color: #E4E4E7;
@@ -399,14 +396,6 @@ router.get('/admin', asyncRoute(async (req, res) => {
     <div id="audit-wrap"><div class="loader">Loading…</div></div>
   </div>
 
-  <div class="card" style="margin-bottom:20px">
-    <div class="card-hdr">
-      <h2>Feedback</h2>
-      <button class="refresh-btn" id="btn-refresh-feedback">↻ Refresh</button>
-    </div>
-    <div id="feedback-wrap"><div class="loader">Loading…</div></div>
-  </div>
-
   <div class="card">
     <div class="card-hdr">
       <h2>Users</h2>
@@ -443,36 +432,16 @@ async function load() {
   document.getElementById('last-refresh').textContent = 'Refreshing…';
   try {
     const r = await fetch('/admin/api/users', { headers: AUTH_HEADERS });
-    if (!r.ok) { document.getElementById('table-wrap').innerHTML = '<div class="loader">Error loading users.</div>'; return; }
+    if (!r.ok) { document.getElementById('table-wrap').innerHTML = '<div class="loader">Error loading users.</div>'; return false; }
     allUsers = await r.json();
     renderStats(allUsers);
     renderTable(allUsers);
     document.getElementById('last-refresh').textContent = 'Last refresh: ' + new Date().toLocaleTimeString();
+    return true;
   } catch(e) {
     document.getElementById('table-wrap').innerHTML = '<div class="loader">Failed to fetch.</div>';
+    return false;
   }
-}
-
-async function loadFeedback() {
-  try {
-    const r = await fetch('/admin/api/feedback', { headers: AUTH_HEADERS });
-    const rows = r.ok ? await r.json() : [];
-    const el = document.getElementById('feedback-wrap');
-    if (!rows.length) { el.innerHTML = '<div class="loader">No feedback yet.</div>'; return; }
-    el.innerHTML = rows.map(function(row) {
-      const who = escapeHtml(row.account_email || row.email || 'Anonymous');
-      const page = row.page ? \` · <span style="color:#71717A">\${escapeHtml(row.page)}</span>\` : '';
-      const date = new Date(row.created_at * 1000).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-      return \`<div class="feedback-row">
-        <div class="feedback-row-hdr">
-          <span class="feedback-who">\${who}\${page}</span>
-          <span class="feedback-date">\${date}</span>
-          <button class="feedback-del" data-act="del-feedback" data-id="\${row.id}" title="Delete">✕</button>
-        </div>
-        <div class="feedback-msg">\${escapeHtml(row.message)}</div>
-      </div>\`;
-    }).join('');
-  } catch(e) {}
 }
 
 const ACTION_LABEL = {
@@ -494,9 +463,10 @@ const ACTION_LABEL = {
 async function loadAuditLog() {
   try {
     const r = await fetch('/admin/api/audit-log', { headers: AUTH_HEADERS });
-    const rows = r.ok ? await r.json() : [];
+    if (!r.ok) return false;
+    const rows = await r.json();
     const el = document.getElementById('audit-wrap');
-    if (!rows.length) { el.innerHTML = '<div class="loader">No admin actions logged yet.</div>'; return; }
+    if (!rows.length) { el.innerHTML = '<div class="loader">No admin actions logged yet.</div>'; return true; }
     el.innerHTML = rows.map(function(row) {
       const label = ACTION_LABEL[row.action] || row.action;
       const target = row.target_email ? \` · <span style="color:#A0A0A8">\${escapeHtml(row.target_email)}</span>\`
@@ -510,7 +480,8 @@ async function loadAuditLog() {
         </div>
       </div>\`;
     }).join('');
-  } catch(e) {}
+    return true;
+  } catch(e) { return false; }
 }
 
 const BACKUP_STALE_HOURS = 48;
@@ -561,11 +532,6 @@ async function loadVisits() {
     document.getElementById('s-visits-week').textContent  = (d.last7 || 0).toLocaleString();
     document.getElementById('s-visits-total').textContent = (d.total || 0).toLocaleString();
   } catch (e) {}
-}
-
-async function deleteFeedback(id) {
-  const r = await fetch('/admin/api/feedback/' + id, { method: 'DELETE', headers: AUTH_HEADERS });
-  if (r.ok) loadFeedback();
 }
 
 async function setPilot(id, value) {
@@ -768,14 +734,23 @@ document.addEventListener('click', function (e) {
     case 'force-logout':  return forceLogout(d.id);
     case 'push-test':     return sendTestPush(d.id);
     case 'del-user':      return deleteUser(d.id, d.email);
-    case 'del-feedback':  return deleteFeedback(d.id);
   }
 });
 
 // Static controls (present in the initial HTML, not regenerated)
-document.getElementById('btn-refresh-feedback').addEventListener('click', loadFeedback);
-document.getElementById('btn-refresh-audit').addEventListener('click', loadAuditLog);
-document.getElementById('btn-refresh-users').addEventListener('click', load);
+// Refresh buttons show a toast on click specifically — not from inside
+// load()/loadAuditLog() themselves, since those also run silently every 60s
+// in the background and on initial page load, where a toast would just be
+// noise. This way a click always confirms it landed, whether or not the
+// data actually changed.
+document.getElementById('btn-refresh-audit').addEventListener('click', async function () {
+  const ok = await loadAuditLog();
+  toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
+});
+document.getElementById('btn-refresh-users').addEventListener('click', async function () {
+  const ok = await load();
+  toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
+});
 document.getElementById('search').addEventListener('input', filterTable);
 document.getElementById('backup-run-now').addEventListener('click', function (e) {
   e.preventDefault();
@@ -783,12 +758,10 @@ document.getElementById('backup-run-now').addEventListener('click', function (e)
 });
 
 load();
-loadFeedback();
 loadAuditLog();
 loadBackupStatus();
 loadVisits();
 setInterval(load, 60000);
-setInterval(loadFeedback, 60000);
 setInterval(loadAuditLog, 60000);
 setInterval(loadBackupStatus, 60000);
 setInterval(loadVisits, 60000);

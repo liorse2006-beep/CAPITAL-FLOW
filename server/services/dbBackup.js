@@ -6,9 +6,11 @@ const { GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_EMAIL } = require('../config');
 // Render's filesystem is ephemeral — anything written to disk there is gone
 // on the next deploy or restart, so a backup can only be useful if it leaves
 // the container. There's no cloud-storage account configured for this app,
-// but Gmail credentials already are (used for OTP/welcome emails), so daily
-// backups are gzipped and emailed to the admin's own inbox as an attachment
-// instead of requiring a new external service to be set up.
+// so daily backups are gzipped and emailed to the admin's own inbox as an
+// attachment via a plain Gmail SMTP account instead of standing up a new
+// service. This is a SEPARATE set of credentials from RESEND_API_KEY (used
+// for OTP/welcome emails in server/services/email.js) — GMAIL_USER and
+// GMAIL_APP_PASSWORD must be set on their own for this feature to work.
 const TABLES = ['users', 'watchlist_alerts', 'pilot_allowlist', 'push_subscriptions', 'feedback', 'coupons', 'scheduled_scans'];
 
 function createTransport() {

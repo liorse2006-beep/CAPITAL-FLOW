@@ -103,8 +103,6 @@ export default function WatchlistPage({
   pushError,
   enablePush,
   disablePush,
-  notifTime,
-  saveNotifTime,
   setShowUpgradeModal,
   getToken,
   onAccountDeleted,
@@ -181,22 +179,6 @@ export default function WatchlistPage({
             )}
           </div>
           {pushError && <div className="notif-settings-error">{pushError}</div>}
-          {canNotify && pushSupported && pushEnabled && (
-            <div className="notif-settings-row">
-              <div>
-                <div className="notif-settings-title">Daily Scan Time</div>
-                <div className="notif-settings-sub">
-                  Pick a time (Israel time) — the app scans on its own and sends you a summary, no need to open it.
-                </div>
-              </div>
-              <input
-                type="time"
-                className="notif-time-input"
-                value={notifTime}
-                onChange={(e) => saveNotifTime(e.target.value)}
-              />
-            </div>
-          )}
         </div>
       )}
 

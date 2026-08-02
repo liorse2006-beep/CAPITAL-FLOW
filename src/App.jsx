@@ -485,13 +485,11 @@ function App() {
   }
 
   /* ── Push Notifications — real device push that fires even with the app
-     closed. Delivery is driven server-side (server/services/webPush.js +
-     scheduledDigest.js) against the same thresholds set above. Subscribing
-     is opened up during the free trial (canNotify); the daily scheduled
-     digest time below stays strictly Elite. ── */
+     closed. Delivery is driven server-side (server/services/webPush.js)
+     against the same thresholds set above. Subscribing is opened up during
+     the free trial (canNotify). ── */
   var { pushSupported, pushEnabled, pushBusy, pushError, checkSubscribed, enablePush, disablePush } =
     usePushSubscription();
-  const [notifTime, setNotifTime] = useState('');
 
   useEffect(
     function () {
@@ -500,30 +498,6 @@ function App() {
     },
     [canNotify, pushSupported]
   );
-
-  useEffect(
-    function () {
-      if (!eliteAccess || !pushSupported) return;
-      fetch('/api/push/notification-time', { headers: { Authorization: 'Bearer ' + getToken() } })
-        .then(function (r) {
-          return r.ok ? r.json() : {};
-        })
-        .then(function (d) {
-          setNotifTime((d && d.time) || '');
-        })
-        .catch(function () {});
-    },
-    [eliteAccess, pushSupported]
-  );
-
-  function saveNotifTime(time) {
-    setNotifTime(time);
-    fetch('/api/push/notification-time', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
-      body: JSON.stringify({ time: time || null }),
-    }).catch(function () {});
-  }
 
   /* ── Watchlist — backed by the server so starred tickers follow the
      account across devices, not just the browser that starred them.
@@ -1252,8 +1226,6 @@ function App() {
                 pushError={pushError}
                 enablePush={enablePush}
                 disablePush={disablePush}
-                notifTime={notifTime}
-                saveNotifTime={saveNotifTime}
                 setShowUpgradeModal={setShowUpgradeModal}
                 getToken={getToken}
                 onAccountDeleted={() => {
