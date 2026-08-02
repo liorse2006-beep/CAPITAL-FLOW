@@ -107,11 +107,12 @@ async function notifyScheduledUser(sched, results) {
   // results too, so tapping it (in-app or from the push) shows exactly what
   // that run found instead of dropping the user on the homepage as if
   // nothing had happened.
+  // No `symbol` here — this is a digest of possibly many results (the body
+  // says "N stocks moving right now"), so a single ticker would misrepresent
+  // it as being about one stock. scanType is what the bell uses to label it.
   var notifId = null;
   try {
-    const topSymbol = results.length > 0 ? results[0].symbol : null;
     notifId = await require('./notifications').addNotification(sched.user_id, {
-      symbol: topSymbol,
       title,
       body,
       scanType: sched.scan_type,

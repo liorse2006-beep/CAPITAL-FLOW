@@ -120,7 +120,10 @@ test('a scheduled scan persists an in-app notification, so it is visible even wi
     .prepare('SELECT id, symbol, title, body, scan_type, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
     .get(userId);
   assert.ok(notif, 'a scheduled scan must leave a notification in the in-app bell');
-  assert.strictEqual(notif.symbol, 'NVDA');
+  // No single symbol on the notification itself — it's a digest of however
+  // many results the run found, not an alert about one specific ticker
+  // (the ticker still appears in the title, used for the native push).
+  assert.strictEqual(notif.symbol, null);
   assert.match(notif.title, /NVDA/);
 
   // The notification must carry the scan's own results and type, so tapping

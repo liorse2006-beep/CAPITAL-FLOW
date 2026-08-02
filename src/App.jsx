@@ -222,6 +222,7 @@ function App() {
           return {
             id: 'srv-' + n.id,
             sym: n.symbol || '',
+            scanType: n.scan_type || null,
             title: n.title,
             body: n.body,
             time: new Date(n.created_at * 1000).toISOString(),

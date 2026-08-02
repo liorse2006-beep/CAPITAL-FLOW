@@ -1,5 +1,22 @@
 import React from 'react';
 
+var SCAN_TYPE_LABEL = {
+  capitalFlow: 'Capital Flow Scan',
+  maScanner: 'MA Scanner',
+  sectorMoving: 'Hot Sectors',
+};
+
+// A watchlist threshold alert is genuinely about one ticker, so its symbol
+// belongs in the header. A scheduled scan's notification is a digest of
+// however many results it found ("N stocks moving right now") — showing one
+// arbitrary ticker as the headline misrepresents it as being about that
+// stock specifically, so those get a scan-type label instead.
+function alertHeadline(alert) {
+  if (alert.sym) return alert.sym;
+  if (alert.scanType) return SCAN_TYPE_LABEL[alert.scanType] || 'Scheduled Scan';
+  return 'Daily Digest';
+}
+
 function formatAlertTime(iso) {
   var d = new Date(iso);
   var now = new Date();
@@ -127,7 +144,7 @@ function AlertBell(props) {
                     React.createElement(
                       'div',
                       { className: 'alert-hist-top' },
-                      React.createElement('span', { className: 'alert-panel-sym' }, alert.sym),
+                      React.createElement('span', { className: 'alert-panel-sym' }, alertHeadline(alert)),
                       React.createElement('span', { className: 'alert-hist-time' }, formatAlertTime(alert.time))
                     ),
                     React.createElement('div', { className: 'alert-hist-body' }, alert.body)
@@ -139,7 +156,7 @@ function AlertBell(props) {
                       onClick: function () {
                         onRemoveAlert(alert.id);
                       },
-                      'aria-label': 'Dismiss alert for ' + alert.sym,
+                      'aria-label': 'Dismiss alert for ' + alertHeadline(alert),
                     },
                     '\xd7'
                   )

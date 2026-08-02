@@ -33,7 +33,7 @@ async function addNotification(userId, { symbol, title, body, scanType, results 
 
 async function getNotifications(userId, limit) {
   return db
-    .prepare('SELECT id, symbol, title, body, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?')
+    .prepare('SELECT id, symbol, title, body, scan_type, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?')
     .all(userId, limit || 100);
 }
 
