@@ -1136,17 +1136,16 @@ function App() {
         </Suspense>
       )}
 
-      {user && (
-        <Suspense fallback={null}>
-          <ChatWidget
-            user={user}
-            isElite={eliteAccess}
-            getToken={getToken}
-            externalPrompt={capiExternalPrompt}
-            onExternalPromptSent={() => setCapiExternalPrompt(null)}
-          />
-        </Suspense>
-      )}
+      <Suspense fallback={null}>
+        <ChatWidget
+          user={user}
+          isElite={eliteAccess}
+          getToken={getToken}
+          externalPrompt={capiExternalPrompt}
+          onExternalPromptSent={() => setCapiExternalPrompt(null)}
+          onRequireAuth={() => setShowAuthModal(true)}
+        />
+      </Suspense>
 
       {welcomeTier && (
         <Suspense fallback={null}>

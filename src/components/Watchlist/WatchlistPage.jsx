@@ -403,10 +403,16 @@ export default function WatchlistPage({
                   )}
                   {d && (
                     <div className="mobile-card-bottom">
-                      <span className="mobile-card-ratio">
+                      <div className="mobile-card-stat">
+                        <span className="mobile-card-stat-label">RVOL</span>
                         <RatioPill ratio={d.volumeRatio} />
-                      </span>
-                      <span className="mobile-card-vol">{d.marketCap ? fmt(d.marketCap) : ''}</span>
+                      </div>
+                      {d.marketCap > 0 && (
+                        <div className="mobile-card-stat">
+                          <span className="mobile-card-stat-label">Cap</span>
+                          <span className="mobile-card-stat-value">{fmt(d.marketCap)}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

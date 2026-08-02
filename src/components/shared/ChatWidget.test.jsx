@@ -23,9 +23,22 @@ afterEach(() => {
 })
 
 describe('ChatWidget', () => {
-  it('renders nothing when there is no logged-in user', () => {
-    const { container } = render(<ChatWidget user={null} getToken={() => null} />)
-    expect(container).toBeEmptyDOMElement()
+  it('a guest still sees the launcher, and tapping it asks them to sign in instead of opening chat', () => {
+    const onRequireAuth = vi.fn()
+    const { container } = render(<ChatWidget user={null} getToken={() => null} onRequireAuth={onRequireAuth} />)
+    expect(container.querySelector('.chat-fab')).toBeInTheDocument()
+
+    fireEvent.click(container.querySelector('.chat-fab'))
+    expect(onRequireAuth).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('.chat-panel')).not.toBeInTheDocument()
+  })
+
+  it('shows the guest the same teaser message a signed-in Elite user gets', () => {
+    render(<ChatWidget user={null} getToken={() => null} onRequireAuth={() => {}} />)
+    act(() => {
+      vi.advanceTimersByTime(1500)
+    })
+    expect(screen.getByText(/Hi, I.m Capi/)).toBeInTheDocument()
   })
 
   it('renders nothing for a logged-in user who is not Elite', () => {

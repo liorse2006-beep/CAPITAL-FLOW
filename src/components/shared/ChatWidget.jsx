@@ -38,7 +38,7 @@ function renderCapiMessage(text) {
 // forever the way the old localStorage flag did.
 var TEASER_READY_DELAY_MS = 1500
 
-export default function ChatWidget({ user, isElite, getToken, externalPrompt, onExternalPromptSent }) {
+export default function ChatWidget({ user, isElite, getToken, externalPrompt, onExternalPromptSent, onRequireAuth }) {
   const [open, setOpen] = useState(false)
   const [teaserReady, setTeaserReady] = useState(false)
   const [teaserDismissed, setTeaserDismissed] = useState(false)
@@ -49,18 +49,16 @@ export default function ChatWidget({ user, isElite, getToken, externalPrompt, on
   const listRef = useRef(null)
   const historyLoadingRef = useRef(false)
 
-  useEffect(
-    function () {
-      if (!user) return
-      var t = setTimeout(function () {
-        setTeaserReady(true)
-      }, TEASER_READY_DELAY_MS)
-      return function () {
-        clearTimeout(t)
-      }
-    },
-    [user]
-  )
+  useEffect(function () {
+    // Shown to everyone, signed in or not — a guest who taps it gets asked
+    // to sign in (see toggleOpen) rather than never knowing Capi exists.
+    var t = setTimeout(function () {
+      setTeaserReady(true)
+    }, TEASER_READY_DELAY_MS)
+    return function () {
+      clearTimeout(t)
+    }
+  }, [])
 
   useEffect(
     function () {
@@ -74,6 +72,10 @@ export default function ChatWidget({ user, isElite, getToken, externalPrompt, on
   }
 
   function toggleOpen() {
+    if (!user) {
+      if (onRequireAuth) onRequireAuth()
+      return
+    }
     setOpen((o) => !o)
   }
 
@@ -153,9 +155,12 @@ export default function ChatWidget({ user, isElite, getToken, externalPrompt, on
     fetch('/api/chat/history', { method: 'DELETE', headers: { Authorization: 'Bearer ' + getToken() } }).catch(() => {})
   }
 
-  // Capi is an Elite feature — Free and Premium never see the launcher at
-  // all, matching the backend's own requireElite gate on every /chat route.
-  if (!user || !isElite) return null
+  // Capi is an Elite feature, gated server-side too (requireElite on every
+  // /chat route) — a signed-in Free/Premium account without trial access
+  // still never sees the launcher. A GUEST, though, still sees it: tapping
+  // it just asks them to sign in first (toggleOpen above) instead of hiding
+  // the feature's existence entirely.
+  if (user && !isElite) return null
 
   return (
     <div className="chat-widget">

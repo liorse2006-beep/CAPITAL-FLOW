@@ -955,14 +955,21 @@ export default function ScannerPage({
                         </span>
                       </div>
                       <div className="mobile-card-bottom">
-                        <span className="mobile-card-ratio">
+                        <div className="mobile-card-stat">
+                          <span className="mobile-card-stat-label">RVOL</span>
                           <span className={'ratio-pill ' + (r.volumeRatio >= 5 ? 'hot' : r.volumeRatio >= 3.5 ? 'warm' : 'ok')}>
                             {r.volumeRatio + 'x'}
                           </span>
-                        </span>
-                        <span className="mobile-card-vol">{fmt(r.avgVolume) + ' / ' + fmt(r.volume)}</span>
+                        </div>
+                        <div className="mobile-card-stat">
+                          <span className="mobile-card-stat-label">Avg / Vol</span>
+                          <span className="mobile-card-stat-value">{fmt(r.avgVolume) + ' / ' + fmt(r.volume)}</span>
+                        </div>
                         {r.marketCap > 0 && (
-                          <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{fmt(r.marketCap)}</span>
+                          <div className="mobile-card-stat">
+                            <span className="mobile-card-stat-label">Cap</span>
+                            <span className="mobile-card-stat-value">{fmt(r.marketCap)}</span>
+                          </div>
                         )}
                         <span className="mobile-card-sector">
                           <span className="sector-chip">{r.sector}</span>
