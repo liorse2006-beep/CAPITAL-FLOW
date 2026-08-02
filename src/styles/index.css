@@ -68,6 +68,17 @@
   --cyan-dim: rgba(6, 182, 212, 0.06);
   --tier-premium: #f97316;
   --row-hover: rgba(255, 255, 255, 0.02);
+  /* "Vivid" gold/orange tokens are deliberately NOT redefined under the light
+     theme below — they're for solid badges/gradients/glows that carry their
+     own fixed dark foreground text (e.g. color: #0a0a0a), so they need to
+     stay bright regardless of page theme. --accent/--accent-2/--tier-premium
+     are the ones that vary by theme, for use as plain text color on the
+     page's own background — reusing them for a filled badge would darken the
+     fill into a muddy brown and, worse, tank the fixed dark text's contrast
+     against it. */
+  --accent-vivid: #f59e0b;
+  --accent-vivid-2: #fbbf24;
+  --tier-premium-vivid: #f97316;
   --radius: 6px;
   --radius-sm: 4px;
   --radius-xs: 3px;
@@ -83,14 +94,21 @@
    directly on the page background in ~100 places (badges, prices, the active
    nav tab), and the original #f59e0b-family values read at roughly 2:1
    contrast on white — well under the 4.5:1 WCAG AA floor. Same hue family,
-   genuinely readable. */
+   genuinely readable.
+   bg-0 is a soft, slightly cool off-white rather than pure #fff — a full-bleed
+   pure-white canvas behind this much dense text/table content reads as glare,
+   not "clean." Elevated surfaces (cards, the results table) sit on bg-1,
+   which IS pure white, so they still pop above the page instead of the whole
+   screen being one flat white plane — same visual logic as dark mode's cards
+   being a step lighter than its page background, just inverted since white
+   can't go any lighter. */
 :root[data-theme='light'] {
-  --bg-0: #ffffff;
-  --bg-1: #f7f7f8;
-  --bg-2: #eeeef1;
-  --bg-3: #e2e2e7;
-  --bg-4: #cfcfd7;
-  --bg-5: #a8a8b3;
+  --bg-0: #f1f2f5;
+  --bg-1: #ffffff;
+  --bg-2: #f6f7f9;
+  --bg-3: #eaecef;
+  --bg-4: #d7dade;
+  --bg-5: #aeb2ba;
   --border: rgba(0, 0, 0, 0.09);
   --border-strong: rgba(0, 0, 0, 0.16);
   --text-0: #18181b;
@@ -198,7 +216,7 @@ body {
 }
 .logo-bar {
   width: 3px;
-  background: var(--accent);
+  background: var(--accent-vivid);
   border-radius: 1px;
 }
 .logo-bar:nth-child(1) {
@@ -260,7 +278,7 @@ body {
   animation: pulse 2s ease-in-out infinite;
 }
 .market-dot.dot-pre {
-  background: var(--accent);
+  background: var(--accent-vivid);
   will-change: opacity;
   animation: pulse 2s ease-in-out infinite;
 }
@@ -297,7 +315,7 @@ body {
   height: 28px;
   border-radius: var(--radius-sm);
   border: none;
-  background: linear-gradient(135deg, var(--accent) 0%, #a3e635 100%);
+  background: linear-gradient(135deg, var(--accent-vivid) 0%, #a3e635 100%);
   color: #0a0a0a;
   font-size: 10px;
   font-weight: 800;
@@ -323,7 +341,7 @@ body {
   height: 28px;
   border-radius: var(--radius-sm);
   border: none;
-  background: linear-gradient(135deg, var(--accent) 0%, #a3e635 100%);
+  background: linear-gradient(135deg, var(--accent-vivid) 0%, #a3e635 100%);
   color: #0a0a0a;
   font-size: 10px;
   font-weight: 800;
@@ -333,12 +351,12 @@ body {
   box-shadow: 0 0 12px rgba(163, 230, 53, 0.3);
 }
 .topbar-premium-badge.tier-elite {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  background: linear-gradient(135deg, var(--accent-vivid) 0%, var(--accent-vivid-2) 100%);
   color: #1a1200;
   box-shadow: 0 0 12px rgba(245, 158, 11, 0.35);
 }
 .topbar-premium-badge.tier-premium {
-  background: linear-gradient(135deg, var(--tier-premium) 0%, #fb923c 100%);
+  background: linear-gradient(135deg, var(--tier-premium-vivid) 0%, #fb923c 100%);
   color: #1a0d00;
   box-shadow: 0 0 12px rgba(249, 115, 22, 0.3);
 }
@@ -437,7 +455,7 @@ body {
   letter-spacing: 0.3px;
 }
 .scan-btn:hover {
-  background: var(--accent);
+  background: var(--accent-vivid);
   color: #0a0a0a;
 }
 .scan-btn:active {
@@ -509,7 +527,7 @@ body {
   font-size: 9px;
   font-weight: 600;
   font-family: var(--mono);
-  background: var(--accent);
+  background: var(--accent-vivid);
   color: #0a0a0a;
   padding: 1px 6px;
   border-radius: 3px;
@@ -1546,7 +1564,7 @@ td {
   letter-spacing: 0.5px;
 }
 .preset-save-btn:hover {
-  background: var(--accent);
+  background: var(--accent-vivid);
   color: #0a0a0a;
 }
 .preset-list {
@@ -1656,7 +1674,7 @@ td {
 .progress-bar {
   height: 100%;
   border-radius: 1px;
-  background: var(--accent);
+  background: var(--accent-vivid);
   transition: width 0.4s ease;
 }
 @keyframes gradientMove {
@@ -1786,7 +1804,7 @@ td {
 }
 .scan-progress-fill {
   height: 100%;
-  background: var(--accent);
+  background: var(--accent-vivid);
   border-radius: 2px;
   transition: width 0.4s ease;
 }
@@ -2025,7 +2043,7 @@ td {
   background: var(--bg-2);
 }
 .empty-rich-skeleton-bar-value.accent {
-  background: var(--accent);
+  background: var(--accent-vivid);
   opacity: 0.5;
 }
 .empty-rich-overlay {
@@ -2085,7 +2103,7 @@ td {
   border-radius: 100px;
 }
 .empty-rich-cta {
-  background: var(--accent);
+  background: var(--accent-vivid);
   color: #1a1200;
   font-size: 13px;
   font-weight: 700;
@@ -2501,7 +2519,7 @@ td {
   padding: 12px;
   border: none;
   border-radius: var(--radius-xs);
-  background: var(--accent);
+  background: var(--accent-vivid);
   color: #0a0a0a;
   font-size: 13px;
   font-weight: 700;
@@ -2634,12 +2652,12 @@ td {
   letter-spacing: 1.2px;
 }
 .welcome-tier-badge.tier-elite {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  background: linear-gradient(135deg, var(--accent-vivid) 0%, var(--accent-vivid-2) 100%);
   color: #1a1200;
   box-shadow: 0 0 24px rgba(245, 158, 11, 0.4);
 }
 .welcome-tier-badge.tier-premium {
-  background: linear-gradient(135deg, var(--tier-premium) 0%, #fb923c 100%);
+  background: linear-gradient(135deg, var(--tier-premium-vivid) 0%, #fb923c 100%);
   color: #1a0d00;
   box-shadow: 0 0 24px rgba(249, 115, 22, 0.35);
 }
@@ -2733,12 +2751,12 @@ td {
   border: none;
 }
 .welcome-tier-modal.tier-elite .welcome-tier-cta {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  background: linear-gradient(135deg, var(--accent-vivid) 0%, var(--accent-vivid-2) 100%);
   color: #1a1200;
   animation: welcomeTierPulseAmber 2.6s ease-in-out infinite;
 }
 .welcome-tier-modal.tier-premium .welcome-tier-cta {
-  background: linear-gradient(135deg, var(--tier-premium) 0%, #fb923c 100%);
+  background: linear-gradient(135deg, var(--tier-premium-vivid) 0%, #fb923c 100%);
   color: #1a0d00;
   animation: welcomeTierPulseOrange 2.6s ease-in-out infinite;
 }
@@ -2778,7 +2796,7 @@ td {
 }
 .welcome-upsell-cta,
 .welcome-tier-modal.tier-premium .welcome-upsell-cta {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%) !important;
+  background: linear-gradient(135deg, var(--accent-vivid) 0%, var(--accent-vivid-2) 100%) !important;
   color: #1a1200 !important;
   animation: welcomeTierPulseAmber 2.6s ease-in-out infinite !important;
 }
@@ -3136,11 +3154,11 @@ html.a11y-highlight-links a {
   font-size: 11px;
 }
 .tier-table-premium-cta {
-  background: var(--tier-premium);
+  background: var(--tier-premium-vivid);
   color: #1a0d00;
 }
 .tier-table-elite-cta {
-  background: var(--accent);
+  background: var(--accent-vivid);
   color: #1a1200;
 }
 .tier-table-current {
@@ -3342,7 +3360,7 @@ html.a11y-highlight-links a {
   position: absolute;
   bottom: -4px;
   right: -4px;
-  background: var(--accent);
+  background: var(--accent-vivid);
   color: #0a0a0a;
   font-size: 7px;
   font-weight: 700;
@@ -4484,7 +4502,7 @@ html.a11y-highlight-links a {
     box-shadow 0.4s ease;
 }
 .quiz-prog-dot.active {
-  background: var(--accent);
+  background: var(--accent-vivid);
   box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
 }
 .quiz-prog-dot.done {
@@ -4582,7 +4600,7 @@ html.a11y-highlight-links a {
   top: 0;
   bottom: 0;
   width: 3px;
-  background: var(--accent);
+  background: var(--accent-vivid);
   border-radius: 3px 0 0 3px;
   transform: scaleY(0);
   transition: transform 0.2s ease;
@@ -4676,8 +4694,8 @@ html.a11y-highlight-links a {
   color: transparent;
 }
 .quiz-option.selected .quiz-opt-check {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-vivid);
+  border-color: var(--accent-vivid);
   color: #000;
 }
 
@@ -5017,7 +5035,7 @@ html.a11y-highlight-links a {
   padding: 10px 16px;
   border-radius: 6px;
   border: none;
-  background: var(--accent);
+  background: var(--accent-vivid);
   color: #0a0a0a;
   font-size: 13px;
   font-weight: 600;
@@ -5102,7 +5120,7 @@ html.a11y-highlight-links a {
 
 .auth-submit-btn {
   width: 100%;
-  background: var(--accent);
+  background: var(--accent-vivid);
   color: #0a0a0a;
   border: none;
   border-radius: 7px;
@@ -6203,7 +6221,7 @@ html.a11y-highlight-links a {
 
 .ma-usage-bar {
   height: 100%;
-  background: var(--accent);
+  background: var(--accent-vivid);
   border-radius: 2px;
   transition: width 0.4s ease;
 }
@@ -6465,8 +6483,8 @@ html.a11y-highlight-links a {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 6px var(--accent);
+  background: var(--accent-vivid);
+  box-shadow: 0 0 6px var(--accent-vivid);
   will-change: opacity;
   animation: pulse-dot 1.4s ease-in-out infinite;
 }
@@ -6502,7 +6520,7 @@ html.a11y-highlight-links a {
   bottom: 0;
   left: 0;
   width: 2px;
-  background: var(--accent);
+  background: var(--accent-vivid);
   box-shadow:
     0 0 10px var(--accent),
     0 0 20px rgba(245, 158, 11, 0.4);
@@ -6660,7 +6678,7 @@ html.a11y-highlight-links a {
 .install-prompt-cta {
   flex-shrink: 0;
   padding: 7px 16px;
-  background: var(--accent);
+  background: var(--accent-vivid);
   color: #000;
   font-size: 13px;
   font-weight: 700;
@@ -6723,7 +6741,7 @@ html.a11y-highlight-links a {
   justify-content: center;
   width: 16px;
   height: 16px;
-  background: var(--accent);
+  background: var(--accent-vivid);
   color: #000;
   border-radius: 50%;
   font-size: 10px;
@@ -6841,7 +6859,7 @@ html.a11y-highlight-links a {
 }
 .schedule-scan-add-btn {
   padding: 7px 14px;
-  background: var(--accent);
+  background: var(--accent-vivid);
   color: #000;
   border: none;
   border-radius: var(--radius-sm);
@@ -7034,7 +7052,7 @@ html.a11y-highlight-links a {
   display: block;
   width: 100%;
   padding: 13px;
-  background: var(--accent);
+  background: var(--accent-vivid);
   color: #000;
   font-size: 14px;
   font-weight: 700;
