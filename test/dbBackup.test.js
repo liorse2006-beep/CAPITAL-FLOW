@@ -20,6 +20,18 @@ const { runBackupTick } = require('../server/services/dbBackup');
 const { issueToken } = require('../server/services/auth');
 const adminRouter = require('../server/routes/admin');
 
+// checkToken only accepts a JWT belonging to ADMIN_EMAIL ('admin@test.local',
+// set in testEnv), so every test needing admin auth must reuse that exact
+// user rather than inserting a fresh email each time (email is UNIQUE).
+async function getAdminToken() {
+  let adminUser = await db.prepare('SELECT * FROM users WHERE email = ?').get('admin@test.local');
+  if (!adminUser) {
+    const result = await db.prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)').run('admin@test.local');
+    adminUser = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+  }
+  return issueToken(adminUser);
+}
+
 function startTestApp() {
   const app = express();
   app.use(express.json());
@@ -84,6 +96,60 @@ test('GET /admin/api/backup-status rejects an unauthenticated request', async ()
   const port = server.address().port;
   try {
     const res = await fetch(`http://localhost:${port}/admin/api/backup-status`);
+    assert.strictEqual(res.status, 401);
+  } finally {
+    server.close();
+  }
+});
+
+test('POST /admin/api/backup/run-now sends a backup on demand and records it', async (t) => {
+  const sendMail = mock.fn(async () => ({}));
+  t.mock.method(nodemailer, 'createTransport', () => ({ sendMail }));
+
+  const token = await getAdminToken();
+
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://localhost:${port}/admin/api/backup/run-now`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(sendMail.mock.callCount(), 1);
+  } finally {
+    server.close();
+  }
+});
+
+test('POST /admin/api/backup/run-now surfaces the real send error instead of failing silently', async (t) => {
+  const sendMail = mock.fn(async () => {
+    throw new Error('Invalid login: 535-5.7.8 Username and Password not accepted');
+  });
+  t.mock.method(nodemailer, 'createTransport', () => ({ sendMail }));
+
+  const token = await getAdminToken();
+
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://localhost:${port}/admin/api/backup/run-now`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    assert.strictEqual(res.status, 500);
+    const body = await res.json();
+    assert.match(body.error, /Invalid login/);
+  } finally {
+    server.close();
+  }
+});
+
+test('POST /admin/api/backup/run-now rejects an unauthenticated request', async () => {
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://localhost:${port}/admin/api/backup/run-now`, { method: 'POST' });
     assert.strictEqual(res.status, 401);
   } finally {
     server.close();

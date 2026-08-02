@@ -200,6 +200,25 @@ router.get('/admin/api/backup-status', asyncRoute(async (req, res) => {
   res.json({ lastBackupAt: row ? Number(row.value) : null });
 }));
 
+// Runs the same backup email the daily scheduler runs, on demand — lets the
+// admin panel tell "not configured" apart from "actually failing to send"
+// instead of just waiting up to 24h to find out, and gives a real error
+// message (bad Gmail app password, etc.) instead of a silent no-op.
+router.post('/admin/api/backup/run-now', asyncRoute(async (req, res) => {
+  if (!(await checkToken(req, res))) return;
+  const { GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_EMAIL } = require('../config');
+  if (!GMAIL_USER || !GMAIL_APP_PASSWORD || !ADMIN_EMAIL) {
+    return res.status(400).json({ error: 'Backup email is not configured (GMAIL_USER / GMAIL_APP_PASSWORD / ADMIN_EMAIL).' });
+  }
+  try {
+    await require('../services/dbBackup').runBackupTick();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[admin backup-now]', err);
+    res.status(500).json({ error: err.message || 'Backup failed' });
+  }
+}));
+
 // ── Admin API: site-visit counts (sessions that opened the site) ────────────
 router.get('/admin/api/visits', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
@@ -365,7 +384,11 @@ router.get('/admin', asyncRoute(async (req, res) => {
     <div class="stat"><div class="stat-val" id="s-active">—</div><div class="stat-lbl">Active (7d)</div></div>
     <div class="stat"><div class="stat-val" id="s-push">—</div><div class="stat-lbl">Push Enabled</div></div>
     <div class="stat"><div class="stat-val" id="s-alerts">—</div><div class="stat-lbl">Watchlist Alerts Set</div></div>
-    <div class="stat"><div class="stat-val" id="s-backup">—</div><div class="stat-lbl">Last DB Backup</div></div>
+    <div class="stat">
+      <div class="stat-val" id="s-backup">—</div>
+      <div class="stat-lbl">Last DB Backup</div>
+      <a href="#" id="backup-run-now" style="display:inline-block;margin-top:6px;font-size:11px;color:#71717A;text-decoration:underline;cursor:pointer">Run now</a>
+    </div>
   </div>
 
   <div class="card" style="margin-bottom:20px">
@@ -508,6 +531,25 @@ async function loadBackupStatus() {
     el.style.color = stale ? '#EF4444' : '#F59E0B';
   } catch (e) {
     el.textContent = '—';
+  }
+}
+
+async function runBackupNow() {
+  const link = document.getElementById('backup-run-now');
+  link.textContent = 'Running…';
+  try {
+    const r = await fetch('/admin/api/backup/run-now', { method: 'POST', headers: AUTH_HEADERS });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) {
+      toast('✓ Backup sent');
+      loadBackupStatus();
+    } else {
+      toast(d.error || 'Backup failed', true);
+    }
+  } catch (e) {
+    toast('Backup failed', true);
+  } finally {
+    link.textContent = 'Run now';
   }
 }
 
@@ -735,6 +777,10 @@ document.getElementById('btn-refresh-feedback').addEventListener('click', loadFe
 document.getElementById('btn-refresh-audit').addEventListener('click', loadAuditLog);
 document.getElementById('btn-refresh-users').addEventListener('click', load);
 document.getElementById('search').addEventListener('input', filterTable);
+document.getElementById('backup-run-now').addEventListener('click', function (e) {
+  e.preventDefault();
+  runBackupNow();
+});
 
 load();
 loadFeedback();
