@@ -101,16 +101,23 @@
    which IS pure white, so they still pop above the page instead of the whole
    screen being one flat white plane — same visual logic as dark mode's cards
    being a step lighter than its page background, just inverted since white
-   can't go any lighter. */
+   can't go any lighter.
+   bg-0 vs bg-1 is only a ~5% luminance step — nowhere near enough on its own
+   to read as "this is a separate section" at a glance. --border/--border-strong
+   are what actually draw the line around every card, table, input and panel
+   (nearly every container already declares `border: 1px solid var(--border)`),
+   so they're deliberately much stronger here than the ~9% dark-theme originally
+   used — a border that's barely-there against near-black is still faint but
+   present; the same faint alpha against white was reading as no border at all. */
 :root[data-theme='light'] {
-  --bg-0: #f1f2f5;
+  --bg-0: #e9ebef;
   --bg-1: #ffffff;
   --bg-2: #f6f7f9;
   --bg-3: #eaecef;
   --bg-4: #d7dade;
   --bg-5: #aeb2ba;
-  --border: rgba(0, 0, 0, 0.09);
-  --border-strong: rgba(0, 0, 0, 0.16);
+  --border: rgba(0, 0, 0, 0.16);
+  --border-strong: rgba(0, 0, 0, 0.28);
   --text-0: #18181b;
   --text-1: #52525b;
   --text-2: #71717a;
@@ -1463,17 +1470,17 @@ td {
 .ratio-pill.hot {
   background: var(--red-dim);
   color: var(--red);
-  border-color: rgba(239, 68, 68, 0.12);
+  border-color: color-mix(in srgb, var(--red) 35%, transparent);
 }
 .ratio-pill.warm {
   background: var(--accent-dim);
   color: var(--accent);
-  border-color: rgba(245, 158, 11, 0.12);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 .ratio-pill.ok {
   background: var(--green-dim);
   color: var(--green);
-  border-color: rgba(34, 197, 94, 0.12);
+  border-color: color-mix(in srgb, var(--green) 35%, transparent);
 }
 
 /* ── Vol Hero (Ratio column) ── */
@@ -3008,14 +3015,20 @@ td {
    logo/icons, and doesn't actually target text-vs-background contrast (the
    thing WCAG cares about). Since every component already reads its colors
    from these CSS variables, redefining them here re-themes the entire app
-   into true black/white with a brighter, still-on-brand gold — the same
-   palette, tuned for maximum legibility, not a distorted version of it. */
-/* !important on every line: high contrast must always win over whichever
-   theme (light or dark) is also selected — it's a readability override that
-   sits on top of theme choice, not an alternative to it. Without this, the
-   light-theme block below would outrank it on plain CSS specificity (an
-   attribute-selected :root beats a single class) and silently cancel it out
-   the moment someone picked Light + High Contrast together. */
+   into true black/white (or white/black, see the light variant below) with
+   a brighter/darker but still-on-brand gold — the same palette, tuned for
+   maximum legibility, not a distorted version of it.
+   High contrast is theme-aware, not a single always-black override: someone
+   who picked Light and then also turns on High Contrast expects a WHITE
+   high-contrast page (max black-on-white), not to be dropped onto a black
+   screen that ignores the theme they just chose — the same way an OS-level
+   "increase contrast" toggle respects light/dark rather than forcing one.
+   !important on every line so high contrast always wins over the plain
+   theme block it's layered on top of — without it, `:root[data-theme]`'s
+   attribute-selector specificity would silently outrank a single class and
+   cancel this out. The light variant below is selected additionally by
+   [data-theme='light'], which is more specific than this block, so it wins
+   whenever both are active while this block still governs the dark case. */
 html.a11y-high-contrast {
   --bg-0: #000000 !important;
   --bg-1: #000000 !important;
@@ -3032,6 +3045,23 @@ html.a11y-high-contrast {
   --accent: #ffc107 !important;
   --accent-2: #ffda6a !important;
   --tier-premium: #ff9142 !important;
+}
+html.a11y-high-contrast[data-theme='light'] {
+  --bg-0: #ffffff !important;
+  --bg-1: #ffffff !important;
+  --bg-2: #f2f2f2 !important;
+  --bg-3: #e5e5e5 !important;
+  --bg-4: #d1d1d1 !important;
+  --bg-5: #999999 !important;
+  --border: rgba(0, 0, 0, 0.45) !important;
+  --border-strong: rgba(0, 0, 0, 0.7) !important;
+  --text-0: #000000 !important;
+  --text-1: #141414 !important;
+  --text-2: #2b2b2b !important;
+  --text-3: #4a4a4a !important;
+  --accent: #6b3a00 !important;
+  --accent-2: #8a4b00 !important;
+  --tier-premium: #7c2d00 !important;
 }
 html.a11y-highlight-links a {
   text-decoration: underline !important;
