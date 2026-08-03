@@ -661,6 +661,26 @@ body {
   padding: 0 22px;
   border-right: 1px solid var(--border-strong);
 }
+/* Start Scan + Schedule live in the same card as the filters, pinned to the
+   right of the row on wide screens; wraps to its own full-width row (via the
+   panel's existing flex-wrap) once space runs out. */
+.scan-filters-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  padding-left: 22px;
+}
+@media (max-width: 700px) {
+  .scan-filters-actions {
+    margin-left: 0;
+    padding-left: 0;
+    width: 100%;
+    justify-content: center;
+    padding-top: 4px;
+    border-top: 1px solid var(--border);
+  }
+}
 .scan-filter-group:first-child {
   padding-left: 0;
 }

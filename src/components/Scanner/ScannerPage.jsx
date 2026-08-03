@@ -374,6 +374,23 @@ export default function ScannerPage({
                 />
               </div>
             </div>
+
+            {scanMode && (
+              <div className="scan-filters-actions">
+                <button className="scan-btn scan-mode-go" onClick={startScan} disabled={scanning}>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8 }}>
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                  Run Scan
+                </button>
+                {!isPremium && scanMeta && scanMeta.tier === 'premium' && (
+                  <span className="scan-limit-topbar">
+                    {(scanMeta.premium ? scanMeta.premium.left : 5) + '/5 scans left today'}
+                  </span>
+                )}
+                {user && <ScheduleScan scanType="capitalFlow" user={user} onUpgrade={onUpgrade} />}
+              </div>
+            )}
           </div>
 
           <div className="scan-mode-options">
@@ -464,23 +481,6 @@ export default function ScannerPage({
                   {selectedSectors.length + '/' + sectorLimit() + ' sectors selected'}
                 </div>
               )}
-            </div>
-          )}
-
-          {scanMode && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center', marginTop: 8, flexWrap: 'wrap' }}>
-              <button className="scan-btn scan-mode-go" onClick={startScan} disabled={scanning}>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8 }}>
-                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                </svg>
-                Run Scan
-              </button>
-              {!isPremium && scanMeta && scanMeta.tier === 'premium' && (
-                <span className="scan-limit-topbar">
-                  {(scanMeta.premium ? scanMeta.premium.left : 5) + '/5 scans left today'}
-                </span>
-              )}
-              {user && <ScheduleScan scanType="capitalFlow" user={user} onUpgrade={onUpgrade} />}
             </div>
           )}
         </div>
