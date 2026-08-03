@@ -74,25 +74,24 @@ function filterCachedResults(cached, opts) {
   });
 }
 
-// Watchlist alert state — tracks which tickers we've already alerted on
-// to avoid spamming the same alert every scan cycle
-const alertedThisCycle = new Set();
-
 async function checkWatchlistAlerts(results) {
   var broadcastToUser = getBroadcastToUser();
   try {
-    const { getAllAlertsGrouped } = require('./watchlistAlerts');
+    const { getAllAlertsGrouped, removeAlert } = require('./watchlistAlerts');
     const byUser = await getAllAlertsGrouped(); // { userId: { AAPL: 2.0, ... }, ... }
     const bySymbol = new Map(results.map((r) => [r.symbol, r]));
 
-    Object.entries(byUser).forEach(function ([userId, thresholds]) {
-      Object.entries(thresholds).forEach(function ([symbol, threshold]) {
+    for (const [userId, thresholds] of Object.entries(byUser)) {
+      for (const [symbol, threshold] of Object.entries(thresholds)) {
         const r = bySymbol.get(symbol);
-        if (!r || r.volumeRatio < threshold) return;
-        // Dedupe per user + symbol + 30-min window
-        const key = userId + ':' + symbol + ':' + Math.floor(Date.now() / (30 * 60 * 1000));
-        if (alertedThisCycle.has(key)) return;
-        alertedThisCycle.add(key);
+        if (!r || r.volumeRatio < threshold) continue;
+        // One-shot: the threshold is a standing "order" the user placed —
+        // once it fires we cancel it immediately (delete the row) so it
+        // never re-fires on the next cycle while the ratio stays elevated.
+        // The user has to re-arm it deliberately to watch for the next move.
+        // Awaited (not fire-and-forget) so the cancellation is guaranteed to
+        // have landed before the next scan cycle can possibly read it again.
+        await removeAlert(Number(userId), symbol);
         const alertPayload = {
           symbol: r.symbol,
           name: r.name,
@@ -112,8 +111,8 @@ async function checkWatchlistAlerts(results) {
         require('./notifications')
           .addNotification(Number(userId), { symbol: r.symbol, title: alertPayload.title, body: alertPayload.body })
           .catch(() => {});
-      });
-    });
+      }
+    }
   } catch (err) {
     // This used to be a silent catch — it's why a missing `await` above
     // (getAllAlertsGrouped returning a Promise, so Object.entries saw an

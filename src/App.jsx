@@ -143,6 +143,10 @@ function App() {
         addAlertToHistory(d.symbol, d.title, d.body);
         setLiveAlert(d);
         setTimeout(() => setLiveAlert(null), 6000);
+        // Server already cancelled the underlying threshold (one-shot alert)
+        // — mirror that locally so the bell/badge stops showing it as armed
+        // without waiting for a refetch.
+        clearAlertLevelLocal(d.symbol);
       },
     },
     isPremium
@@ -424,17 +428,27 @@ function App() {
   }
 
   function removeAlertLevel(symbol) {
-    var updated = Object.assign({}, alertLevels);
-    delete updated[symbol];
-    delete alertFired.current[symbol];
-    setAlertLevels(updated);
-    localStorage.setItem('vs-alert-levels', JSON.stringify(updated));
+    clearAlertLevelLocal(symbol);
     if (canNotify) {
       fetch('/api/watchlist-alerts/' + symbol, {
         method: 'DELETE',
         headers: { Authorization: 'Bearer ' + getToken() },
       }).catch(function () {});
     }
+  }
+
+  // Local-only counterpart to removeAlertLevel — used when the server has
+  // already cancelled the threshold itself (a fired one-shot alert), so
+  // there's nothing to DELETE remotely, just local state to catch up.
+  function clearAlertLevelLocal(symbol) {
+    setAlertLevels(function (prev) {
+      if (!(symbol in prev)) return prev;
+      var updated = Object.assign({}, prev);
+      delete updated[symbol];
+      localStorage.setItem('vs-alert-levels', JSON.stringify(updated));
+      return updated;
+    });
+    delete alertFired.current[symbol];
   }
 
   const [alertModalSymbol, setAlertModalSymbol] = useState(null);
@@ -841,8 +855,10 @@ function App() {
                   new Notification(title, { body: body, icon: '/favicon.svg', tag: 'alert-' + stock.symbol });
                 }
                 playBeep();
-              } else if (stock.volumeRatio < threshold) {
-                alertFired.current[stock.symbol] = false;
+                // One-shot: cancel the threshold itself once it fires, same
+                // as the server-side alert — no re-arming if the ratio dips
+                // and crosses again, the user has to set a new alert for that.
+                removeAlertLevel(stock.symbol);
               }
             });
           })

@@ -14,7 +14,7 @@ const db = require('../server/db');
 
 before(async () => { await db.ready; });
 
-const { setAlert } = require('../server/services/watchlistAlerts');
+const { setAlert, getWatchlistAlerts } = require('../server/services/watchlistAlerts');
 const webPush = require('../server/services/webPush');
 const { checkWatchlistAlerts } = require('../server/services/backgroundScan');
 
@@ -40,6 +40,34 @@ test('checkWatchlistAlerts fires a push when a real threshold is crossed', async
     assert.strictEqual(pushCalls.length, 1, 'expected one push notification to fire for the crossed threshold');
     assert.strictEqual(pushCalls[0].uid, userId);
     assert.strictEqual(pushCalls[0].payload.symbol, 'AAPL');
+  } finally {
+    webPush.sendPushToUser = originalSend;
+  }
+});
+
+test('checkWatchlistAlerts is one-shot: firing cancels the threshold so it never re-fires', async () => {
+  const userId = await makeUser('bg-alert-oneshot@test.local');
+  await setAlert(userId, 'TSLA', 2.0);
+
+  const pushCalls = [];
+  const originalSend = webPush.sendPushToUser;
+  webPush.sendPushToUser = (uid, payload) => {
+    pushCalls.push({ uid, payload });
+  };
+
+  try {
+    const spikedResult = [{ symbol: 'TSLA', name: 'Tesla', volumeRatio: 4.0, change: 2.5, price: 250 }];
+
+    await checkWatchlistAlerts(spikedResult);
+    assert.strictEqual(pushCalls.length, 1, 'first crossing should fire');
+
+    const remaining = await getWatchlistAlerts(userId);
+    assert.strictEqual(remaining.TSLA, undefined, 'the threshold must be cancelled once it fires');
+
+    // A later cycle where the ratio is still elevated (the real-world case
+    // that used to spam a push every cycle) must not fire again.
+    await checkWatchlistAlerts(spikedResult);
+    assert.strictEqual(pushCalls.length, 1, 'a second cycle with the ratio still elevated must not re-fire');
   } finally {
     webPush.sendPushToUser = originalSend;
   }
