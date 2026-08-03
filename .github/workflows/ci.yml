@@ -25,7 +25,7 @@ jobs:
         env:
           JWT_SECRET: ci-jwt-secret-123456789012345678901234567890
           SESSION_SECRET: ci-session-secret-123456789012345678901234567890
-          TURSO_DB_URL: file::memory:
+          TURSO_DB_URL: 'file::memory:'
           RESEND_API_KEY: ''
           TURNSTILE_SECRET: ''
           HCAPTCHA_SECRET: ''
