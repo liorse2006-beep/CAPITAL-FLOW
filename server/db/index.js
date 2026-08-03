@@ -234,7 +234,26 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS site_visits (
       day   TEXT PRIMARY KEY,
       count INTEGER NOT NULL DEFAULT 0
-    )
+    );
+
+    -- Revenue ledger — one row per Whop payment_succeeded/refund event, not a
+    -- snapshot of current tier counts. A snapshot can't answer "how much
+    -- this month" or show a trend, since it has no dates, but this can.
+    -- Amounts are signed (positive = purchase, negative = refund) so total
+    -- revenue is just SUM(amount_cents). Only populated going forward from
+    -- when this table was added — purchases before that aren't retroactively dated.
+    CREATE TABLE IF NOT EXISTS payment_events (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id       INTEGER NOT NULL,
+      tier          TEXT    NOT NULL,
+      event_type    TEXT    NOT NULL CHECK(event_type IN ('purchase','refund')),
+      amount_cents  INTEGER NOT NULL,
+      whop_event_id TEXT,
+      created_at    INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_payment_events_created ON payment_events(created_at);
+    CREATE INDEX IF NOT EXISTS idx_payment_events_user ON payment_events(user_id);
   `);
 
   // Safe migrations — silently ignored if the column already exists

@@ -26,7 +26,9 @@ router.post('/checkout/transaction', requireAuth, async (req, res) => {
     try {
       const session = await whop.createCheckoutSession({
         planId: WHOP_ELITE_UPGRADE_PLAN_ID,
-        metadata: { userId: String(req.user.id), tier: 'elite' },
+        // isUpgrade tells the webhook to record the discounted price on the
+        // revenue ledger instead of the normal Elite price — see pricing.js.
+        metadata: { userId: String(req.user.id), tier: 'elite', isUpgrade: true },
         redirectUrl: `${FRONTEND_URL}/`,
       });
       return res.json({ purchaseUrl: session.purchase_url });
