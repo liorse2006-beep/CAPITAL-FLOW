@@ -96,6 +96,8 @@ function App() {
   }
   const [scanTime, setScanTime] = useState(null);
   const [marketClosed, setMarketClosed] = useState(false);
+  const [fromCache, setFromCache] = useState(false);
+  const [cacheAge, setCacheAge] = useState(0);
   const [sortField, setSortField] = useState('volumeRatio');
   const [sortDir, setSortDir] = useState('desc');
   const [minRatio, setMinRatio] = useState('1.5');
@@ -924,6 +926,7 @@ function App() {
 
       setScanning(true);
       setError(null);
+      setFromCache(false);
       setProgress({ processed: 0, total: 1, found: 0 });
       setLiveResults([]);
       setCurrentTicker('');
@@ -973,6 +976,8 @@ function App() {
           setResults(d.results);
           setScanTime(d.scanTime);
           setMarketClosed(!!d.marketClosed);
+          setFromCache(!!d.fromCache);
+          setCacheAge(d.cacheAge || 0);
           setScanMeta({ tier: d.tier, isPremium: d.isPremium, premium: d.premium, free: d.free });
           track('scan_run', { scanMode: scanMode || 'all', resultCount: d.results ? d.results.length : 0 });
         })
@@ -1297,6 +1302,8 @@ function App() {
                 deletePreset={deletePreset}
                 marketClosed={marketClosed}
                 scanTime={scanTime}
+                fromCache={fromCache}
+                cacheAge={cacheAge}
                 sorted={sorted}
                 visibleCount={visibleCount}
                 setVisibleCount={setVisibleCount}

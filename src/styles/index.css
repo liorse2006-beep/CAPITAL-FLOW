@@ -616,6 +616,9 @@ body {
   font-weight: 500;
   margin-top: 2px;
 }
+.table-bar-sub-cached {
+  color: var(--info, #4a9eff);
+}
 .table-bar-count {
   font-size: 11px;
   color: var(--text-3);

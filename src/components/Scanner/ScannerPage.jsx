@@ -131,6 +131,8 @@ export default function ScannerPage({
   deletePreset,
   marketClosed,
   scanTime,
+  fromCache,
+  cacheAge,
   sorted,
   visibleCount,
   setVisibleCount,
@@ -609,6 +611,23 @@ export default function ScannerPage({
               {scanTime && (() => {
                 const ageMs = Date.now() - new Date(scanTime).getTime();
                 const ageMins = Math.round(ageMs / 60000);
+
+                // Shared-cache results are normal, expected behavior (see
+                // scan.js's 15-min floor-scan cache) — not an error state,
+                // so this always says so plainly instead of only warning
+                // once the data happens to cross a staleness threshold.
+                // Re-scanning inside that window intentionally returns the
+                // same snapshot; without this label that looks like the
+                // scanner is broken rather than just not-yet-refreshed.
+                if (fromCache && !marketClosed) {
+                  const remain = Math.max(0, 15 - Math.round((cacheAge || 0) / 60));
+                  return (
+                    <span className="table-bar-sub table-bar-sub-cached" title="Shared results, refreshed automatically every 15 minutes">
+                      {'🔄 Shared scan · next refresh in ~' + (remain <= 0 ? '1' : remain) + 'm'}
+                    </span>
+                  );
+                }
+
                 const isStale = !marketClosed && ageMins >= 5;
                 return (
                   <span
