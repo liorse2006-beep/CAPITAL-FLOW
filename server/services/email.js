@@ -108,4 +108,27 @@ async function sendNewSignupAdminAlert(email, method) {
   });
 }
 
-module.exports = { sendOTPEmail, sendPasswordResetEmail, sendWelcomeEmail, sendNewSignupAdminAlert };
+// Fires on every successful self-service Whop purchase (payment_succeeded)
+// so the admin finds out about paid upgrades in real time, the same way
+// sendNewSignupAdminAlert does for new signups — this is the only place a
+// tier change made outside the admin panel itself gets surfaced by email.
+async function sendAdminUpgradeAlert(email, tier) {
+  if (!resend || !ADMIN_EMAIL) {
+    console.log(`[EMAIL DEV] Upgrade alert: ${email} → ${tier}`);
+    return;
+  }
+  await resend.emails.send({
+    from: RESEND_FROM_EMAIL,
+    to: ADMIN_EMAIL,
+    subject: `💳 New ${tier} upgrade — ${email}`,
+    text: `${email} just upgraded to ${tier} via Whop checkout.`,
+  });
+}
+
+module.exports = {
+  sendOTPEmail,
+  sendPasswordResetEmail,
+  sendWelcomeEmail,
+  sendNewSignupAdminAlert,
+  sendAdminUpgradeAlert,
+};

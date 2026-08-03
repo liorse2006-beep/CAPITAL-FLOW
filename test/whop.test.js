@@ -17,6 +17,7 @@ const express = require('express');
 const db = require('../server/db');
 const { issueToken } = require('../server/services/auth');
 const whop = require('../server/services/whop');
+const email = require('../server/services/email');
 const webhooksRouter = require('../server/routes/webhooks');
 const checkoutRouter = require('../server/routes/checkout');
 
@@ -107,6 +108,45 @@ test('webhook upgrades the user tier on payment_succeeded and redeems the coupon
 
     const coupon = await db.prepare('SELECT uses_count FROM coupons WHERE code = ?').get('WEBHOOK1');
     assert.strictEqual(coupon.uses_count, 1);
+  } finally {
+    server.close();
+  }
+});
+
+test('payment_succeeded emails the admin and logs a self_service_upgrade audit entry', async (t) => {
+  const alertCalls = [];
+  t.mock.method(email, 'sendAdminUpgradeAlert', async (...args) => {
+    alertCalls.push(args);
+  });
+
+  const user = await makeUser('webhook-alert@test.local', 'free');
+  const payload = JSON.stringify({
+    type: 'payment_succeeded',
+    data: { metadata: { userId: user.id, tier: 'elite' } },
+  });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(payload, { id: 'wh_alert_1' }) },
+      body: payload,
+    });
+    assert.strictEqual(res.status, 200);
+
+    // The async email send is fire-and-forget from the route's perspective
+    // (doesn't block the webhook response) — give its microtask a tick.
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.strictEqual(alertCalls.length, 1);
+    assert.deepStrictEqual(alertCalls[0], ['webhook-alert@test.local', 'elite']);
+
+    const audit = await db
+      .prepare("SELECT * FROM admin_audit_log WHERE action = 'self_service_upgrade' AND target_user_id = ?")
+      .get(user.id);
+    assert.ok(audit, 'self-service upgrade must appear in the audit log');
+    assert.strictEqual(audit.detail, 'elite');
+    assert.strictEqual(audit.actor, 'whop-webhook');
   } finally {
     server.close();
   }

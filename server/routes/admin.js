@@ -458,6 +458,8 @@ const ACTION_LABEL = {
   coupon_enable: 'Enable coupon',
   coupon_disable: 'Disable coupon',
   coupon_delete: '✕ Delete coupon',
+  self_service_upgrade: '💳 Self-service upgrade',
+  refund_downgrade: '↩ Refund downgrade',
 };
 
 async function loadAuditLog() {

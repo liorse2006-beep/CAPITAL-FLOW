@@ -2,6 +2,7 @@ const router = require('express').Router();
 const db = require('../db');
 const whop = require('../services/whop');
 const { redeemCoupon } = require('../services/coupons');
+const email = require('../services/email');
 
 // Mounted with express.raw() (see server/index.js) — req.body is a Buffer
 // here, not parsed JSON, because signature verification must run over the
@@ -42,6 +43,18 @@ router.post('/webhooks/whop', async (req, res) => {
         const tier = metadata.tier;
         if (tier === 'premium' || tier === 'elite') {
           await db.prepare(`UPDATE users SET tier = ?, is_premium = 1 WHERE id = ?`).run(tier, metadata.userId);
+
+          // Self-service purchases don't go through the admin panel, so this
+          // is the only place a tier change like this gets flagged — both an
+          // immediate email and an Activity Log entry, so it's visible
+          // whether or not the admin happens to be looking at the panel.
+          const buyer = await db.prepare('SELECT email FROM users WHERE id = ?').get(metadata.userId);
+          if (buyer && buyer.email) {
+            email.sendAdminUpgradeAlert(buyer.email, tier).catch((err) => console.error('[admin-upgrade-alert]', err));
+          }
+          db.prepare('INSERT INTO admin_audit_log (actor, action, target_user_id, detail) VALUES (?, ?, ?, ?)')
+            .run('whop-webhook', 'self_service_upgrade', metadata.userId, tier)
+            .catch(() => {});
         }
         if (metadata.couponCode) await redeemCoupon(metadata.couponCode);
       } else {
