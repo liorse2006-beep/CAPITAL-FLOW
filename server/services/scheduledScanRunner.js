@@ -38,6 +38,18 @@ function israelNowMinutes() {
   return Number(map.hour) * 60 + Number(map.minute);
 }
 
+function israelToday() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const map = {};
+  parts.forEach((p) => { map[p.type] = p.value; });
+  return `${map.year}-${map.month}-${map.day}`;
+}
+
 function hhmmToMinutes(hhmm) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
   if (!m) return null;
@@ -95,8 +107,15 @@ const SCAN_URL = { capitalFlow: '/scanner', maScanner: '/ma', sectorMoving: '/fl
 async function notifyScheduledUser(sched, results) {
   const { title, body } = payloadForType(sched.scan_type, results);
 
+  // A one-time schedule (scan_date set) has done its one job — deactivate it
+  // the moment it fires so it can't run again. A recurring one (scan_date
+  // null) stays active for tomorrow.
   await db
-    .prepare('UPDATE scheduled_scans SET last_run_at = ?, last_result_count = ? WHERE id = ?')
+    .prepare(
+      `UPDATE scheduled_scans
+       SET last_run_at = ?, last_result_count = ?, active = CASE WHEN scan_date IS NOT NULL THEN 0 ELSE active END
+       WHERE id = ?`
+    )
     .run(Math.floor(Date.now() / 1000), results.length, sched.id);
 
   // Persist to the in-app bell FIRST, so the user has proof the scheduled
@@ -162,7 +181,10 @@ async function runScheduledScans() {
     return;
   }
 
-  const due = rows.filter((sched) => isDue(sched.scan_time, nowMinutes));
+  const today = israelToday();
+  const due = rows.filter(
+    (sched) => (sched.scan_date == null || sched.scan_date === today) && isDue(sched.scan_time, nowMinutes)
+  );
   if (due.length === 0) return;
 
   // Group by scan type → one scan each, fanned out to every subscriber.
@@ -192,4 +214,4 @@ function startScheduledScanRunner() {
   setInterval(runScheduledScans, 60 * 1000).unref();
 }
 
-module.exports = { startScheduledScanRunner, runScheduledScans, isDue, FIRE_WINDOW_MIN };
+module.exports = { startScheduledScanRunner, runScheduledScans, isDue, FIRE_WINDOW_MIN, israelToday };

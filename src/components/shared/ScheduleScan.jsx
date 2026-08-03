@@ -13,6 +13,19 @@ function fmtTime(iso) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function fmtDate(yyyyMmDd) {
+  if (!yyyyMmDd) return '';
+  const [y, m, d] = yyyyMmDd.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function todayLocalDate() {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
 export default function ScheduleScan({ scanType, user, onUpgrade }) {
   // Scheduled scans are a full Elite feature, included in the 7-day free
   // trial — user.elite_access is true for Elite AND in-trial free accounts.
@@ -22,12 +35,17 @@ export default function ScheduleScan({ scanType, user, onUpgrade }) {
 
   const [open, setOpen] = useState(false);
   const [timeInput, setTimeInput] = useState('09:30');
+  // "once" is the default on purpose — a schedule the customer sets should
+  // run once for the date+time they actually chose, not silently turn into
+  // a standing daily job unless they deliberately pick "Repeat daily".
+  const [repeatMode, setRepeatMode] = useState('once');
+  const [dateInput, setDateInput] = useState(todayLocalDate());
   const [adding, setAdding] = useState(false);
 
   async function handleAdd(e) {
     e.preventDefault();
     setAdding(true);
-    await addSchedule(timeInput);
+    await addSchedule(timeInput, repeatMode === 'once' ? dateInput : null);
     setAdding(false);
   }
 
@@ -89,10 +107,43 @@ export default function ScheduleScan({ scanType, user, onUpgrade }) {
             ) : (
               <>
                 <form className="schedule-scan-form" onSubmit={handleAdd}>
+                  <div className="schedule-scan-repeat-toggle" role="radiogroup" aria-label="Repeat">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={repeatMode === 'once'}
+                      className={'schedule-scan-repeat-btn' + (repeatMode === 'once' ? ' active' : '')}
+                      onClick={() => setRepeatMode('once')}
+                    >
+                      Once
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={repeatMode === 'daily'}
+                      className={'schedule-scan-repeat-btn' + (repeatMode === 'daily' ? ' active' : '')}
+                      onClick={() => setRepeatMode('daily')}
+                    >
+                      Repeat daily
+                    </button>
+                  </div>
+
                   <label className="schedule-scan-label" htmlFor="scan-time-input">
-                    Run daily at (Jerusalem time)
+                    {repeatMode === 'once' ? 'Run once at (Jerusalem time)' : 'Run every day at (Jerusalem time)'}
                   </label>
                   <div className="schedule-scan-input-row">
+                    {repeatMode === 'once' && (
+                      <input
+                        id="scan-date-input"
+                        type="date"
+                        className="schedule-scan-date-input"
+                        value={dateInput}
+                        min={todayLocalDate()}
+                        onChange={(e) => setDateInput(e.target.value)}
+                        required
+                        aria-label="Date"
+                      />
+                    )}
                     <input
                       id="scan-time-input"
                       type="time"
@@ -121,7 +172,10 @@ export default function ScheduleScan({ scanType, user, onUpgrade }) {
                     mySchedules.map((s) => (
                       <div key={s.id} className={'schedule-scan-item' + (s.active ? '' : ' schedule-scan-item--off')}>
                         <div className="schedule-scan-item-info">
-                          <span className="schedule-scan-item-time">{s.scan_time}</span>
+                          <span className="schedule-scan-item-time">
+                            {s.scan_date ? `${fmtDate(s.scan_date)}, ${s.scan_time}` : s.scan_time}
+                          </span>
+                          <span className="schedule-scan-item-repeat">{s.scan_date ? 'One-time' : 'Repeats daily'}</span>
                           {s.last_run_at && (
                             <span className="schedule-scan-item-last">
                               Last ran {fmtTime(s.last_run_at)}

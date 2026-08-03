@@ -137,3 +137,66 @@ test('a scheduled scan persists an in-app notification, so it is visible even wi
   const pushPayload = pushMock.mock.calls[0].arguments[1];
   assert.strictEqual(pushPayload.data.url, '/scanner?notif=' + notif.id);
 });
+
+// ── one-time (scan_date) schedules ──────────────────────────────────────────
+
+function nowHHMM() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date());
+  const map = {};
+  parts.forEach((p) => { map[p.type] = p.value; });
+  return map.hour + ':' + map.minute;
+}
+
+test('a one-time schedule for today fires, and deactivates itself so it can never fire again', async (t) => {
+  const u = await db.prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)').run('sched-onetime-fire@test.local');
+  const userId = u.lastInsertRowid;
+  const { israelToday } = require('../server/services/scheduledScanRunner');
+
+  await db
+    .prepare("INSERT INTO scheduled_scans (user_id, scan_type, scan_time, scan_date, active) VALUES (?, 'capitalFlow', ?, ?, 1)")
+    .run(userId, nowHHMM(), israelToday());
+
+  t.mock.method(scanner, 'scanTickers', async () => ({
+    results: [{ symbol: 'MSFT', volumeRatio: 2.8 }],
+    errors: [],
+    processed: 500,
+  }));
+  const pushMock = t.mock.method(webPush, 'sendPushToUser', async () => {});
+
+  await runScheduledScans();
+  assert.strictEqual(pushMock.mock.callCount(), 1, 'the one-time schedule must fire today');
+
+  const row = await db.prepare('SELECT active, last_run_at FROM scheduled_scans WHERE user_id = ?').get(userId);
+  assert.strictEqual(row.active, 0, 'firing a one-time schedule must cancel it (active=0)');
+  assert.ok(row.last_run_at > 0);
+
+  // A second tick must not fire it again even though last_run_at is recent
+  // and the time-of-day still matches — active=0 rules it out.
+  pushMock.mock.resetCalls();
+  await runScheduledScans();
+  assert.strictEqual(pushMock.mock.callCount(), 0, 'a cancelled one-time schedule must never fire again');
+});
+
+test('a one-time schedule dated tomorrow does not fire today even at the matching time', async (t) => {
+  const u = await db.prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)').run('sched-onetime-future@test.local');
+  const userId = u.lastInsertRowid;
+
+  const tomorrow = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  await db
+    .prepare("INSERT INTO scheduled_scans (user_id, scan_type, scan_time, scan_date, active) VALUES (?, 'capitalFlow', ?, ?, 1)")
+    .run(userId, nowHHMM(), tomorrow);
+
+  t.mock.method(scanner, 'scanTickers', async () => ({ results: [], errors: [], processed: 500 }));
+  const pushMock = t.mock.method(webPush, 'sendPushToUser', async () => {});
+
+  await runScheduledScans();
+  assert.strictEqual(pushMock.mock.callCount(), 0, 'a future-dated one-time schedule must not fire early');
+
+  const row = await db.prepare('SELECT active FROM scheduled_scans WHERE user_id = ?').get(userId);
+  assert.strictEqual(row.active, 1, 'it must remain active, waiting for its actual date');
+});

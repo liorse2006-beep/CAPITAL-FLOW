@@ -26,7 +26,7 @@ export default function useScheduledScans(scanType) {
     if (user) fetchSchedules();
   }, [user, fetchSchedules]);
 
-  async function addSchedule(scan_time) {
+  async function addSchedule(scan_time, scan_date) {
     setLoading(true);
     setError(null);
     try {
@@ -34,7 +34,7 @@ export default function useScheduledScans(scanType) {
       const res = await fetch('/api/scheduled-scans', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scan_type: scanType, scan_time }),
+        body: JSON.stringify({ scan_type: scanType, scan_time, scan_date: scan_date || null }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create schedule');

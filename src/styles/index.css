@@ -6908,12 +6908,36 @@ html.a11y-highlight-links a {
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+.schedule-scan-repeat-toggle {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.schedule-scan-repeat-btn {
+  flex: 1;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.schedule-scan-repeat-btn.active {
+  color: var(--accent-vivid);
+  border-color: var(--accent-vivid);
+}
 .schedule-scan-input-row {
   display: flex;
   gap: 8px;
 }
-.schedule-scan-time-input {
+.schedule-scan-time-input,
+.schedule-scan-date-input {
   flex: 1;
+  min-width: 0;
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -6924,7 +6948,8 @@ html.a11y-highlight-links a {
   outline: none;
   color-scheme: dark;
 }
-.schedule-scan-time-input:focus {
+.schedule-scan-time-input:focus,
+.schedule-scan-date-input:focus {
   border-color: var(--accent);
 }
 .schedule-scan-add-btn {
@@ -6984,6 +7009,13 @@ html.a11y-highlight-links a {
   font-family: var(--mono);
   font-weight: 600;
   color: var(--text-0);
+}
+.schedule-scan-item-repeat {
+  font-size: 10px;
+  color: var(--text-3);
+  font-family: var(--font);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 .schedule-scan-item-last {
   font-size: 10px;

@@ -263,6 +263,11 @@ async function initDb() {
     // other notification kind (watchlist alerts, etc).
     `ALTER TABLE notifications ADD COLUMN scan_type TEXT`,
     `ALTER TABLE notifications ADD COLUMN results_json TEXT`,
+    // NULL = recurring daily at scan_time (the original behavior). A real
+    // 'YYYY-MM-DD' date makes the schedule fire exactly once on that date —
+    // the runner deactivates it right after, so the customer explicitly
+    // chooses "every day" instead of that being the only option.
+    `ALTER TABLE scheduled_scans ADD COLUMN scan_date TEXT`,
   ];
 
   for (const sql of migrations) {
