@@ -369,7 +369,7 @@ test('eliteUpgrade creates a checkout session on the upgrade plan, granting elit
   const captured = [];
   t.mock.method(whop, 'createCheckoutSession', async (args) => {
     captured.push(args);
-    return { purchase_url: 'https://whop.com/checkout/plan_elite_upgrade_test/?session=ch_upgrade' };
+    return { id: 'ch_upgrade', purchase_url: 'https://whop.com/checkout/plan_elite_upgrade_test/?session=ch_upgrade' };
   });
 
   const user = await makeUser('checkout-upgrade-premium@test.local', 'premium');
@@ -384,6 +384,10 @@ test('eliteUpgrade creates a checkout session on the upgrade plan, granting elit
     assert.strictEqual(res.status, 200);
     const body = await res.json();
     assert.strictEqual(body.purchaseUrl, 'https://whop.com/checkout/plan_elite_upgrade_test/?session=ch_upgrade');
+    // sessionId is what the embedded checkout actually mounts against — the
+    // whole point of this response now that the frontend no longer redirects.
+    assert.strictEqual(body.sessionId, 'ch_upgrade', 'must return the session id for the embedded checkout to use');
+    assert.strictEqual(body.planId, 'plan_elite_upgrade_test');
 
     assert.strictEqual(captured.length, 1);
     assert.strictEqual(captured[0].planId, 'plan_elite_upgrade_test', 'must charge the discounted plan, not the normal Elite plan');

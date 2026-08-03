@@ -3090,6 +3090,54 @@ html.a11y-highlight-links a {
   max-width: 92vw;
   text-align: left;
 }
+.checkout-embed-modal {
+  width: 440px;
+  max-width: 92vw;
+  text-align: left;
+  padding-top: 44px;
+}
+.checkout-embed-back {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  border: none;
+  background: none;
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 6px;
+  transition: color var(--transition);
+}
+.checkout-embed-back:hover {
+  color: var(--accent);
+}
+.embedded-checkout {
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+}
+.embedded-checkout-loading {
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-family: var(--mono);
+}
+.embedded-checkout-powered-by {
+  margin-top: 14px;
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+}
+.embedded-checkout-whop-mark {
+  color: var(--text-1);
+  font-weight: 700;
+}
 .tier-table-wrap {
   overflow: hidden;
   border: 1px solid var(--border-strong);

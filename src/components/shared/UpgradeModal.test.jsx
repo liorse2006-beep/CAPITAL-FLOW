@@ -5,6 +5,18 @@ import { MemoryRouter } from 'react-router-dom';
 import UpgradeModal from './UpgradeModal';
 import { AuthProvider } from '../../context/AuthContext';
 
+// The real WhopCheckoutEmbed mounts an iframe pointed at Whop's own servers
+// — not something jsdom can (or should) exercise. Stubbed to a simple marker
+// so these tests verify OUR wiring (session creation, prop pass-through,
+// onComplete handling) without depending on Whop's actual embed internals.
+vi.mock('@whop/checkout/react', () => ({
+  WhopCheckoutEmbed: (props) => (
+    <div data-testid="whop-checkout-embed" data-session-id={props.sessionId}>
+      <button onClick={() => props.onComplete('plan_x', 'receipt_x', {})}>Simulate payment complete</button>
+    </div>
+  ),
+}));
+
 function renderWithProviders(ui) {
   return render(
     <MemoryRouter>
@@ -39,13 +51,13 @@ describe('UpgradeModal', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('goes straight to Whop checkout with no confirmation screen', async () => {
+  it('mounts the checkout inline (embedded) instead of redirecting to a Whop-hosted page', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ purchaseUrl: 'https://whop.com/checkout/plan_test/?session=ch_test' }),
+        json: async () => ({ sessionId: 'ch_test123', planId: 'plan_test' }),
       })
     );
     renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
@@ -58,16 +70,19 @@ describe('UpgradeModal', () => {
         expect.objectContaining({ method: 'POST', body: JSON.stringify({ tier: 'premium' }) })
       )
     );
-    expect(screen.queryByText(/continue to payment/i)).not.toBeInTheDocument();
+    const embed = await screen.findByTestId('whop-checkout-embed');
+    expect(embed).toHaveAttribute('data-session-id', 'ch_test123');
+    // Never navigated away — this is the whole point of the embed.
+    expect(window.location.href).not.toContain('whop.com');
   });
 
-  it('stashes the requested tier before redirecting, so the welcome screen knows what was bought', async () => {
+  it('stashes the requested tier before mounting the embed, so the welcome screen knows what was bought', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ purchaseUrl: 'https://whop.com/checkout/plan_test/?session=ch_test' }),
+        json: async () => ({ sessionId: 'ch_test123', planId: 'plan_test' }),
       })
     );
     renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
@@ -75,5 +90,19 @@ describe('UpgradeModal', () => {
     await user.click(screen.getByRole('button', { name: /get elite/i }));
 
     await waitFor(() => expect(localStorage.getItem('vs_pending_tier')).toBe('elite'));
+  });
+
+  it('shows a real error and stays on the plan table when the session can not be created', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: 'Whop is not configured yet' }) })
+    );
+    renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /get premium/i }));
+
+    expect(await screen.findByText('Whop is not configured yet')).toBeInTheDocument();
+    expect(screen.queryByTestId('whop-checkout-embed')).not.toBeInTheDocument();
   });
 });

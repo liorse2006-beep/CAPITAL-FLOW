@@ -5,6 +5,16 @@ import { MemoryRouter } from 'react-router-dom'
 import WelcomeTierModal from './WelcomeTierModal'
 import { AuthProvider } from '../../context/AuthContext'
 
+// See UpgradeModal.test.jsx — the real embed mounts an iframe against
+// Whop's servers, not something jsdom can/should exercise.
+vi.mock('@whop/checkout/react', () => ({
+  WhopCheckoutEmbed: (props) => (
+    <div data-testid="whop-checkout-embed" data-session-id={props.sessionId}>
+      <button onClick={() => props.onComplete('plan_x', 'receipt_x', {})}>Simulate payment complete</button>
+    </div>
+  ),
+}))
+
 function renderWithProviders(ui) {
   return render(
     <MemoryRouter>
@@ -106,13 +116,13 @@ describe('WelcomeTierModal', () => {
     expect(container.querySelector('.welcome-tier-cta-secondary')).toBeInTheDocument()
   })
 
-  it('clicking the upgrade offer starts checkout, stashes the pending tier, and redirects', async () => {
+  it('clicking the upgrade offer starts checkout, stashes the pending tier, and mounts the embed inline', async () => {
     const user = userEvent.setup()
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ purchaseUrl: 'https://whop.com/checkout/plan_elite_upgrade/?session=ch_test' }),
+        json: async () => ({ sessionId: 'ch_upgrade_test', planId: 'plan_elite_upgrade' }),
       })
     )
     renderWithProviders(<WelcomeTierModal tier="premium" confirmed={true} onClose={vi.fn()} />)
@@ -126,6 +136,8 @@ describe('WelcomeTierModal', () => {
       )
     )
     await waitFor(() => expect(localStorage.getItem('vs_pending_tier')).toBe('elite'))
+    const embed = await screen.findByTestId('whop-checkout-embed')
+    expect(embed).toHaveAttribute('data-session-id', 'ch_upgrade_test')
   })
 
   it('shows an error message if starting the upgrade checkout fails', async () => {

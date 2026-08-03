@@ -29,7 +29,10 @@ router.post('/checkout/transaction', requireAuth, async (req, res) => {
         metadata: { userId: String(req.user.id), tier: 'elite' },
         redirectUrl: `${FRONTEND_URL}/`,
       });
-      return res.json({ purchaseUrl: session.purchase_url });
+      // sessionId + planId are what the embedded checkout (WhopCheckoutEmbed)
+      // needs to render inline on our own page — purchaseUrl is kept only as
+      // a fallback for any caller still using the old hosted-redirect flow.
+      return res.json({ purchaseUrl: session.purchase_url, sessionId: session.id, planId: WHOP_ELITE_UPGRADE_PLAN_ID });
     } catch (err) {
       console.error('[checkout/transaction eliteUpgrade]', err);
       return res.status(502).json({ error: 'Could not start checkout — please try again' });
@@ -55,7 +58,7 @@ router.post('/checkout/transaction', requireAuth, async (req, res) => {
       // URL ourselves (see src/App.jsx, which reads that param).
       redirectUrl: `${FRONTEND_URL}/`,
     });
-    res.json({ purchaseUrl: session.purchase_url });
+    res.json({ purchaseUrl: session.purchase_url, sessionId: session.id, planId });
   } catch (err) {
     console.error('[checkout/transaction]', err);
     res.status(502).json({ error: 'Could not start checkout — please try again' });

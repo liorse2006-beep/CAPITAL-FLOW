@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import useModalA11y from '../../hooks/useModalA11y'
 import { tierFeatureChecklist } from '../../constants/tierFeatures'
 import { useAuth } from '../../context/AuthContext'
+import EmbeddedCheckout from './EmbeddedCheckout'
 
 // How long the "confirming with Whop" indicator stays up before we quietly
 // stop showing it — the badge/copy already reflect the tier the user just
@@ -29,12 +31,15 @@ var COPY = {
 export default function WelcomeTierModal({ tier, confirmed, onClose }) {
   const panelRef = useModalA11y(onClose)
   const { getToken } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [showConfirming, setShowConfirming] = useState(!confirmed)
   const [upgrading, setUpgrading] = useState(false)
   const [upgradeError, setUpgradeError] = useState('')
+  const [checkoutSessionId, setCheckoutSessionId] = useState(null)
 
   // The exact same tier-was-requested handoff UpgradeModal uses — stashed
-  // before redirecting to Whop so that if this converts, the user lands back
+  // before mounting the embed so that if this converts, the user lands back
   // on the (real) Elite welcome screen instead of nothing.
   function upgradeToElite() {
     setUpgradeError('')
@@ -47,13 +52,27 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
       .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || 'Could not start checkout')
+        if (!data.sessionId) throw new Error('Checkout session was not created — please try again.')
         localStorage.setItem('vs_pending_tier', 'elite')
-        window.location.href = data.purchaseUrl
+        setCheckoutSessionId(data.sessionId)
       })
       .catch((err) => {
-        setUpgrading(false)
         setUpgradeError(err.message || 'Something went wrong — please try again.')
       })
+      .finally(() => setUpgrading(false))
+  }
+
+  function handleComplete() {
+    // Same ?status=success handling App.jsx already has for the old
+    // hosted-redirect flow — shows the real (now Elite) welcome screen once
+    // the webhook confirms, without ever leaving this page.
+    navigate(location.pathname + '?status=success', { replace: false })
+  }
+
+  function handlePaymentError(error) {
+    setUpgradeError((error && error.message) || 'Payment failed — please try again.')
+    setCheckoutSessionId(null)
+    localStorage.removeItem('vs_pending_tier')
   }
 
   useEffect(
@@ -85,6 +104,39 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
   var excluded = checklist.filter(function (f) {
     return !f.included
   })
+
+  if (checkoutSessionId) {
+    return (
+      <div className="upgrade-overlay welcome-tier-overlay" onClick={onClose}>
+        <div
+          className="upgrade-modal checkout-embed-modal"
+          ref={panelRef}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Checkout — Elite"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button className="upgrade-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+          <button
+            className="checkout-embed-back"
+            onClick={() => {
+              setCheckoutSessionId(null)
+              localStorage.removeItem('vs_pending_tier')
+            }}
+          >
+            ‹ Back
+          </button>
+          <h2 className="upgrade-title" style={{ textAlign: 'center', marginBottom: 16 }}>
+            Elite checkout
+          </h2>
+          <EmbeddedCheckout sessionId={checkoutSessionId} onComplete={handleComplete} onError={handlePaymentError} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="upgrade-overlay welcome-tier-overlay" onClick={onClose}>
@@ -145,7 +197,7 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
           <div className="welcome-upsell">
             <span className="welcome-upsell-badge">One-time offer</span>
             <button className="upgrade-cta welcome-tier-cta welcome-upsell-cta" onClick={upgradeToElite} disabled={upgrading}>
-              {upgrading ? 'Redirecting…' : 'Upgrade to Elite — 50% off'}
+              {upgrading ? 'Loading…' : 'Upgrade to Elite — 50% off'}
             </button>
             <p className="welcome-upsell-sub">
               $14.95 instead of $29.90 — once you leave this screen, this offer disappears.

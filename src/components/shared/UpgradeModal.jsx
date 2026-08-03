@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import useModalA11y from '../../hooks/useModalA11y';
 import { useAuth } from '../../context/AuthContext';
 import { TIER_ROWS } from '../../constants/tierFeatures';
+import EmbeddedCheckout from './EmbeddedCheckout';
 
 function Check() {
   return (
@@ -29,6 +31,7 @@ function Cell({ value, tierClass, isPrice }) {
 }
 
 const TIER_RANK = { free: 0, premium: 1, elite: 2 };
+const TIER_LABEL = { premium: 'Premium', elite: 'Elite' };
 
 // Full Free/Premium/Elite feature comparison — one table, every row a
 // feature, checkmark/dash (or a value like "5 / 24h") per tier, price as
@@ -36,14 +39,19 @@ const TIER_RANK = { free: 0, premium: 1, elite: 2 };
 // "Your plan" badge instead of a CTA button; only tiers above the current
 // one show a Get-<tier> button.
 //
-// Clicking "Get <tier>" goes straight to Whop's hosted checkout page — no
-// confirmation screen of our own in between. Whop's own checkout page shows
-// the price and has its own promo-code field.
+// Clicking "Get <tier>" swaps this same modal over to Whop's checkout
+// embed, mounted inline (an iframe scoped to the payment form) — the user
+// never leaves the page or sees a Whop-hosted URL. The embed still needs a
+// server-created checkout session first, since that's what carries the
+// userId/tier metadata the webhook reads back once payment succeeds.
 export default function UpgradeModal({ userTier = 'free', onClose }) {
   const { getToken } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const panelRef = useModalA11y(onClose);
   const [payingTier, setPayingTier] = useState(null);
   const [payError, setPayError] = useState('');
+  const [checkoutSession, setCheckoutSession] = useState(null); // { sessionId, tierKey } | null
 
   async function goToCheckout(tierKey) {
     setPayError('');
@@ -56,15 +64,30 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not start checkout');
-      // Whop's redirect back here only carries ?status=success|error, not
+      if (!data.sessionId) throw new Error('Checkout session was not created — please try again.');
+      // The completion callback only tells us the checkout finished, not
       // which tier was bought — stash it so the welcome screen can show the
       // right badge/copy immediately instead of waiting on the webhook.
       localStorage.setItem('vs_pending_tier', tierKey);
-      window.location.href = data.purchaseUrl;
+      setCheckoutSession({ sessionId: data.sessionId, tierKey });
     } catch (err) {
-      setPayingTier(null);
       setPayError(err.message || 'Something went wrong — please try again.');
+    } finally {
+      setPayingTier(null);
     }
+  }
+
+  function handleComplete() {
+    // Reuses the exact same ?status=success handling App.jsx already has
+    // for the old hosted-redirect flow (shows the welcome modal, refreshes
+    // the real tier from the server) — same outcome, just never left the page.
+    navigate(location.pathname + '?status=success', { replace: false });
+  }
+
+  function handlePaymentError(error) {
+    setPayError((error && error.message) || 'Payment failed — please try again.');
+    setCheckoutSession(null);
+    localStorage.removeItem('vs_pending_tier');
   }
 
   function ctaOrBadge(tierKey, tierLabel, ctaClass) {
@@ -78,8 +101,41 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
         onClick={() => goToCheckout(tierKey)}
         disabled={payingTier === tierKey}
       >
-        {payingTier === tierKey ? 'Redirecting…' : 'Get ' + tierLabel}
+        {payingTier === tierKey ? 'Loading…' : 'Get ' + tierLabel}
       </button>
+    );
+  }
+
+  if (checkoutSession) {
+    return (
+      <div className="upgrade-overlay" onClick={onClose}>
+        <div
+          className="upgrade-modal checkout-embed-modal"
+          ref={panelRef}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-label={'Checkout — ' + TIER_LABEL[checkoutSession.tierKey]}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button className="upgrade-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+          <button
+            className="checkout-embed-back"
+            onClick={() => {
+              setCheckoutSession(null);
+              localStorage.removeItem('vs_pending_tier');
+            }}
+          >
+            ‹ Back to plans
+          </button>
+          <h2 className="upgrade-title" style={{ textAlign: 'center', marginBottom: 16 }}>
+            {TIER_LABEL[checkoutSession.tierKey]} checkout
+          </h2>
+          <EmbeddedCheckout sessionId={checkoutSession.sessionId} onComplete={handleComplete} onError={handlePaymentError} />
+        </div>
+      </div>
     );
   }
 
