@@ -21,7 +21,7 @@ jobs:
         run: npm ci
 
       - name: Run test suite
-        run: npm test
+        run: npm test -- --test-concurrency=1
 
       - name: Build frontend
         run: npm run build
