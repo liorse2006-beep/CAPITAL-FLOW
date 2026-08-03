@@ -3108,9 +3108,9 @@ html.a11y-highlight-links a {
   width: 620px;
   text-align: left;
 }
-.tier-table-modal {
-  width: 620px;
-  max-width: 92vw;
+.pricing-cards-modal {
+  width: 760px;
+  max-width: 94vw;
   text-align: left;
 }
 .checkout-embed-modal {
@@ -3161,97 +3161,142 @@ html.a11y-highlight-links a {
   color: var(--text-1);
   font-weight: 700;
 }
-.tier-table-wrap {
-  overflow: hidden;
+.pricing-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+.pricing-card {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding: 22px 18px 18px;
+  background: var(--bg-1);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-}
-.tier-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.tier-table-feature-head {
-  width: 34%;
-}
-.tier-table-head {
-  padding: 14px 8px;
   text-align: center;
-  font-size: 12px;
+}
+.pricing-card-featured {
+  border-color: var(--accent);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, var(--bg-1) 45%);
+  box-shadow: 0 0 0 1px var(--accent), 0 8px 28px -8px rgba(245, 158, 11, 0.45);
+  padding-top: 30px;
+}
+.pricing-card-ribbon {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--accent-vivid);
+  color: #1a1200;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.3px;
-  color: var(--text-0);
-  font-family: var(--font);
-}
-.tier-table-head-premium {
-  color: var(--tier-premium);
-}
-.tier-table-head-elite {
-  color: var(--accent);
-}
-.tier-table-feature {
-  padding: 10px 16px 10px 8px;
-  font-size: 12px;
-  color: var(--text-2);
-  font-family: var(--font);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 999px;
   white-space: nowrap;
 }
-.tier-table tbody tr:first-child td {
-  border-top: 1px solid var(--border);
-}
-.tier-table tbody tr:nth-child(even) td {
-  background: rgba(255, 255, 255, 0.015);
-}
-.tier-table-cta-row:nth-child(even) td {
-  background: transparent;
-}
-.tier-table-cell {
-  padding: 10px 8px;
-  text-align: center;
+.pricing-card-tier {
   font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-family: var(--font);
+}
+.pricing-card-premium .pricing-card-tier {
+  color: var(--tier-premium);
+}
+.pricing-card-elite .pricing-card-tier {
+  color: var(--accent);
+}
+.pricing-card-price {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text-0);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  margin-top: 6px;
+  letter-spacing: -0.02em;
+}
+.pricing-card-subprice {
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--font);
+  margin-top: 2px;
+  min-height: 14px;
+}
+.pricing-card-subprice-onetime {
+  color: var(--text-2);
   font-weight: 600;
+}
+.pricing-card-scans {
+  margin-top: 16px;
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 700;
   color: var(--text-1);
   font-family: var(--mono);
 }
-.tier-table-cell-price {
-  font-size: 13px;
-  font-weight: 700;
+.pricing-card-features {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
 }
-.tier-table-cell-premium.tier-table-cell-price {
-  color: var(--tier-premium);
+.pricing-card-features li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-1);
+  font-family: var(--font);
 }
-.tier-table-cell-elite.tier-table-cell-price {
-  color: var(--accent);
+.pricing-card-feature-off {
+  color: var(--text-3);
 }
-.tier-table-icon {
+.pricing-card-feature-icon {
   display: inline-flex;
+  flex-shrink: 0;
+  width: 15px;
+  justify-content: center;
 }
-.tier-table-cell-premium .tier-table-icon-yes {
-  color: var(--tier-premium);
+.pricing-card-feature-yes {
+  color: var(--green);
 }
-.tier-table-cell-elite .tier-table-icon-yes {
+.pricing-card-elite .pricing-card-feature-yes {
   color: var(--accent);
 }
-.tier-table-icon-no {
+.pricing-card-feature-no {
   color: var(--text-3);
   font-size: 14px;
 }
-.tier-table-cta-row td {
-  padding: 16px 8px;
+.pricing-card-cta-slot {
+  margin-top: 18px;
 }
-.tier-table-cta-row .upgrade-cta {
-  width: auto;
-  padding: 8px 18px;
-  font-size: 11px;
+.pricing-card-cta {
+  width: 100%;
+  padding: 10px 18px;
+  font-size: 12.5px;
 }
-.tier-table-premium-cta {
+.pricing-card-cta-premium {
   background: var(--tier-premium-vivid);
   color: #1a0d00;
 }
-.tier-table-elite-cta {
+.pricing-card-cta-elite {
   background: var(--accent-vivid);
   color: #1a1200;
 }
-.tier-table-current {
+.pricing-card-current {
   display: inline-block;
   font-size: 10px;
   font-weight: 700;
@@ -3259,6 +3304,15 @@ html.a11y-highlight-links a {
   text-transform: uppercase;
   color: var(--text-3);
   font-family: var(--mono);
+  padding: 10px 0;
+}
+@media (max-width: 700px) {
+  .pricing-cards {
+    grid-template-columns: 1fr;
+  }
+  .pricing-card-featured {
+    order: -1;
+  }
 }
 
 /* ── Upgrade modal payment feedback (Whop) ── */
