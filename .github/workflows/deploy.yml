@@ -30,6 +30,7 @@ jobs:
   # ── 2. Trigger Render redeploy via deploy hook ────────────────────────────
   deploy:
     needs: test
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Render
