@@ -6,7 +6,19 @@ import globals from 'globals';
 import prettierConfig from 'eslint-config-prettier';
 
 export default [
-  { ignores: ['dist/**', 'node_modules/**', 'data/**', 'logs/**', 'tools/**', 'coverage/**'] },
+  {
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'data/**',
+      'logs/**',
+      'tools/**',
+      'coverage/**',
+      '.claude/**',
+      'LANDING PAGE/**',
+      'capture-reel-*.js',
+    ],
+  },
 
   // Frontend (src/) — browser globals, React rules
   {
@@ -25,7 +37,7 @@ export default [
       'react/react-in-jsx-scope': 'off', // Vite's JSX runtime handles this
       'react/prop-types': 'off', // no PropTypes convention in this codebase
       'react-refresh/only-export-components': 'warn',
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
       // Empty `catch (e) {}` is a deliberate, pervasive pattern in this
       // codebase for best-effort/fire-and-forget calls (background
       // fetches, optional cleanup) — not a mistake to flag.
@@ -62,7 +74,7 @@ export default [
     },
     rules: {
       ...js.configs.recommended.rules,
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
       // Empty `catch (e) {}` is a deliberate, pervasive pattern in this
       // codebase for best-effort/fire-and-forget calls (background
       // fetches, optional cleanup) — not a mistake to flag.

@@ -27,6 +27,7 @@ router.post('/checkout/transaction', requireAuth, async (req, res) => {
       const session = await whop.createCheckoutSession({
         planId: WHOP_ELITE_UPGRADE_PLAN_ID,
         metadata: { userId: String(req.user.id), tier: 'elite' },
+        allowPromoCodes: true,
         redirectUrl: `${FRONTEND_URL}/`,
       });
       // sessionId + planId are what the embedded checkout (WhopCheckoutEmbed)
@@ -46,13 +47,19 @@ router.post('/checkout/transaction', requireAuth, async (req, res) => {
     if (couponCode) {
       const coupon = await validateCoupon(couponCode, tier);
       if (!coupon.valid) return res.status(400).json({ error: coupon.error });
-      // Validated and tracked in our own system, but not auto-applied at
-      // Whop checkout — only the price shown to the customer changes.
+      // Local coupons are kept for backwards-compatible validation, but the
+      // actual discount must be entered in Whop's native promo-code field.
+      // Never pretend that metadata changes the amount charged.
+      return res.status(409).json({
+        error: 'Enter this promo code in the secure Whop checkout to apply the discount.',
+        code: 'USE_WHOP_PROMO_CODE_FIELD',
+      });
     }
 
     const session = await whop.createCheckoutSession({
       planId,
-      metadata: { userId: String(req.user.id), tier, couponCode: couponCode || null },
+      metadata: { userId: String(req.user.id), tier },
+      allowPromoCodes: true,
       // Whop redirects here regardless of outcome, appending its own
       // ?status=success|error — never bake an assumed outcome into this
       // URL ourselves (see src/App.jsx, which reads that param).

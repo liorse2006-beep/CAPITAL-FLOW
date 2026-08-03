@@ -1,12 +1,13 @@
 const router = require('express').Router();
 const db = require('../db');
 const { resolveToken } = require('../middleware/authMiddleware');
+const { publicWriteLimiter } = require('../middleware/rateLimiters');
 
 const MAX_MESSAGE_LEN = 2000;
 
 // Signed-in or signed-out visitors can both send feedback — auth is read
 // opportunistically (to attach a user_id) but never required.
-router.post('/feedback', async (req, res) => {
+router.post('/feedback', publicWriteLimiter, async (req, res) => {
   try {
     const message = String(req.body.message || '').trim();
     if (!message) return res.status(400).json({ error: 'Message is required' });

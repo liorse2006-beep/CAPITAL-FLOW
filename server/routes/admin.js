@@ -11,7 +11,7 @@ function timingSafeStringEqual(a, b) {
 }
 
 const DB_ENV = TURSO_DB_URL ? 'PRODUCTION (Turso)' : 'LOCAL (SQLite)';
-const { verifyToken } = require('../services/auth');
+const { resolveToken } = require('../middleware/authMiddleware');
 
 // Catches unhandled promise rejections in async route handlers (Express 4 doesn't do this natively)
 function asyncRoute(fn) {
@@ -35,18 +35,18 @@ async function checkToken(req, res) {
     return false;
   }
 
-  // Accept static token
-  const tok = req.query.token || req.headers['x-admin-token'];
+  // Credentials are accepted only in headers. Query-string credentials leak
+  // into browser history, reverse-proxy logs and monitoring systems.
+  const tok = req.headers['x-admin-token'];
   if (tok && ADMIN_TOKEN && timingSafeStringEqual(tok, ADMIN_TOKEN)) return 'static-token';
 
-  // Accept JWT from the admin email
-  const jwt = req.query.jwt || (req.headers.authorization || '').replace('Bearer ', '');
+  // Accept a current JWT belonging to the configured admin account. resolveToken
+  // also enforces session_version, blocked status and expiry.
+  const auth = req.headers.authorization || '';
+  const jwt = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   if (jwt && ADMIN_EMAIL) {
-    try {
-      const payload = verifyToken(jwt);
-      const user = await db.prepare('SELECT email, is_blocked FROM users WHERE id = ?').get(payload.id);
-      if (user && !user.is_blocked && user.email === ADMIN_EMAIL) return user.email;
-    } catch (_) {}
+    const user = await resolveToken(jwt);
+    if (user && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return user.email;
   }
 
   res.status(401).send('Unauthorized');
@@ -231,7 +231,8 @@ router.get('/admin', asyncRoute(async (req, res) => {
   // The page shell is public — no server-side auth here.
   // Every data API call (/admin/api/*) still enforces checkToken.
   // Auth headers are built in the browser from localStorage (always fresh).
-  const token = req.query.token || null; // static ADMIN_TOKEN path (optional)
+  // Credentials are read from request headers by the page script. Never copy
+  // a static admin secret into this HTML response or accept it in the URL.
 
   // Per-request nonce for the inline <script> and <style>. This lets the admin
   // page run under a real Content-Security-Policy: script-src carries the nonce
@@ -331,6 +332,8 @@ router.get('/admin', asyncRoute(async (req, res) => {
   .refresh-btn { background: none; border: 1px solid rgba(255,255,255,0.1); color: #A0A0A8;
                  font-size: 12px; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
   .refresh-btn:hover { background: rgba(255,255,255,0.05); color: #E4E4E7; }
+  .admin-token-form { display:flex; gap:6px; align-items:center; }
+  .admin-token-form input { width:180px; background:#1C1C1C; border:1px solid rgba(255,255,255,0.1); color:#E4E4E7; border-radius:6px; padding:5px 8px; font:11px monospace; }
   .back-link:hover { color: #E4E4E7 !important; }
   .feedback-row { padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.04); }
   .feedback-row:last-child { border-bottom: none; }
@@ -350,6 +353,8 @@ router.get('/admin', asyncRoute(async (req, res) => {
     .topbar h1 { font-size: 14px; }
     .stats { grid-template-columns: repeat(2, 1fr); }
     #search { width: 100%; }
+    .admin-token-form { width:100%; }
+    .admin-token-form input { flex:1; width:auto; }
     .card-hdr { flex-direction: column; align-items: flex-start; }
     .card-hdr > div { width: 100%; }
     .toast { left: 12px; right: 12px; bottom: 12px; }
@@ -360,6 +365,10 @@ router.get('/admin', asyncRoute(async (req, res) => {
 <div class="topbar">
   <h1>⚡ Capital Flow — Admin</h1>
   <div style="display:flex;align-items:center;gap:16px">
+    <div class="admin-token-form">
+      <input id="admin-token-input" type="password" autocomplete="off" placeholder="Static admin token" aria-label="Static admin token" />
+      <button class="refresh-btn" id="admin-token-save" type="button">Use token</button>
+    </div>
     <span style="font-size:11px;font-family:monospace;padding:3px 10px;border-radius:4px;font-weight:700;${TURSO_DB_URL ? 'background:rgba(34,197,94,0.12);color:#22C55E;border:1px solid rgba(34,197,94,0.25)' : 'background:rgba(239,68,68,0.12);color:#EF4444;border:1px solid rgba(239,68,68,0.25)'}">${DB_ENV}</span>
     <span id="last-refresh">Loading…</span>
     <a href="/" class="back-link" style="font-size:12px;color:#71717A;text-decoration:none;border:1px solid rgba(255,255,255,0.1);padding:5px 12px;border-radius:6px;transition:color .15s">← Back to site</a>
@@ -414,11 +423,25 @@ router.get('/admin', asyncRoute(async (req, res) => {
 <script nonce="${nonce}">
 // Static ADMIN_TOKEN wins when provided via URL; otherwise use the live JWT
 // from localStorage — it's always fresh and never needs a manual refresh.
-const _staticToken = ${JSON.stringify(token)};
-const AUTH_HEADERS = _staticToken
-  ? { 'x-admin-token': _staticToken }
-  : { 'Authorization': 'Bearer ' + (localStorage.getItem('vs_token') || '') };
-history.replaceState(null, '', '/admin');
+function authHeaders() {
+  const staticToken = sessionStorage.getItem('vs_admin_token') || '';
+  return staticToken
+    ? { 'x-admin-token': staticToken }
+    : { 'Authorization': 'Bearer ' + (localStorage.getItem('vs_token') || '') };
+}
+let AUTH_HEADERS = authHeaders();
+function refreshAuthHeaders() { AUTH_HEADERS = authHeaders(); return AUTH_HEADERS; }
+
+document.getElementById('admin-token-save').addEventListener('click', function () {
+  const value = document.getElementById('admin-token-input').value.trim();
+  if (!value) return;
+  sessionStorage.setItem('vs_admin_token', value);
+  refreshAuthHeaders();
+  load();
+  loadAuditLog();
+  loadVisits();
+  loadBackupStatus();
+});
 
 let allUsers = [];
 

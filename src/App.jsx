@@ -36,6 +36,10 @@ const ScheduledScanResultsModal = lazy(() => import('./components/shared/Schedul
 /* ── Main App ── */
 function App() {
   const { user, logout, getToken, authError, clearAuthError, pendingGoogleToken, acceptPilotTerms, refreshUser } = useAuth();
+  const storageScope = user ? String(user.id) : 'guest';
+  function scopedStorageKey(name) {
+    return name + ':' + storageScope;
+  }
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   const [theme, setTheme] = useState('dark');
@@ -127,10 +131,36 @@ function App() {
   const [sseConnected, setSseConnected] = useState(false);
   const [liveAlert, setLiveAlert] = useState(null);
 
-  // SSE only active for premium users — token sent as query param (EventSource has no headers)
-  var sseToken = isPremium ? getToken() : null;
+  // EventSource cannot send Authorization headers. Exchange the normal bearer
+  // token for a short-lived opaque ticket instead of putting the user's JWT in
+  // the stream URL. Refresh before expiry so browser reconnects keep working.
+  const [sseTicket, setSseTicket] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    let refreshTimer;
+    if (!isPremium) {
+      return undefined;
+    }
+    const fetchTicket = () => {
+      fetch('/api/stream-ticket', { headers: { Authorization: 'Bearer ' + (localStorage.getItem('vs_token') || '') } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (cancelled || !d?.ticket) return;
+          setSseTicket(d.ticket);
+          refreshTimer = setTimeout(fetchTicket, Math.max(60_000, (d.expiresIn - 120) * 1000));
+        })
+        .catch(() => {
+          if (!cancelled) refreshTimer = setTimeout(fetchTicket, 30_000);
+        });
+    };
+    fetchTicket();
+    return () => {
+      cancelled = true;
+      clearTimeout(refreshTimer);
+    };
+  }, [isPremium]);
   useSSE(
-    sseToken ? '/api/stream?token=' + encodeURIComponent(sseToken) : null,
+    sseTicket ? '/api/stream?ticket=' + encodeURIComponent(sseTicket) : null,
     {
       connected: () => setSseConnected(true),
       ping: () => {},
@@ -159,14 +189,14 @@ function App() {
   const [showAlertPanel, setShowAlertPanel] = useState(false);
   const [alertHistory, setAlertHistory] = useState(function () {
     try {
-      return JSON.parse(localStorage.getItem('vs-alert-history')) || [];
+      return JSON.parse(localStorage.getItem(scopedStorageKey('vs-alert-history'))) || [];
     } catch (e) {
       return [];
     }
   });
   const [unreadCount, setUnreadCount] = useState(function () {
     try {
-      return parseInt(localStorage.getItem('vs-alert-unread') || '0', 10);
+      return parseInt(localStorage.getItem(scopedStorageKey('vs-alert-unread')) || '0', 10);
     } catch (e) {
       return 0;
     }
@@ -178,12 +208,12 @@ function App() {
     var entry = { id: Date.now() + Math.random(), sym: sym, title: title, body: body, time: new Date().toISOString() };
     setAlertHistory(function (prev) {
       var next = [entry].concat(prev).slice(0, 100);
-      localStorage.setItem('vs-alert-history', JSON.stringify(next));
+      localStorage.setItem(scopedStorageKey('vs-alert-history'), JSON.stringify(next));
       return next;
     });
     setUnreadCount(function (c) {
       var next = c + 1;
-      localStorage.setItem('vs-alert-unread', String(next));
+      localStorage.setItem(scopedStorageKey('vs-alert-unread'), String(next));
       return next;
     });
   }
@@ -193,7 +223,7 @@ function App() {
       var next = prev.filter(function (a) {
         return a.id !== id;
       });
-      localStorage.setItem('vs-alert-history', JSON.stringify(next));
+      localStorage.setItem(scopedStorageKey('vs-alert-history'), JSON.stringify(next));
       return next;
     });
     if (typeof id === 'string' && id.indexOf('srv-') === 0) {
@@ -206,7 +236,7 @@ function App() {
 
   function clearAllAlerts() {
     setAlertHistory([]);
-    localStorage.removeItem('vs-alert-history');
+    localStorage.removeItem(scopedStorageKey('vs-alert-history'));
     if (user) {
       fetch('/api/notifications', { method: 'DELETE', headers: { Authorization: 'Bearer ' + getToken() } }).catch(function () {});
     }
@@ -254,12 +284,12 @@ function App() {
               return new Date(b.time) - new Date(a.time);
             })
             .slice(0, 100);
-          localStorage.setItem('vs-alert-history', JSON.stringify(merged));
+          localStorage.setItem(scopedStorageKey('vs-alert-history'), JSON.stringify(merged));
           return merged;
         });
         setUnreadCount(function (c) {
           var next = Math.max(c, d.unreadCount || 0);
-          localStorage.setItem('vs-alert-unread', String(next));
+          localStorage.setItem(scopedStorageKey('vs-alert-unread'), String(next));
           return next;
         });
       })
@@ -521,7 +551,7 @@ function App() {
      alertLevels above). ── */
   const [watchlist, setWatchlist] = useState(function () {
     try {
-      return JSON.parse(localStorage.getItem('vs-watchlist')) || [];
+      return JSON.parse(localStorage.getItem(scopedStorageKey('vs-watchlist'))) || [];
     } catch (e) {
       return [];
     }
@@ -540,7 +570,7 @@ function App() {
         .then(function (list) {
           if (!Array.isArray(list)) return;
           setWatchlist(list);
-          localStorage.setItem('vs-watchlist', JSON.stringify(list));
+          localStorage.setItem(scopedStorageKey('vs-watchlist'), JSON.stringify(list));
         })
         .catch(function () {});
     },
@@ -559,7 +589,7 @@ function App() {
       } else {
         next = [].concat(prev, [symbol]);
       }
-      localStorage.setItem('vs-watchlist', JSON.stringify(next));
+      localStorage.setItem(scopedStorageKey('vs-watchlist'), JSON.stringify(next));
       return next;
     });
     if (user) {
@@ -1257,6 +1287,7 @@ function App() {
                 alertLevels={alertLevels}
                 promptCreateAlert={promptCreateAlert}
                 promptShowNews={promptShowNews}
+                onRequireAuth={() => setShowAuthModal(true)}
               />
             }
           />

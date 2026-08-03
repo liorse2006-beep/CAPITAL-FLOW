@@ -393,6 +393,7 @@ test('eliteUpgrade creates a checkout session on the upgrade plan, granting elit
     assert.strictEqual(captured[0].planId, 'plan_elite_upgrade_test', 'must charge the discounted plan, not the normal Elite plan');
     assert.strictEqual(captured[0].metadata.tier, 'elite', 'must still grant the real elite tier once paid');
     assert.strictEqual(captured[0].metadata.userId, String(user.id));
+    assert.strictEqual(captured[0].allowPromoCodes, true, 'Whop must own promo-code validation and discount calculation');
   } finally {
     server.close();
   }

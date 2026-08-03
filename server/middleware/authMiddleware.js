@@ -2,6 +2,40 @@ const { verifyToken } = require('../services/auth');
 const db = require('../db');
 const { canScan, quotaFor, freeTrialActive } = require('../services/scanQuota');
 const { ADMIN_EMAIL } = require('../config');
+const crypto = require('crypto');
+
+// EventSource cannot send Authorization headers. Use short-lived, opaque
+// tickets instead of putting a seven-day JWT in the stream URL. Tickets are
+// deliberately reusable until expiry so a browser reconnect does not need to
+// race a second ticket request, but they contain no user data or privileges.
+const sseTickets = new Map();
+const SSE_TICKET_TTL_MS = 10 * 60 * 1000;
+
+function issueSseTicket(userId) {
+  const ticket = crypto.randomBytes(32).toString('base64url');
+  sseTickets.set(ticket, { userId, expiresAt: Date.now() + SSE_TICKET_TTL_MS });
+  return ticket;
+}
+
+function resolveSseTicket(ticket) {
+  if (!ticket || typeof ticket !== 'string') return null;
+  const record = sseTickets.get(ticket);
+  if (!record) return null;
+  if (record.expiresAt <= Date.now()) {
+    sseTickets.delete(ticket);
+    return null;
+  }
+  return record.userId;
+}
+
+function pruneSseTickets() {
+  const now = Date.now();
+  for (const [ticket, record] of sseTickets) {
+    if (record.expiresAt <= now) sseTickets.delete(ticket);
+  }
+}
+const sseTicketPruner = setInterval(pruneSseTickets, SSE_TICKET_TTL_MS);
+sseTicketPruner.unref();
 
 /** Resolve a JWT string → verified DB user, or null on failure */
 async function resolveToken(token) {
@@ -124,7 +158,18 @@ async function requireEliteOrTrial(req, res, next) {
  * Used for SSE (EventSource cannot set Authorization headers).
  */
 async function requirePremiumSSE(req, res, next) {
-  const user = await resolveToken(req.query.token);
+  const ticketUserId = resolveSseTicket(req.query.ticket);
+  const user = ticketUserId
+    ? await db
+        .prepare(
+          `SELECT id, email, is_verified, is_premium, is_blocked, free_scan_count,
+                  is_pilot, session_version, pilot_terms_accepted_at, tier, created_at,
+                  free_scan_used_capital_flow, free_scan_used_ma_scanner, free_scan_used_sector_moving,
+                  premium_scan_count, premium_scan_window_start
+           FROM users WHERE id = ?`
+        )
+        .get(ticketUserId)
+    : null;
   if (!user) {
     // SSE: respond with a plain-text error event instead of JSON
     res.setHeader('Content-Type', 'text/event-stream');
@@ -133,14 +178,24 @@ async function requirePremiumSSE(req, res, next) {
     res.write('event: auth-error\ndata: {"code":"NOT_AUTHENTICATED"}\n\n');
     return res.end();
   }
-  if (!user.is_premium) {
+  if (user.is_blocked) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.flushHeaders();
+    res.write('event: auth-error\ndata: {"code":"NOT_AUTHENTICATED"}\n\n');
+    return res.end();
+  }
+  const effectiveUser = user.is_pilot || (!!ADMIN_EMAIL && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase())
+    ? { ...user, tier: 'elite', is_premium: 1 }
+    : { ...user, is_premium: user.tier !== 'free' ? 1 : 0 };
+  if (!effectiveUser.is_premium) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.flushHeaders();
     res.write('event: auth-error\ndata: {"code":"NOT_PREMIUM"}\n\n');
     return res.end();
   }
-  req.user = user;
+  req.user = effectiveUser;
   next();
 }
 
@@ -180,4 +235,5 @@ module.exports = {
   requirePremiumSSE,
   requireScanQuota,
   resolveToken,
+  issueSseTicket,
 };

@@ -109,6 +109,7 @@ export default function WatchlistPage({
   alertLevels,
   promptCreateAlert,
   promptShowNews,
+  onRequireAuth,
 }) {
   const [showAddModal, setShowAddModal] = useState(false)
 
@@ -185,7 +186,13 @@ export default function WatchlistPage({
       {showAddModal && (
         <AddTickerModal
           watchlist={watchlist}
-          onAdd={(sym) => toggleWatchlistTicker(sym)}
+          onAdd={(sym) => {
+            if (!user) {
+              onRequireAuth?.()
+              return
+            }
+            toggleWatchlistTicker(sym)
+          }}
           onClose={() => setShowAddModal(false)}
         />
       )}
@@ -228,7 +235,7 @@ export default function WatchlistPage({
                 <span className="empty-rich-pill">LIVE QUOTES</span>
                 <span className="empty-rich-pill">ONE-TAP ADD</span>
               </div>
-              <button className="empty-rich-cta" onClick={() => setShowAddModal(true)}>
+              <button className="empty-rich-cta" onClick={() => user ? setShowAddModal(true) : onRequireAuth?.()}>
                 + Add Ticker
               </button>
             </div>

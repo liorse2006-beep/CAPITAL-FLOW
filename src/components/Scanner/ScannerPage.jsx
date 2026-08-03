@@ -154,6 +154,15 @@ export default function ScannerPage({
   user,
   onUpgrade,
 }) {
+  const [currentTime, setCurrentTime] = useState(null)
+
+  useEffect(() => {
+    const updateCurrentTime = () => setCurrentTime(new Date())
+    updateCurrentTime()
+    const timer = window.setInterval(updateCurrentTime, 60000)
+    return () => window.clearInterval(timer)
+  }, [])
+
   const lastCount = results ? results.length : null
   const mktOpen = isMarketOpenNow()
   const rawProgressPct = progress && progress.total ? (progress.processed / progress.total) * 100 : 0
@@ -608,8 +617,8 @@ export default function ScannerPage({
           <div className="table-bar">
             <div>
               <h2>{sorted.length + ' Result' + (sorted.length !== 1 ? 's' : '')}</h2>
-              {scanTime && (() => {
-                const ageMs = Date.now() - new Date(scanTime).getTime();
+              {scanTime && currentTime && (() => {
+                const ageMs = currentTime.getTime() - new Date(scanTime).getTime();
                 const ageMins = Math.round(ageMs / 60000);
 
                 // Shared-cache results are normal, expected behavior (see

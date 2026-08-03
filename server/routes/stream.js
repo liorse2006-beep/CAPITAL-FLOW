@@ -1,9 +1,17 @@
 const router = require('express').Router();
-const { requirePremiumSSE } = require('../middleware/authMiddleware');
+const { requirePremium, requirePremiumSSE, issueSseTicket } = require('../middleware/authMiddleware');
 
 // Active SSE clients — each entry is { res, userId } so alerts can be routed
 // to the specific user who owns them, never broadcast across accounts.
 const clients = new Set();
+
+// EventSource cannot attach an Authorization header. This endpoint exchanges
+// the normal bearer token for a short-lived opaque stream ticket. The ticket
+// is safe to place in a URL because it expires quickly and carries no claims.
+router.get('/stream-ticket', requirePremium, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ ticket: issueSseTicket(req.user.id), expiresIn: 600 });
+});
 
 router.get('/stream', requirePremiumSSE, (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');

@@ -63,7 +63,7 @@ describe('ChatWidget', () => {
   })
 
   it('hides the teaser while the chat panel is open, and shows it again once closed', async () => {
-    global.fetch = historyFetchMock([])
+    globalThis.fetch = historyFetchMock([])
     const { container } = render(<ChatWidget user={USER} isElite={true} getToken={() => 't'} />)
     act(() => {
       vi.advanceTimersByTime(1500)
@@ -81,7 +81,7 @@ describe('ChatWidget', () => {
   })
 
   it('dismissing the teaser hides it for the current closed stretch, but it reappears after an open/close cycle', async () => {
-    global.fetch = historyFetchMock([])
+    globalThis.fetch = historyFetchMock([])
     const { container } = render(<ChatWidget user={USER} isElite={true} getToken={() => 't'} />)
     act(() => {
       vi.advanceTimersByTime(1500)

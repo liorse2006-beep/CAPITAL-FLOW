@@ -9,10 +9,10 @@ const enabled = !!WHOP_API_KEY;
  * (which user/tier this is for) — the frontend redirects to the returned
  * purchase_url instead of linking a plan directly, which is what makes the
  * user linkage possible (the webhook reads this metadata back). */
-async function createCheckoutSession({ planId, metadata, redirectUrl }) {
+async function createCheckoutSession({ planId, metadata, redirectUrl, allowPromoCodes = true }) {
   if (!enabled) throw new Error('Whop is not configured (WHOP_API_KEY unset)');
 
-  const body = { plan_id: planId, metadata };
+  const body = { plan_id: planId, metadata, allow_promo_codes: allowPromoCodes };
   if (redirectUrl) body.redirect_url = redirectUrl;
 
   const res = await fetch(`${API_BASE}/checkout_sessions`, {

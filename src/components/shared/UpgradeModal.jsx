@@ -128,6 +128,7 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
           <h2 className="upgrade-title" style={{ textAlign: 'center', marginBottom: 16 }}>
             {TIER_LABEL[checkoutSession.tierKey]} checkout
           </h2>
+          <p className="checkout-embed-promo-hint">Have a promo code? Enter it securely in the Whop checkout below.</p>
           <EmbeddedCheckout sessionId={checkoutSession.sessionId} onComplete={handleComplete} onError={handlePaymentError} />
         </div>
       </div>

@@ -22,17 +22,16 @@ router.post('/webhooks/whop', async (req, res) => {
       return res.status(400).json({ error: 'Malformed payload' });
     }
 
-    // Whop redelivers webhooks that don't get a timely 2xx (network hiccup,
-    // slow DB, etc.) — without this, a redelivered payment_succeeded would
-    // redeem the same coupon code a second time. The webhook-id header
-    // (Standard Webhooks spec) uniquely identifies this specific delivery;
-    // skip processing (but still 200) if we've already handled it.
+    // Whop redelivers webhooks that don't get a timely 2xx. Check the durable
+    // idempotency record first, but do not create it until all business work
+    // below succeeds. Otherwise a transient DB/email failure would be marked
+    // as handled and the retry would be discarded, losing a paid upgrade.
     const webhookId = req.headers['webhook-id'];
     if (webhookId) {
-      const inserted = await db
-        .prepare('INSERT OR IGNORE INTO processed_webhook_events (event_id) VALUES (?)')
-        .run(webhookId);
-      if (inserted.changes === 0) {
+      const alreadyProcessed = await db
+        .prepare('SELECT event_id FROM processed_webhook_events WHERE event_id = ?')
+        .get(webhookId);
+      if (alreadyProcessed) {
         return res.json({ ok: true, duplicate: true });
       }
     }
@@ -96,6 +95,9 @@ router.post('/webhooks/whop', async (req, res) => {
       }
     }
 
+    if (webhookId) {
+      await db.prepare('INSERT OR IGNORE INTO processed_webhook_events (event_id) VALUES (?)').run(webhookId);
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error('[webhooks/whop]', err);

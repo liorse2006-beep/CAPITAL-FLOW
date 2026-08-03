@@ -64,4 +64,31 @@ const chatLimiter = rateLimit({
   message: { error: 'Too many messages. Please slow down.' },
 });
 
-module.exports = { authLimiter, otpLimiter, scanLimiter, apiLimiter, adminLimiter, chatLimiter };
+// Public endpoints that write data or trigger provider work need a tighter
+// limit than the general API floor. This is keyed by the trusted proxy IP.
+const publicWriteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please try again shortly.' },
+});
+
+const publicDataLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please slow down.' },
+});
+
+module.exports = {
+  authLimiter,
+  otpLimiter,
+  scanLimiter,
+  apiLimiter,
+  adminLimiter,
+  chatLimiter,
+  publicWriteLimiter,
+  publicDataLimiter,
+};

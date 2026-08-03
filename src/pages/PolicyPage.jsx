@@ -78,7 +78,7 @@ export default function PolicyPage() {
 
           <Section title="Disclaimer of Warranties and Limitation of Liability">
             <p className="policy-paragraph">
-              The service is provided "as is" and "as available", without warranties of any kind, express or
+              The service is provided &quot;as is&quot; and &quot;as available&quot;, without warranties of any kind, express or
               implied. We do not guarantee uninterrupted access, error-free operation, or the accuracy,
               completeness, or timeliness of any market data displayed. To the fullest extent permitted by law,
               Capital Flow and its operators are not liable for any direct, indirect, incidental, or consequential
@@ -88,7 +88,7 @@ export default function PolicyPage() {
 
           <Section title="Refund Policy">
             <p className="policy-paragraph">
-              Refunds are issued only in the case of a technical malfunction in the product's functionality, which
+              Refunds are issued only in the case of a technical malfunction in the product&apos;s functionality, which
               our team attempted to fix and was unable to resolve within 14 days of being reported. Outside of
               this case, payments made are non-refundable.
             </p>

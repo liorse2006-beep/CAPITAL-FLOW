@@ -7,6 +7,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
+  const [authLoadError, setAuthLoadError] = useState(false);
   const [pendingGoogleToken, setPendingGoogleToken] = useState(null);
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export function AuthProvider({ children }) {
     if (stored) {
       fetchMe(stored).finally(() => setIsLoading(false));
     } else {
+      setAuthLoadError(false);
       setIsLoading(false);
     }
   }, []);
@@ -92,6 +94,7 @@ export function AuthProvider({ children }) {
         if (res.ok) {
           const data = await res.json();
           setUser(data.user);
+          setAuthLoadError(false);
           return;
         }
         // A real auth failure — the token is genuinely no longer valid
@@ -113,6 +116,7 @@ export function AuthProvider({ children }) {
         }
         // Retries exhausted — keep the token so the next open (or a manual
         // reload once the server is up) recovers cleanly. Don't wipe it.
+        setAuthLoadError(true);
         return;
       }
     }
@@ -187,6 +191,7 @@ export function AuthProvider({ children }) {
         user,
         isLoading,
         authError,
+        authLoadError,
         clearAuthError,
         pendingGoogleToken,
         confirmGoogleLogin,

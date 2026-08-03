@@ -69,7 +69,7 @@ if ('serviceWorker' in navigator) {
 }
 
 function Root() {
-  const { isLoading } = useAuth();
+  const { isLoading, user, authLoadError } = useAuth();
   // A Whop checkout redirect (?status=success|error) must always reach
   // App.jsx, which is the only place that cleans the URL, shows the
   // "Payment received" toast, and refreshes the user's tier — none of
@@ -137,6 +137,19 @@ function Root() {
     return loadingScreen;
   }
 
+  if (authLoadError) {
+    return (
+      <div className="startup-error-screen">
+        <div className="startup-error-card">
+          <div className="logo-mark" aria-hidden="true"><div className="logo-bar" /><div className="logo-bar" /><div className="logo-bar" /></div>
+          <h1>We couldn&apos;t reach Capital Flow</h1>
+          <p>The server may be waking up or temporarily unavailable. Your session is still saved.</p>
+          <button className="upgrade-cta" onClick={() => window.location.reload()}>Try again</button>
+        </div>
+      </div>
+    );
+  }
+
   if (!quizDone) {
     return (
       <Suspense fallback={loadingScreen}>
@@ -145,7 +158,9 @@ function Root() {
     );
   }
 
-  return <App />;
+  // Remount account-scoped UI on login/logout so local notification and
+  // watchlist state can never bleed from one account into another.
+  return <App key={user ? String(user.id) : 'guest'} />;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(

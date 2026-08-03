@@ -111,7 +111,7 @@ export default function AddTickerModal({ watchlist, onAdd, onClose }) {
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.3">
                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
               </svg>
-              <span>"{query.trim().toUpperCase()}" not in our lists</span>
+              <span>&quot;{query.trim().toUpperCase()}&quot; not in our lists</span>
             </div>
           )}
         </div>

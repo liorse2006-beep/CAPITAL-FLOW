@@ -3139,6 +3139,12 @@ html.a11y-highlight-links a {
   display: flex;
   flex-direction: column;
 }
+.checkout-embed-promo-hint {
+  margin: -6px 0 14px;
+  color: var(--text-2);
+  font-size: 0.82rem;
+  text-align: center;
+}
 .embedded-checkout-loading {
   min-height: 420px;
   display: flex;
@@ -7803,3 +7809,24 @@ html.a11y-highlight-links a {
   }
 }
 
+/* Recoverable startup failure state shown when auth/server initialization
+   exhausts its retries instead of leaving the visitor on an infinite loader. */
+.startup-error-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #0A0A0A;
+  color: #E4E4E7;
+  text-align: center;
+}
+.startup-error-card {
+  width: min(100%, 420px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.startup-error-card h1 { margin: 0; font-size: 22px; }
+.startup-error-card p { margin: 0 0 6px; color: #A0A0A8; line-height: 1.6; font-size: 14px; }
