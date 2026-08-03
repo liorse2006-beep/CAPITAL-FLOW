@@ -20,7 +20,6 @@ const whop = require('../server/services/whop');
 const email = require('../server/services/email');
 const webhooksRouter = require('../server/routes/webhooks');
 const checkoutRouter = require('../server/routes/checkout');
-const adminRouter = require('../server/routes/admin');
 
 before(async () => { await db.ready; });
 
@@ -45,26 +44,6 @@ function startCheckoutApp() {
   return new Promise((resolve) => {
     const server = app.listen(0, () => resolve(server));
   });
-}
-
-function startAdminApp() {
-  const app = express();
-  app.use(express.json());
-  app.use('/', adminRouter);
-  return new Promise((resolve) => {
-    const server = app.listen(0, () => resolve(server));
-  });
-}
-
-// checkToken only accepts a JWT belonging to ADMIN_EMAIL ('admin@test.local',
-// set in testEnv) — mirrors the same helper in test/dbBackup.test.js.
-async function getAdminToken() {
-  let adminUser = await db.prepare('SELECT * FROM users WHERE email = ?').get('admin@test.local');
-  if (!adminUser) {
-    const result = await db.prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)').run('admin@test.local');
-    adminUser = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-  }
-  return issueToken(adminUser);
 }
 
 async function makeUser(email, tier = 'free') {
@@ -170,127 +149,6 @@ test('payment_succeeded emails the admin and logs a self_service_upgrade audit e
     assert.strictEqual(audit.actor, 'whop-webhook');
   } finally {
     server.close();
-  }
-});
-
-test('payment_succeeded records the correct price on the revenue ledger, including the discounted eliteUpgrade price', async () => {
-  const premiumBuyer = await makeUser('ledger-premium@test.local', 'free');
-  const upgradeBuyer = await makeUser('ledger-upgrade@test.local', 'premium');
-
-  const server = await startWebhookApp();
-  const port = server.address().port;
-  try {
-    const premiumPayload = JSON.stringify({
-      type: 'payment_succeeded',
-      data: { metadata: { userId: premiumBuyer.id, tier: 'premium' } },
-    });
-    let res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...sign(premiumPayload, { id: 'wh_ledger_premium' }) },
-      body: premiumPayload,
-    });
-    assert.strictEqual(res.status, 200);
-
-    const upgradePayload = JSON.stringify({
-      type: 'payment_succeeded',
-      data: { metadata: { userId: upgradeBuyer.id, tier: 'elite', isUpgrade: true } },
-    });
-    res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...sign(upgradePayload, { id: 'wh_ledger_upgrade' }) },
-      body: upgradePayload,
-    });
-    assert.strictEqual(res.status, 200);
-
-    const premiumEntry = await db
-      .prepare("SELECT * FROM payment_events WHERE user_id = ? AND event_type = 'purchase'")
-      .get(premiumBuyer.id);
-    assert.strictEqual(premiumEntry.amount_cents, 1490, 'a normal Premium purchase must record the full price');
-
-    const upgradeEntry = await db
-      .prepare("SELECT * FROM payment_events WHERE user_id = ? AND event_type = 'purchase'")
-      .get(upgradeBuyer.id);
-    assert.strictEqual(upgradeEntry.amount_cents, 1495, 'the discounted eliteUpgrade offer must record its own price, not the normal $29.90 Elite price');
-  } finally {
-    server.close();
-  }
-});
-
-test('payment_refunded records a matching negative ledger entry', async () => {
-  const user = await makeUser('ledger-refund@test.local', 'free');
-  const server = await startWebhookApp();
-  const port = server.address().port;
-  try {
-    const purchasePayload = JSON.stringify({
-      type: 'payment_succeeded',
-      data: { metadata: { userId: user.id, tier: 'elite' } },
-    });
-    await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...sign(purchasePayload, { id: 'wh_ledger_refund_purchase' }) },
-      body: purchasePayload,
-    });
-
-    const refundPayload = JSON.stringify({
-      type: 'payment_refunded',
-      data: { metadata: { userId: user.id, tier: 'elite' } },
-    });
-    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...sign(refundPayload, { id: 'wh_ledger_refund' }) },
-      body: refundPayload,
-    });
-    assert.strictEqual(res.status, 200);
-
-    // The refund handler updates the ledger asynchronously (fire-and-forget,
-    // same pattern as the audit log entry) — give it a tick to land.
-    await new Promise((resolve) => setImmediate(resolve));
-
-    const refundEntry = await db
-      .prepare("SELECT * FROM payment_events WHERE user_id = ? AND event_type = 'refund'")
-      .get(user.id);
-    assert.ok(refundEntry, 'a refund must appear on the ledger');
-    assert.strictEqual(refundEntry.amount_cents, -2990, 'must refund exactly what the matching purchase recorded');
-  } finally {
-    server.close();
-  }
-});
-
-test('GET /admin/api/revenue aggregates the ledger into totals and a recent list', async () => {
-  const user = await makeUser('ledger-admin-view@test.local', 'free');
-  const webhookServer = await startWebhookApp();
-  const webhookPort = webhookServer.address().port;
-  try {
-    const payload = JSON.stringify({
-      type: 'payment_succeeded',
-      data: { metadata: { userId: user.id, tier: 'premium' } },
-    });
-    await fetch(`http://127.0.0.1:${webhookPort}/api/webhooks/whop`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...sign(payload, { id: 'wh_ledger_admin_view' }) },
-      body: payload,
-    });
-  } finally {
-    webhookServer.close();
-  }
-
-  const token = await getAdminToken();
-  const adminServer = await startAdminApp();
-  const adminPort = adminServer.address().port;
-  try {
-    const res = await fetch(`http://127.0.0.1:${adminPort}/admin/api/revenue`, {
-      headers: { Authorization: 'Bearer ' + token },
-    });
-    assert.strictEqual(res.status, 200);
-    const body = await res.json();
-    assert.ok(body.thisMonthCents >= 1490, 'this purchase must be counted in this month\'s total');
-    assert.ok(body.allTimeCents >= 1490);
-    assert.ok(Array.isArray(body.recent) && body.recent.length > 0);
-    const entry = body.recent.find((r) => r.email === 'ledger-admin-view@test.local');
-    assert.ok(entry, 'the recent purchase must appear in the transaction list');
-    assert.strictEqual(entry.amount_cents, 1490);
-  } finally {
-    adminServer.close();
   }
 });
 

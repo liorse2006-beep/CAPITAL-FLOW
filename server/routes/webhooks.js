@@ -3,7 +3,6 @@ const db = require('../db');
 const whop = require('../services/whop');
 const { redeemCoupon } = require('../services/coupons');
 const email = require('../services/email');
-const { priceForPurchase } = require('../services/pricing');
 
 // Mounted with express.raw() (see server/index.js) — req.body is a Buffer
 // here, not parsed JSON, because signature verification must run over the
@@ -44,15 +43,6 @@ router.post('/webhooks/whop', async (req, res) => {
         const tier = metadata.tier;
         if (tier === 'premium' || tier === 'elite') {
           await db.prepare(`UPDATE users SET tier = ?, is_premium = 1 WHERE id = ?`).run(tier, metadata.userId);
-
-          // Revenue ledger — a dated, per-event record (see server/db/index.js
-          // for why this can't just be inferred from current tier counts).
-          const amountCents = priceForPurchase(tier, !!metadata.isUpgrade);
-          db.prepare(
-            'INSERT INTO payment_events (user_id, tier, event_type, amount_cents, whop_event_id) VALUES (?, ?, ?, ?, ?)'
-          )
-            .run(metadata.userId, tier, 'purchase', amountCents, webhookId || null)
-            .catch((err) => console.error('[payment-ledger]', err));
 
           // Self-service purchases don't go through the admin panel, so this
           // is the only place a tier change like this gets flagged — both an
@@ -96,21 +86,6 @@ router.post('/webhooks/whop', async (req, res) => {
           db.prepare('INSERT INTO admin_audit_log (actor, action, target_user_id, detail) VALUES (?, ?, ?, ?)')
             .run('whop-webhook', 'refund_downgrade', user.id, metadata.tier)
             .catch(() => {});
-
-          // Revenue ledger — refund the exact amount that specific purchase's
-          // own ledger row recorded (accurate even if pricing changed since),
-          // falling back to today's price table for a pre-ledger purchase.
-          db.prepare(
-            "SELECT amount_cents FROM payment_events WHERE user_id = ? AND tier = ? AND event_type = 'purchase' ORDER BY created_at DESC LIMIT 1"
-          )
-            .get(user.id, metadata.tier)
-            .then((row) => {
-              const refundedCents = row ? row.amount_cents : priceForPurchase(metadata.tier, false);
-              return db
-                .prepare('INSERT INTO payment_events (user_id, tier, event_type, amount_cents, whop_event_id) VALUES (?, ?, ?, ?, ?)')
-                .run(user.id, metadata.tier, 'refund', -refundedCents, webhookId || null);
-            })
-            .catch((err) => console.error('[payment-ledger]', err));
         } else if (user) {
           console.log(
             `[webhooks/whop] ${event.type}: user ${user.id} refunded a ${metadata.tier} payment but holds ${user.tier} — no change`

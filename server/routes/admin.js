@@ -219,46 +219,6 @@ router.post('/admin/api/backup/run-now', asyncRoute(async (req, res) => {
   }
 }));
 
-// ── Admin API: revenue ────────────────────────────────────────────────────
-// Reads the payment_events ledger (server/db/index.js), not current tier
-// counts — only the ledger has dates, so only it can answer "this month" or
-// show a trend. Only populated from whenever that table was added onward;
-// purchases before that aren't retroactively dated (see the recent list,
-// which will just start empty/short until events accumulate).
-router.get('/admin/api/revenue', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
-
-  const totals = await db
-    .prepare(
-      `SELECT
-         COALESCE(SUM(amount_cents), 0) AS all_time_cents,
-         COALESCE(SUM(CASE WHEN created_at >= strftime('%s','now','start of month') THEN amount_cents ELSE 0 END), 0) AS this_month_cents,
-         COALESCE(SUM(CASE WHEN event_type = 'refund' AND created_at >= strftime('%s','now','start of month') THEN -amount_cents ELSE 0 END), 0) AS refunds_this_month_cents,
-         COALESCE(SUM(CASE WHEN created_at >= strftime('%s','now','-30 days') THEN amount_cents ELSE 0 END), 0) AS last_30d_cents
-       FROM payment_events`
-    )
-    .get();
-
-  const recent = await db
-    .prepare(
-      `SELECT payment_events.id, payment_events.tier, payment_events.event_type, payment_events.amount_cents,
-              payment_events.created_at, users.email
-       FROM payment_events
-       LEFT JOIN users ON users.id = payment_events.user_id
-       ORDER BY payment_events.created_at DESC
-       LIMIT 25`
-    )
-    .all();
-
-  res.json({
-    allTimeCents: totals.all_time_cents,
-    thisMonthCents: totals.this_month_cents,
-    refundsThisMonthCents: totals.refunds_this_month_cents,
-    last30dCents: totals.last_30d_cents,
-    recent,
-  });
-}));
-
 // ── Admin API: site-visit counts (sessions that opened the site) ────────────
 router.get('/admin/api/visits', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
@@ -407,10 +367,6 @@ router.get('/admin', asyncRoute(async (req, res) => {
 </div>
 <div class="wrap">
   <div class="stats" id="stats">
-    <div class="stat"><div class="stat-val" id="s-rev-month">—</div><div class="stat-lbl">Revenue (This Month)</div></div>
-    <div class="stat"><div class="stat-val" id="s-rev-30d">—</div><div class="stat-lbl">Revenue (30d)</div></div>
-    <div class="stat"><div class="stat-val" id="s-rev-total">—</div><div class="stat-lbl">Revenue (All Time)</div></div>
-    <div class="stat"><div class="stat-val" id="s-rev-refunds">—</div><div class="stat-lbl">Refunds (This Month)</div></div>
     <div class="stat"><div class="stat-val" id="s-visits-today">—</div><div class="stat-lbl">Visits Today</div></div>
     <div class="stat"><div class="stat-val" id="s-visits-week">—</div><div class="stat-lbl">Visits (7d)</div></div>
     <div class="stat"><div class="stat-val" id="s-visits-total">—</div><div class="stat-lbl">Visits (all time)</div></div>
@@ -430,14 +386,6 @@ router.get('/admin', asyncRoute(async (req, res) => {
       <div class="stat-lbl">Last DB Backup</div>
       <a href="#" id="backup-run-now" style="display:inline-block;margin-top:6px;font-size:11px;color:#71717A;text-decoration:underline;cursor:pointer">Run now</a>
     </div>
-  </div>
-
-  <div class="card" style="margin-bottom:20px">
-    <div class="card-hdr">
-      <h2>Recent Transactions</h2>
-      <button class="refresh-btn" id="btn-refresh-revenue">↻ Refresh</button>
-    </div>
-    <div id="revenue-wrap"><div class="loader">Loading…</div></div>
   </div>
 
   <div class="card" style="margin-bottom:20px">
@@ -576,42 +524,6 @@ async function runBackupNow() {
   } finally {
     link.textContent = 'Run now';
   }
-}
-
-function formatCents(cents) {
-  return '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-async function loadRevenue() {
-  try {
-    const r = await fetch('/admin/api/revenue', { headers: AUTH_HEADERS });
-    if (!r.ok) return false;
-    const d = await r.json();
-    document.getElementById('s-rev-month').textContent   = formatCents(d.thisMonthCents || 0);
-    document.getElementById('s-rev-30d').textContent     = formatCents(d.last30dCents || 0);
-    document.getElementById('s-rev-total').textContent   = formatCents(d.allTimeCents || 0);
-    document.getElementById('s-rev-refunds').textContent = formatCents(d.refundsThisMonthCents || 0);
-
-    const el = document.getElementById('revenue-wrap');
-    const rows = d.recent || [];
-    if (!rows.length) { el.innerHTML = '<div class="loader">No transactions recorded yet.</div>'; return true; }
-    el.innerHTML = rows.map(function(row) {
-      const isRefund = row.event_type === 'refund';
-      const email = escapeHtml(row.email || 'unknown');
-      const tierLabel = row.tier === 'elite' ? 'Elite' : 'Premium';
-      const date = new Date(row.created_at * 1000).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-      const sign = row.amount_cents < 0 ? '-' : '+';
-      const amountColor = isRefund ? '#EF4444' : '#22C55E';
-      return \`<div class="feedback-row">
-        <div class="feedback-row-hdr">
-          <span class="feedback-who">\${email} <span style="color:#444">— \${tierLabel}\${isRefund ? ' refund' : ''}</span></span>
-          <span style="font-family:monospace;font-weight:700;color:\${amountColor};margin-left:auto;margin-right:12px">\${sign}\${formatCents(Math.abs(row.amount_cents))}</span>
-          <span class="feedback-date">\${date}</span>
-        </div>
-      </div>\`;
-    }).join('');
-    return true;
-  } catch (e) { return false; }
 }
 
 async function loadVisits() {
@@ -837,10 +749,6 @@ document.getElementById('btn-refresh-audit').addEventListener('click', async fun
   const ok = await loadAuditLog();
   toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
 });
-document.getElementById('btn-refresh-revenue').addEventListener('click', async function () {
-  const ok = await loadRevenue();
-  toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
-});
 document.getElementById('btn-refresh-users').addEventListener('click', async function () {
   const ok = await load();
   toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
@@ -853,12 +761,10 @@ document.getElementById('backup-run-now').addEventListener('click', function (e)
 
 load();
 loadAuditLog();
-loadRevenue();
 loadBackupStatus();
 loadVisits();
 setInterval(load, 60000);
 setInterval(loadAuditLog, 60000);
-setInterval(loadRevenue, 60000);
 setInterval(loadBackupStatus, 60000);
 setInterval(loadVisits, 60000);
 </script>
