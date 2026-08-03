@@ -10,12 +10,27 @@ const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 // is a normal remote image with no attachment UI at all.
 const LOGO_URL = FRONTEND_URL + '/logo-gold.jpeg';
 
+// The Resend SDK does NOT throw on an API-level failure (bad recipient,
+// unverified domain, over quota, etc) — it resolves with { data, error }.
+// Every caller here was previously just `await`ing the call and treating
+// "didn't throw" as success, which meant a real failure would silently
+// never surface anywhere, not even in server logs. This makes that
+// impossible: any send() result with a non-null error becomes a real
+// rejection, so every existing .catch() at the call sites actually fires.
+async function send(payload) {
+  const result = await resend.emails.send(payload);
+  if (result && result.error) {
+    throw new Error('[Resend] ' + (result.error.message || JSON.stringify(result.error)));
+  }
+  return result;
+}
+
 async function sendOTPEmail(email, code) {
   if (!resend) {
     console.log(`[EMAIL DEV] OTP for ${email}: ${code}`);
     return;
   }
-  await resend.emails.send({
+  await send({
     from: RESEND_FROM_EMAIL,
     to: email,
     subject: `Your verification code: ${code}`,
@@ -38,7 +53,7 @@ async function sendPasswordResetEmail(email, code) {
     console.log(`[EMAIL DEV] Reset OTP for ${email}: ${code}`);
     return;
   }
-  await resend.emails.send({
+  await send({
     from: RESEND_FROM_EMAIL,
     to: email,
     subject: `Password reset code: ${code}`,
@@ -61,7 +76,7 @@ async function sendWelcomeEmail(email) {
     console.log(`[EMAIL DEV] Welcome email for ${email}`);
     return;
   }
-  await resend.emails.send({
+  await send({
     from: RESEND_FROM_EMAIL,
     to: email,
     subject: `Welcome to Capital Flow`,
@@ -100,7 +115,7 @@ async function sendNewSignupAdminAlert(email, method) {
     console.log(`[EMAIL DEV] New signup alert: ${email} via ${method}`);
     return;
   }
-  await resend.emails.send({
+  await send({
     from: RESEND_FROM_EMAIL,
     to: ADMIN_EMAIL,
     subject: `New signup — ${email}`,
@@ -117,7 +132,7 @@ async function sendAdminUpgradeAlert(email, tier) {
     console.log(`[EMAIL DEV] Upgrade alert: ${email} → ${tier}`);
     return;
   }
-  await resend.emails.send({
+  await send({
     from: RESEND_FROM_EMAIL,
     to: ADMIN_EMAIL,
     subject: `💳 New ${tier} upgrade — ${email}`,
