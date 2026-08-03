@@ -54,7 +54,7 @@ test('runDigestTick sends exactly one push per user per day, even if the tick fi
   const u = await makeUser('digest-a@test.local');
   const now = israelNow();
   await db.prepare('UPDATE users SET notification_time = ? WHERE id = ?').run(now.hm, u);
-  await setAlert(u, 'AAA', 2);
+  await setAlert(u, 'AAA', { type: 'volume', minRatio: 2 });
   await webPush.saveSubscription(u, { endpoint: 'https://push.example/digest-a', keys: { p256dh: 'p', auth: 'a' } });
 
   backgroundCache.results = [{ symbol: 'AAA', volumeRatio: 3 }];

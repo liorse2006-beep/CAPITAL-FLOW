@@ -4,7 +4,7 @@ import useScanQuota from '../../hooks/useScanQuota';
 import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
 import { categoryQuota } from '../../utils/quota';
-import { friendlyError } from '../../utils/format';
+import { friendlyError, alertLevelLabel } from '../../utils/format';
 
 const MA_OPTIONS = [9, 20, 50, 150];
 const DISTANCE_OPTIONS = [1, 2];
@@ -230,7 +230,7 @@ export default function MAScannerPage({
       )
     );
 
-  const alertBtn = (symbol) => {
+  const alertBtn = (symbol, price) => {
     const level = alertLevels && alertLevels[symbol];
     return React.createElement(
       'button',
@@ -238,9 +238,9 @@ export default function MAScannerPage({
         className: 'alert-create-btn' + (level ? ' active' : ''),
         onClick: (e) => {
           e.stopPropagation();
-          promptCreateAlert(symbol);
+          promptCreateAlert(symbol, price);
         },
-        title: level ? 'Alert set at ' + level + 'x — click to edit' : 'Create a volume alert',
+        title: level ? 'Alert set at ' + alertLevelLabel(level) + ' — click to edit' : 'Create an alert',
       },
       React.createElement(
         'svg',
@@ -666,7 +666,7 @@ export default function MAScannerPage({
                         { style: { display: 'flex', alignItems: 'center', gap: 4 } },
                         chartBtn(r.symbol),
                         newsBtn(r.symbol),
-                        alertBtn(r.symbol),
+                        alertBtn(r.symbol, r.price),
                         React.createElement('span', { className: 'mobile-card-rank' }, '#' + (i + 1))
                       )
                     ),
@@ -774,7 +774,7 @@ export default function MAScannerPage({
                           { style: { display: 'flex', gap: 5, alignItems: 'center' } },
                           chartBtn(r.symbol),
                           newsBtn(r.symbol),
-                          alertBtn(r.symbol)
+                          alertBtn(r.symbol, r.price)
                         )
                       );
                     })

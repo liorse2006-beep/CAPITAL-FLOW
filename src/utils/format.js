@@ -15,6 +15,14 @@ export function parseVolInput(str) {
   return parseFloat(s) || 0;
 }
 
+// Human-readable summary of a watchlist alert's threshold, shared by every
+// alert button (Capital Flow, MA Scanner, Watchlist) so the tooltip stays in
+// sync across all three no matter which one changes the alert.
+export function alertLevelLabel(level) {
+  if (!level) return '';
+  return level.type === 'price' ? '$' + level.targetPrice : level.minRatio + 'x';
+}
+
 /* Turns a raw fetch-rejection message into something a user can act on.
    Special-cases the known "a scan is already running" message so it isn't
    misclassified as a network failure. */

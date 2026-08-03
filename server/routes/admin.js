@@ -75,6 +75,7 @@ router.get('/admin/api/users', asyncRoute(async (req, res) => {
               free_scan_used_capital_flow, free_scan_used_ma_scanner, free_scan_used_sector_moving,
               premium_scan_count, premium_scan_window_start,
               (SELECT COUNT(*) FROM watchlist_alerts    WHERE user_id = users.id) AS alert_count,
+              (SELECT COUNT(*) FROM watchlist_alerts    WHERE user_id = users.id AND type = 'price') AS price_alert_count,
               (SELECT COUNT(*) FROM push_subscriptions  WHERE user_id = users.id) AS push_count
        FROM users ORDER BY id DESC`
     )
@@ -390,6 +391,7 @@ router.get('/admin', asyncRoute(async (req, res) => {
     <div class="stat"><div class="stat-val" id="s-active">—</div><div class="stat-lbl">Active (7d)</div></div>
     <div class="stat"><div class="stat-val" id="s-push">—</div><div class="stat-lbl">Push Enabled</div></div>
     <div class="stat"><div class="stat-val" id="s-alerts">—</div><div class="stat-lbl">Watchlist Alerts Set</div></div>
+    <div class="stat"><div class="stat-val" id="s-price-alerts">—</div><div class="stat-lbl">Price Alerts Set</div></div>
     <div class="stat">
       <div class="stat-val" id="s-backup">—</div>
       <div class="stat-lbl">Last DB Backup</div>
@@ -590,6 +592,7 @@ function renderStats(users) {
   document.getElementById('s-active').textContent   = users.filter(u => u.last_login_at && new Date(u.last_login_at * 1000) >= weekAgo).length;
   document.getElementById('s-push').textContent     = users.filter(u => u.push_count > 0).length;
   document.getElementById('s-alerts').textContent   = users.reduce((sum, u) => sum + (u.alert_count || 0), 0);
+  document.getElementById('s-price-alerts').textContent = users.reduce((sum, u) => sum + (u.price_alert_count || 0), 0);
 }
 
 function renderTable(users) {
@@ -649,7 +652,13 @@ function renderTable(users) {
 
     const notifCell = tier !== 'elite' ? '<span style="color:#444">—</span>' : [
       u.push_count > 0 ? \`<span class="badge badge-push" title="\${u.push_count} device(s) subscribed">Push</span>\` : '',
-      u.alert_count > 0 ? \`<span class="badge badge-pro" title="\${u.alert_count} watchlist alert threshold(s)">\${u.alert_count} alert\${u.alert_count === 1 ? '' : 's'}</span>\` : '',
+      u.alert_count > 0 ? (function() {
+        const volumeCount = u.alert_count - (u.price_alert_count || 0);
+        const parts = [];
+        if (volumeCount > 0) parts.push(volumeCount + ' vol');
+        if (u.price_alert_count > 0) parts.push(u.price_alert_count + ' price');
+        return \`<span class="badge badge-pro" title="\${u.alert_count} watchlist alert threshold(s)">\${parts.join(' / ')} alert\${u.alert_count === 1 ? '' : 's'}</span>\`;
+      })() : '',
       u.notification_time ? \`<span class="badge badge-free" title="Daily digest time (Israel)">\${escapeHtml(u.notification_time)}</span>\` : '',
     ].filter(Boolean).join(' ') || '<span style="color:#444">—</span>';
 

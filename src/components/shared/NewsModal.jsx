@@ -32,17 +32,18 @@ var ARTICLE_LOADING_HTML =
 // screen, resolves the real destination server-side, then forwards the tab
 // there — the user only ever sees our screen, then the article.
 //
-// The initial open() deliberately does NOT pass 'noopener' — per spec, that
-// makes window.open() return null, which silently breaks the whole flow
-// (nothing to write the loading screen into, nothing to redirect once
-// resolved — the tab was landing blank, or a second window.open() call was
-// getting caught by the popup blocker since it now runs after an async
-// fetch, outside the click's own call stack). Same reverse-tabnabbing
-// protection as noopener is achieved instead by nulling win.opener directly,
+// The initial open() deliberately does NOT pass 'noopener' OR 'noreferrer' —
+// per spec, 'noreferrer' implies 'noopener' and makes window.open() return
+// null just the same, which silently breaks the whole flow (nothing to write
+// the loading screen into, nothing to redirect once resolved — the tab was
+// landing truly blank, and the fallback window.open() call was then getting
+// caught by the popup blocker since it runs after an async fetch, outside
+// the click's own call stack). Same reverse-tabnabbing protection as
+// noopener/noreferrer is achieved instead by nulling win.opener directly,
 // which works here because the tab is still same-origin (about:blank,
 // inheriting our origin) until it's redirected to the external article.
 function openArticle(symbol, url, getToken) {
-  var win = window.open('', '_blank', 'noreferrer')
+  var win = window.open('', '_blank')
   if (win) {
     win.opener = null
     win.document.write(ARTICLE_LOADING_HTML)

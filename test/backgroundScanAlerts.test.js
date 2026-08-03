@@ -25,7 +25,7 @@ async function makeUser(email) {
 
 test('checkWatchlistAlerts fires a push when a real threshold is crossed', async () => {
   const userId = await makeUser('bg-alert-fire@test.local');
-  await setAlert(userId, 'AAPL', 2.0);
+  await setAlert(userId, 'AAPL', { type: 'volume', minRatio: 2.0 });
 
   const pushCalls = [];
   const originalSend = webPush.sendPushToUser;
@@ -47,7 +47,7 @@ test('checkWatchlistAlerts fires a push when a real threshold is crossed', async
 
 test('checkWatchlistAlerts is one-shot: firing cancels the threshold so it never re-fires', async () => {
   const userId = await makeUser('bg-alert-oneshot@test.local');
-  await setAlert(userId, 'TSLA', 2.0);
+  await setAlert(userId, 'TSLA', { type: 'volume', minRatio: 2.0 });
 
   const pushCalls = [];
   const originalSend = webPush.sendPushToUser;
@@ -75,7 +75,7 @@ test('checkWatchlistAlerts is one-shot: firing cancels the threshold so it never
 
 test('checkWatchlistAlerts does not fire when the ratio is below threshold', async () => {
   const userId = await makeUser('bg-alert-nofire@test.local');
-  await setAlert(userId, 'MSFT', 5.0);
+  await setAlert(userId, 'MSFT', { type: 'volume', minRatio: 5.0 });
 
   const pushCalls = [];
   const originalSend = webPush.sendPushToUser;
@@ -88,6 +88,34 @@ test('checkWatchlistAlerts does not fire when the ratio is below threshold', asy
       { symbol: 'MSFT', name: 'Microsoft', volumeRatio: 1.2, change: 0.3, price: 300 },
     ]);
     assert.strictEqual(pushCalls.length, 0, 'a ratio below threshold must not fire an alert');
+  } finally {
+    webPush.sendPushToUser = originalSend;
+  }
+});
+
+test('checkWatchlistAlerts fires a price alert once the price crosses to the other side of the target', async () => {
+  const userId = await makeUser('bg-alert-price-fire@test.local');
+  // Set while the price is below the target — starting_side is recorded as
+  // 'below', so the checker should stay quiet until price actually crosses
+  // to 'above', not just because it's already past the target at set-time.
+  await setAlert(userId, 'GME', { type: 'price', targetPrice: 30, startingSide: 'below' });
+
+  const pushCalls = [];
+  const originalSend = webPush.sendPushToUser;
+  webPush.sendPushToUser = (uid, payload) => {
+    pushCalls.push({ uid, payload });
+  };
+
+  try {
+    await checkWatchlistAlerts([{ symbol: 'GME', name: 'GameStop', volumeRatio: 1.0, change: 0.5, price: 28 }]);
+    assert.strictEqual(pushCalls.length, 0, 'still below the target — must not fire yet');
+
+    await checkWatchlistAlerts([{ symbol: 'GME', name: 'GameStop', volumeRatio: 1.0, change: 8.0, price: 31.5 }]);
+    assert.strictEqual(pushCalls.length, 1, 'crossed above the target — must fire exactly once');
+    assert.strictEqual(pushCalls[0].payload.symbol, 'GME');
+
+    const remaining = await getWatchlistAlerts(userId);
+    assert.strictEqual(remaining.GME, undefined, 'the price alert must be cancelled once it fires');
   } finally {
     webPush.sendPushToUser = originalSend;
   }

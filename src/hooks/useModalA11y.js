@@ -19,7 +19,16 @@ export default function useModalA11y(onClose) {
       (firstField || toFocus).focus({ preventScroll: true });
     }
 
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    // Without this, a modal taller than the viewport (e.g. the checkout
+    // embed) can't scroll itself — the page behind it scrolls instead since
+    // the body underneath the fixed overlay is still the scrollable element.
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run on mount/unmount, not every onClose identity change
   }, []);
 

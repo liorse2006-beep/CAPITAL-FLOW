@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import ScanLoader from '../shared/ScanLoader'
 import ScheduleScan from '../shared/ScheduleScan'
 import useSmoothProgress from '../../hooks/useSmoothProgress'
-import { fmt, friendlyError } from '../../utils/format'
+import { fmt, friendlyError, alertLevelLabel } from '../../utils/format'
 import { SECTOR_ICONS } from '../../constants/sectorIcons'
 import { useAuth } from '../../context/AuthContext'
 
@@ -117,10 +117,6 @@ export default function ScannerPage({
   setMinCap,
   minVol,
   setMinVol,
-  minPrice,
-  setMinPrice,
-  maxPrice,
-  setMaxPrice,
   showPresetPanel,
   setShowPresetPanel,
   presetName,
@@ -523,28 +519,6 @@ export default function ScannerPage({
             />
           </div>
           <div className="filter-chip" onClick={!filtersUnlocked ? goToUpgrade : undefined}>
-            <label>Price</label>
-            <input
-              type="number"
-              placeholder="Min"
-              min="0"
-              value={minPrice}
-              onChange={filtersUnlocked ? (e) => setMinPrice(e.target.value) : undefined}
-              readOnly={!filtersUnlocked}
-              style={{ width: 56, ...(!filtersUnlocked ? { cursor: 'pointer' } : {}) }}
-            />
-            <span style={{ color: 'var(--text-3)', fontSize: 10 }}>–</span>
-            <input
-              type="number"
-              placeholder="Max"
-              min="0"
-              value={maxPrice}
-              onChange={filtersUnlocked ? (e) => setMaxPrice(e.target.value) : undefined}
-              readOnly={!filtersUnlocked}
-              style={{ width: 56, ...(!filtersUnlocked ? { cursor: 'pointer' } : {}) }}
-            />
-          </div>
-          <div className="filter-chip" onClick={!filtersUnlocked ? goToUpgrade : undefined}>
             <label>Min Vol</label>
             <input
               type="text"
@@ -831,11 +805,11 @@ export default function ScannerPage({
                           </button>
                           <button
                             className={'alert-create-btn' + (alertLevels && alertLevels[r.symbol] ? ' active' : '')}
-                            onClick={() => promptCreateAlert(r.symbol)}
+                            onClick={() => promptCreateAlert(r.symbol, r.price)}
                             title={
                               alertLevels && alertLevels[r.symbol]
-                                ? 'Alert set at ' + alertLevels[r.symbol] + 'x — click to edit'
-                                : 'Create a volume alert'
+                                ? 'Alert set at ' + alertLevelLabel(alertLevels[r.symbol]) + ' — click to edit'
+                                : 'Create an alert'
                             }
                           >
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -945,12 +919,12 @@ export default function ScannerPage({
                             className={'alert-create-btn' + (alertLevels && alertLevels[r.symbol] ? ' active' : '')}
                             onClick={(e) => {
                               e.stopPropagation()
-                              promptCreateAlert(r.symbol)
+                              promptCreateAlert(r.symbol, r.price)
                             }}
                             title={
                               alertLevels && alertLevels[r.symbol]
-                                ? 'Alert set at ' + alertLevels[r.symbol] + 'x — click to edit'
-                                : 'Create a volume alert'
+                                ? 'Alert set at ' + alertLevelLabel(alertLevels[r.symbol]) + ' — click to edit'
+                                : 'Create an alert'
                             }
                           >
                             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

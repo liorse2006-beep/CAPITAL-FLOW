@@ -106,6 +106,9 @@ async function initDb() {
       created_at INTEGER NOT NULL DEFAULT (unixepoch()),
       PRIMARY KEY (user_id, symbol)
     );
+    -- type/target_price/starting_side are added via ALTER TABLE migrations
+    -- below (this table predates price alerts) — see there for how a price
+    -- alert's crossing direction is tracked.
 
     CREATE INDEX IF NOT EXISTS idx_wl_alerts_user ON watchlist_alerts(user_id);
 
@@ -268,6 +271,16 @@ async function initDb() {
     // the runner deactivates it right after, so the customer explicitly
     // chooses "every day" instead of that being the only option.
     `ALTER TABLE scheduled_scans ADD COLUMN scan_date TEXT`,
+    // Price alerts, alongside the original volume-ratio alerts. type
+    // discriminates the row ('volume' | 'price'); min_ratio stays 0/unused
+    // for a price row. starting_side ('above'|'below') is which side of
+    // target_price the symbol was on when the alert was created — the
+    // background checker fires once the live price lands on the opposite
+    // side, i.e. the moment it actually crosses target_price, not just
+    // whenever it happens to already be past it.
+    `ALTER TABLE watchlist_alerts ADD COLUMN type TEXT NOT NULL DEFAULT 'volume'`,
+    `ALTER TABLE watchlist_alerts ADD COLUMN target_price REAL`,
+    `ALTER TABLE watchlist_alerts ADD COLUMN starting_side TEXT`,
   ];
 
   for (const sql of migrations) {

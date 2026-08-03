@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { fmt } from '../../utils/format'
+import { fmt, alertLevelLabel } from '../../utils/format'
 import AddTickerModal from './AddTickerModal'
 
 function StarIcon({ starred }) {
@@ -69,14 +69,14 @@ function NewsButton({ symbol, promptShowNews }) {
   )
 }
 
-function AlertButton({ symbol, alertLevels, promptCreateAlert }) {
+function AlertButton({ symbol, price, alertLevels, promptCreateAlert }) {
   const level = alertLevels && alertLevels[symbol]
   return (
     <button
       className={'alert-create-btn' + (level ? ' active' : '')}
-      onClick={() => promptCreateAlert(symbol)}
-      title={level ? 'Alert set at ' + level + 'x — click to edit' : 'Create a volume alert'}
-      aria-label={level ? 'Edit alert for ' + symbol : 'Create a volume alert for ' + symbol}
+      onClick={() => promptCreateAlert(symbol, price)}
+      title={level ? 'Alert set at ' + alertLevelLabel(level) + ' — click to edit' : 'Create an alert'}
+      aria-label={level ? 'Edit alert for ' + symbol : 'Create an alert for ' + symbol}
     >
       <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -334,7 +334,7 @@ export default function WatchlistPage({
                       <td style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                         <ChartLink symbol={sym} />
                         <NewsButton symbol={sym} promptShowNews={promptShowNews} />
-                        <AlertButton symbol={sym} alertLevels={alertLevels} promptCreateAlert={promptCreateAlert} />
+                        <AlertButton symbol={sym} price={d && d.price} alertLevels={alertLevels} promptCreateAlert={promptCreateAlert} />
                         <button
                           className="star-btn-remove"
                           onClick={() => toggleWatchlistTicker(sym)}
@@ -366,7 +366,7 @@ export default function WatchlistPage({
                     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                       <ChartLink symbol={sym} />
                       <NewsButton symbol={sym} promptShowNews={promptShowNews} />
-                      <AlertButton symbol={sym} alertLevels={alertLevels} promptCreateAlert={promptCreateAlert} />
+                      <AlertButton symbol={sym} price={d && d.price} alertLevels={alertLevels} promptCreateAlert={promptCreateAlert} />
                       <button
                         className="star-btn-remove"
                         onClick={() => toggleWatchlistTicker(sym)}

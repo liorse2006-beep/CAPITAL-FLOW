@@ -74,34 +74,62 @@ function filterCachedResults(cached, opts) {
   });
 }
 
+// True once the alert's condition is met for this cycle's quote — volume
+// alerts fire at-or-above the threshold; price alerts fire the moment the
+// live price is on the opposite side of target_price from where it started
+// (an actual crossing, not "happened to already be past it").
+function alertTriggered(alert, r) {
+  if (alert.type === 'price') {
+    const side = r.price >= alert.targetPrice ? 'above' : 'below';
+    return side !== alert.startingSide;
+  }
+  return r.volumeRatio >= alert.minRatio;
+}
+
+function alertNotificationPayload(alert, r) {
+  if (alert.type === 'price') {
+    return {
+      symbol: r.symbol,
+      name: r.name,
+      title: `${r.symbol} Price Alert`,
+      body: `Crossed $${alert.targetPrice} — now $${r.price.toFixed(2)} (${r.change >= 0 ? '+' : ''}${r.change.toFixed(2)}%)`,
+      targetPrice: alert.targetPrice,
+      change: r.change,
+      price: r.price,
+      ts: Date.now(),
+    };
+  }
+  return {
+    symbol: r.symbol,
+    name: r.name,
+    title: `${r.symbol} Volume Spike`,
+    body: `${r.volumeRatio}x avg volume — ${r.change >= 0 ? '+' : ''}${r.change.toFixed(2)}% @ $${r.price.toFixed(2)}`,
+    volumeRatio: r.volumeRatio,
+    change: r.change,
+    price: r.price,
+    ts: Date.now(),
+  };
+}
+
 async function checkWatchlistAlerts(results) {
   var broadcastToUser = getBroadcastToUser();
   try {
     const { getAllAlertsGrouped, removeAlert } = require('./watchlistAlerts');
-    const byUser = await getAllAlertsGrouped(); // { userId: { AAPL: 2.0, ... }, ... }
+    const byUser = await getAllAlertsGrouped(); // { userId: { AAPL: {type,...}, ... }, ... }
     const bySymbol = new Map(results.map((r) => [r.symbol, r]));
 
-    for (const [userId, thresholds] of Object.entries(byUser)) {
-      for (const [symbol, threshold] of Object.entries(thresholds)) {
+    for (const [userId, alerts] of Object.entries(byUser)) {
+      for (const [symbol, alert] of Object.entries(alerts)) {
         const r = bySymbol.get(symbol);
-        if (!r || r.volumeRatio < threshold) continue;
+        if (!r || !alertTriggered(alert, r)) continue;
         // One-shot: the threshold is a standing "order" the user placed —
         // once it fires we cancel it immediately (delete the row) so it
-        // never re-fires on the next cycle while the ratio stays elevated.
+        // never re-fires on the next cycle while the condition stays true.
         // The user has to re-arm it deliberately to watch for the next move.
         // Awaited (not fire-and-forget) so the cancellation is guaranteed to
         // have landed before the next scan cycle can possibly read it again.
         await removeAlert(Number(userId), symbol);
-        const alertPayload = {
-          symbol: r.symbol,
-          name: r.name,
-          title: `${r.symbol} Volume Spike`,
-          body: `${r.volumeRatio}x avg volume — ${r.change >= 0 ? '+' : ''}${r.change.toFixed(2)}% @ $${r.price.toFixed(2)}`,
-          volumeRatio: r.volumeRatio,
-          change: r.change,
-          price: r.price,
-          ts: Date.now(),
-        };
+        const alertPayload = alertNotificationPayload(alert, r);
         broadcastToUser(Number(userId), 'alert', alertPayload);
         try {
           require('./webPush').sendPushToUser(Number(userId), alertPayload);

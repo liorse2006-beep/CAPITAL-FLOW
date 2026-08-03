@@ -24,8 +24,8 @@ const SCANS_ROW = TIER_ROWS.find((row) => row.label === 'Scans');
 // out of sync every time a tier's copy changes.
 const CARD_TIERS = [
   { key: 'free', label: 'Free', accentClass: '' },
-  { key: 'premium', label: 'Premium', accentClass: 'pricing-card-premium', featured: false },
   { key: 'elite', label: 'Elite', accentClass: 'pricing-card-elite', featured: true },
+  { key: 'premium', label: 'Premium', accentClass: 'pricing-card-premium', featured: false },
 ];
 
 // Full Free/Premium/Elite feature comparison — one table, every row a

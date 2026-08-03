@@ -443,18 +443,20 @@ function App() {
     [canNotify]
   );
 
-  function setAlertLevel(symbol, threshold) {
-    var val = parseFloat(threshold);
-    if (!(val > 0)) return;
+  // alertData is either { type: 'volume', minRatio } or
+  // { type: 'price', targetPrice, referencePrice } — referencePrice is the
+  // live price shown on screen when the alert was set, used server-side
+  // only to record which side of targetPrice the stock started on.
+  function setAlertLevel(symbol, alertData) {
     var updated = Object.assign({}, alertLevels);
-    updated[symbol] = val;
+    updated[symbol] = alertData;
     setAlertLevels(updated);
     localStorage.setItem('vs-alert-levels', JSON.stringify(updated));
     if (canNotify) {
       fetch('/api/watchlist-alerts/' + symbol, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
-        body: JSON.stringify({ minRatio: val }),
+        body: JSON.stringify(alertData),
       }).catch(function () {});
     }
   }
@@ -484,13 +486,15 @@ function App() {
   }
 
   const [alertModalSymbol, setAlertModalSymbol] = useState(null);
+  const [alertModalPrice, setAlertModalPrice] = useState(0);
 
-  function promptCreateAlert(symbol) {
+  function promptCreateAlert(symbol, price) {
     if (!canNotify) {
       setShowUpgradeModal(true);
       return;
     }
     setAlertModalSymbol(symbol);
+    setAlertModalPrice(price || 0);
   }
 
   /* ── News — same access policy as alerts/push (Elite, or free during the
@@ -876,22 +880,31 @@ function App() {
               levels = JSON.parse(localStorage.getItem('vs-alert-levels')) || {};
             } catch (e) {}
             d.results.forEach(function (stock) {
-              var threshold = levels[stock.symbol];
-              if (!threshold) return;
-              if (stock.volumeRatio >= threshold && !alertFired.current[stock.symbol]) {
-                alertFired.current[stock.symbol] = true;
-                var title = 'Alert: ' + stock.symbol + ' hit ' + stock.volumeRatio + 'x';
-                var body = 'Crossed your ' + threshold + 'x threshold · $' + stock.price.toFixed(2);
-                addAlertToHistory(stock.symbol, title, body);
-                if (window.Notification && Notification.permission === 'granted') {
-                  new Notification(title, { body: body, icon: '/favicon.svg', tag: 'alert-' + stock.symbol });
-                }
-                playBeep();
-                // One-shot: cancel the threshold itself once it fires, same
-                // as the server-side alert — no re-arming if the ratio dips
-                // and crosses again, the user has to set a new alert for that.
-                removeAlertLevel(stock.symbol);
+              var alertData = levels[stock.symbol];
+              if (!alertData || alertFired.current[stock.symbol]) return;
+
+              var title, body;
+              if (alertData.type === 'price') {
+                var side = stock.price >= alertData.targetPrice ? 'above' : 'below';
+                if (side === alertData.startingSide) return;
+                title = 'Alert: ' + stock.symbol + ' crossed $' + alertData.targetPrice;
+                body = 'Now $' + stock.price.toFixed(2);
+              } else {
+                if (stock.volumeRatio < alertData.minRatio) return;
+                title = 'Alert: ' + stock.symbol + ' hit ' + stock.volumeRatio + 'x';
+                body = 'Crossed your ' + alertData.minRatio + 'x threshold · $' + stock.price.toFixed(2);
               }
+
+              alertFired.current[stock.symbol] = true;
+              addAlertToHistory(stock.symbol, title, body);
+              if (window.Notification && Notification.permission === 'granted') {
+                new Notification(title, { body: body, icon: '/favicon.svg', tag: 'alert-' + stock.symbol });
+              }
+              playBeep();
+              // One-shot: cancel the threshold itself once it fires, same
+              // as the server-side alert — no re-arming if the condition
+              // becomes true again, the user has to set a new alert for that.
+              removeAlertLevel(stock.symbol);
             });
           })
           .catch(function () {});
@@ -1135,9 +1148,10 @@ function App() {
         <AlertThresholdModal
           symbol={alertModalSymbol}
           current={alertLevels[alertModalSymbol]}
+          currentPrice={alertModalPrice}
           onClose={() => setAlertModalSymbol(null)}
-          onSave={(num) => {
-            setAlertLevel(alertModalSymbol, num);
+          onSave={(alertData) => {
+            setAlertLevel(alertModalSymbol, alertData);
             setAlertModalSymbol(null);
           }}
           onRemove={() => {
@@ -1319,10 +1333,6 @@ function App() {
                 setMinCap={setMinCap}
                 minVol={minVol}
                 setMinVol={setMinVol}
-                minPrice={minPrice}
-                setMinPrice={setMinPrice}
-                maxPrice={maxPrice}
-                setMaxPrice={setMaxPrice}
                 showPresetPanel={showPresetPanel}
                 setShowPresetPanel={setShowPresetPanel}
                 presetName={presetName}
