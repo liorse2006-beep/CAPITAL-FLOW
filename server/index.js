@@ -214,14 +214,27 @@ attachErrorHandler(app);
 
 // Crashes that never reach an Express route (e.g. a rejected promise in the
 // background scanner) would otherwise vanish silently — report them too.
-process.on('unhandledRejection', (err) => {
-  console.error('[unhandledRejection]', err);
-  require('./sentry').Sentry.captureException(err);
-});
-process.on('uncaughtException', (err) => {
-  console.error('[uncaughtException]', err);
-  require('./sentry').Sentry.captureException(err);
-});
+//
+// Both handlers now exit the process (after giving Sentry a moment to flush
+// the event) instead of just logging and carrying on. Node's own docs are
+// explicit that process state after an uncaughtException is undefined —
+// limping along in that state indefinitely, still answering /health with
+// 200 the whole time, is worse than a clean restart. The container's
+// entrypoint runs `node server.js` directly (no PM2/supervisor wrapping it),
+// so the platform's own restart-on-exit policy (Render, Docker, etc.) is
+// what actually recovers the process — exiting is what makes that kick in
+// at all, instead of leaving a half-broken process running forever with
+// nothing to prompt a restart.
+function crashCleanly(label, err) {
+  console.error(`[${label}]`, err);
+  const { Sentry } = require('./sentry');
+  Sentry.captureException(err);
+  Sentry.flush(2000)
+    .catch(() => {})
+    .finally(() => process.exit(1));
+}
+process.on('unhandledRejection', (err) => crashCleanly('unhandledRejection', err));
+process.on('uncaughtException', (err) => crashCleanly('uncaughtException', err));
 
 startBackgroundScheduler();
 startScheduledDigest();
@@ -230,6 +243,15 @@ startScheduledBackup();
 
 app.listen(PORT, () => {
   console.log(`Volume Scanner running at http://localhost:${PORT}`);
+  // Printed on every boot, unconditionally — see the longer comment in
+  // routes/stream.js. This app's live-alert delivery (SSE), scan locks, and
+  // session store all assume exactly one running instance. Scaling to a
+  // second instance behind a load balancer will silently drop live
+  // alerts/pushes for roughly half of users with no error anywhere — this
+  // line is the only thing standing between that and a truly silent trap.
+  console.warn(
+    '[startup] Single-instance only: SSE broadcast, background-scan state, and the session store are all in-process memory with no cross-instance coordination. Do not run more than one instance of this server without adding a shared pub/sub/session layer first.'
+  );
 });
 
 module.exports = app;

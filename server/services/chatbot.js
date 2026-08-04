@@ -15,6 +15,7 @@
 
 const { GOOGLE_AI_STUDIO_KEY } = require('../config');
 const { getHistory } = require('./chatMessages');
+const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
 
 const MODEL = 'gemini-3.6-flash';
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/interactions';
@@ -101,15 +102,19 @@ function buildPrompt(history) {
 
 async function callGemini(promptText) {
   const body = { model: MODEL, input: promptText, system_instruction: SYSTEM_PROMPT };
-  const res = await fetch(API_BASE, {
-    method: 'POST',
-    headers: {
-      'x-goog-api-key': GOOGLE_AI_STUDIO_KEY,
-      'Content-Type': 'application/json',
-      'Api-Revision': API_REVISION,
+  const res = await fetchWithTimeout(
+    API_BASE,
+    {
+      method: 'POST',
+      headers: {
+        'x-goog-api-key': GOOGLE_AI_STUDIO_KEY,
+        'Content-Type': 'application/json',
+        'Api-Revision': API_REVISION,
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  });
+    20000
+  );
   if (!res.ok) return null;
   const data = await res.json();
   const text = extractText(data);

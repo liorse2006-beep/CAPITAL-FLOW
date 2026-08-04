@@ -3,6 +3,8 @@ const { requirePremium } = require('../middleware/authMiddleware');
 const yahooFinance = require('../services/yahoo');
 const { finnhubFetch } = require('../services/finnhub');
 
+var SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
+
 // period → { interval, lookbackMs }
 const PERIODS = {
   '1D': { interval: '5m', lookbackMs: 1 * 24 * 60 * 60 * 1000 },
@@ -22,6 +24,7 @@ function computeMA(closes, window) {
 
 router.get('/chart/:symbol', requirePremium, async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
+  if (!SYMBOL_RE.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
   const period = PERIODS[req.query.period] ? req.query.period : '1M';
   const { interval, lookbackMs } = PERIODS[period];
 

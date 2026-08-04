@@ -69,6 +69,17 @@ test('verifyWebhookSignature rejects missing signature headers', () => {
   assert.strictEqual(whop.verifyWebhookSignature('{}', {}), false);
 });
 
+test('verifyWebhookSignature rejects a correctly-signed but stale (replayed) timestamp', () => {
+  const body = JSON.stringify({ type: 'payment_succeeded' });
+  const staleTs = String(Math.floor(Date.now() / 1000) - 10 * 60); // 10 minutes old
+  assert.strictEqual(whop.verifyWebhookSignature(body, sign(body, { ts: staleTs })), false);
+});
+
+test('verifyWebhookSignature rejects a non-numeric timestamp', () => {
+  const body = JSON.stringify({ type: 'payment_succeeded' });
+  assert.strictEqual(whop.verifyWebhookSignature(body, sign(body, { ts: 'not-a-number' })), false);
+});
+
 test('verifyWebhookSignature rejects a malformed signature header', () => {
   assert.strictEqual(
     whop.verifyWebhookSignature('{}', { 'webhook-id': 'x', 'webhook-timestamp': '1', 'webhook-signature': 'not-valid' }),
@@ -186,6 +197,85 @@ test('webhook redelivery with the same webhook-id does not double-redeem the cou
 
     const coupon = await db.prepare('SELECT uses_count FROM coupons WHERE code = ?').get('WEBHOOK2');
     assert.strictEqual(coupon.uses_count, 1);
+  } finally {
+    server.close();
+  }
+});
+
+test('two truly concurrent deliveries of the same webhook-id only redeem the coupon once', async () => {
+  // Regression for the idempotency TOCTOU: the old check-then-insert-at-the-
+  // end logic let two overlapping requests both pass the "already processed"
+  // check before either had recorded it. Firing both requests via Promise.all
+  // (not sequentially, like the test above) actually exercises that race —
+  // exactly one must claim the event and redeem the coupon.
+  const user = await makeUser('webhook-concurrent@test.local', 'free');
+  await db.prepare('INSERT INTO coupons (code, discount_percent, applies_to, uses_count) VALUES (?, ?, ?, ?)').run(
+    'WEBHOOKRACE',
+    20,
+    'both',
+    0
+  );
+
+  const payload = JSON.stringify({
+    type: 'payment_succeeded',
+    data: { metadata: { userId: user.id, tier: 'premium', couponCode: 'WEBHOOKRACE' } },
+  });
+  const headers = sign(payload, { id: 'wh_concurrent_test_1' });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    const send = () =>
+      fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: payload,
+      });
+
+    const [first, second] = await Promise.all([send(), send()]);
+    assert.strictEqual(first.status, 200);
+    assert.strictEqual(second.status, 200);
+    const bodies = await Promise.all([first.json(), second.json()]);
+    const duplicateCount = bodies.filter((b) => b.duplicate).length;
+    assert.strictEqual(duplicateCount, 1, 'exactly one of the two concurrent deliveries must be told it was a duplicate');
+
+    const coupon = await db.prepare('SELECT uses_count FROM coupons WHERE code = ?').get('WEBHOOKRACE');
+    assert.strictEqual(coupon.uses_count, 1, 'the coupon must be redeemed exactly once, not twice');
+  } finally {
+    server.close();
+  }
+});
+
+test('payment_succeeded for a user that no longer exists alerts the admin instead of crashing or granting nothing silently', async (t) => {
+  const alertCalls = [];
+  t.mock.method(email, 'sendAdminUpgradeAlert', async (...args) => {
+    alertCalls.push(args);
+  });
+
+  const deletedUserId = 999999999; // never inserted — simulates the account being deleted before delivery
+  const payload = JSON.stringify({
+    type: 'payment_succeeded',
+    data: { metadata: { userId: deletedUserId, tier: 'elite' } },
+  });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(payload, { id: 'wh_missing_user_1' }) },
+      body: payload,
+    });
+    assert.strictEqual(res.status, 200, 'must not 500 just because the account is gone');
+
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.strictEqual(alertCalls.length, 1, 'the admin must be alerted');
+    assert.match(alertCalls[0][1], /PAYMENT SUCCEEDED BUT ACCOUNT MISSING/);
+
+    const audit = await db
+      .prepare("SELECT * FROM admin_audit_log WHERE action = 'payment_for_missing_user' AND target_user_id = ?")
+      .get(deletedUserId);
+    assert.ok(audit, 'must leave an audit trail for manual follow-up');
   } finally {
     server.close();
   }
@@ -336,6 +426,34 @@ test('checkout/transaction rejects an invalid coupon before calling Whop', async
     assert.strictEqual(res.status, 400);
     const body = await res.json();
     assert.match(body.error, /invalid coupon/i);
+  } finally {
+    server.close();
+  }
+});
+
+test('checkout/transaction debounces a rapid double-submit into a single Whop session', async (t) => {
+  const captured = [];
+  t.mock.method(whop, 'createCheckoutSession', async (args) => {
+    captured.push(args);
+    return { id: 'ch_debounce_' + captured.length, purchase_url: 'https://whop.com/checkout/x' };
+  });
+
+  const user = await makeUser('checkout-doubleclick@test.local');
+  const token = await issueToken(user);
+  const server = await startCheckoutApp();
+  const port = server.address().port;
+  try {
+    const submit = () =>
+      fetch(`http://127.0.0.1:${port}/api/checkout/transaction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ tier: 'premium' }),
+      });
+
+    const [first, second] = await Promise.all([submit(), submit()]);
+    const statuses = [first.status, second.status].sort();
+    assert.deepStrictEqual(statuses, [200, 429], 'one request must succeed, the immediate double-submit must be debounced');
+    assert.strictEqual(captured.length, 1, 'only one Whop checkout session must actually be created');
   } finally {
     server.close();
   }

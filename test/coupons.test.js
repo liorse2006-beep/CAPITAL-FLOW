@@ -10,7 +10,7 @@ const express = require('express');
 const db = require('../server/db');
 
 before(async () => { await db.ready; });
-const { validateCoupon } = require('../server/services/coupons');
+const { validateCoupon, redeemCoupon } = require('../server/services/coupons');
 const couponsRouter = require('../server/routes/coupons');
 
 function startTestApp() {
@@ -76,6 +76,42 @@ test('validateCoupon rejects a coupon once it hits its max uses', async () => {
   const result = await validateCoupon('MAXEDOUT', 'premium');
   assert.strictEqual(result.valid, false);
   assert.match(result.error, /limit/i);
+});
+
+test('redeemCoupon increments uses_count and reports success', async () => {
+  await insertCoupon({ code: 'REDEEM1', max_uses: 5, uses_count: 0 });
+  const ok = await redeemCoupon('redeem1');
+  assert.strictEqual(ok, true);
+  const row = await db.prepare('SELECT uses_count FROM coupons WHERE code = ?').get('REDEEM1');
+  assert.strictEqual(row.uses_count, 1);
+});
+
+test('redeemCoupon refuses to exceed max_uses even for a single sequential call once maxed', async () => {
+  await insertCoupon({ code: 'REDEEM2', max_uses: 1, uses_count: 1 });
+  const ok = await redeemCoupon('REDEEM2');
+  assert.strictEqual(ok, false);
+  const row = await db.prepare('SELECT uses_count FROM coupons WHERE code = ?').get('REDEEM2');
+  assert.strictEqual(row.uses_count, 1, 'must not overshoot max_uses');
+});
+
+test('two concurrent redemptions of a coupon with exactly one use left can never both succeed', async () => {
+  // Regression for the TOCTOU race: validateCoupon (checked at checkout) and
+  // redeemCoupon (called from the webhook) used to be two separate
+  // operations with no shared lock, so two near-simultaneous webhook
+  // deliveries for a max_uses=1 coupon could both pass and both increment.
+  // The guard now lives inside redeemCoupon's own atomic UPDATE.
+  await insertCoupon({ code: 'RACECOUPON', max_uses: 1, uses_count: 0 });
+  const [a, b] = await Promise.all([redeemCoupon('RACECOUPON'), redeemCoupon('RACECOUPON')]);
+  const successes = [a, b].filter(Boolean).length;
+  assert.strictEqual(successes, 1, 'exactly one of the two concurrent redemptions must succeed');
+  const row = await db.prepare('SELECT uses_count FROM coupons WHERE code = ?').get('RACECOUPON');
+  assert.strictEqual(row.uses_count, 1, 'uses_count must never exceed max_uses');
+});
+
+test('redeemCoupon on an unlimited-use coupon (max_uses null) always succeeds', async () => {
+  await insertCoupon({ code: 'UNLIMITED1', max_uses: null, uses_count: 500 });
+  const ok = await redeemCoupon('UNLIMITED1');
+  assert.strictEqual(ok, true);
 });
 
 test('POST /api/coupons/validate returns the discount for a valid code', async () => {

@@ -2,7 +2,7 @@ const router = require('express').Router();
 const yahooFinance = require('../services/yahoo');
 const { finnhubFetch } = require('../services/finnhub');
 const { requireScanQuota } = require('../middleware/authMiddleware');
-const { spendScan, quotaFor } = require('../services/scanQuota');
+const { refundScan, quotaFor } = require('../services/scanQuota');
 
 // Sector-flow has no per-user params — every caller gets the same 15 ETFs —
 // so a short shared cache turns N concurrent requests into 1 upstream fetch.
@@ -11,7 +11,10 @@ const CACHE_TTL_MS = 60 * 1000;
 
 router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) => {
   if (flowCache.results && flowCache.expiresAt > Date.now()) {
-    // Cache hit — free, same policy as the main scanner.
+    // Cache hit — free, same policy as the main scanner. requireScanQuota
+    // already reserved a slot before we knew this would be a cache hit —
+    // refund it.
+    await refundScan(req.user);
     return res.json({
       results: flowCache.results,
       fetchTime: flowCache.fetchTime,
@@ -133,11 +136,11 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
         }
       })
     );
-    await spendScan(req.user, 'sectorMoving');
     var fetchTime = new Date().toISOString();
     flowCache = { results: results, fetchTime: fetchTime, expiresAt: Date.now() + CACHE_TTL_MS };
     res.json({ results: results, fetchTime: fetchTime, ...quotaFor(req.user) });
   } catch (err) {
+    await refundScan(req.user);
     console.error('[sectors]', err);
     res.status(500).json({ error: 'Server error' });
   }

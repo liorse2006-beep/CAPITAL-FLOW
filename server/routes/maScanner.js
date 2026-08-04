@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { requireAuth, requireScanQuota } = require('../middleware/authMiddleware');
-const { spendScan, quotaFor } = require('../services/scanQuota');
+const { refundScan, quotaFor } = require('../services/scanQuota');
 const { scanMA } = require('../services/maScanner');
 const { SP500, NASDAQ100, ALL_TICKERS, SECTOR_TICKERS } = require('../../tickers');
 
@@ -33,7 +33,10 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
   const cacheKey = cacheKeyFor(ma, distance, interval, market, sectors);
   const cached = resultCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
-    // Cache hit — free, same policy as the main scanner.
+    // Cache hit — free, same policy as the main scanner. requireScanQuota
+    // already reserved a slot before we knew this would be a cache hit —
+    // refund it.
+    await refundScan(req.user);
     return res.json({
       results: cached.results,
       scanTime: cached.scanTime,
@@ -65,6 +68,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
 
   // Prevent duplicate concurrent scans for same user
   if (scanProgress.get(userId)?.running) {
+    await refundScan(req.user); // no scan actually happened for this request
     return res.status(409).json({ error: 'Scan already in progress' });
   }
 
@@ -77,8 +81,6 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
       interval,
       onProgress: (p) => scanProgress.set(userId, { ...p, running: true }),
     });
-
-    await spendScan(req.user, 'maScanner');
 
     scanProgress.delete(userId);
 
@@ -93,6 +95,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
     });
   } catch (err) {
     scanProgress.delete(userId);
+    await refundScan(req.user);
     console.error('[ma-scanner]', err);
     res.status(500).json({ error: 'Server error' });
   }

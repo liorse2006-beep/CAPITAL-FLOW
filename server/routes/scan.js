@@ -1,10 +1,10 @@
 const router = require('express').Router();
 const scanner = require('../services/scanner');
-const { backgroundCache, filterCachedResults } = require('../services/backgroundScan');
+const { backgroundCache, filterCachedResults, isMarketOpen } = require('../services/backgroundScan');
 const { getUserScanState } = require('../state');
 const { SP500, NASDAQ100, ALL_TICKERS, SECTOR_TICKERS } = require('../../tickers');
 const { requireAuth, requireScanQuota } = require('../middleware/authMiddleware');
-const { spendScan: spendScanQuota, quotaFor } = require('../services/scanQuota');
+const { refundScan, quotaFor } = require('../services/scanQuota');
 
 // The broadest (most permissive) filter set a shared scan runs with. Any
 // request at-or-above this floor can be served by one shared scan and
@@ -19,13 +19,6 @@ const FLOOR_CAP = 500_000_000;
 // load — now the second request subscribes to the first's scan and both get
 // their own filtered view of the same result set.
 const inFlightScans = new Map(); // universeKey → { promise, subscribers: Set<{state, opts}> }
-
-function isMarketOpen() {
-  const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  const day = et.getDay(),
-    mins = et.getHours() * 60 + et.getMinutes();
-  return day !== 0 && day !== 6 && mins >= 570 && mins < 960;
-}
 
 function parseVol(str) {
   if (!str) return 0;
@@ -125,6 +118,10 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
       state.lastScanTime = backgroundCache.scanTime;
       // Served from cache — no real work happened, so it costs no quota.
       // Premium's 5/day pool only ever pays for scans that hit the market.
+      // requireScanQuota already reserved a slot before we knew this would
+      // be a cache hit (the atomic reserve has to happen before the scan
+      // for the race-fix to work at all) — refund it here.
+      await refundScan(req.user);
       return res.json({
         results: cachedFiltered,
         scanTime: backgroundCache.scanTime,
@@ -155,6 +152,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
   const state = getUserScanState(req.user.id);
   // Double-click protection only — scans by OTHER users never block this one.
   if (state.running) {
+    await refundScan(req.user); // no scan actually happened for this request
     return res.status(409).json({ error: 'Scan already in progress' });
   }
 
@@ -206,7 +204,6 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
     state.lastResults = results;
     state.lastScanTime = new Date().toISOString();
     state.running = false;
-    await spendScanQuota(req.user, 'capitalFlow');
 
     res.json({
       results,
@@ -218,6 +215,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
     });
   } catch (err) {
     state.running = false;
+    await refundScan(req.user); // the reserved slot bought nothing — give it back
     console.error('[scan]', err);
     res.status(500).json({ error: 'Server error' });
   }

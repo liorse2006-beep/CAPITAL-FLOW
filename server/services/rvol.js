@@ -1,5 +1,8 @@
-function getETMinutes() {
-  var now = new Date();
+// `now` is injectable (defaults to the real clock) purely so tests can
+// verify behavior across a specific DST transition date deterministically —
+// every real call site just gets the current time, unchanged.
+function getETMinutes(now) {
+  now = now || new Date();
   var etStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
   var et = new Date(etStr);
   return et.getHours() * 60 + et.getMinutes();
@@ -32,8 +35,8 @@ function getTimeOfDayCumPct(etMinutes) {
   return 1;
 }
 
-function calculateRVOL(currentVolume, avgDailyVolume, etMinutes) {
-  var now = new Date();
+function calculateRVOL(currentVolume, avgDailyVolume, etMinutes, now) {
+  now = now || new Date();
   var etStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
   var et = new Date(etStr);
   var day = et.getDay();

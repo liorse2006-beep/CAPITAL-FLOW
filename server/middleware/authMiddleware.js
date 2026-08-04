@@ -1,6 +1,6 @@
 const { verifyToken } = require('../services/auth');
 const db = require('../db');
-const { canScan, quotaFor, freeTrialActive } = require('../services/scanQuota');
+const { reserveScan, quotaFor, freeTrialActive } = require('../services/scanQuota');
 const { ADMIN_EMAIL } = require('../config');
 const crypto = require('crypto');
 
@@ -206,6 +206,15 @@ async function requirePremiumSSE(req, res, next) {
  * Premium: shared pool of 5 scans per rolling 24h. Elite: unlimited.
  * Returns a middleware bound to the given category — mount as
  * requireScanQuota('capitalFlow'), not requireScanQuota directly.
+ *
+ * reserveScan spends the slot atomically right here, before the (possibly
+ * slow) scan even starts — not after it finishes. That closes a real race:
+ * checking quota then spending it only on success left a window where N
+ * concurrent requests could all read "under the limit" before any of them
+ * had finished long enough to increment it, letting a Premium user run far
+ * more than 5 scans/24h. The route handler is responsible for calling
+ * refundScan(req.user) if the scan itself then fails, so a slot reserved
+ * here isn't permanently lost to an upstream error.
  */
 function requireScanQuota(category) {
   return async function (req, res, next) {
@@ -215,7 +224,7 @@ function requireScanQuota(category) {
     }
     const user = await resolveToken(header.slice(7));
     if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
-    if (!canScan(user, category)) {
+    if (!(await reserveScan(user, category))) {
       return res.status(403).json({
         error: 'Scan limit reached',
         code: 'SCAN_LIMIT',

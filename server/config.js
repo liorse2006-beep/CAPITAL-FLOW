@@ -92,3 +92,26 @@ module.exports = {
   TURSO_AUTH_TOKEN: env('TURSO_AUTH_TOKEN'),
   PILOT_INVITE_CODE: env('PILOT_INVITE_CODE'),
 };
+
+// Google OAuth is enabled (routes/auth.js wires up the passport strategy)
+// the moment GOOGLE_CLIENT_ID/SECRET are set — but the callback URL Google
+// redirects back to after login silently defaults to localhost:3001 if
+// GOOGLE_CALLBACK_URL isn't also set. In production that means every real
+// "Sign in with Google" attempt completes the Google-side auth and then
+// redirects the user's browser to localhost, where nothing is listening —
+// a completely broken login flow with no error anywhere pointing at the
+// cause. Fail loudly at boot instead of discovering this from a support
+// ticket. NODE_ENV=production is set explicitly in the Dockerfile.
+if (
+  process.env.NODE_ENV === 'production' &&
+  module.exports.GOOGLE_CLIENT_ID &&
+  module.exports.GOOGLE_CLIENT_SECRET &&
+  !process.env.GOOGLE_CALLBACK_URL
+) {
+  console.error(
+    '\n[FATAL] GOOGLE_CLIENT_ID/SECRET are set but GOOGLE_CALLBACK_URL is not — Google login would silently ' +
+      'redirect users to http://localhost:3001 in production. Set GOOGLE_CALLBACK_URL to this server\'s real ' +
+      'public callback URL (e.g. https://your-domain.com/api/auth/google/callback) before starting.\n'
+  );
+  process.exit(1);
+}

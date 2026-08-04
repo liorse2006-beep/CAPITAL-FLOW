@@ -51,7 +51,9 @@ async function sendPushToUser(userId, payload) {
     rows.map(async (row) => {
       const sub = { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } };
       try {
-        const res = await webpush.sendNotification(sub, body);
+        // web-push has no default timeout — a push service that hangs would
+        // otherwise stall this Promise.all indefinitely.
+        const res = await webpush.sendNotification(sub, body, { timeout: 15000 });
         return { statusCode: res && res.statusCode };
       } catch (err) {
         // 404/410 mean the browser dropped this subscription — prune it so we

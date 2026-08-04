@@ -16,7 +16,9 @@ before(async () => {
 });
 
 const nodemailer = require('nodemailer');
-const { runBackupTick } = require('../server/services/dbBackup');
+const zlib = require('zlib');
+const dbBackup = require('../server/services/dbBackup');
+const { runBackupTick, dumpTables } = dbBackup;
 const { issueToken } = require('../server/services/auth');
 const adminRouter = require('../server/routes/admin');
 
@@ -40,6 +42,47 @@ function startTestApp() {
     const server = app.listen(0, () => resolve(server));
   });
 }
+
+test('dumpTables includes every user-facing and operational table, not just the original short list', async () => {
+  const dump = await dumpTables();
+  const expected = [
+    'users',
+    'watchlist',
+    'watchlist_alerts',
+    'pilot_allowlist',
+    'push_subscriptions',
+    'feedback',
+    'coupons',
+    'scheduled_scans',
+    'chat_messages',
+    'notifications',
+    'admin_audit_log',
+    'processed_webhook_events',
+    'site_visits',
+    'app_meta',
+  ];
+  for (const table of expected) {
+    assert.ok(table in dump.tables, `backup must include the ${table} table`);
+  }
+  // otp_codes is deliberately excluded — every row is expired garbage
+  // within 15 minutes, so backing it up would never be useful.
+  assert.ok(!('otp_codes' in dump.tables));
+});
+
+test('runBackupTick refuses to send an oversized attachment and alerts the admin instead of failing silently', async (t) => {
+  const sendMail = mock.fn(async () => ({}));
+  t.mock.method(nodemailer, 'createTransport', () => ({ sendMail }));
+  // Force the gzip step to report an oversized payload without actually
+  // having to insert 20MB+ of rows into the test DB.
+  t.mock.method(zlib, 'gzipSync', () => Buffer.alloc(21 * 1024 * 1024));
+
+  await assert.rejects(runBackupTick(), /too large/i);
+
+  assert.strictEqual(sendMail.mock.callCount(), 1, 'must still notify the admin, just without the attachment');
+  const call = sendMail.mock.calls[0].arguments[0];
+  assert.match(call.subject, /FAILED/);
+  assert.strictEqual(call.attachments, undefined, 'the oversized attachment itself must not be sent');
+});
 
 test('runBackupTick records last_backup_at in app_meta on a successful send', async (t) => {
   const sendMail = mock.fn(async () => ({}));

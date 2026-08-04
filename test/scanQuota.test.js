@@ -13,7 +13,7 @@ const db = require('../server/db');
 before(async () => { await db.ready; });
 const { issueToken } = require('../server/services/auth');
 const { requireScanQuota } = require('../server/middleware/authMiddleware');
-const { canScan, spendScan, quotaFor, PREMIUM_DAILY_LIMIT, FREE_TRIAL_DAYS } = require('../server/services/scanQuota');
+const { canScan, reserveScan, quotaFor, PREMIUM_DAILY_LIMIT, FREE_TRIAL_DAYS } = require('../server/services/scanQuota');
 
 async function makeUser(email, { tier = 'free', isPilot = false, createdAt } = {}) {
   const result = await db
@@ -66,7 +66,7 @@ test('free tier: a brand-new account can scan any category, unlimited', async ()
   assert.strictEqual(canScan(user, 'sectorMoving'), true);
 
   // spending never affects a free account — it's purely time-gated
-  await spendScan(user, 'capitalFlow');
+  await reserveScan(user, 'capitalFlow');
   assert.strictEqual(canScan(user, 'capitalFlow'), true, 'scanning does not consume anything for free tier');
 });
 
@@ -123,7 +123,7 @@ test('premium tier: a shared pool of 5 scans across every category, blocked on t
   const categories = ['capitalFlow', 'maScanner', 'sectorMoving', 'capitalFlow', 'maScanner'];
   for (const cat of categories) {
     assert.strictEqual(canScan(u, cat), true);
-    await spendScan(u, cat);
+    await reserveScan(u, cat);
     u = await reload(user.id);
   }
   assert.strictEqual(u.premium_scan_count, 5);
@@ -143,14 +143,14 @@ test('premium tier: the pool resets once the 24h window has elapsed', async () =
   const stale = await reload(user.id);
 
   assert.strictEqual(canScan(stale, 'capitalFlow'), true, 'an expired window must not block scanning');
-  await spendScan(stale, 'capitalFlow');
+  await reserveScan(stale, 'capitalFlow');
   const fresh = await reload(user.id);
   assert.strictEqual(fresh.premium_scan_count, 1, 'spending after expiry must restart the count at 1, not 6');
 });
 
 test('elite tier is never limited, no matter how many scans it racks up', async () => {
   const user = await makeUser('elite-a@test.local', { tier: 'elite' });
-  for (let i = 0; i < 20; i++) await spendScan(await reload(user.id), 'capitalFlow');
+  for (let i = 0; i < 20; i++) await reserveScan(await reload(user.id), 'capitalFlow');
   const token = await issueToken(await reload(user.id));
 
   const server = await startTestApp();
@@ -167,11 +167,32 @@ test('elite tier is never limited, no matter how many scans it racks up', async 
   }
 });
 
+test('premium tier: concurrent reserveScan calls can never together exceed the daily limit', async () => {
+  // Regression for the TOCTOU race: check-then-spend-after-the-scan-finishes
+  // let N concurrent requests all read "under the limit" before any of them
+  // had incremented it. reserveScan folds the check and the increment into
+  // one atomic SQL statement — firing 20 concurrent reservations for a user
+  // with a 5-scan pool must let exactly 5 through, no matter the timing.
+  const user = await makeUser('premium-race@test.local', { tier: 'premium' });
+  const attempts = 20;
+  const results = await Promise.all(
+    Array.from({ length: attempts }, async () => {
+      const fresh = await reload(user.id);
+      return reserveScan(fresh, 'capitalFlow');
+    })
+  );
+  const granted = results.filter(Boolean).length;
+  assert.strictEqual(granted, PREMIUM_DAILY_LIMIT, `exactly ${PREMIUM_DAILY_LIMIT} of ${attempts} concurrent reservations must succeed`);
+
+  const finalUser = await reload(user.id);
+  assert.strictEqual(finalUser.premium_scan_count, PREMIUM_DAILY_LIMIT, 'the stored count must match, not overshoot');
+});
+
 test('a free pilot account resolves to elite and is never blocked', async () => {
   const user = await makeUser('quota-pilot@test.local', { tier: 'free', isPilot: true });
-  await spendScan(user, 'capitalFlow');
-  await spendScan(await reload(user.id), 'maScanner');
-  await spendScan(await reload(user.id), 'sectorMoving');
+  await reserveScan(user, 'capitalFlow');
+  await reserveScan(await reload(user.id), 'maScanner');
+  await reserveScan(await reload(user.id), 'sectorMoving');
   const token = await issueToken(await reload(user.id));
 
   const server = await startTestApp();

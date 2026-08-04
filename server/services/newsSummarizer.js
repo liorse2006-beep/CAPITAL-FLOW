@@ -7,6 +7,7 @@
 // never an invented one.
 
 const { GOOGLE_AI_STUDIO_KEY } = require('../config');
+const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
 
 const MODEL = 'gemini-3.6-flash';
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/interactions';
@@ -92,15 +93,19 @@ async function summarizeArticles(symbol, articles) {
 
   try {
     callCount++;
-    const res = await fetch(API_BASE, {
-      method: 'POST',
-      headers: {
-        'x-goog-api-key': GOOGLE_AI_STUDIO_KEY,
-        'Content-Type': 'application/json',
-        'Api-Revision': API_REVISION,
+    const res = await fetchWithTimeout(
+      API_BASE,
+      {
+        method: 'POST',
+        headers: {
+          'x-goog-api-key': GOOGLE_AI_STUDIO_KEY,
+          'Content-Type': 'application/json',
+          'Api-Revision': API_REVISION,
+        },
+        body: JSON.stringify({ model: MODEL, input, system_instruction: SYSTEM_PROMPT }),
       },
-      body: JSON.stringify({ model: MODEL, input, system_instruction: SYSTEM_PROMPT }),
-    });
+      20000
+    );
     if (!res.ok) return null;
 
     const data = await res.json();

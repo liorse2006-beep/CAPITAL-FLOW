@@ -6,6 +6,29 @@ const { WHOP_PREMIUM_PLAN_ID, WHOP_ELITE_PLAN_ID, WHOP_ELITE_UPGRADE_PLAN_ID, FR
 
 const PLAN_ID = { premium: WHOP_PREMIUM_PLAN_ID, elite: WHOP_ELITE_PLAN_ID };
 
+// Debounces a rapid double-click/double-submit into one Whop checkout
+// session instead of two — bounded by design (a short TTL per user+tier,
+// cleared as soon as it expires), never grows with total traffic the way an
+// unbounded cache would. Not a security control (nothing prevents two
+// genuinely separate purchases seconds apart from Whop's side), purely UX
+// hygiene against creating orphaned duplicate sessions.
+const recentCheckouts = new Map(); // `${userId}:${tier}` → timestamp
+const CHECKOUT_DEBOUNCE_MS = 4000;
+
+function isDuplicateCheckout(key) {
+  const last = recentCheckouts.get(key);
+  const now = Date.now();
+  if (last && now - last < CHECKOUT_DEBOUNCE_MS) return true;
+  recentCheckouts.set(key, now);
+  // Best-effort cleanup so the map never accumulates stale entries.
+  if (recentCheckouts.size > 5000) {
+    for (const [k, ts] of recentCheckouts) {
+      if (now - ts > CHECKOUT_DEBOUNCE_MS) recentCheckouts.delete(k);
+    }
+  }
+  return false;
+}
+
 // The one-time, half-price Elite upgrade offered on the Premium welcome
 // screen. It charges a DIFFERENT Whop plan (a discounted price configured
 // directly in Whop, not something this app can apply on its own) but still
@@ -15,6 +38,10 @@ router.post('/checkout/transaction', requireAuth, async (req, res) => {
   if (!whop.enabled) return res.status(503).json({ error: 'Checkout is not configured yet' });
 
   const { tier, couponCode } = req.body;
+
+  if (isDuplicateCheckout(`${req.user.id}:${tier}`)) {
+    return res.status(429).json({ error: 'Checkout already starting — please wait a moment.' });
+  }
 
   if (tier === 'eliteUpgrade') {
     if (!WHOP_ELITE_UPGRADE_PLAN_ID) return res.status(503).json({ error: 'This offer is not configured yet' });

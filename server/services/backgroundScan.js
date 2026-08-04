@@ -23,8 +23,14 @@ function getBroadcastToUser() {
   }
 }
 
-function isMarketOpen() {
-  var now = new Date();
+// `now` is injectable (defaults to the real clock) purely so tests can
+// verify behavior across a specific DST transition date deterministically —
+// every real call site just gets the current time, unchanged. Deliberately
+// re-derives the ET wall-clock hour/day via Intl's America/New_York zone on
+// every call rather than a hardcoded UTC offset — that's what makes this
+// already correct across DST, not something that needs a seasonal fix.
+function isMarketOpen(now) {
+  now = now || new Date();
   var etStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
   var et = new Date(etStr);
   var day = et.getDay();
@@ -32,8 +38,8 @@ function isMarketOpen() {
   return day !== 0 && day !== 6 && mins >= 570 && mins < 960;
 }
 
-function isPreMarket() {
-  var now = new Date();
+function isPreMarket(now) {
+  now = now || new Date();
   var etStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
   var et = new Date(etStr);
   var day = et.getDay();
@@ -150,6 +156,25 @@ async function checkWatchlistAlerts(results) {
   }
 }
 
+// Every individual outbound HTTP call the scan makes now carries its own
+// timeout (see server/utils/fetchWithTimeout.js and services/yahoo.js), so a
+// single stalled connection can't hang this forever — but this is a second,
+// independent line of defense: a hard ceiling on the WHOLE scan cycle, so
+// even a bug that bypasses those (a retry loop with no cap, a Promise that
+// never settles for an unrelated reason) can't leave backgroundCache.running
+// stuck true permanently and freeze every future tick's
+// `if (backgroundCache.running) return` check for the rest of the process's
+// uptime — potentially days or weeks on a server that's never restarted.
+const MAX_SCAN_DURATION_MS = 5 * 60 * 1000;
+
+function withHardTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} exceeded ${ms}ms hard timeout`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 async function runBackgroundScan() {
   if (backgroundCache.running) return;
   backgroundCache.running = true;
@@ -158,10 +183,11 @@ async function runBackgroundScan() {
   try {
     broadcast('scan-status', { running: true });
 
-    var res = await scanTickers(ALL_TICKERS, {
-      minVolumeRatio: 1.5,
-      minMarketCap: 500000000,
-    });
+    var res = await withHardTimeout(
+      scanTickers(ALL_TICKERS, { minVolumeRatio: 1.5, minMarketCap: 500000000 }),
+      MAX_SCAN_DURATION_MS,
+      'Background scan'
+    );
 
     backgroundCache.results = res.results;
     backgroundCache.scanTime = new Date().toISOString();
@@ -178,9 +204,13 @@ async function runBackgroundScan() {
   } catch (e) {
     console.error('[Background] Scan failed:', e.message);
     broadcast('scan-status', { running: false, error: e.message });
+  } finally {
+    // Guaranteed to run even if the hard timeout above fired, or anything
+    // else in the try block threw something unexpected — the scheduler must
+    // never be permanently stuck believing a scan is still in progress.
+    backgroundCache.running = false;
   }
 
-  backgroundCache.running = false;
   broadcast('scan-status', { running: false });
 }
 
@@ -209,4 +239,5 @@ module.exports = {
   runBackgroundScan,
   startBackgroundScheduler,
   checkWatchlistAlerts,
+  withHardTimeout, // exported for the watchdog regression test
 };

@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { WHOP_API_KEY, WHOP_WEBHOOK_SECRET } = require('../config');
+const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
 
 const API_BASE = 'https://api.whop.com/api/v2';
 
@@ -15,7 +16,7 @@ async function createCheckoutSession({ planId, metadata, redirectUrl, allowPromo
   const body = { plan_id: planId, metadata, allow_promo_codes: allowPromoCodes };
   if (redirectUrl) body.redirect_url = redirectUrl;
 
-  const res = await fetch(`${API_BASE}/checkout_sessions`, {
+  const res = await fetchWithTimeout(`${API_BASE}/checkout_sessions`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${WHOP_API_KEY}`,
@@ -31,6 +32,16 @@ async function createCheckoutSession({ planId, metadata, redirectUrl, allowPromo
   return data;
 }
 
+// Standard Webhooks spec's own recommended tolerance — rejects a
+// perfectly-valid-looking signature if the timestamp is stale. Without this,
+// a captured request (logs, a proxy, a compromised intermediary) stays
+// replayable forever: the signature alone never expires, since it's just an
+// HMAC over fixed bytes. This is on top of, not instead of, the
+// processed_webhook_events dedup table — that only catches a *repeat* of an
+// id already seen; this catches an old request being replayed after the
+// dedup record itself might plausibly have been pruned or never existed.
+const MAX_WEBHOOK_AGE_SEC = 5 * 60;
+
 /** Whop signs webhooks per the Standard Webhooks spec: webhook-id,
  * webhook-timestamp, and webhook-signature ("v1,<base64-hmac-sha256>")
  * headers, computed over "<id>.<timestamp>.<raw-body>" with
@@ -41,6 +52,10 @@ function verifyWebhookSignature(rawBody, headers) {
   const timestamp = headers['webhook-timestamp'];
   const signatureHeader = headers['webhook-signature'];
   if (!WHOP_WEBHOOK_SECRET || !id || !timestamp || !signatureHeader) return false;
+
+  const timestampNum = Number(timestamp);
+  if (!Number.isFinite(timestampNum)) return false;
+  if (Math.abs(Date.now() / 1000 - timestampNum) > MAX_WEBHOOK_AGE_SEC) return false;
 
   const expected = crypto
     .createHmac('sha256', WHOP_WEBHOOK_SECRET)

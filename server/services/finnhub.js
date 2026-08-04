@@ -1,4 +1,5 @@
 const pool = require('./finnhubKeyPool');
+const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
 
 /**
  * Fetch a Finnhub URL (without &token=) using the key pool, retrying once
@@ -11,7 +12,7 @@ async function finnhubFetch(urlWithoutToken) {
   for (let attempt = 0; attempt < attempts; attempt++) {
     const key = pool.getKey();
     if (!key) return null;
-    const res = await fetch(urlWithoutToken + '&token=' + key);
+    const res = await fetchWithTimeout(urlWithoutToken + '&token=' + key);
     if (res.status === 429) {
       pool.reportRateLimited(key);
       continue; // try the next account
@@ -24,7 +25,7 @@ async function finnhubFetch(urlWithoutToken) {
 async function fetchFinnhubQuote(symbol, apiKey) {
   try {
     var url = 'https://finnhub.io/api/v1/quote?symbol=' + encodeURIComponent(symbol);
-    var res = apiKey ? await fetch(url + '&token=' + apiKey) : await finnhubFetch(url);
+    var res = apiKey ? await fetchWithTimeout(url + '&token=' + apiKey) : await finnhubFetch(url);
     if (!res) return null;
     var data = await res.json();
     if (!data || data.error) return null;
@@ -50,7 +51,7 @@ async function fetchFinnhubQuote(symbol, apiKey) {
 async function fetchFinnhubMetric(symbol, apiKey) {
   try {
     var url = 'https://finnhub.io/api/v1/stock/metric?symbol=' + encodeURIComponent(symbol) + '&metric=all';
-    var res = apiKey ? await fetch(url + '&token=' + apiKey) : await finnhubFetch(url);
+    var res = apiKey ? await fetchWithTimeout(url + '&token=' + apiKey) : await finnhubFetch(url);
     if (!res) return null;
     var data = await res.json();
     if (!data || !data.metric) return null;

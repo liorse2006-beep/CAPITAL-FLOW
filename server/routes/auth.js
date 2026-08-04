@@ -16,6 +16,8 @@ const { sendOTPEmail, sendPasswordResetEmail, sendWelcomeEmail, sendNewSignupAdm
 const { requireAuth } = require('../middleware/authMiddleware');
 const { eliteAccess } = require('../services/scanQuota');
 const { authLimiter, otpLimiter } = require('../middleware/rateLimiters');
+const crypto = require('crypto');
+const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
 const pilotAllowlist = require('../services/pilotAllowlist');
 const {
   GOOGLE_CLIENT_ID,
@@ -34,6 +36,16 @@ const {
 // (the admin panel renders emails via template strings, not React).
 const EMAIL_RE = /^[^\s@<>"'`]+@[^\s@<>"'`]+\.[^\s@<>"'`]+$/;
 
+// A real bcrypt hash of an arbitrary, unguessable string — never a valid
+// password for any account. /login compares against this when the email
+// doesn't exist so bcrypt.compare() always runs and always takes the same
+// ~80-120ms either way, closing the timing side-channel that let an
+// attacker distinguish "email exists" from "email doesn't exist" by
+// response latency alone (the account-existence check itself already
+// returns the same generic error message, but skipping the compare
+// entirely was still visible in timing).
+const DUMMY_PASSWORD_HASH = '$2b$12$6o2c9QdDPpVJDkrxAXyZNOtcbhFwjkkB111QkvJjk3HneG7iZSYXy';
+
 /* ── Cloudflare Turnstile verification ── */
 async function verifyTurnstile(token) {
   const secret = TURNSTILE_SECRET || HCAPTCHA_SECRET; // fallback for legacy env
@@ -44,9 +56,19 @@ async function verifyTurnstile(token) {
   // only signup protection.
   if (!token) return false;
   const params = new URLSearchParams({ secret, response: token });
-  const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: params });
-  const data = await res.json();
-  return data.success === true;
+  try {
+    const res = await fetchWithTimeout('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      body: params,
+    });
+    const data = await res.json();
+    return data.success === true;
+  } catch (err) {
+    // A hung/failed Turnstile call must fail closed (reject the signup),
+    // not hang the request forever — the old bare fetch() had no timeout.
+    console.error('[verifyTurnstile]', err);
+    return false;
+  }
 }
 
 /* ── Google OAuth ── */
@@ -243,10 +265,11 @@ router.post('/login', authLimiter, async (req, res) => {
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
 
     let user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-    if (!user || !user.password_hash) return res.status(401).json({ error: 'Invalid email or password' });
-
-    const ok = await verifyPassword(password, user.password_hash);
-    if (!ok) return res.status(401).json({ error: 'Invalid email or password' });
+    // Always run bcrypt.compare, even for an unknown email or a Google-only
+    // account with no password_hash — against DUMMY_PASSWORD_HASH in that
+    // case — so this branch takes the same time either way.
+    const ok = await verifyPassword(password, (user && user.password_hash) || DUMMY_PASSWORD_HASH);
+    if (!user || !user.password_hash || !ok) return res.status(401).json({ error: 'Invalid email or password' });
 
     if (!user.is_verified) {
       const code = generateOTP();
@@ -377,12 +400,21 @@ router.delete('/account', requireAuth, async (req, res) => {
   }
 });
 
-/* ── Apply pilot invite (for users who signed in via Google with an invite link) ── */
-router.post('/apply-invite', requireAuth, async (req, res) => {
+/* ── Apply pilot invite (for users who signed in via Google with an invite link) ──
+   authLimiter (10 attempts / 15 min / IP) makes this endpoint as brute-force
+   resistant as login/signup — without it, a signed-in attacker could guess
+   PILOT_INVITE_CODE at the generic apiLimiter's 120 req/min and grant
+   themselves permanent free Elite access. The comparison is also
+   timing-safe, matching verifyOTP's pattern, so response latency can't leak
+   how many characters of a guess were correct. */
+router.post('/apply-invite', authLimiter, requireAuth, async (req, res) => {
   try {
     const { inviteCode } = req.body;
-    if (!PILOT_INVITE_CODE || inviteCode !== PILOT_INVITE_CODE)
-      return res.status(400).json({ error: 'Invalid invite code' });
+    const supplied = Buffer.from(String(inviteCode || ''));
+    const expected = Buffer.from(String(PILOT_INVITE_CODE || ''));
+    const matches =
+      !!PILOT_INVITE_CODE && supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+    if (!matches) return res.status(400).json({ error: 'Invalid invite code' });
     await db.prepare("UPDATE users SET is_pilot = 1, tier = 'elite' WHERE id = ?").run(req.user.id);
     res.json({ ok: true });
   } catch (err) {

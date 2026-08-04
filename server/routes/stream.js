@@ -1,6 +1,19 @@
 const router = require('express').Router();
 const { requirePremium, requirePremiumSSE, issueSseTicket } = require('../middleware/authMiddleware');
 
+// ── Single-instance constraint — read this before scaling horizontally ─────
+// `clients`, backgroundCache (services/backgroundScan.js), the per-user scan
+// locks (state.js), and the SSE ticket store (authMiddleware.js) all live in
+// THIS process's memory, with zero cross-process coordination. That's fine
+// running one instance (the only thing this app has ever been deployed as),
+// but it silently breaks the moment a second instance is added behind a
+// load balancer: broadcastToUser only reaches clients connected to whichever
+// instance actually ran the scan, so roughly half of users would stop
+// getting live alerts/pushes with no error anywhere telling anyone why.
+// Fixing this for real requires a shared pub/sub layer (Redis or similar) —
+// there is no such infrastructure provisioned today. Do not scale to
+// multiple instances of this app without adding one first.
+//
 // Active SSE clients — each entry is { res, userId } so alerts can be routed
 // to the specific user who owns them, never broadcast across accounts.
 const clients = new Set();

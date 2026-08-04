@@ -33,10 +33,23 @@ async function validateCoupon(rawCode, tier) {
   };
 }
 
-/** Called once a purchase actually completes — increments the use counter. */
+/**
+ * Called once a purchase actually completes — atomically increments the use
+ * counter, but only while still under max_uses. The guard lives in the same
+ * UPDATE as the increment (not a separate check beforehand) so two
+ * concurrent redemptions of a coupon with exactly one use left can never
+ * both succeed — SQLite serializes writes, so the second UPDATE's WHERE
+ * clause is evaluated against the row *after* the first has already
+ * committed its increment, not against a stale read from before either ran.
+ * Returns false if the coupon didn't exist or was already at its limit —
+ * callers should treat that as "coupon not actually redeemed", not an error.
+ */
 async function redeemCoupon(rawCode) {
   const code = normalizeCode(rawCode);
-  await db.prepare('UPDATE coupons SET uses_count = uses_count + 1 WHERE code = ?').run(code);
+  const result = await db
+    .prepare('UPDATE coupons SET uses_count = uses_count + 1 WHERE code = ? AND (max_uses IS NULL OR uses_count < max_uses)')
+    .run(code);
+  return result.changes > 0;
 }
 
 module.exports = { normalizeCode, validateCoupon, redeemCoupon };
