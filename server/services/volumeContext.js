@@ -1,23 +1,44 @@
 const yahooFinance = require('./yahoo');
 
+// This endpoint re-fetched the same 6-month daily chart from Yahoo on every
+// single call with no caching at all, even for the same symbol requested
+// seconds apart (e.g. two users expanding the same hot ticker's detail row,
+// or one user re-opening it). The analysis itself is about a spike from
+// weeks/months ago — a stale-by-up-to-a-day cache changes nothing the user
+// could perceive, same reasoning already applied to the sibling chart-fetch
+// caches in scanner.js (sparkline, 24h) and maScanner.js (closes, 24h).
+// Cached here is only the raw sorted/filtered quote series (symbol-only key)
+// — the ratio-dependent spike computation below still runs fresh every call
+// on whatever quotes it gets, so accuracy for a given ratio is unaffected.
+const CHART_TTL_MS = 24 * 60 * 60 * 1000;
+const chartCache = new Map(); // symbol → { quotes, fetchedAt }
+
+async function getCachedQuotes(symbol, sixMonthsAgo) {
+  var cached = chartCache.get(symbol);
+  if (cached && Date.now() - cached.fetchedAt < CHART_TTL_MS) return cached.quotes;
+
+  var chart = await yahooFinance.chart(symbol, { period1: sixMonthsAgo, interval: '1d' });
+  var rawQuotes = chart && chart.quotes ? chart.quotes : [];
+  var quotes = rawQuotes
+    .filter(function (q) {
+      return q && q.volume && q.volume > 0 && q.close && q.close > 0 && q.date;
+    })
+    .sort(function (a, b) {
+      return new Date(a.date) - new Date(b.date);
+    });
+  chartCache.set(symbol, { quotes: quotes, fetchedAt: Date.now() });
+  return quotes;
+}
+
 async function getHistoricalVolumeContext(symbol, currentVolumeRatio) {
   try {
     var sixMonthsAgo = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
-    var chart = null;
+    var quotes;
     try {
-      chart = await yahooFinance.chart(symbol, { period1: sixMonthsAgo, interval: '1d' });
+      quotes = await getCachedQuotes(symbol, sixMonthsAgo);
     } catch (e) {
       return null;
     }
-
-    var rawQuotes = chart && chart.quotes ? chart.quotes : [];
-    var quotes = rawQuotes
-      .filter(function (q) {
-        return q && q.volume && q.volume > 0 && q.close && q.close > 0 && q.date;
-      })
-      .sort(function (a, b) {
-        return new Date(a.date) - new Date(b.date);
-      });
 
     if (quotes.length < 12) return null;
 

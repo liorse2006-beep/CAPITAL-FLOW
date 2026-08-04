@@ -41,13 +41,28 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
     'IGV',
   ];
   try {
+    // One batched Yahoo call for all 15 ETFs instead of 15 individual quote
+    // calls — yahoo-finance2 supports array input the same way quoteCache.js
+    // already relies on elsewhere. Same data, same freshness (still fetched
+    // fresh on every cache-miss cycle), just one round-trip instead of 15. A
+    // symbol missing from the batch response (or the whole call failing)
+    // falls through to the existing "market closed / no quote" chart-based
+    // fallback below, unchanged from today's per-symbol failure handling.
+    const quoteMap = new Map();
+    try {
+      const batchQuotes = await yahooFinance.quote(etfs);
+      (Array.isArray(batchQuotes) ? batchQuotes : [batchQuotes]).forEach((q) => {
+        if (q && q.symbol) quoteMap.set(q.symbol, q);
+      });
+    } catch (e) {
+      // Leave quoteMap empty — each symbol's existing fallback path handles this.
+    }
+
     const results = await Promise.all(
       etfs.map(async (symbol) => {
         try {
-          const [quote, chart] = await Promise.all([
-            yahooFinance.quote(symbol),
-            yahooFinance.chart(symbol, { period1: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000), interval: '1d' }),
-          ]);
+          const quote = quoteMap.get(symbol) || {};
+          const chart = await yahooFinance.chart(symbol, { period1: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000), interval: '1d' });
           const quotes = chart && chart.quotes ? chart.quotes : [];
           const recent = quotes
             .filter(function (d) {
