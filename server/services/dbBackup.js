@@ -103,23 +103,31 @@ async function runBackupTick() {
 }
 
 function startScheduledBackup() {
-  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  const CHECK_INTERVAL_MS = 60 * 60 * 1000; // hourly poll is plenty for a once-a-week job
   const STARTUP_DELAY_MS = 2 * 60 * 1000; // let the DB/config finish settling after boot
-  // A pure 24h setInterval never fires on Render's free tier: the instance
-  // spins down after 15 min idle and every redeploy restarts the process,
-  // resetting the countdown before it reaches 24h. Also run once shortly
-  // after boot so a backup actually goes out on every deploy/restart, not
-  // only on the (rare here) occasion the process stays up a full day.
-  setTimeout(function () {
-    runBackupTick().catch(function (err) {
+  const MIN_GAP_MS = 6 * 24 * 60 * 60 * 1000; // guards against a second send within the same Sunday
+
+  async function maybeRunBackup() {
+    try {
+      // Every redeploy restarts this process, so "run once on boot" (the old
+      // behavior) sent a fresh backup email on every push — the actual
+      // complaint that led to this weekly schedule. Checking wall-clock day
+      // instead of process uptime makes the schedule survive redeploys.
+      const isSunday = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' })).getDay() === 0;
+      if (!isSunday) return;
+
+      const row = await db.prepare("SELECT value FROM app_meta WHERE key = 'last_backup_at'").get();
+      const lastBackupMs = row ? Number(row.value) * 1000 : 0;
+      if (Date.now() - lastBackupMs < MIN_GAP_MS) return; // already sent this week
+
+      await runBackupTick();
+    } catch (err) {
       console.error('[dbBackup]', err);
-    });
-  }, STARTUP_DELAY_MS);
-  setInterval(function () {
-    runBackupTick().catch(function (err) {
-      console.error('[dbBackup]', err);
-    });
-  }, ONE_DAY_MS);
+    }
+  }
+
+  setTimeout(maybeRunBackup, STARTUP_DELAY_MS);
+  setInterval(maybeRunBackup, CHECK_INTERVAL_MS);
 }
 
 module.exports = { dumpTables, runBackupTick, startScheduledBackup };
