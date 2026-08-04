@@ -9,6 +9,27 @@ WORKDIR /app
 # download entirely.
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 
+# VITE_* vars get baked into the frontend bundle at build time (Vite reads
+# import.meta.env.VITE_* while running `vite build` below) — they're NOT
+# read at runtime the way every other env var in this app is. Render (or any
+# Docker-based host) only makes dashboard env vars available to `RUN npm run
+# build` if this Dockerfile explicitly declares them as build ARGs and
+# re-exposes them as ENV — without this block, setting VITE_SENTRY_DSN etc.
+# in the Render dashboard would silently do nothing, because the value never
+# reaches this build stage at all.
+ARG VITE_SENTRY_DSN=""
+ARG VITE_POSTHOG_KEY=""
+ARG VITE_POSTHOG_HOST=""
+ARG VITE_TURNSTILE_SITE_KEY=""
+ARG VITE_PADDLE_CLIENT_TOKEN=""
+ARG VITE_PADDLE_ENV=""
+ENV VITE_SENTRY_DSN=${VITE_SENTRY_DSN} \
+    VITE_POSTHOG_KEY=${VITE_POSTHOG_KEY} \
+    VITE_POSTHOG_HOST=${VITE_POSTHOG_HOST} \
+    VITE_TURNSTILE_SITE_KEY=${VITE_TURNSTILE_SITE_KEY} \
+    VITE_PADDLE_CLIENT_TOKEN=${VITE_PADDLE_CLIENT_TOKEN} \
+    VITE_PADDLE_ENV=${VITE_PADDLE_ENV}
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
