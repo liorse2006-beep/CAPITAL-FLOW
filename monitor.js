@@ -2,6 +2,13 @@
  * Health monitor — runs as a PM2 cron job every 5 minutes.
  * Pings /health and sends an email alert after 3 consecutive failures.
  * Sends a recovery email when the server comes back up.
+ *
+ * NOT ACTIVE IN PRODUCTION: the Docker image's entrypoint.sh runs
+ * `node server.js` directly, with no PM2 involved, so this script never
+ * actually executes there. The same logic now runs in-process instead —
+ * see server/services/healthMonitor.js, started from server/index.js. This
+ * file is kept only for local/PM2-managed setups that explicitly invoke
+ * ecosystem.config.js outside Docker.
  */
 require('dotenv').config();
 const http = require('http');

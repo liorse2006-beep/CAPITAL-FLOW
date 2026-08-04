@@ -14,6 +14,7 @@ const { startBackgroundScheduler } = require('./services/backgroundScan');
 const { startScheduledDigest } = require('./services/scheduledDigest');
 const { startScheduledScanRunner } = require('./services/scheduledScanRunner');
 const { startScheduledBackup } = require('./services/dbBackup');
+const { startHealthMonitor } = require('./services/healthMonitor');
 const { scanLimiter, apiLimiter, adminLimiter } = require('./middleware/rateLimiters');
 
 const app = express();
@@ -240,6 +241,7 @@ startBackgroundScheduler();
 startScheduledDigest();
 startScheduledScanRunner();
 startScheduledBackup();
+startHealthMonitor();
 
 app.listen(PORT, () => {
   console.log(`Volume Scanner running at http://localhost:${PORT}`);
