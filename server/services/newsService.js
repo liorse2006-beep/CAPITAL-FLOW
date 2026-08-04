@@ -192,6 +192,26 @@ async function fetchNewsForSymbol(symbol) {
     }
   }
 
+  // Resolve every article's URL to where it actually lands, and derive the
+  // displayed publisher name (a.source) from THAT domain — never from
+  // whatever label the provider handed back. A provider's feed can name one
+  // publisher while syndicating a link that lands somewhere else entirely
+  // once redirects resolve; showing "Yahoo" and opening a different site is
+  // a real trust problem, not a cosmetic one. Doing this once here (cached
+  // for NEWS_CACHE_TTL_MS with everything else) means the label the user
+  // sees and the page "Full article" actually opens can never disagree.
+  if (articles && articles.length > 0) {
+    articles = await Promise.all(
+      articles.map(async function (a) {
+        var resolvedUrl = await resolveFinalUrl(a.url);
+        return Object.assign({}, a, {
+          url: resolvedUrl,
+          source: labelFromUrl(resolvedUrl) || a.source || '',
+        });
+      })
+    );
+  }
+
   // Enrich with a Gemini-generated summary/sentiment/impact per article,
   // strictly grounded in the real headline+description above — never
   // fabricated. A failure here is silent: articles keep their raw headline
@@ -239,6 +259,53 @@ function isDisallowedUrl(url) {
     return PRIVATE_HOSTNAME_RE.test(host);
   } catch (e) {
     return true; // unparseable URL — never fetch it
+  }
+}
+
+// Known aliases for publisher domains whose bare hostname would otherwise
+// read oddly once title-cased generically below (e.g. "Finance.yahoo").
+var KNOWN_SOURCE_LABELS = {
+  'finance.yahoo': 'Yahoo Finance',
+  yahoo: 'Yahoo',
+  reuters: 'Reuters',
+  cnbc: 'CNBC',
+  bloomberg: 'Bloomberg',
+  marketwatch: 'MarketWatch',
+  seekingalpha: 'Seeking Alpha',
+  fool: 'The Motley Fool',
+  benzinga: 'Benzinga',
+  investing: 'Investing.com',
+  businesswire: 'Business Wire',
+  prnewswire: 'PR Newswire',
+  globenewswire: 'GlobeNewswire',
+  barrons: "Barron's",
+  wsj: 'The Wall Street Journal',
+  apnews: 'Associated Press',
+};
+
+// Derives a human-readable publisher name from the domain a URL actually
+// resolves to — used instead of trusting whatever "source" string a
+// provider hands back. A provider's own source label can name one
+// publisher while syndicating a link that actually lands somewhere else
+// entirely once redirects resolve (Finnhub's aggregated feed does this) —
+// showing "Yahoo" and then opening a completely different site is exactly
+// the kind of mismatch that makes the whole feature look fabricated. The
+// label is always derived from the same URL the user is actually sent to,
+// so the two can never disagree.
+function labelFromUrl(url) {
+  try {
+    var host = new URL(url).hostname.replace(/^www\./, '');
+    var base = host.split('.').slice(0, -1).join('.') || host;
+    if (KNOWN_SOURCE_LABELS[base]) return KNOWN_SOURCE_LABELS[base];
+    return base
+      .split(/[-.]/)
+      .filter(Boolean)
+      .map(function (p) {
+        return p.charAt(0).toUpperCase() + p.slice(1);
+      })
+      .join(' ');
+  } catch (e) {
+    return null;
   }
 }
 

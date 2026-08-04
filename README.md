@@ -69,4 +69,4 @@ npm run test:all      # both
 
 ## Deployment
 
-Render auto-deploys on every push to `main`. Set the same environment variables from `.env.example` in the Render dashboard. The free tier sleeps after 15 minutes idle — `.github/workflows/keepalive.yml` pings `/health` on a schedule to keep it warm.
+Render auto-deploys on every push to `main`. Set the same environment variables from `.env.example` in the Render dashboard. Running on a paid Starter instance (not the free tier) — no idle spin-down, the background scanner and scheduled jobs run continuously.
