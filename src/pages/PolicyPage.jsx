@@ -7,6 +7,14 @@ const DATA_COLLECTED = [
     body: 'Your email address and subscription tier (Free, Premium, or Elite).',
   },
   {
+    title: 'Watchlist and alerts',
+    body: 'The tickers you star, and any volume or price alert thresholds you set for them, so we can show your Watchlist and notify you when a threshold is crossed.',
+  },
+  {
+    title: 'Conversations with Capi',
+    body: 'If you message Capi (our in-app assistant), we store your messages and Capi’s replies so the conversation has memory across the session, and to improve the assistant. This content is also sent to our AI provider (see Third-Party Service Providers below) to generate responses.',
+  },
+  {
     title: 'Push notifications',
     body: 'If you enable push notifications (an Elite-only feature), we store a technical subscription identifier tied to your browser or device so we can deliver alerts to it. You can revoke this at any time from the Watchlist page.',
   },
@@ -26,8 +34,9 @@ const USER_RIGHTS = [
 const THIRD_PARTY_PROVIDERS = [
   'Google (for optional sign-in via Google OAuth)',
   "Cloudflare Turnstile (to verify you're not a bot during sign-in)",
-  'Gmail (to deliver essential account emails such as verification codes and password resets)',
+  'Resend (to deliver essential account emails such as verification codes and password resets)',
   'Whop (our payment processor for checkout and billing; we never see or store your full card details)',
+  "Google AI Studio (Gemini) (powers Capi, our in-app assistant, and AI-generated news summaries — if you message Capi, that message is sent to this provider to generate a response)",
   'Analytics and error-monitoring providers (only where explicitly enabled)',
 ];
 
