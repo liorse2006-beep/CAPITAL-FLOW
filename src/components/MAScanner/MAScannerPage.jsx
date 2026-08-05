@@ -268,6 +268,20 @@ export default function MAScannerPage({
 
   const selectedMarket = MARKET_OPTIONS.find((m) => m.key === market);
 
+  // Guests can see every filter at full strength — touching any of them
+  // (instead of hitting a persistent "sign in" banner up front) is what
+  // triggers the auth prompt, so the panel reads as a real product on
+  // first look rather than a locked demo.
+  function guarded(fn) {
+    return function () {
+      if (isLocked) {
+        onSignIn();
+        return;
+      }
+      fn.apply(null, arguments);
+    };
+  }
+
   return React.createElement(
     'div',
     { className: 'page-content' },
@@ -313,35 +327,10 @@ export default function MAScannerPage({
       )
     ),
 
-    // ── Sign-in banner ───────────────────────────────────────────────────────
-    isLocked &&
-      React.createElement(
-        'div',
-        { className: 'ma-signin-banner' },
-        React.createElement(
-          'div',
-          null,
-          React.createElement('div', { className: 'ma-signin-title' }, '🔒 Sign in to unlock MA Scanner'),
-          React.createElement(
-            'div',
-            { className: 'ma-signin-sub' },
-            'Create a free account to run the Moving Average Scanner.'
-          )
-        ),
-        React.createElement(
-          'button',
-          { className: 'scan-btn', style: { flexShrink: 0 }, onClick: onSignIn },
-          'Sign In / Register'
-        )
-      ),
-
     // ── Controls panel ───────────────────────────────────────────────────────
     React.createElement(
       'div',
-      {
-        className: 'ma-controls',
-        style: isLocked ? { opacity: 0.4, pointerEvents: 'none', userSelect: 'none' } : undefined,
-      },
+      { className: 'ma-controls' },
 
       // Moving Average
       React.createElement(
@@ -357,7 +346,7 @@ export default function MAScannerPage({
               {
                 key: v,
                 className: 'ma-ctrl-btn' + (ma === v ? ' active' : ''),
-                onClick: () => setMa(v),
+                onClick: guarded(() => setMa(v)),
                 disabled: loading,
               },
               `SMA${v}`
@@ -380,7 +369,7 @@ export default function MAScannerPage({
               {
                 key: v,
                 className: 'ma-ctrl-btn' + (distance === v ? ' active' : ''),
-                onClick: () => setDistance(v),
+                onClick: guarded(() => setDistance(v)),
                 disabled: loading,
               },
               `±${v}%`
@@ -401,7 +390,7 @@ export default function MAScannerPage({
             'button',
             {
               className: 'ma-ctrl-btn' + (timeframe === '1d' ? ' active' : ''),
-              onClick: () => setTimeframe('1d'),
+              onClick: guarded(() => setTimeframe('1d')),
               disabled: loading,
             },
             'Daily'
@@ -410,7 +399,7 @@ export default function MAScannerPage({
             'button',
             {
               className: 'ma-ctrl-btn' + (timeframe === '1wk' ? ' active' : ''),
-              onClick: () => setTimeframe('1wk'),
+              onClick: guarded(() => setTimeframe('1wk')),
               disabled: loading,
             },
             'Weekly'
@@ -432,7 +421,7 @@ export default function MAScannerPage({
               {
                 key: d,
                 className: 'ma-ctrl-btn' + (dirFilter === d ? ' active' : ''),
-                onClick: () => setDirFilter(d),
+                onClick: guarded(() => setDirFilter(d)),
                 disabled: loading,
               },
               d === 'all' ? 'All' : d === 'above' ? '▲ Above' : '▼ Below'
@@ -456,10 +445,10 @@ export default function MAScannerPage({
                 key: opt.key,
                 className: 'ma-ctrl-btn ma-market-btn' + (market === opt.key ? ' active' : ''),
                 style: market === opt.key ? { '--market-color': opt.color } : undefined,
-                onClick: () => {
+                onClick: guarded(() => {
                   setMarket(opt.key);
                   if (opt.key !== 'sectors') setSelectedSectors([]);
-                },
+                }),
                 disabled: loading,
               },
               React.createElement('span', null, opt.label)

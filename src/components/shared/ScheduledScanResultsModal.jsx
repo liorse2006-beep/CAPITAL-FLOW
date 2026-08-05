@@ -44,10 +44,10 @@ export default function ScheduledScanResultsModal({ notification, onClose, promp
           <div className="scheduled-results-list">
             <div className="scheduled-results-col-header">
               <span>Symbol</span>
+              <span>Cap</span>
               <span>Price</span>
               <span>Change</span>
               <span>Signal</span>
-              <span>Mkt Cap</span>
               <span></span>
             </div>
             {results.map(function (r) {
@@ -58,6 +58,7 @@ export default function ScheduledScanResultsModal({ notification, onClose, promp
                     <span className="scheduled-results-symbol">{r.symbol}</span>
                     {r.name && <span className="scheduled-results-name">{r.name}</span>}
                   </div>
+                  <span className="scheduled-results-cap">{r.marketCap > 0 ? fmt(r.marketCap) : ''}</span>
                   <span className="scheduled-results-price">{'$' + (r.price || 0).toFixed(2)}</span>
                   <span className={'scheduled-results-change ' + (r.change >= 0 ? 'col-pos' : 'col-neg')}>
                     {(r.change >= 0 ? '+' : '') + (r.change || 0).toFixed(2) + '%'}
@@ -73,7 +74,6 @@ export default function ScheduledScanResultsModal({ notification, onClose, promp
                       </span>
                     ) : null}
                   </span>
-                  <span className="scheduled-results-cap">{r.marketCap > 0 ? fmt(r.marketCap) : ''}</span>
                   <div className="scheduled-results-row-actions">
                     <a
                       className="chart-open-btn"

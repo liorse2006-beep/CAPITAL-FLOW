@@ -444,15 +444,19 @@ body {
   color: var(--text-2);
 }
 
+/* The single primary action on each scanner page (Run Scan, Re-scan,
+   Refresh Flow) — solid fill, matching the app-wide rule that solid gold
+   is reserved for the one primary action per view; everything secondary
+   (Sign In, Register) stays outline. */
 .scan-btn {
   height: 36px;
   padding: 0 20px;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--accent-vivid);
   border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--accent);
+  background: var(--accent-vivid);
+  color: #1a1200;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   font-family: var(--font);
   cursor: pointer;
   display: flex;
@@ -462,8 +466,7 @@ body {
   letter-spacing: 0.3px;
 }
 .scan-btn:hover {
-  background: var(--accent-vivid);
-  color: #0a0a0a;
+  opacity: 0.9;
 }
 .scan-btn:active {
   opacity: 0.8;
@@ -471,6 +474,12 @@ body {
 .scan-btn:disabled {
   opacity: 0.25;
   cursor: not-allowed;
+}
+/* .spinner defaults to a faint white ring for dark surfaces — invisible
+   on this button's solid gold fill, so it needs a dark-on-gold variant. */
+.scan-btn .spinner {
+  border-color: rgba(26, 18, 0, 0.2);
+  border-top-color: rgba(26, 18, 0, 0.6);
 }
 
 @keyframes spin {
@@ -690,10 +699,10 @@ body {
 }
 .scan-filter-label {
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text-3);
+  color: var(--text-2);
 }
 .scan-filter-input-row {
   display: flex;
@@ -718,7 +727,7 @@ body {
     background var(--transition);
 }
 .scan-filter-input::placeholder {
-  color: var(--text-3);
+  color: var(--text-2);
   font-weight: 400;
 }
 .scan-filter-input:hover:not([readonly]) {
@@ -927,10 +936,11 @@ body {
   flex-direction: column;
   align-items: flex-start;
   background: var(--bg-1);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 12px;
   padding: 20px;
   cursor: pointer;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
   transition:
     transform 0.18s ease,
     border-color 0.2s ease,
@@ -2110,11 +2120,12 @@ td {
 }
 .empty-rich-card {
   background: var(--bg-0);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 12px;
   padding: 28px 32px;
   text-align: center;
   max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
 }
 .empty-rich-icon {
   width: 52px;
@@ -2205,13 +2216,13 @@ td {
 }
 .flow-title {
   font-size: 22px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.5px;
   margin-bottom: 4px;
 }
 .flow-sub {
   font-size: 12px;
-  color: var(--text-3);
+  color: var(--text-2);
   font-weight: 400;
 }
 
@@ -6497,10 +6508,10 @@ html.a11y-highlight-links a {
 
 .ma-ctrl-label {
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text-3);
+  color: var(--text-2);
   padding-bottom: 7px;
   border-bottom: 1px solid var(--border);
 }
@@ -6621,30 +6632,6 @@ html.a11y-highlight-links a {
 
 .last-session-icon {
   font-size: 14px;
-}
-
-.ma-signin-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 18px;
-  background: rgba(245, 158, 11, 0.06);
-  border: 1px solid rgba(245, 158, 11, 0.18);
-  border-radius: var(--radius);
-  margin-bottom: 12px;
-}
-
-.ma-signin-title {
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--text-0);
-  margin-bottom: 3px;
-}
-
-.ma-signin-sub {
-  font-size: 12px;
-  color: var(--text-2);
 }
 
 .ma-limit-banner {
@@ -7894,8 +7881,8 @@ html.a11y-highlight-links a {
   max-height: 82vh;
   display: flex;
   flex-direction: column;
-  background: var(--bg-1);
-  border: 1px solid var(--border);
+  background: #050505;
+  border: 1px solid #1c1c1c;
   border-radius: var(--radius-sm);
   box-shadow: 0 16px 64px rgba(0, 0, 0, 0.6);
 }
@@ -7905,7 +7892,8 @@ html.a11y-highlight-links a {
   justify-content: space-between;
   gap: 12px;
   padding: 20px 22px 16px;
-  border-bottom: 1px solid var(--border);
+  background: #0d0d0d;
+  border-bottom: 2px solid var(--accent-vivid);
 }
 .scheduled-results-title {
   font-size: 15px;
@@ -7939,36 +7927,33 @@ html.a11y-highlight-links a {
 }
 .scheduled-results-list {
   overflow-y: auto;
-  padding: 6px 10px;
+  padding: 0 10px 6px;
+  background: #050505;
 }
 .scheduled-results-col-header {
   display: grid;
-  grid-template-columns: minmax(90px, 1.4fr) 70px 66px 90px 64px auto;
+  grid-template-columns: minmax(90px, 1.4fr) 64px 70px 66px 90px auto;
   align-items: center;
   gap: 12px;
-  padding: 4px 12px 8px;
+  padding: 8px 12px;
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-3);
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
+  color: #4a4a4a;
+  border-bottom: 1px solid #161616;
 }
 .scheduled-results-row {
   display: grid;
-  grid-template-columns: minmax(90px, 1.4fr) 70px 66px 90px 64px auto;
+  grid-template-columns: minmax(90px, 1.4fr) 64px 70px 66px 90px auto;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  margin-bottom: 6px;
-  transition: background var(--transition), border-color var(--transition);
+  padding: 9px 12px;
+  border-bottom: 1px solid #111;
+  transition: background var(--transition);
 }
 .scheduled-results-row:hover {
-  background: var(--bg-2);
-  border-color: var(--border-strong);
+  background: #0e0e0e;
 }
 .scheduled-results-row-main {
   display: flex;
@@ -7978,19 +7963,24 @@ html.a11y-highlight-links a {
 .scheduled-results-symbol {
   font-size: 13px;
   font-weight: 700;
-  color: var(--text-0);
+  color: #e8e8e8;
 }
 .scheduled-results-name {
   font-size: 10.5px;
-  color: var(--text-3);
+  color: #4a4a4a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 130px;
 }
+.scheduled-results-cap {
+  font-size: 11px;
+  color: #4a4a4a;
+  font-family: var(--mono);
+}
 .scheduled-results-price {
   font-size: 12.5px;
-  color: var(--text-1);
+  color: #e8e8e8;
   font-family: var(--mono);
 }
 .scheduled-results-change {
@@ -8002,12 +7992,7 @@ html.a11y-highlight-links a {
 }
 .scheduled-results-ma {
   font-size: 11px;
-  color: var(--text-2);
-  font-family: var(--mono);
-}
-.scheduled-results-cap {
-  font-size: 11px;
-  color: var(--text-3);
+  color: #a0a0a8;
   font-family: var(--mono);
 }
 .scheduled-results-row-actions {
@@ -8028,10 +8013,10 @@ html.a11y-highlight-links a {
   .scheduled-results-row-main {
     grid-column: 1 / -1;
   }
+  .scheduled-results-cap,
   .scheduled-results-price,
   .scheduled-results-change,
-  .scheduled-results-signal,
-  .scheduled-results-cap {
+  .scheduled-results-signal {
     grid-column: auto;
   }
   .scheduled-results-row-actions {
