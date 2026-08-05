@@ -1381,6 +1381,7 @@ function App() {
                 sectorLimit={sectorLimit}
                 user={user}
                 onUpgrade={() => setShowUpgradeModal(true)}
+                onSignIn={() => setShowAuthModal(true)}
               />
             }
           />

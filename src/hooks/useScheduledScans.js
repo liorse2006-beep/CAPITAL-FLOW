@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 export default function useScheduledScans(scanType) {
-  const { getToken, user } = useAuth();
+  const { getToken, user } = useAuth() || {};
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);

@@ -149,6 +149,7 @@ export default function ScannerPage({
   sectorLimit,
   user,
   onUpgrade,
+  onSignIn,
 }) {
   const [currentTime, setCurrentTime] = useState(null)
 
@@ -393,7 +394,7 @@ export default function ScannerPage({
                     {(scanMeta.premium ? scanMeta.premium.left : 5) + '/5 scans left today'}
                   </span>
                 )}
-                {user && <ScheduleScan scanType="capitalFlow" user={user} onUpgrade={onUpgrade} />}
+                <ScheduleScan scanType="capitalFlow" user={user} onUpgrade={onUpgrade} onSignIn={onSignIn} />
               </div>
             )}
           </div>

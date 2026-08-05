@@ -26,7 +26,7 @@ function todayLocalDate() {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
-export default function ScheduleScan({ scanType, user, onUpgrade }) {
+export default function ScheduleScan({ scanType, user, onUpgrade, onSignIn }) {
   // Scheduled scans are a full Elite feature, included in the 7-day free
   // trial — user.elite_access is true for Elite AND in-trial free accounts.
   const hasAccess = !!(user && (user.tier === 'elite' || user.elite_access));
@@ -53,7 +53,7 @@ export default function ScheduleScan({ scanType, user, onUpgrade }) {
     <>
       <button
         className="schedule-scan-btn"
-        onClick={() => setOpen(true)}
+        onClick={() => (user ? setOpen(true) : onSignIn && onSignIn())}
         title="Schedule automatic scan"
         aria-label="Schedule automatic scan"
       >

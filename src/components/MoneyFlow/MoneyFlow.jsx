@@ -123,13 +123,12 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn, onTria
                 )
               : 'Refresh Flow'}
           </button>
-          {user && (
-            <ScheduleScan
-              scanType="sectorMoving"
-              user={user}
-              onUpgrade={() => setShowUpgradeModal(true)}
-            />
-          )}
+          <ScheduleScan
+            scanType="sectorMoving"
+            user={user}
+            onUpgrade={() => setShowUpgradeModal(true)}
+            onSignIn={onSignIn}
+          />
         </div>
       </div>
 

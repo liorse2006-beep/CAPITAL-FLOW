@@ -323,7 +323,7 @@ export default function MAScannerPage({
                 ? 'Re-scan'
                 : 'Run MA Scan'
           ),
-        user && React.createElement(ScheduleScan, { scanType: 'maScanner', user, onUpgrade })
+        React.createElement(ScheduleScan, { scanType: 'maScanner', user, onUpgrade, onSignIn })
       )
     ),
 
