@@ -14,7 +14,7 @@ function formatWhen(unixSec) {
    (scanTickers) and maScanner (scanMA) share enough of a shape: symbol,
    name, price, change, marketCap, plus either volumeRatio or maDistance as
    the "why it showed up" signal. */
-export default function ScheduledScanResultsModal({ notification, onClose, openChart, isInWatchlist, toggleWatchlistTicker }) {
+export default function ScheduledScanResultsModal({ notification, onClose, promptShowNews, isInWatchlist, toggleWatchlistTicker }) {
   if (!notification) return null
   var results = notification.results || []
   var label = SCAN_LABEL[notification.scanType] || 'Scheduled Scan'
@@ -42,6 +42,14 @@ export default function ScheduledScanResultsModal({ notification, onClose, openC
           <div className="scheduled-results-empty">No unusual activity was found on this run.</div>
         ) : (
           <div className="scheduled-results-list">
+            <div className="scheduled-results-col-header">
+              <span>Symbol</span>
+              <span>Price</span>
+              <span>Change</span>
+              <span>Signal</span>
+              <span>Mkt Cap</span>
+              <span></span>
+            </div>
             {results.map(function (r) {
               var hasRatio = typeof r.volumeRatio === 'number'
               return (
@@ -50,11 +58,11 @@ export default function ScheduledScanResultsModal({ notification, onClose, openC
                     <span className="scheduled-results-symbol">{r.symbol}</span>
                     {r.name && <span className="scheduled-results-name">{r.name}</span>}
                   </div>
-                  <div className="scheduled-results-row-stats">
-                    <span>{'$' + (r.price || 0).toFixed(2)}</span>
-                    <span className={r.change >= 0 ? 'col-pos' : 'col-neg'}>
-                      {(r.change >= 0 ? '+' : '') + (r.change || 0).toFixed(2) + '%'}
-                    </span>
+                  <span className="scheduled-results-price">{'$' + (r.price || 0).toFixed(2)}</span>
+                  <span className={'scheduled-results-change ' + (r.change >= 0 ? 'col-pos' : 'col-neg')}>
+                    {(r.change >= 0 ? '+' : '') + (r.change || 0).toFixed(2) + '%'}
+                  </span>
+                  <span className="scheduled-results-signal">
                     {hasRatio ? (
                       <span className={'ratio-pill ' + (r.volumeRatio >= 5 ? 'hot' : r.volumeRatio >= 3.5 ? 'warm' : 'ok')}>
                         {r.volumeRatio + 'x'}
@@ -64,15 +72,34 @@ export default function ScheduledScanResultsModal({ notification, onClose, openC
                         {(r.direction === 'above' ? '+' : '') + r.maDistance + '% from MA'}
                       </span>
                     ) : null}
-                    {r.marketCap > 0 && <span className="scheduled-results-cap">{fmt(r.marketCap)}</span>}
-                  </div>
+                  </span>
+                  <span className="scheduled-results-cap">{r.marketCap > 0 ? fmt(r.marketCap) : ''}</span>
                   <div className="scheduled-results-row-actions">
-                    {openChart && (
-                      <button className="chart-open-btn" onClick={() => openChart(r.symbol, r.name)} title="Chart" aria-label={'Open chart for ' + r.symbol}>
+                    <a
+                      className="chart-open-btn"
+                      href={'https://www.tradingview.com/chart/?symbol=' + r.symbol}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open in TradingView"
+                      aria-label={'Open ' + r.symbol + ' in TradingView'}
+                    >
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 3v18h18" />
+                        <path d="M18.7 8l-5.1 5.1-4-4L3 15.6" />
+                      </svg>
+                    </a>
+                    {promptShowNews && (
+                      <button
+                        className="news-open-btn"
+                        onClick={() => promptShowNews(r.symbol)}
+                        title="Scan news for this ticker"
+                        aria-label={'Scan news for ' + r.symbol}
+                      >
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="18" y1="20" x2="18" y2="10" />
-                          <line x1="12" y1="20" x2="12" y2="4" />
-                          <line x1="6" y1="20" x2="6" y2="14" />
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                          <line x1="16" y1="13" x2="8" y2="13" />
+                          <line x1="16" y1="17" x2="8" y2="17" />
                         </svg>
                       </button>
                     )}

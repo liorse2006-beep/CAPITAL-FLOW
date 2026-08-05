@@ -3,6 +3,7 @@ const { requireEliteOrTrial } = require('../middleware/authMiddleware');
 const { VAPID_PUBLIC_KEY } = require('../config');
 const { saveSubscription, removeSubscription } = require('../services/webPush');
 const db = require('../db');
+const { reportError } = require('../utils/reportError');
 
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -17,7 +18,7 @@ router.post('/push/subscribe', requireEliteOrTrial, async (req, res) => {
     await saveSubscription(req.user.id, sub);
     res.json({ ok: true });
   } catch (err) {
-    console.error('[push/subscribe]', err);
+    reportError(err, '[push/subscribe]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -29,7 +30,7 @@ router.post('/push/unsubscribe', requireEliteOrTrial, async (req, res) => {
     await removeSubscription(endpoint, req.user.id);
     res.json({ ok: true });
   } catch (err) {
-    console.error('[push/unsubscribe]', err);
+    reportError(err, '[push/unsubscribe]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -39,7 +40,7 @@ router.get('/push/notification-time', requireEliteOrTrial, async (req, res) => {
     const row = await db.prepare('SELECT notification_time FROM users WHERE id = ?').get(req.user.id);
     res.json({ time: (row && row.notification_time) || null });
   } catch (err) {
-    console.error('[push/notification-time GET]', err);
+    reportError(err, '[push/notification-time GET]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -53,7 +54,7 @@ router.post('/push/notification-time', requireEliteOrTrial, async (req, res) => 
     await db.prepare('UPDATE users SET notification_time = ? WHERE id = ?').run(time, req.user.id);
     res.json({ ok: true, time });
   } catch (err) {
-    console.error('[push/notification-time POST]', err);
+    reportError(err, '[push/notification-time POST]');
     res.status(500).json({ error: 'Server error' });
   }
 });

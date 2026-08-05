@@ -2,6 +2,7 @@ const router = require('express').Router();
 const db = require('../db');
 const { resolveToken } = require('../middleware/authMiddleware');
 const { publicWriteLimiter } = require('../middleware/rateLimiters');
+const { reportError } = require('../utils/reportError');
 
 const MAX_MESSAGE_LEN = 2000;
 
@@ -28,7 +29,7 @@ router.post('/feedback', publicWriteLimiter, async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    console.error('[feedback]', err);
+    reportError(err, '[feedback]');
     res.status(500).json({ error: 'Server error' });
   }
 });

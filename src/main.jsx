@@ -87,6 +87,24 @@ function Root() {
     setQuizDone(true);
   }
 
+  // A returning, already-authenticated user must never see onboarding, even
+  // if vs_quiz_done itself was missing from localStorage (e.g. cleared by
+  // the browser — Safari's storage-eviction rules don't treat localStorage
+  // and cookies the same way, so a session can survive via the refresh
+  // cookie while vs_quiz_done alone gets wiped). `user` is only non-null
+  // here once /api/auth/me has actually resolved a real account, so this
+  // can't be spoofed by an unauthenticated visitor.
+  useEffect(() => {
+    if (!isLoading && user && !quizDone) {
+      setQuizDone(true);
+      try {
+        localStorage.setItem('vs_quiz_done', '1');
+      } catch (_) {
+        /* private mode — nothing we can do, but don't crash */
+      }
+    }
+  }, [isLoading, user, quizDone]);
+
   // Most loads resolve in well under a second — only switch to the fuller
   // animated "waking up" screen once the wait has gone on long enough that
   // it's plausibly a cold Render instance, not a flash on every visit.

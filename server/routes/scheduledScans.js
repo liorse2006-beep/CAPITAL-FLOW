@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { requireAuth, requireEliteOrTrial } = require('../middleware/authMiddleware');
 const db = require('../db');
+const { reportError } = require('../utils/reportError');
 
 const VALID_TYPES = ['capitalFlow', 'maScanner', 'sectorMoving'];
 const MAX_SCHEDULES = 3;
@@ -37,7 +38,7 @@ router.get('/scheduled-scans', requireAuth, async (req, res) => {
       .all(req.user.id);
     res.json({ schedules: rows });
   } catch (err) {
-    console.error('[scheduled-scans GET]', err);
+    reportError(err, '[scheduled-scans GET]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -83,7 +84,7 @@ router.post('/scheduled-scans', requireEliteOrTrial, async (req, res) => {
       last_result_count: null,
     });
   } catch (err) {
-    console.error('[scheduled-scans POST]', err);
+    reportError(err, '[scheduled-scans POST]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -106,7 +107,7 @@ router.put('/scheduled-scans/:id', requireEliteOrTrial, async (req, res) => {
       .run(newActive, newTime, existing.id);
     res.json({ id: existing.id, scan_type: existing.scan_type, scan_time: newTime, active: newActive });
   } catch (err) {
-    console.error('[scheduled-scans PUT]', err);
+    reportError(err, '[scheduled-scans PUT]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -120,7 +121,7 @@ router.delete('/scheduled-scans/:id', requireEliteOrTrial, async (req, res) => {
     if (!result.changes) return res.status(404).json({ error: 'Not found' });
     res.json({ ok: true });
   } catch (err) {
-    console.error('[scheduled-scans DELETE]', err);
+    reportError(err, '[scheduled-scans DELETE]');
     res.status(500).json({ error: 'Server error' });
   }
 });

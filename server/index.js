@@ -4,6 +4,7 @@ const express = require('express');
 const compression = require('compression');
 const cors = require('cors');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 const session = require('express-session');
 const MemoryStore = require('memorystore')(session);
 const passport = require('passport');
@@ -120,6 +121,11 @@ app.use(
     credentials: true,
   })
 );
+// Reads the httpOnly refresh-token cookie (see routes/auth.js) — no secret
+// needed since the cookie's value is itself an opaque, unguessable token
+// whose hash is checked against the DB; there is nothing to sign here.
+app.use(cookieParser());
+
 // Mounted BEFORE express.json() — Whop webhook signature verification
 // must run over the exact raw bytes of the request body, which parsing
 // (and re-serializing) as JSON would not reproduce.

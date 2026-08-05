@@ -2,12 +2,13 @@ const router = require('express').Router();
 const { requireEliteOrTrial } = require('../middleware/authMiddleware');
 const { getWatchlistAlerts, setAlert, removeAlert, clearAlerts } = require('../services/watchlistAlerts');
 const quoteCache = require('../services/quoteCache');
+const { reportError } = require('../utils/reportError');
 
 router.get('/watchlist-alerts', requireEliteOrTrial, async (req, res) => {
   try {
     res.json(await getWatchlistAlerts(req.user.id));
   } catch (err) {
-    console.error('[watchlist-alerts GET]', err);
+    reportError(err, '[watchlist-alerts GET]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -52,7 +53,7 @@ router.post('/watchlist-alerts/:symbol', requireEliteOrTrial, async (req, res) =
     await setAlert(req.user.id, symbol, { type: 'volume', minRatio });
     res.json({ ok: true, symbol, type, minRatio });
   } catch (err) {
-    console.error('[watchlist-alerts POST]', err);
+    reportError(err, '[watchlist-alerts POST]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -62,7 +63,7 @@ router.delete('/watchlist-alerts/:symbol', requireEliteOrTrial, async (req, res)
     await removeAlert(req.user.id, req.params.symbol.toUpperCase());
     res.json({ ok: true });
   } catch (err) {
-    console.error('[watchlist-alerts DELETE symbol]', err);
+    reportError(err, '[watchlist-alerts DELETE symbol]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -72,7 +73,7 @@ router.delete('/watchlist-alerts', requireEliteOrTrial, async (req, res) => {
     await clearAlerts(req.user.id);
     res.json({ ok: true });
   } catch (err) {
-    console.error('[watchlist-alerts DELETE all]', err);
+    reportError(err, '[watchlist-alerts DELETE all]');
     res.status(500).json({ error: 'Server error' });
   }
 });

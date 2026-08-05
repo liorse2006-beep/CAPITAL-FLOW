@@ -16,6 +16,7 @@
 const http = require('http');
 const nodemailer = require('nodemailer');
 const { PORT, ADMIN_EMAIL, GMAIL_USER, GMAIL_APP_PASSWORD } = require('../config');
+const { reportError } = require('../utils/reportError');
 
 const HEALTH_URL = `http://localhost:${PORT}/health`;
 const FAIL_THRESHOLD = 3;
@@ -46,7 +47,7 @@ function sendAlert(subject, body) {
       text: body,
     })
     .then(() => console.log('[health-monitor] Alert sent:', subject))
-    .catch((err) => console.error('[health-monitor] Alert send failed:', err.message));
+    .catch((err) => reportError(err, '[health-monitor] Alert send failed'));
 }
 
 function onFail(reason) {

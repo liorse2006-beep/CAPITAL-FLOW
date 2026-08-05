@@ -60,7 +60,11 @@ describe('FeedbackButton', () => {
       '/api/feedback',
       expect.objectContaining({ method: 'POST' })
     );
-    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    // AuthProvider now fires its own /api/auth/refresh call on mount (the
+    // silent-session-refresh flow), so the feedback POST is no longer
+    // reliably the first fetch call — find it by URL instead of by index.
+    const feedbackCall = fetch.mock.calls.find((call) => call[0] === '/api/feedback');
+    const body = JSON.parse(feedbackCall[1].body);
     expect(body.message).toBe('Great app!');
   });
 

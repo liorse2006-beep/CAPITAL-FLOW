@@ -19,5 +19,12 @@
       "runtimeArgs": ["tools/run-landing-dev.js"],
       "port": 4173
     }
+  ,
+    {
+      "name": "composition-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-p", "9877", "C:\\Users\\LiorSe\\AppData\\Local\\Temp\\claude\\C--Users-LiorSe-OneDrive-Desktop-VOLUME-SCANNER\\701ef500-9a75-4024-9c14-775b6f551448\\scratchpad\\videos\\capitalflow-signature-reveal"],
+      "port": 9877
+    }
   ]
 }

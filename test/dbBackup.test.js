@@ -31,7 +31,7 @@ async function getAdminToken() {
     const result = await db.prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)').run('admin@test.local');
     adminUser = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
   }
-  return issueToken(adminUser);
+  return (await issueToken(adminUser)).accessToken;
 }
 
 function startTestApp() {
@@ -118,7 +118,7 @@ test('GET /admin/api/backup-status reports a numeric lastBackupAt once a backup 
 
   const result = await db.prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)').run('admin@test.local');
   const adminUser = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-  const token = await issueToken(adminUser);
+  const token = (await issueToken(adminUser)).accessToken;
 
   await runBackupTick();
 

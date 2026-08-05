@@ -25,27 +25,109 @@ function withEffectivePremium(user) {
   return { ...user, is_premium: user.tier !== 'free' ? 1 : 0 };
 }
 
-function generateToken(user) {
+// A JWT this short-lived is only ever dangerous for an hour if it leaks —
+// the actual "stay logged in" promise comes from the refresh token below,
+// which is httpOnly (invisible to any injected/malicious script) and can be
+// revoked instantly server-side (logout, or evicting a device over the
+// MAX_ACTIVE_SESSIONS cap) without needing to invalidate every other device.
+const ACCESS_TOKEN_TTL = '1h';
+
+// Caps how many devices can be logged into one account at once. Logging in
+// on a (MAX_ACTIVE_SESSIONS + 1)th device evicts only the least-recently-used
+// existing session — the account's other devices stay signed in, unlike the
+// old session_version scheme this replaced (one login anywhere silently
+// logged out every other device, site-wide).
+const MAX_ACTIVE_SESSIONS = 2;
+
+// Refresh tokens are long, random, opaque strings — never JWTs. Only their
+// SHA-256 hash is stored, so a leaked DB dump alone can't be replayed as a
+// live session (same principle as never storing plaintext passwords).
+function hashRefreshToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function generateToken(user, sessionId) {
   return jwt.sign(
-    { id: user.id, email: user.email, is_premium: user.is_premium, sv: user.session_version || 0 },
+    { id: user.id, email: user.email, is_premium: user.is_premium, sid: sessionId },
     JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: ACCESS_TOKEN_TTL }
   );
 }
 
 /**
- * Issue a login token for a user. Every login gets a single-active-session
- * guarantee: logging in bumps session_version in the DB and embeds the new
- * value in the token, so any token issued before this login is immediately
- * rejected (see authMiddleware.resolveToken) — the classic "signed in
- * elsewhere" mechanism that keeps one account to one active device at a
- * time, no matter how the password/credentials were shared.
+ * Create a new session row for a login, evicting the account's oldest
+ * session(s) first if it's already at the device cap. Returns the raw
+ * refresh token (only ever seen here — the DB keeps just its hash) and the
+ * new session's id, to embed in the paired access token.
+ */
+async function createSession(userId) {
+  const existing = await db
+    .prepare('SELECT id FROM user_sessions WHERE user_id = ? ORDER BY last_used_at ASC')
+    .all(userId);
+  if (existing.length >= MAX_ACTIVE_SESSIONS) {
+    const toEvict = existing.slice(0, existing.length - MAX_ACTIVE_SESSIONS + 1);
+    for (const row of toEvict) {
+      await db.prepare('DELETE FROM user_sessions WHERE id = ?').run(row.id);
+    }
+  }
+  const refreshToken = crypto.randomBytes(48).toString('base64url');
+  const now = Math.floor(Date.now() / 1000);
+  const result = await db
+    .prepare('INSERT INTO user_sessions (user_id, refresh_token_hash, created_at, last_used_at) VALUES (?, ?, ?, ?)')
+    .run(userId, hashRefreshToken(refreshToken), now, now);
+  return { refreshToken, sessionId: result.lastInsertRowid };
+}
+
+/**
+ * Issue a fresh login for a user: creates a new device session and returns
+ * the paired access token (short-lived JWT) + refresh token (long-lived,
+ * opaque, meant for an httpOnly cookie).
  */
 async function issueToken(user) {
-  const sv = (user.session_version || 0) + 1;
   const now = Math.floor(Date.now() / 1000);
-  await db.prepare('UPDATE users SET session_version = ?, last_login_at = ? WHERE id = ?').run(sv, now, user.id);
-  return generateToken(withEffectivePremium({ ...user, session_version: sv }));
+  await db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').run(now, user.id);
+  const { refreshToken, sessionId } = await createSession(user.id);
+  const accessToken = generateToken(withEffectivePremium(user), sessionId);
+  return { accessToken, refreshToken };
+}
+
+/**
+ * Exchange a still-valid refresh token for a new access token, without the
+ * user re-entering credentials — this is what makes "closed for hours, or
+ * even days, without logging out" transparently reopen already signed in.
+ * Touches last_used_at so eviction always drops the truly-idlest device.
+ */
+async function refreshAccessToken(refreshToken) {
+  if (!refreshToken) return null;
+  const hash = hashRefreshToken(refreshToken);
+  const session = await db.prepare('SELECT * FROM user_sessions WHERE refresh_token_hash = ?').get(hash);
+  if (!session) return null;
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id);
+  if (!user || user.is_blocked) return null;
+  await db.prepare('UPDATE user_sessions SET last_used_at = ? WHERE id = ?').run(
+    Math.floor(Date.now() / 1000),
+    session.id
+  );
+  const accessToken = generateToken(withEffectivePremium(user), session.id);
+  return { accessToken, user };
+}
+
+/** Revoke one device's session (logout) — leaves every other device's session untouched. */
+async function revokeSession(sessionId, userId) {
+  await db.prepare('DELETE FROM user_sessions WHERE id = ? AND user_id = ?').run(sessionId, userId);
+}
+
+/**
+ * Revoke EVERY session an account has — every device stops working the
+ * instant it next calls the API (access tokens are checked against this
+ * table on every request, not just at their own 1h expiry) and every
+ * refresh cookie in the wild becomes dead weight. This is the actual "kill
+ * switch" for a leaked/stolen refresh token: called on password reset (a
+ * leaked-credential response should always end every existing session, not
+ * just the one being reset from) and from the admin panel's "Force logout".
+ */
+async function revokeAllSessions(userId) {
+  await db.prepare('DELETE FROM user_sessions WHERE user_id = ?').run(userId);
 }
 
 function verifyToken(token) {
@@ -91,9 +173,14 @@ module.exports = {
   verifyPassword,
   generateToken,
   issueToken,
+  createSession,
+  refreshAccessToken,
+  revokeSession,
+  revokeAllSessions,
   withEffectivePremium,
   verifyToken,
   generateOTP,
   saveOTP,
   verifyOTP,
+  MAX_ACTIVE_SESSIONS,
 };

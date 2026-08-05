@@ -56,4 +56,9 @@ describe('friendlyError', () => {
   it('passes through any other message unchanged', () => {
     expect(friendlyError('Invalid ticker symbol')).toBe('Invalid ticker symbol');
   });
+  it('gives a friendly message for JSON SyntaxError (non-JSON server response)', () => {
+    expect(friendlyError("Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON")).toMatch(/went wrong/i);
+    expect(friendlyError("Unexpected token '<'")).toMatch(/went wrong/i);
+    expect(friendlyError('JSON.parse: unexpected character at line 1 column 1')).toMatch(/went wrong/i);
+  });
 });

@@ -39,7 +39,7 @@ test('GET /api/notifications/:id returns the scan results and marks it read', as
 
   const server = await startTestApp();
   const port = server.address().port;
-  const headers = { Authorization: 'Bearer ' + (await issueToken(user)) };
+  const headers = { Authorization: 'Bearer ' + (await issueToken(user)).accessToken };
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/notifications/${notifId}`, { headers });
     assert.strictEqual(res.status, 200);
@@ -70,7 +70,7 @@ test("GET /api/notifications/:id never returns another user's notification", asy
   const port = server.address().port;
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/notifications/${notifId}`, {
-      headers: { Authorization: 'Bearer ' + (await issueToken(intruder)) },
+      headers: { Authorization: 'Bearer ' + (await issueToken(intruder)).accessToken },
     });
     assert.strictEqual(res.status, 404);
   } finally {
@@ -84,7 +84,7 @@ test('GET /api/notifications/:id returns 404 for a nonexistent id, and requires 
   const port = server.address().port;
   try {
     const authed = await fetch(`http://127.0.0.1:${port}/api/notifications/999999999`, {
-      headers: { Authorization: 'Bearer ' + (await issueToken(user)) },
+      headers: { Authorization: 'Bearer ' + (await issueToken(user)).accessToken },
     });
     assert.strictEqual(authed.status, 404);
 

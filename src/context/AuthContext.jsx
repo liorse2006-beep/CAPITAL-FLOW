@@ -38,12 +38,20 @@ export function AuthProvider({ children }) {
     }
 
     const stored = localStorage.getItem('vs_token');
-    if (stored) {
-      fetchMe(stored).finally(() => setIsLoading(false));
-    } else {
-      setAuthLoadError(false);
-      setIsLoading(false);
-    }
+    // Try the httpOnly refresh cookie first, even before looking at whatever
+    // access token localStorage has — this is what makes a device stay
+    // signed in across the 1h access token's expiry (including after the
+    // app was closed for hours/days) without ever showing a login screen,
+    // and it also recovers a session if the browser cleared localStorage
+    // but not cookies (Safari's storage-eviction rules differ between the
+    // two, so this is a real, not just theoretical, recovery path).
+    silentRefresh()
+      .then((refreshed) => {
+        const tokenToUse = refreshed || stored;
+        if (tokenToUse) return fetchMe(tokenToUse);
+        setAuthLoadError(false);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   // Tie analytics identity to whichever account is currently logged in —
@@ -54,9 +62,10 @@ export function AuthProvider({ children }) {
     else resetAnalytics();
   }, [user]);
 
-  // Every login now invalidates any session already active elsewhere (one
-  // device at a time, site-wide). A tab left open on the now-stale device
-  // won't get a 401 until it happens to call the API — periodically
+  // A device is capped at 2 concurrent sessions per account (see
+  // server/services/auth.js) — logging in on a 3rd device evicts whichever
+  // of the other two was used least recently. A tab left open on an evicted
+  // device won't get a 401 until it happens to call the API — periodically
   // re-checking /api/auth/me (and on tab focus) surfaces that promptly,
   // instead of the user only finding out the next time they click something.
   useEffect(() => {
@@ -65,13 +74,41 @@ export function AuthProvider({ children }) {
       const token = localStorage.getItem('vs_token');
       if (token) fetchMe(token, true);
     }
+    // The access token itself only lives 1h — proactively trading it in for
+    // a fresh one well before then (and whenever the tab regains focus,
+    // since a backgrounded/suspended mobile tab can silently outlive that
+    // hour) means the 90s recheck above almost never has to discover an
+    // actually-expired token, only a genuinely revoked one.
+    async function refreshThenRecheck() {
+      await silentRefresh();
+      recheck();
+    }
     const interval = setInterval(recheck, 90000);
-    document.addEventListener('visibilitychange', recheck);
+    const refreshInterval = setInterval(refreshThenRecheck, 45 * 60 * 1000);
+    document.addEventListener('visibilitychange', refreshThenRecheck);
     return () => {
       clearInterval(interval);
-      document.removeEventListener('visibilitychange', recheck);
+      clearInterval(refreshInterval);
+      document.removeEventListener('visibilitychange', refreshThenRecheck);
     };
   }, [user]);
+
+  // Exchanges the httpOnly refresh cookie for a fresh access token. Returns
+  // the new token on success, or null (no active session, or the cookie is
+  // missing/blocked) — callers fall back to whatever's already in
+  // localStorage in that case, same as before this existed.
+  async function silentRefresh() {
+    try {
+      const res = await fetch('/api/auth/refresh', { method: 'POST' });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data.token) return null;
+      localStorage.setItem('vs_token', data.token);
+      return data.token;
+    } catch {
+      return null;
+    }
+  }
 
   async function fetchMe(token, isRevalidation) {
     // A sleeping Render free instance can take 30-50s to answer the very
@@ -127,7 +164,8 @@ export function AuthProvider({ children }) {
     setUser(userData);
   }
 
-  function logout() {
+  async function logout() {
+    const token = localStorage.getItem('vs_token');
     localStorage.removeItem('vs_token');
     // vs_quiz_done is intentionally left alone here — it should show exactly
     // once per device, ever, not once per login session. Clearing it on
@@ -135,6 +173,18 @@ export function AuthProvider({ children }) {
     // out and back in (common during testing), which is the bug this
     // comment used to defend.
     setUser(null);
+    // Revoke this device's session server-side (and its refresh cookie) so
+    // "log out" actually ends the session instead of just discarding the
+    // local copy of a still-valid access token — best-effort: a failed
+    // request here just means the session naturally expires within 1h
+    // instead of immediately, not that logout silently fails.
+    if (token) {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      } catch {
+        /* offline/unreachable — local logout still proceeds */
+      }
+    }
     window.location.reload();
   }
 

@@ -49,7 +49,7 @@ test('a free-tier account past its 7-day trial can still reach news (not a paid 
   const port = server.address().port;
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/news/${encodeURIComponent('not a symbol!')}`, {
-      headers: { Authorization: 'Bearer ' + (await issueToken(user)) },
+      headers: { Authorization: 'Bearer ' + (await issueToken(user)).accessToken },
     });
     assert.strictEqual(res.status, 400, 'auth passed — the request got far enough to hit symbol validation');
   } finally {
@@ -63,7 +63,7 @@ test('an elite account can reach the route (past auth, rejected only on a malfor
   const port = server.address().port;
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/news/${encodeURIComponent('not a symbol!')}`, {
-      headers: { Authorization: 'Bearer ' + (await issueToken(user)) },
+      headers: { Authorization: 'Bearer ' + (await issueToken(user)).accessToken },
     });
     assert.strictEqual(res.status, 400, 'auth passed — the request got far enough to hit symbol validation');
   } finally {
@@ -78,7 +78,7 @@ test('GET /api/news/:symbol/resolve rejects a url that was never actually return
   try {
     const res = await fetch(
       `http://127.0.0.1:${port}/api/news/RSLV/resolve?url=${encodeURIComponent('https://evil.example.com/ssrf')}`,
-      { headers: { Authorization: 'Bearer ' + (await issueToken(user)) } }
+      { headers: { Authorization: 'Bearer ' + (await issueToken(user)).accessToken } }
     );
     assert.strictEqual(res.status, 400);
   } finally {
@@ -104,7 +104,7 @@ test('GET /api/news/:symbol/resolve follows a redirect for a url that was actual
   try {
     const res = await fetch(
       `http://127.0.0.1:${port}/api/news/RSLV2/resolve?url=${encodeURIComponent('https://finnhub.io/track/abc')}`,
-      { headers: { Authorization: 'Bearer ' + (await issueToken(user)) } }
+      { headers: { Authorization: 'Bearer ' + (await issueToken(user)).accessToken } }
     );
     const body = await res.json();
     assert.strictEqual(res.status, 200);

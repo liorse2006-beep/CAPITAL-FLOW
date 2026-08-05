@@ -32,7 +32,7 @@ function startTestApp() {
 
 async function authHeaders(userId) {
   const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
-  return { Authorization: 'Bearer ' + (await issueToken(user)), 'Content-Type': 'application/json' };
+  return { Authorization: 'Bearer ' + (await issueToken(user)).accessToken, 'Content-Type': 'application/json' };
 }
 
 function israelToday() {

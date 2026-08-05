@@ -1,4 +1,5 @@
 const db = require('../db');
+const { reportError } = require('../utils/reportError');
 
 // Runs `worker` over every item with at most `limit` in flight at once — a
 // bounded fan-out. Used so that when hundreds of users are all scheduled for
@@ -13,7 +14,7 @@ async function mapWithConcurrency(items, limit, worker) {
       try {
         await worker(items[idx]);
       } catch (err) {
-        console.error('[ScheduledScans] item failed:', err && err.message);
+        reportError(err, '[ScheduledScans] item failed');
       }
     }
   });
@@ -138,7 +139,7 @@ async function notifyScheduledUser(sched, results) {
       results,
     });
   } catch (notifErr) {
-    console.error(`[ScheduledScans] Persisting notification failed for user ${sched.user_id}:`, notifErr.message);
+    reportError(notifErr, `[ScheduledScans] Persisting notification failed for user ${sched.user_id}`);
   }
 
   try {
@@ -155,7 +156,7 @@ async function notifyScheduledUser(sched, results) {
       },
     });
   } catch (pushErr) {
-    console.error(`[ScheduledScans] Push failed for user ${sched.user_id}:`, pushErr.message);
+    reportError(pushErr, `[ScheduledScans] Push failed for user ${sched.user_id}`);
   }
 
   console.log(
@@ -177,7 +178,7 @@ async function runScheduledScans() {
       )
       .all(oneHourAgo);
   } catch (err) {
-    console.error('[ScheduledScans] DB error:', err.message);
+    reportError(err, '[ScheduledScans] DB error');
     return;
   }
 
@@ -199,7 +200,7 @@ async function runScheduledScans() {
     try {
       results = await runScanForType(scanType);
     } catch (err) {
-      console.error(`[ScheduledScans] ${scanType} scan failed:`, err.message);
+      reportError(err, `[ScheduledScans] ${scanType} scan failed`);
       continue;
     }
     // Fan out to every subscriber concurrently (bounded), so a 16:30 window

@@ -2,6 +2,8 @@ const router = require('express').Router();
 const crypto = require('crypto');
 const db = require('../db');
 const { ADMIN_TOKEN, ADMIN_EMAIL, TURSO_DB_URL } = require('../config');
+const { revokeAllSessions } = require('../services/auth');
+const { reportError } = require('../utils/reportError');
 
 function timingSafeStringEqual(a, b) {
   const bufA = Buffer.from(String(a));
@@ -17,7 +19,7 @@ const { resolveToken } = require('../middleware/authMiddleware');
 function asyncRoute(fn) {
   return function (req, res, next) {
     fn(req, res, next).catch(function (err) {
-      console.error('[admin route]', err);
+      reportError(err, '[admin route]');
       if (!res.headersSent) res.status(500).json({ error: 'Server error' });
     });
   };
@@ -61,7 +63,7 @@ async function logAction(actor, action, targetUserId, detail) {
       .prepare('INSERT INTO admin_audit_log (actor, action, target_user_id, detail) VALUES (?, ?, ?, ?)')
       .run(actor, action, targetUserId || null, detail || null);
   } catch (err) {
-    console.error('[admin audit log]', err);
+    reportError(err, '[admin audit log]');
   }
 }
 
@@ -87,7 +89,11 @@ router.get('/admin/api/users', asyncRoute(async (req, res) => {
 router.post('/admin/api/users/:id/logout', asyncRoute(async (req, res) => {
   const actor = await checkToken(req, res);
   if (!actor) return;
-  await db.prepare('UPDATE users SET session_version = session_version + 1 WHERE id = ?').run(req.params.id);
+  // Deletes every row in user_sessions for this account — every device's
+  // access token is checked against this table on its very next request
+  // (see authMiddleware.resolveToken), so this takes effect immediately,
+  // not just once each device's token happens to hit its own 1h expiry.
+  await revokeAllSessions(req.params.id);
   logAction(actor, 'force_logout', req.params.id);
   res.json({ ok: true });
 }));
@@ -156,8 +162,10 @@ router.get('/admin/api/feedback', asyncRoute(async (req, res) => {
 }));
 
 router.delete('/admin/api/feedback/:id', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
+  const actor = await checkToken(req, res);
+  if (!actor) return;
   await db.prepare('DELETE FROM feedback WHERE id = ?').run(req.params.id);
+  logAction(actor, 'delete_feedback', null, 'feedback #' + req.params.id);
   res.json({ ok: true });
 }));
 
@@ -189,7 +197,7 @@ router.post('/admin/api/users/:id/push-test', asyncRoute(async (req, res) => {
     // it even with the app closed), not just that the request didn't error.
     res.json({ ok: true, ...result });
   } catch (err) {
-    console.error('[admin push-test]', err);
+    reportError(err, '[admin push-test]');
     res.status(500).json({ error: 'Server error' });
   }
 }));
@@ -206,16 +214,18 @@ router.get('/admin/api/backup-status', asyncRoute(async (req, res) => {
 // instead of just waiting up to 24h to find out, and gives a real error
 // message (bad Gmail app password, etc.) instead of a silent no-op.
 router.post('/admin/api/backup/run-now', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
+  const actor = await checkToken(req, res);
+  if (!actor) return;
   const { GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_EMAIL } = require('../config');
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD || !ADMIN_EMAIL) {
     return res.status(400).json({ error: 'Backup email is not configured (GMAIL_USER / GMAIL_APP_PASSWORD / ADMIN_EMAIL).' });
   }
   try {
     await require('../services/dbBackup').runBackupTick();
+    logAction(actor, 'manual_backup', null, null);
     res.json({ ok: true });
   } catch (err) {
-    console.error('[admin backup-now]', err);
+    reportError(err, '[admin backup-now]');
     res.status(500).json({ error: err.message || 'Backup failed' });
   }
 }));
@@ -225,6 +235,70 @@ router.get('/admin/api/visits', asyncRoute(async (req, res) => {
   if (!(await checkToken(req, res))) return;
   const { getVisitStats } = require('../services/siteVisits');
   res.json(await getVisitStats());
+}));
+
+// ── Admin API: coupons ──────────────────────────────────────────────────────
+// The only way to create a coupon used to be a raw DB insert — this is the
+// actual admin-facing management surface for the coupon system wired up in
+// server/routes/checkout.js (validated + attached at checkout time) and
+// server/routes/webhooks.js (redeemed once payment actually succeeds).
+router.get('/admin/api/coupons', asyncRoute(async (req, res) => {
+  if (!(await checkToken(req, res))) return;
+  const rows = await db.prepare('SELECT * FROM coupons ORDER BY id DESC').all();
+  res.json(rows);
+}));
+
+const VALID_APPLIES_TO = new Set(['both', 'premium', 'elite']);
+
+router.post('/admin/api/coupons', asyncRoute(async (req, res) => {
+  const actor = await checkToken(req, res);
+  if (!actor) return;
+  const { code, discountPercent, appliesTo, maxUses, expiresAt } = req.body || {};
+  const normalizedCode = String(code || '').trim().toUpperCase();
+  const pct = Number(discountPercent);
+  if (!normalizedCode) return res.status(400).json({ error: 'Code is required' });
+  if (!Number.isInteger(pct) || pct < 1 || pct > 100) {
+    return res.status(400).json({ error: 'Discount percent must be a whole number from 1-100' });
+  }
+  const applies = VALID_APPLIES_TO.has(appliesTo) ? appliesTo : 'both';
+  const max = maxUses === '' || maxUses == null ? null : Number(maxUses);
+  if (max != null && (!Number.isInteger(max) || max < 1)) {
+    return res.status(400).json({ error: 'Max uses must be a positive whole number, or left blank for unlimited' });
+  }
+  let expires = null;
+  if (expiresAt) {
+    const ms = new Date(expiresAt).getTime();
+    if (Number.isNaN(ms)) return res.status(400).json({ error: 'Invalid expiry date' });
+    expires = Math.floor(ms / 1000);
+  }
+  try {
+    await db
+      .prepare('INSERT INTO coupons (code, discount_percent, applies_to, max_uses, expires_at) VALUES (?, ?, ?, ?, ?)')
+      .run(normalizedCode, pct, applies, max, expires);
+  } catch (err) {
+    return res.status(409).json({ error: 'A coupon with that code already exists' });
+  }
+  logAction(actor, 'coupon_create', null, normalizedCode);
+  res.json({ ok: true });
+}));
+
+router.post('/admin/api/coupons/:id/active', asyncRoute(async (req, res) => {
+  const actor = await checkToken(req, res);
+  if (!actor) return;
+  const { value } = req.body; // 1 or 0
+  const coupon = await db.prepare('SELECT code FROM coupons WHERE id = ?').get(req.params.id);
+  await db.prepare('UPDATE coupons SET active = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
+  logAction(actor, value ? 'coupon_enable' : 'coupon_disable', null, coupon && coupon.code);
+  res.json({ ok: true });
+}));
+
+router.delete('/admin/api/coupons/:id', asyncRoute(async (req, res) => {
+  const actor = await checkToken(req, res);
+  if (!actor) return;
+  const coupon = await db.prepare('SELECT code FROM coupons WHERE id = ?').get(req.params.id);
+  await db.prepare('DELETE FROM coupons WHERE id = ?').run(req.params.id);
+  logAction(actor, 'coupon_delete', null, coupon && coupon.code);
+  res.json({ ok: true });
 }));
 
 // ── Admin UI ───────────────────────────────────────────────────────────────
@@ -335,6 +409,13 @@ router.get('/admin', asyncRoute(async (req, res) => {
   .refresh-btn:hover { background: rgba(255,255,255,0.05); color: #E4E4E7; }
   .admin-token-form { display:flex; gap:6px; align-items:center; }
   .admin-token-form input { width:180px; background:#1C1C1C; border:1px solid rgba(255,255,255,0.1); color:#E4E4E7; border-radius:6px; padding:5px 8px; font:11px monospace; }
+  .coupon-form { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:14px 20px; border-bottom:1px solid rgba(255,255,255,0.06); }
+  .coupon-form input, .coupon-form select { background:#1C1C1C; border:1px solid rgba(255,255,255,0.1); color:#E4E4E7; border-radius:6px; padding:6px 10px; font-size:12px; }
+  .coupon-form input[name="code"] { width:130px; font-family:monospace; text-transform:uppercase; }
+  .coupon-form input[name="discountPercent"] { width:60px; }
+  .coupon-form input[name="maxUses"] { width:70px; }
+  .coupon-form input[name="expiresAt"] { width:150px; }
+  .coupon-code { font-family:monospace; font-weight:700; letter-spacing:0.03em; }
   .back-link:hover { color: #E4E4E7 !important; }
   .feedback-row { padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.04); }
   .feedback-row:last-child { border-bottom: none; }
@@ -407,6 +488,26 @@ router.get('/admin', asyncRoute(async (req, res) => {
     <div id="audit-wrap"><div class="loader">Loading…</div></div>
   </div>
 
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-hdr">
+      <h2>Coupons</h2>
+      <button class="refresh-btn" id="btn-refresh-coupons">↻ Refresh</button>
+    </div>
+    <form class="coupon-form" id="coupon-form">
+      <input name="code" placeholder="CODE" required maxlength="40" />
+      <input name="discountPercent" type="number" min="1" max="100" placeholder="% off" required />
+      <select name="appliesTo">
+        <option value="both">Both tiers</option>
+        <option value="premium">Premium only</option>
+        <option value="elite">Elite only</option>
+      </select>
+      <input name="maxUses" type="number" min="1" placeholder="Max uses (blank = ∞)" />
+      <input name="expiresAt" type="date" placeholder="Expires" />
+      <button type="submit" class="btn btn-tier-elite">+ Create coupon</button>
+    </form>
+    <div id="coupons-wrap"><div class="loader">Loading…</div></div>
+  </div>
+
   <div class="card">
     <div class="card-hdr">
       <h2>Users</h2>
@@ -443,6 +544,7 @@ document.getElementById('admin-token-save').addEventListener('click', function (
   loadAuditLog();
   loadVisits();
   loadBackupStatus();
+  loadCoupons();
 });
 
 let allUsers = [];
@@ -485,6 +587,8 @@ const ACTION_LABEL = {
   coupon_delete: '✕ Delete coupon',
   self_service_upgrade: '💳 Self-service upgrade',
   refund_downgrade: '↩ Refund downgrade',
+  delete_feedback: '✕ Delete feedback',
+  manual_backup: '💾 Manual backup',
 };
 
 async function loadAuditLog() {
@@ -549,6 +653,91 @@ async function runBackupNow() {
   } finally {
     link.textContent = 'Run now';
   }
+}
+
+let allCoupons = [];
+
+async function loadCoupons() {
+  try {
+    const r = await fetch('/admin/api/coupons', { headers: AUTH_HEADERS });
+    if (!r.ok) { document.getElementById('coupons-wrap').innerHTML = '<div class="loader">Error loading coupons.</div>'; return false; }
+    allCoupons = await r.json();
+    renderCoupons(allCoupons);
+    return true;
+  } catch (e) {
+    document.getElementById('coupons-wrap').innerHTML = '<div class="loader">Failed to fetch.</div>';
+    return false;
+  }
+}
+
+function renderCoupons(coupons) {
+  const el = document.getElementById('coupons-wrap');
+  if (!coupons.length) { el.innerHTML = '<div class="loader">No coupons yet — create one above.</div>'; return; }
+  const now = Date.now() / 1000;
+  const rows = coupons.map(function (c) {
+    const expired = c.expires_at && c.expires_at < now;
+    const maxedOut = c.max_uses != null && c.uses_count >= c.max_uses;
+    const statusBadge = !c.active
+      ? '<span class="badge badge-no">Disabled</span>'
+      : expired
+        ? '<span class="badge badge-no">Expired</span>'
+        : maxedOut
+          ? '<span class="badge badge-no">Limit reached</span>'
+          : '<span class="badge badge-ok">Active</span>';
+    const usage = c.max_uses != null ? c.uses_count + ' / ' + c.max_uses : c.uses_count + ' / ∞';
+    const expiresLabel = c.expires_at ? new Date(c.expires_at * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+    const appliesLabel = c.applies_to === 'both' ? 'Premium + Elite' : c.applies_to === 'premium' ? 'Premium only' : 'Elite only';
+    const toggleBtn = c.active
+      ? '<button class="btn btn-block" data-act="coupon-toggle" data-id="' + c.id + '" data-val="0">Disable</button>'
+      : '<button class="btn btn-unblock" data-act="coupon-toggle" data-id="' + c.id + '" data-val="1">Enable</button>';
+    const delBtn = '<button class="btn btn-del" data-act="coupon-del" data-id="' + c.id + '" data-code="' + escapeHtml(c.code) + '">✕</button>';
+    return '<tr>' +
+      '<td class="coupon-code">' + escapeHtml(c.code) + '</td>' +
+      '<td>' + c.discount_percent + '%</td>' +
+      '<td>' + appliesLabel + '</td>' +
+      '<td class="center" style="font-family:monospace;font-size:12px">' + usage + '</td>' +
+      '<td class="date">' + expiresLabel + '</td>' +
+      '<td>' + statusBadge + '</td>' +
+      '<td><div class="actions">' + toggleBtn + delBtn + '</div></td>' +
+      '</tr>';
+  }).join('');
+  el.innerHTML = '<table><thead><tr><th>Code</th><th>Discount</th><th>Applies to</th><th class="center">Uses</th><th>Expires</th><th>Status</th><th>Actions</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+async function createCoupon(e) {
+  e.preventDefault();
+  const form = e.target;
+  const fd = new FormData(form);
+  const body = {
+    code: fd.get('code'),
+    discountPercent: Number(fd.get('discountPercent')),
+    appliesTo: fd.get('appliesTo'),
+    maxUses: fd.get('maxUses') || null,
+    expiresAt: fd.get('expiresAt') || null,
+  };
+  const r = await fetch('/admin/api/coupons', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
+    body: JSON.stringify(body),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok) { toast('✓ Coupon created'); form.reset(); loadCoupons(); }
+  else toast(d.error || 'Error creating coupon', true);
+}
+
+async function toggleCoupon(id, value) {
+  const r = await fetch('/admin/api/coupons/' + id + '/active', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
+    body: JSON.stringify({ value }),
+  });
+  if (r.ok) { toast(value ? 'Coupon enabled' : 'Coupon disabled'); loadCoupons(); }
+  else toast('Error', true);
+}
+
+async function deleteCoupon(id, code) {
+  if (!confirm('Delete coupon ' + code + '? This cannot be undone.')) return;
+  const r = await fetch('/admin/api/coupons/' + id, { method: 'DELETE', headers: AUTH_HEADERS });
+  if (r.ok) { toast('Coupon deleted'); loadCoupons(); }
+  else toast('Error', true);
 }
 
 async function loadVisits() {
@@ -768,7 +957,14 @@ document.addEventListener('click', function (e) {
     case 'force-logout':  return forceLogout(d.id);
     case 'push-test':     return sendTestPush(d.id);
     case 'del-user':      return deleteUser(d.id, d.email);
+    case 'coupon-toggle': return toggleCoupon(d.id, Number(d.val));
+    case 'coupon-del':    return deleteCoupon(d.id, d.code);
   }
+});
+document.getElementById('coupon-form').addEventListener('submit', createCoupon);
+document.getElementById('btn-refresh-coupons').addEventListener('click', async function () {
+  const ok = await loadCoupons();
+  toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
 });
 
 // Static controls (present in the initial HTML, not regenerated)
@@ -795,10 +991,12 @@ load();
 loadAuditLog();
 loadBackupStatus();
 loadVisits();
+loadCoupons();
 setInterval(load, 60000);
 setInterval(loadAuditLog, 60000);
 setInterval(loadBackupStatus, 60000);
 setInterval(loadVisits, 60000);
+setInterval(loadCoupons, 60000);
 </script>
 </body>
 </html>`);

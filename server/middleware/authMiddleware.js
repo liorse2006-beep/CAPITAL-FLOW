@@ -42,22 +42,27 @@ async function resolveToken(token) {
   if (!token) return null;
   try {
     const payload = verifyToken(token);
+    // The token's session (sid) must still exist — it's deleted the moment
+    // that device logs out, or the instant it's evicted for being the
+    // least-recently-used device once the account is already at its
+    // MAX_ACTIVE_SESSIONS cap (see auth.createSession). A short-lived access
+    // token that outlives its session this way is rejected immediately
+    // rather than waiting out its own natural 1h expiry.
+    const session = await db.prepare('SELECT id FROM user_sessions WHERE id = ? AND user_id = ?').get(
+      payload.sid,
+      payload.id
+    );
+    if (!session) return null;
     const user = await db
       .prepare(
         `SELECT id, email, is_verified, is_premium, is_blocked, free_scan_count,
-                is_pilot, session_version, pilot_terms_accepted_at, tier, created_at,
+                is_pilot, pilot_terms_accepted_at, tier, created_at,
                 free_scan_used_capital_flow, free_scan_used_ma_scanner, free_scan_used_sector_moving,
                 premium_scan_count, premium_scan_window_start
          FROM users WHERE id = ?`
       )
       .get(payload.id);
     if (!user || user.is_blocked) return null;
-    // A token from a stale session_version means this account logged in
-    // again elsewhere (another device, or a shared password) since this
-    // token was issued — reject it. Every login bumps session_version
-    // (see auth.issueToken), so only the most recently issued token for
-    // an account is ever valid — one active device at a time, site-wide.
-    if ((payload.sv || 0) !== user.session_version) return null;
     // Pilot accounts (and the configured admin's own account) get full
     // (Elite) access for as long as that's true — this is the ONLY place
     // that needs to know that, since every tier check (requirePremium,
@@ -163,7 +168,7 @@ async function requirePremiumSSE(req, res, next) {
     ? await db
         .prepare(
           `SELECT id, email, is_verified, is_premium, is_blocked, free_scan_count,
-                  is_pilot, session_version, pilot_terms_accepted_at, tier, created_at,
+                  is_pilot, pilot_terms_accepted_at, tier, created_at,
                   free_scan_used_capital_flow, free_scan_used_ma_scanner, free_scan_used_sector_moving,
                   premium_scan_count, premium_scan_window_start
            FROM users WHERE id = ?`

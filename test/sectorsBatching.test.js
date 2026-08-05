@@ -65,7 +65,7 @@ test('GET /api/sector-flow batches all 15 ETF quotes into a single Yahoo call', 
     })),
   }));
   const user = await makeEliteUser('sectors-batch@test.local');
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const server = await startTestApp();
   const port = server.address().port;
   try {
@@ -109,7 +109,7 @@ test('GET /api/sector-flow degrades per-symbol via the chart fallback if the bat
     })),
   }));
   const user = await makeEliteUser('sectors-batch-fail@test.local');
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const server = await startTestApp(freshSectorsRouter);
   const port = server.address().port;
   try {

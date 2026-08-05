@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { getHistoricalVolumeContext } = require('../services/volumeContext');
 const { scanLimiter } = require('../middleware/rateLimiters');
 const { requireAuth } = require('../middleware/authMiddleware');
+const { reportError } = require('../utils/reportError');
 
 var SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
 
@@ -18,7 +19,7 @@ router.get('/volume-context/:symbol', requireAuth, scanLimiter, async function (
     }
     return res.json({ found: true, context: context });
   } catch (err) {
-    console.error('[volume-context]', err);
+    reportError(err, '[volume-context]');
     return res.status(500).json({ error: 'Server error' });
   }
 });

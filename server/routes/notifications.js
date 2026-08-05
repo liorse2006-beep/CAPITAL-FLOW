@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { requireAuth } = require('../middleware/authMiddleware');
+const { reportError } = require('../utils/reportError');
 const {
   getNotifications,
   getNotificationDetail,
@@ -20,7 +21,7 @@ router.get('/notifications/:id', requireAuth, async (req, res) => {
     if (!detail) return res.status(404).json({ error: 'Not found' });
     res.json(detail);
   } catch (err) {
-    console.error('[notifications/:id GET]', err);
+    reportError(err, '[notifications/:id GET]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -33,7 +34,7 @@ router.get('/notifications', requireAuth, async (req, res) => {
     ]);
     res.json({ notifications, unreadCount });
   } catch (err) {
-    console.error('[notifications GET]', err);
+    reportError(err, '[notifications GET]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -43,7 +44,7 @@ router.post('/notifications/read', requireAuth, async (req, res) => {
     await markAllRead(req.user.id);
     res.json({ ok: true });
   } catch (err) {
-    console.error('[notifications/read POST]', err);
+    reportError(err, '[notifications/read POST]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -55,7 +56,7 @@ router.delete('/notifications/:id', requireAuth, async (req, res) => {
     await removeNotification(req.user.id, id);
     res.json({ ok: true });
   } catch (err) {
-    console.error('[notifications DELETE id]', err);
+    reportError(err, '[notifications DELETE id]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -65,7 +66,7 @@ router.delete('/notifications', requireAuth, async (req, res) => {
     await clearAll(req.user.id);
     res.json({ ok: true });
   } catch (err) {
-    console.error('[notifications DELETE all]', err);
+    reportError(err, '[notifications DELETE all]');
     res.status(500).json({ error: 'Server error' });
   }
 });

@@ -3,6 +3,7 @@ const db = require('../db');
 const whop = require('../services/whop');
 const { redeemCoupon } = require('../services/coupons');
 const email = require('../services/email');
+const { reportError } = require('../utils/reportError');
 
 // Mounted with express.raw() (see server/index.js) — req.body is a Buffer
 // here, not parsed JSON, because signature verification must run over the
@@ -34,17 +35,40 @@ router.post('/webhooks/whop', async (req, res) => {
     // that just lost the race) can still claim and complete it — a
     // transient DB/email failure never permanently discards a paid upgrade.
     const webhookId = req.headers['webhook-id'];
+    let shouldProcess = true;
     if (webhookId) {
       const claim = await db
         .prepare('INSERT INTO processed_webhook_events (event_id) VALUES (?) ON CONFLICT(event_id) DO NOTHING')
         .run(webhookId);
       if (claim.changes === 0) {
-        return res.json({ ok: true, duplicate: true });
+        // The row already existed. Two possibilities: a genuine duplicate
+        // delivery of an event that already finished (completed_at set) —
+        // or a claim from a delivery whose process was killed mid-flight
+        // (e.g. a deploy) before it ever reached the completed_at UPDATE at
+        // the bottom of this handler. The second case used to be treated
+        // exactly like the first — Whop's retry saw the row, gave up, and
+        // the payment/tier-grant it carried was silently dropped forever.
+        // The UPDATE's WHERE guard makes "does THIS request get to retry
+        // it" atomic across concurrent deliveries (same pattern as
+        // services/scanQuota.js's reserveScan) — only one can ever win it.
+        const retryClaim = await db
+          .prepare('UPDATE processed_webhook_events SET processed_at = ? WHERE event_id = ? AND completed_at IS NULL')
+          .run(Math.floor(Date.now() / 1000), webhookId);
+        shouldProcess = retryClaim.changes > 0;
       }
+    }
+
+    if (!shouldProcess) {
+      return res.json({ ok: true, duplicate: true });
     }
 
     try {
       await handleWhopEvent(event);
+      if (webhookId) {
+        await db
+          .prepare('UPDATE processed_webhook_events SET completed_at = ? WHERE event_id = ?')
+          .run(Math.floor(Date.now() / 1000), webhookId);
+      }
     } catch (err) {
       if (webhookId) await db.prepare('DELETE FROM processed_webhook_events WHERE event_id = ?').run(webhookId);
       throw err;
@@ -52,7 +76,7 @@ router.post('/webhooks/whop', async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    console.error('[webhooks/whop]', err);
+    reportError(err, '[webhooks/whop]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -75,7 +99,7 @@ async function handleWhopEvent(event) {
             `(deleted user id ${metadata.userId})`,
             `${tier} — PAYMENT SUCCEEDED BUT ACCOUNT MISSING, NEEDS MANUAL REFUND/FOLLOW-UP`
           )
-          .catch((err) => console.error('[admin-upgrade-alert]', err));
+          .catch((err) => reportError(err, '[admin-upgrade-alert]'));
         db.prepare('INSERT INTO admin_audit_log (actor, action, target_user_id, detail) VALUES (?, ?, ?, ?)')
           .run('whop-webhook', 'payment_for_missing_user', metadata.userId, tier)
           .catch(() => {});
@@ -86,7 +110,7 @@ async function handleWhopEvent(event) {
         // is the only place a tier change like this gets flagged — both an
         // immediate email and an Activity Log entry, so it's visible
         // whether or not the admin happens to be looking at the panel.
-        email.sendAdminUpgradeAlert(buyer.email, tier).catch((err) => console.error('[admin-upgrade-alert]', err));
+        email.sendAdminUpgradeAlert(buyer.email, tier).catch((err) => reportError(err, '[admin-upgrade-alert]'));
         db.prepare('INSERT INTO admin_audit_log (actor, action, target_user_id, detail) VALUES (?, ?, ?, ?)')
           .run('whop-webhook', 'self_service_upgrade', metadata.userId, tier)
           .catch(() => {});

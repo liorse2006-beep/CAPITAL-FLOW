@@ -717,6 +717,10 @@ function App() {
   // the localStorage read-and-clear effectively run exactly once.
   const [welcomeTier, setWelcomeTier] = useState(null);
   const handledStatusRef = useRef(false);
+  // Always mirrors the latest `user` value so the post-checkout polling loop
+  // can detect when the webhook has landed without a stale closure.
+  const userRef = useRef(user);
+  useEffect(function () { userRef.current = user; }, [user]);
   useEffect(
     function () {
       var status = new URLSearchParams(location.search).get('status');
@@ -732,11 +736,23 @@ function App() {
       } else {
         showToast('Payment received! Upgrading your account…');
       }
-      refreshUser();
-      var retry = setTimeout(refreshUser, 3000);
-      return function () {
-        clearTimeout(retry);
-      };
+      // Poll /api/auth/me until the tier matches the purchased tier, backing
+      // off gradually. The Whop webhook can trail the redirect by anywhere
+      // from 1s to ~90s on a cold Render instance, so a single 3s retry is
+      // not enough — the user would see "Free" in the nav until hard-refresh.
+      var cancelled = false;
+      var delays = [1000, 3000, 8000, 20000, 45000];
+      (async function poll() {
+        for (var i = 0; i < delays.length; i++) {
+          await new Promise(function (r) { setTimeout(r, delays[i]); });
+          if (cancelled) return;
+          await refreshUser();
+          if (cancelled) return;
+          var u = userRef.current;
+          if (u && pendingTier && u.tier === pendingTier) return;
+        }
+      })();
+      return function () { cancelled = true; };
     },
     [location.search]
   );
@@ -1198,7 +1214,7 @@ function App() {
           <ScheduledScanResultsModal
             notification={scheduledScanNotif}
             onClose={() => setScheduledScanNotif(null)}
-            openChart={openChart}
+            promptShowNews={promptShowNews}
             isInWatchlist={isInWatchlist}
             toggleWatchlistTicker={toggleWatchlistTicker}
           />

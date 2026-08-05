@@ -1,6 +1,7 @@
 const webpush = require('web-push');
 const db = require('../db');
 const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT } = require('../config');
+const { reportError } = require('../utils/reportError');
 
 // A malformed VAPID key (wrong length/encoding) must never take the whole
 // server down at boot — push notifications are one optional feature, not
@@ -12,7 +13,7 @@ if (configured) {
     webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
   } catch (err) {
     configured = false;
-    console.error('[webPush] Invalid VAPID keys — push notifications disabled:', err.message);
+    reportError(err, '[webPush] Invalid VAPID keys — push notifications disabled');
   }
 }
 

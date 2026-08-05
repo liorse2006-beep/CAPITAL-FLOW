@@ -3,6 +3,7 @@ const { quickScan } = require('../services/scanner');
 const { scanLimiter } = require('../middleware/rateLimiters');
 const { requireAuth } = require('../middleware/authMiddleware');
 const { getWatchlist, addToWatchlist, removeFromWatchlist } = require('../services/watchlist');
+const { reportError } = require('../utils/reportError');
 
 var SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
 var MAX_WATCHLIST_SIZE = 50; // matches the /watchlist-quotes cap below
@@ -11,7 +12,7 @@ router.get('/watchlist', requireAuth, async (req, res) => {
   try {
     res.json(await getWatchlist(req.user.id));
   } catch (err) {
-    console.error('[watchlist GET]', err);
+    reportError(err, '[watchlist GET]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -27,7 +28,7 @@ router.post('/watchlist/:symbol', requireAuth, async (req, res) => {
     await addToWatchlist(req.user.id, symbol);
     res.json({ ok: true, symbol });
   } catch (err) {
-    console.error('[watchlist POST]', err);
+    reportError(err, '[watchlist POST]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -37,7 +38,7 @@ router.delete('/watchlist/:symbol', requireAuth, async (req, res) => {
     await removeFromWatchlist(req.user.id, req.params.symbol.toUpperCase());
     res.json({ ok: true });
   } catch (err) {
-    console.error('[watchlist DELETE]', err);
+    reportError(err, '[watchlist DELETE]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -59,7 +60,7 @@ router.get('/watchlist-quotes', requireAuth, scanLimiter, async (req, res) => {
     var results = await quickScan(symbols);
     res.json({ results: results, fetchTime: new Date().toISOString() });
   } catch (err) {
-    console.error('[watchlist-quotes]', err);
+    reportError(err, '[watchlist-quotes]');
     res.status(500).json({ error: 'Server error' });
   }
 });

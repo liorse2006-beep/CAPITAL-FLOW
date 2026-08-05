@@ -21,7 +21,7 @@ async function makeUser(email, { isPilot = false, isPremium = false } = {}) {
 
 test('a free pilot user resolves as premium through the app', async () => {
   const user = await makeUser('free-pilot@test.local', { isPilot: true, isPremium: false });
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const resolved = await resolveToken(token);
 
   assert.strictEqual(resolved.is_premium, 1, 'pilot tag must grant premium at resolve time');
@@ -34,7 +34,7 @@ test('removing the pilot tag reverts a non-paying user to free', async () => {
   await db.prepare('UPDATE users SET is_pilot = 0 WHERE id = ?').run(user.id);
   const reloaded = await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
 
-  const token = await issueToken(reloaded);
+  const token = (await issueToken(reloaded)).accessToken;
   const resolved = await resolveToken(token);
 
   assert.strictEqual(resolved.is_premium, 0, 'without the pilot tag, a non-paying user must be free again');
@@ -45,7 +45,7 @@ test('a genuinely paying user keeps premium after their pilot tag is removed', a
   await db.prepare('UPDATE users SET is_pilot = 0 WHERE id = ?').run(user.id);
   const reloaded = await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
 
-  const token = await issueToken(reloaded);
+  const token = (await issueToken(reloaded)).accessToken;
   const resolved = await resolveToken(token);
 
   assert.strictEqual(resolved.is_premium, 1, 'a real paying subscriber must stay premium regardless of pilot status');
@@ -60,14 +60,14 @@ test('withEffectivePremium never mutates the original object', async () => {
 
 test('the JWT issued for a free pilot embeds is_premium=1', async () => {
   const user = await makeUser('token-check@test.local', { isPilot: true, isPremium: false });
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const payload = verifyToken(token);
   assert.strictEqual(payload.is_premium, 1);
 });
 
 test('the account matching ADMIN_EMAIL always resolves as elite, even on the free tier', async () => {
   const user = await makeUser('admin@test.local', { isPilot: false, isPremium: false });
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const resolved = await resolveToken(token);
 
   assert.strictEqual(resolved.tier, 'elite');
@@ -78,14 +78,14 @@ test('the account matching ADMIN_EMAIL always resolves as elite, even on the fre
 
 test('ADMIN_EMAIL matching is case-insensitive', async () => {
   const user = await makeUser('Admin@Test.Local', { isPilot: false, isPremium: false });
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const resolved = await resolveToken(token);
   assert.strictEqual(resolved.is_premium, 1);
 });
 
 test('an unrelated free account is not affected by the ADMIN_EMAIL override', async () => {
   const user = await makeUser('not-the-admin@test.local', { isPilot: false, isPremium: false });
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const resolved = await resolveToken(token);
   assert.strictEqual(resolved.is_premium, 0);
 });

@@ -2,6 +2,7 @@ const zlib = require('zlib');
 const nodemailer = require('nodemailer');
 const db = require('../db');
 const { GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_EMAIL } = require('../config');
+const { reportError } = require('../utils/reportError');
 
 // Render's filesystem is ephemeral — anything written to disk there is gone
 // on the next deploy or restart, so a backup can only be useful if it leaves
@@ -122,7 +123,7 @@ function startScheduledBackup() {
 
       await runBackupTick();
     } catch (err) {
-      console.error('[dbBackup]', err);
+      reportError(err, '[dbBackup]');
     }
   }
 

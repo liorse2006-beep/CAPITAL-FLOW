@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { validateCoupon } = require('../services/coupons');
 const { publicDataLimiter } = require('../middleware/rateLimiters');
+const { reportError } = require('../utils/reportError');
 
 const VALID_TIERS = new Set(['premium', 'elite']);
 
@@ -14,7 +15,7 @@ router.post('/coupons/validate', publicDataLimiter, async (req, res) => {
     const result = await validateCoupon(code, tier);
     res.json(result);
   } catch (err) {
-    console.error('[coupons/validate]', err);
+    reportError(err, '[coupons/validate]');
     res.status(500).json({ error: 'Server error' });
   }
 });

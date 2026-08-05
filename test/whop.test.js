@@ -202,6 +202,83 @@ test('webhook redelivery with the same webhook-id does not double-redeem the cou
   }
 });
 
+test('a webhook event claimed but never completed (process killed mid-deploy) is retried, not dropped as a duplicate', async () => {
+  // Regression: a deploy that kills the process AFTER the idempotency
+  // INSERT commits but BEFORE handleWhopEvent finishes leaves a stuck claim
+  // row behind. Whop's retry of the same event used to see the row exists
+  // and immediately return { duplicate: true } — silently discarding a paid
+  // upgrade forever, with no error anywhere. Simulate that exact stuck
+  // state directly (INSERT the claim with completed_at left NULL, as if
+  // the process died right after claiming) and confirm the next delivery
+  // of that same webhook-id actually finishes the job instead of skipping it.
+  const user = await makeUser('webhook-stuckclaim@test.local', 'free');
+  const payload = JSON.stringify({
+    type: 'payment_succeeded',
+    data: { metadata: { userId: user.id, tier: 'elite' } },
+  });
+  const headers = sign(payload, { id: 'wh_stuck_claim_1' });
+
+  await db.prepare('INSERT INTO processed_webhook_events (event_id, completed_at) VALUES (?, NULL)').run('wh_stuck_claim_1');
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: payload,
+    });
+    assert.strictEqual(res.status, 200);
+    const body = await res.json();
+    assert.notStrictEqual(body.duplicate, true, 'a never-completed claim must be retried, not treated as a duplicate');
+
+    const updated = await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id);
+    assert.strictEqual(updated.tier, 'elite', 'the upgrade the stuck claim was carrying must actually land');
+
+    const row = await db.prepare('SELECT completed_at FROM processed_webhook_events WHERE event_id = ?').get('wh_stuck_claim_1');
+    assert.ok(row.completed_at, 'completed_at must now be set, so a genuine future duplicate IS skipped');
+
+    // A true duplicate delivery after completion must now be skipped.
+    const redelivery = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: payload,
+    });
+    const redeliveryBody = await redelivery.json();
+    assert.strictEqual(redeliveryBody.duplicate, true);
+  } finally {
+    server.close();
+  }
+});
+
+test('two concurrent retries of the same stuck (never-completed) claim only run the business logic once', async () => {
+  const user = await makeUser('webhook-stuckrace@test.local', 'free');
+  const payload = JSON.stringify({
+    type: 'payment_succeeded',
+    data: { metadata: { userId: user.id, tier: 'elite' } },
+  });
+  const headers = sign(payload, { id: 'wh_stuck_race_1' });
+
+  await db.prepare('INSERT INTO processed_webhook_events (event_id, completed_at) VALUES (?, NULL)').run('wh_stuck_race_1');
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    const send = () =>
+      fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: payload,
+      });
+    const [r1, r2] = await Promise.all([send(), send()]);
+    const [b1, b2] = await Promise.all([r1.json(), r2.json()]);
+    const duplicateFlags = [b1.duplicate === true, b2.duplicate === true];
+    assert.deepStrictEqual(duplicateFlags.sort(), [false, true], 'exactly one concurrent retry must win the claim, the other must see duplicate');
+  } finally {
+    server.close();
+  }
+});
+
 test('two truly concurrent deliveries of the same webhook-id only redeem the coupon once', async () => {
   // Regression for the idempotency TOCTOU: the old check-then-insert-at-the-
   // end logic let two overlapping requests both pass the "already processed"
@@ -404,7 +481,7 @@ test('checkout/transaction rejects an invalid tier', async () => {
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/checkout/transaction`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)) },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)).accessToken },
       body: JSON.stringify({ tier: 'free' }),
     });
     assert.strictEqual(res.status, 400);
@@ -420,12 +497,50 @@ test('checkout/transaction rejects an invalid coupon before calling Whop', async
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/checkout/transaction`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)) },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)).accessToken },
       body: JSON.stringify({ tier: 'premium', couponCode: 'DOES-NOT-EXIST' }),
     });
     assert.strictEqual(res.status, 400);
     const body = await res.json();
     assert.match(body.error, /invalid coupon/i);
+  } finally {
+    server.close();
+  }
+});
+
+test('checkout/transaction attaches a valid coupon to the Whop session metadata and echoes it back', async (t) => {
+  // Regression: this used to hard-reject (409) any request with a
+  // couponCode, meaning metadata.couponCode was NEVER set on a real
+  // checkout session — the webhook's redeemCoupon(metadata.couponCode) call
+  // was unreachable dead code in production. Now a valid code must actually
+  // reach Whop's session metadata (so the webhook can redeem it once paid)
+  // and come back in the response (so the frontend can pass it to the
+  // embed's promoCode prop).
+  await db.prepare('INSERT INTO coupons (code, discount_percent, applies_to) VALUES (?, ?, ?)').run(
+    'ATTACHTEST',
+    25,
+    'both'
+  );
+  const captured = [];
+  t.mock.method(whop, 'createCheckoutSession', async (args) => {
+    captured.push(args);
+    return { id: 'ch_coupon_attach', purchase_url: 'https://whop.com/checkout/x' };
+  });
+
+  const user = await makeUser('checkout-couponattach@test.local');
+  const server = await startCheckoutApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/checkout/transaction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)).accessToken },
+      body: JSON.stringify({ tier: 'premium', couponCode: 'attachtest' }),
+    });
+    assert.strictEqual(res.status, 200);
+    const body = await res.json();
+    assert.strictEqual(body.couponCode, 'ATTACHTEST');
+    assert.strictEqual(body.discountPercent, 25);
+    assert.strictEqual(captured[0].metadata.couponCode, 'ATTACHTEST', 'the session sent to Whop must carry the coupon code');
   } finally {
     server.close();
   }
@@ -439,7 +554,7 @@ test('checkout/transaction debounces a rapid double-submit into a single Whop se
   });
 
   const user = await makeUser('checkout-doubleclick@test.local');
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const server = await startCheckoutApp();
   const port = server.address().port;
   try {
@@ -473,7 +588,7 @@ test('eliteUpgrade is rejected for an account that is not currently Premium', as
     for (const user of [free, elite]) {
       const res = await fetch(`http://127.0.0.1:${port}/api/checkout/transaction`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)) },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)).accessToken },
         body: JSON.stringify({ tier: 'eliteUpgrade' }),
       });
       assert.strictEqual(res.status, 403, `tier=${user.tier} must be rejected`);
@@ -496,7 +611,7 @@ test('eliteUpgrade creates a checkout session on the upgrade plan, granting elit
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/checkout/transaction`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)) },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)).accessToken },
       body: JSON.stringify({ tier: 'eliteUpgrade' }),
     });
     assert.strictEqual(res.status, 200);

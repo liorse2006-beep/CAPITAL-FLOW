@@ -1,4 +1,5 @@
 const express = require('express');
+const { reportError } = require('../utils/reportError');
 const router = express.Router();
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
@@ -7,15 +8,19 @@ const {
   hashPassword,
   verifyPassword,
   issueToken,
+  refreshAccessToken,
+  revokeSession,
+  revokeAllSessions,
   withEffectivePremium,
   generateOTP,
   saveOTP,
   verifyOTP,
+  verifyToken,
 } = require('../services/auth');
 const { sendOTPEmail, sendPasswordResetEmail, sendWelcomeEmail, sendNewSignupAdminAlert } = require('../services/email');
 const { requireAuth } = require('../middleware/authMiddleware');
 const { eliteAccess } = require('../services/scanQuota');
-const { authLimiter, otpLimiter } = require('../middleware/rateLimiters');
+const { authLimiter, otpLimiter, sessionLimiter } = require('../middleware/rateLimiters');
 const crypto = require('crypto');
 const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
 const pilotAllowlist = require('../services/pilotAllowlist');
@@ -46,6 +51,28 @@ const EMAIL_RE = /^[^\s@<>"'`]+@[^\s@<>"'`]+\.[^\s@<>"'`]+$/;
 // entirely was still visible in timing).
 const DUMMY_PASSWORD_HASH = '$2b$12$6o2c9QdDPpVJDkrxAXyZNOtcbhFwjkkB111QkvJjk3HneG7iZSYXy';
 
+// The refresh token is what actually keeps a device "logged in forever"
+// (until an explicit logout, or eviction past the 2-device cap) — httpOnly
+// so no injected script can ever read it, scoped to /api/auth so it's never
+// sent on every other API request, and long-lived enough that closing the
+// app for days doesn't matter.
+const REFRESH_COOKIE_NAME = 'vs_refresh';
+const REFRESH_COOKIE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+
+function setRefreshCookie(res, refreshToken) {
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/api/auth',
+    maxAge: REFRESH_COOKIE_MAX_AGE_MS,
+  });
+}
+
+function clearRefreshCookie(res) {
+  res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth' });
+}
+
 /* ── Cloudflare Turnstile verification ── */
 async function verifyTurnstile(token) {
   const secret = TURNSTILE_SECRET || HCAPTCHA_SECRET; // fallback for legacy env
@@ -66,7 +93,7 @@ async function verifyTurnstile(token) {
   } catch (err) {
     // A hung/failed Turnstile call must fail closed (reject the signup),
     // not hang the request forever — the old bare fetch() had no timeout.
-    console.error('[verifyTurnstile]', err);
+    reportError(err, '[verifyTurnstile]');
     return false;
   }
 }
@@ -104,8 +131,8 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
                 )
                 .run(email, profile.id, email, isPilot, tierForGoogle);
               user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-              sendWelcomeEmail(email).catch((err) => console.error('[welcome-email]', err));
-              sendNewSignupAdminAlert(email, 'Google').catch((err) => console.error('[admin-alert]', err));
+              sendWelcomeEmail(email).catch((err) => reportError(err, '[welcome-email]'));
+              sendNewSignupAdminAlert(email, 'Google').catch((err) => reportError(err, '[admin-alert]'));
             }
           }
           return done(null, user);
@@ -131,7 +158,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   router.get('/google/callback', function (req, res, next) {
     passport.authenticate('google', { session: false }, async function (err, user, info) {
       if (err) {
-        console.error('[google/callback] passport error:', err);
+        reportError(err, '[google/callback] passport error');
         return res.redirect(`${FRONTEND_URL || 'http://localhost:5173'}/?auth_error=google_failed`);
       }
       if (!user) {
@@ -139,7 +166,8 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
         return res.redirect(`${FRONTEND_URL || 'http://localhost:5173'}/?auth_error=google_failed`);
       }
       console.log('[google/callback] success, user id:', user.id, 'email:', user.email);
-      const token = await issueToken(user);
+      const { accessToken, refreshToken } = await issueToken(user);
+      setRefreshCookie(res, refreshToken);
       // If FRONTEND_URL is explicitly set use it; otherwise auto-detect from the
       // request host so production works without needing the env var configured.
       const dest = process.env.FRONTEND_URL ||
@@ -147,7 +175,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
           ? `https://${req.get('host')}`
           : 'http://localhost:5173');
       console.log('[google/callback] redirecting to:', dest + '/?google_pending=<JWT>');
-      res.redirect(`${dest}/?google_pending=${token}`);
+      res.redirect(`${dest}/?google_pending=${accessToken}`);
     })(req, res, next);
   });
 } else {
@@ -190,7 +218,7 @@ router.post('/signup', authLimiter, async (req, res) => {
 
     res.json({ success: true, message: 'Verification code sent to your email' });
   } catch (err) {
-    console.error('[signup]', err);
+    reportError(err, '[signup]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -211,13 +239,14 @@ router.post('/verify-otp', otpLimiter, async (req, res) => {
 
     await db.prepare('UPDATE users SET is_verified = 1 WHERE email = ?').run(email);
     const user = withEffectivePremium(await db.prepare('SELECT * FROM users WHERE email = ?').get(email));
-    const token = await issueToken(user);
-    sendWelcomeEmail(email).catch((err) => console.error('[welcome-email]', err));
-    if (!wasAlreadyVerified) sendNewSignupAdminAlert(email, 'email').catch((err) => console.error('[admin-alert]', err));
+    const { accessToken, refreshToken } = await issueToken(user);
+    setRefreshCookie(res, refreshToken);
+    sendWelcomeEmail(email).catch((err) => reportError(err, '[welcome-email]'));
+    if (!wasAlreadyVerified) sendNewSignupAdminAlert(email, 'email').catch((err) => reportError(err, '[admin-alert]'));
 
     res.json({
       success: true,
-      token,
+      token: accessToken,
       user: {
         id: user.id,
         email: user.email,
@@ -227,7 +256,7 @@ router.post('/verify-otp', otpLimiter, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[verify-otp]', err);
+    reportError(err, '[verify-otp]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -253,7 +282,7 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
     }
     res.json({ success: true });
   } catch (err) {
-    console.error('[resend-otp]', err);
+    reportError(err, '[resend-otp]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -279,10 +308,11 @@ router.post('/login', authLimiter, async (req, res) => {
     }
 
     user = withEffectivePremium(user);
-    const token = await issueToken(user);
+    const { accessToken, refreshToken } = await issueToken(user);
+    setRefreshCookie(res, refreshToken);
     res.json({
       success: true,
-      token,
+      token: accessToken,
       user: {
         id: user.id,
         email: user.email,
@@ -292,7 +322,7 @@ router.post('/login', authLimiter, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[login]', err);
+    reportError(err, '[login]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -312,7 +342,7 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
     }
     res.json({ success: true, message: 'If that email exists, a reset code was sent' });
   } catch (err) {
-    console.error('[forgot-password]', err);
+    reportError(err, '[forgot-password]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -331,10 +361,16 @@ router.post('/reset-password', otpLimiter, async (req, res) => {
     await db.prepare('UPDATE users SET password_hash = ?, is_verified = 1 WHERE email = ?').run(hash, email);
 
     const user = withEffectivePremium(await db.prepare('SELECT * FROM users WHERE email = ?').get(email));
-    const token = await issueToken(user);
+    // A password reset is the standard "I think my account/session may be
+    // compromised" recovery flow — every existing device session (including
+    // a stolen refresh token an attacker is holding) must end here, not just
+    // continue quietly alongside the new one issueToken is about to create.
+    await revokeAllSessions(user.id);
+    const { accessToken, refreshToken } = await issueToken(user);
+    setRefreshCookie(res, refreshToken);
     res.json({
       success: true,
-      token,
+      token: accessToken,
       user: {
         id: user.id,
         email: user.email,
@@ -344,7 +380,39 @@ router.post('/reset-password', otpLimiter, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[reset-password]', err);
+    reportError(err, '[reset-password]');
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/* ── Silently exchange the httpOnly refresh cookie for a new access token —
+   this is what lets a device stay "logged in" across the access token's 1h
+   expiry, including after the app was closed for hours or days, without the
+   user ever seeing a login screen. Fails (401) once the session has been
+   explicitly logged out or evicted by a 3rd device logging in. ── */
+router.post('/refresh', sessionLimiter, async (req, res) => {
+  try {
+    const refreshToken = req.cookies && req.cookies[REFRESH_COOKIE_NAME];
+    const result = await refreshAccessToken(refreshToken);
+    if (!result) return res.status(401).json({ error: 'No active session' });
+    res.json({ success: true, token: result.accessToken });
+  } catch (err) {
+    reportError(err, '[refresh]');
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/* ── Log out this device only — every other device's session (up to the
+   2-device cap) is left untouched, unlike the old scheme where any login
+   anywhere ended every other device's session. ── */
+router.post('/logout', sessionLimiter, requireAuth, async (req, res) => {
+  try {
+    const payload = verifyToken(req.headers.authorization.slice(7));
+    await revokeSession(payload.sid, req.user.id);
+    clearRefreshCookie(res);
+    res.json({ ok: true });
+  } catch (err) {
+    reportError(err, '[logout]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -383,6 +451,7 @@ router.delete('/account', requireAuth, async (req, res) => {
     const userId = req.user.id;
     const email = req.user.email;
 
+    await db.prepare('DELETE FROM user_sessions WHERE user_id = ?').run(userId);
     await db.prepare('DELETE FROM watchlist_alerts WHERE user_id = ?').run(userId);
     await db.prepare('DELETE FROM watchlist WHERE user_id = ?').run(userId);
     await db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(userId);
@@ -395,7 +464,7 @@ router.delete('/account', requireAuth, async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    console.error('[delete account]', err);
+    reportError(err, '[delete account]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -418,7 +487,7 @@ router.post('/apply-invite', authLimiter, requireAuth, async (req, res) => {
     await db.prepare("UPDATE users SET is_pilot = 1, tier = 'elite' WHERE id = ?").run(req.user.id);
     res.json({ ok: true });
   } catch (err) {
-    console.error('[apply-invite]', err);
+    reportError(err, '[apply-invite]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -433,7 +502,7 @@ router.post('/accept-pilot-terms', requireAuth, async (req, res) => {
     );
     res.json({ ok: true });
   } catch (err) {
-    console.error('[accept-pilot-terms]', err);
+    reportError(err, '[accept-pilot-terms]');
     res.status(500).json({ error: 'Server error' });
   }
 });

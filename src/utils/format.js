@@ -35,5 +35,11 @@ export function friendlyError(message) {
   if (m.indexOf('fetch') >= 0 || m.indexOf('network') >= 0 || m.indexOf('failed') >= 0) {
     return 'Network error — check your connection and try again.';
   }
+  // response.json() throws a SyntaxError when the server returns HTML or
+  // plain-text instead of JSON (e.g. a 500 page from a crashed middleware).
+  // The raw "Unexpected token '<'" message is meaningless to the user.
+  if (m.indexOf('unexpected token') >= 0 || m.indexOf('json') >= 0 || m.indexOf('not valid json') >= 0) {
+    return 'Something went wrong — please try again.';
+  }
   return message;
 }

@@ -6,11 +6,12 @@ import { WhopCheckoutEmbed } from '@whop/checkout/react'
 // own embed terms require the processor to stay visibly attributed even
 // when it's this invisible, so "Powered by Whop" stays on screen; everything
 // else (the page around it, the theme, what happens on completion) is ours.
-export default function EmbeddedCheckout({ sessionId, onComplete, onError }) {
+export default function EmbeddedCheckout({ sessionId, promoCode, onComplete, onError }) {
   return (
     <div className="embedded-checkout">
       <WhopCheckoutEmbed
         sessionId={sessionId}
+        promoCode={promoCode || undefined}
         theme="dark"
         skipRedirect
         themeOptions={{

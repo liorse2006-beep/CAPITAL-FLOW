@@ -30,7 +30,7 @@ async function makeUser(email) {
 
 test('DELETE /api/auth/account removes the user and every associated row', async () => {
   const user = await makeUser('delete-me@test.local');
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
 
   await db.prepare('INSERT INTO watchlist_alerts (user_id, symbol, min_ratio) VALUES (?, ?, ?)').run(user.id, 'AAPL', 3);
   await db.prepare('INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)').run(
@@ -100,7 +100,7 @@ test('DELETE /api/auth/account requires auth', async () => {
 test('DELETE /api/auth/account only removes the requesting user, not others', async () => {
   const victim = await makeUser('delete-victim@test.local');
   const bystander = await makeUser('delete-bystander@test.local');
-  const token = await issueToken(victim);
+  const token = (await issueToken(victim)).accessToken;
 
   const server = await startTestApp();
   const port = server.address().port;

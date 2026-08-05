@@ -383,10 +383,10 @@ export default function ScannerPage({
             {scanMode && (
               <div className="scan-filters-actions">
                 <button className="scan-btn scan-mode-go" onClick={startScan} disabled={scanning}>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8 }}>
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                   </svg>
-                  Run Scan
+                  <span className="scan-mode-go-label">Run Scan</span>
                 </button>
                 {!isPremium && scanMeta && scanMeta.tier === 'premium' && (
                   <span className="scan-limit-topbar">

@@ -1,4 +1,5 @@
 const express = require('express');
+const { reportError } = require('../utils/reportError');
 const router = express.Router();
 const db = require('../db');
 
@@ -13,7 +14,7 @@ router.get('/health', async (req, res) => {
       db: { status: 'ok' },
     });
   } catch (err) {
-    console.error('[health]', err);
+    reportError(err, '[health]');
     res.status(503).json({
       status: 'error',
       timestamp: new Date().toISOString(),

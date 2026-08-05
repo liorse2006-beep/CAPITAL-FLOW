@@ -41,7 +41,7 @@ function startTestApp() {
 
 test('requireElite rejects a free-tier user with NOT_ELITE', async () => {
   const user = await makeUser('elite-gate-free@test.local', 'free');
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const server = await startTestApp();
   const port = server.address().port;
   try {
@@ -55,7 +55,7 @@ test('requireElite rejects a free-tier user with NOT_ELITE', async () => {
 
 test('requireElite rejects a premium-tier user with NOT_ELITE — premium has scanning, not notifications', async () => {
   const user = await makeUser('elite-gate-premium@test.local', 'premium');
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const server = await startTestApp();
   const port = server.address().port;
   try {
@@ -69,7 +69,7 @@ test('requireElite rejects a premium-tier user with NOT_ELITE — premium has sc
 
 test('requireElite allows an elite-tier user through', async () => {
   const user = await makeUser('elite-gate-elite@test.local', 'elite');
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const server = await startTestApp();
   const port = server.address().port;
   try {
@@ -86,7 +86,7 @@ test('requireElite allows a pilot account through, even with tier=free in the DB
     .prepare('INSERT INTO users (email, is_verified, tier, is_premium, is_pilot) VALUES (?, 1, ?, 0, 1)')
     .run('elite-gate-pilot@test.local', 'free');
   const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const server = await startTestApp();
   const port = server.address().port;
   try {
@@ -99,7 +99,7 @@ test('requireElite allows a pilot account through, even with tier=free in the DB
 
 test('requireEliteOrTrial allows a free-tier account still inside its 7-day trial', async () => {
   const user = await makeUser('trial-gate-fresh@test.local', 'free');
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const server = await startTestApp();
   const port = server.address().port;
   try {
@@ -112,7 +112,7 @@ test('requireEliteOrTrial allows a free-tier account still inside its 7-day tria
 
 test('requireEliteOrTrial rejects a free-tier account once its trial has elapsed', async () => {
   const user = await makeUser('trial-gate-expired@test.local', 'free', { createdAt: isoDaysAgo(FREE_TRIAL_DAYS + 1) });
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const server = await startTestApp();
   const port = server.address().port;
   try {
@@ -126,7 +126,7 @@ test('requireEliteOrTrial rejects a free-tier account once its trial has elapsed
 
 test('requireEliteOrTrial still rejects premium — the trial exception is free-tier only', async () => {
   const user = await makeUser('trial-gate-premium@test.local', 'premium');
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const server = await startTestApp();
   const port = server.address().port;
   try {
@@ -140,7 +140,7 @@ test('requireEliteOrTrial still rejects premium — the trial exception is free-
 
 test('requireEliteOrTrial allows elite through as normal', async () => {
   const user = await makeUser('trial-gate-elite@test.local', 'elite');
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const server = await startTestApp();
   const port = server.address().port;
   try {

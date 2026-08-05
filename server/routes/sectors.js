@@ -3,6 +3,7 @@ const yahooFinance = require('../services/yahoo');
 const { finnhubFetch } = require('../services/finnhub');
 const { requireScanQuota } = require('../middleware/authMiddleware');
 const { refundScan, quotaFor } = require('../services/scanQuota');
+const { reportError } = require('../utils/reportError');
 
 // Sector-flow has no per-user params — every caller gets the same 15 ETFs —
 // so a short shared cache turns N concurrent requests into 1 upstream fetch.
@@ -156,7 +157,7 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
     res.json({ results: results, fetchTime: fetchTime, ...quotaFor(req.user) });
   } catch (err) {
     await refundScan(req.user);
-    console.error('[sectors]', err);
+    reportError(err, '[sectors]');
     res.status(500).json({ error: 'Server error' });
   }
 });

@@ -42,7 +42,7 @@ test('price alert uses the live-fetched quote for starting_side, ignoring a wron
   });
 
   const user = await makeEliteUser('alert-live-quote@test.local');
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const server = await startTestApp();
   const port = server.address().port;
   try {
@@ -68,7 +68,7 @@ test('price alert falls back to the client referencePrice when the live quote fe
   });
 
   const user = await makeEliteUser('alert-quote-fallback@test.local');
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const server = await startTestApp();
   const port = server.address().port;
   try {
@@ -89,7 +89,7 @@ test('price alert falls back when the live quote has no usable price for the sym
   t.mock.method(quoteCache, 'getQuotes', async () => new Map()); // symbol not found
 
   const user = await makeEliteUser('alert-quote-missing@test.local');
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
   const server = await startTestApp();
   const port = server.address().port;
   try {

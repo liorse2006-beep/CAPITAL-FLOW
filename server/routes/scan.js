@@ -5,6 +5,7 @@ const { getUserScanState } = require('../state');
 const { SP500, NASDAQ100, ALL_TICKERS, SECTOR_TICKERS } = require('../../tickers');
 const { requireAuth, requireScanQuota } = require('../middleware/authMiddleware');
 const { refundScan, quotaFor } = require('../services/scanQuota');
+const { reportError } = require('../utils/reportError');
 
 // The broadest (most permissive) filter set a shared scan runs with. Any
 // request at-or-above this floor can be served by one shared scan and
@@ -216,7 +217,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
   } catch (err) {
     state.running = false;
     await refundScan(req.user); // the reserved slot bought nothing — give it back
-    console.error('[scan]', err);
+    reportError(err, '[scan]');
     res.status(500).json({ error: 'Server error' });
   }
 });

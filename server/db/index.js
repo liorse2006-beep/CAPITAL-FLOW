@@ -181,7 +181,8 @@ async function initDb() {
 
     CREATE TABLE IF NOT EXISTS processed_webhook_events (
       event_id     TEXT    PRIMARY KEY,
-      processed_at INTEGER NOT NULL DEFAULT (unixepoch())
+      processed_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      completed_at INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS admin_audit_log (
@@ -237,7 +238,27 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS site_visits (
       day   TEXT PRIMARY KEY,
       count INTEGER NOT NULL DEFAULT 0
-    )
+    );
+
+    -- One row per logged-in device. Replaces the old single global
+    -- session_version column (which allowed exactly one active login per
+    -- account, site-wide, and silently booted every other device the moment
+    -- any device logged in again). A short-lived JWT access token embeds
+    -- this row's id (sid) - the actual long-lived credential is the
+    -- refresh_token_hash here, handed to the browser as an httpOnly cookie
+    -- so a closed app / cold reload can silently mint a new access token
+    -- without the user ever seeing a login screen. Capped at
+    -- MAX_ACTIVE_SESSIONS (see services/auth.js) — logging in on one device
+    -- too many evicts only the least-recently-used session, not everyone.
+    CREATE TABLE IF NOT EXISTS user_sessions (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id             INTEGER NOT NULL,
+      refresh_token_hash  TEXT    NOT NULL UNIQUE,
+      created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+      last_used_at        INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id, last_used_at);
   `);
 
   // Safe migrations — silently ignored if the column already exists
@@ -281,6 +302,13 @@ async function initDb() {
     `ALTER TABLE watchlist_alerts ADD COLUMN type TEXT NOT NULL DEFAULT 'volume'`,
     `ALTER TABLE watchlist_alerts ADD COLUMN target_price REAL`,
     `ALTER TABLE watchlist_alerts ADD COLUMN starting_side TEXT`,
+    // Distinguishes "claimed this webhook event" from "actually finished
+    // handling it" — without this, a deploy that kills the process between
+    // the claim and the business logic completing leaves a permanently
+    // stuck claim: Whop's retry of the same event sees the row already
+    // exists and gives up, silently dropping a paid upgrade forever. See
+    // routes/webhooks.js.
+    `ALTER TABLE processed_webhook_events ADD COLUMN completed_at INTEGER`,
   ];
 
   for (const sql of migrations) {
@@ -318,6 +346,18 @@ async function initDb() {
   }
   await pruneExpiredOtps();
   setInterval(() => pruneExpiredOtps(), 24 * 60 * 60 * 1000).unref();
+
+  // A device that never comes back (old phone, browser reinstall) leaves an
+  // inert row behind forever otherwise — 180 days is well past even a very
+  // infrequent user's normal gap between visits.
+  async function pruneStaleSessions() {
+    const cutoff = Math.floor(Date.now() / 1000) - 180 * 24 * 60 * 60;
+    try {
+      await db.prepare('DELETE FROM user_sessions WHERE last_used_at < ?').run(cutoff);
+    } catch (_) {}
+  }
+  await pruneStaleSessions();
+  setInterval(() => pruneStaleSessions(), 24 * 60 * 60 * 1000).unref();
 }
 
 // Kick off schema init. All db consumers must await db.ready before their

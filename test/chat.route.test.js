@@ -77,7 +77,7 @@ test('premium and past-trial free are rejected with NOT_ELITE on every chat rout
   const port = server.address().port;
   try {
     for (const user of [premium, pastTrial]) {
-      const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)) };
+      const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)).accessToken };
       const get = await fetch(`http://127.0.0.1:${port}/api/chat/history`, { headers });
       assert.strictEqual(get.status, 403);
       assert.strictEqual((await get.json()).code, 'NOT_ELITE');
@@ -102,7 +102,7 @@ test('a free account still inside its 7-day trial gets full Capi access', async 
   const server = await startTestApp();
   const port = server.address().port;
   try {
-    const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(freshFree)) };
+    const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(freshFree)).accessToken };
     // GET history doesn't call Gemini — a clean 200 proves the gate let them in.
     const get = await fetch(`http://127.0.0.1:${port}/api/chat/history`, { headers });
     assert.strictEqual(get.status, 200);
@@ -127,7 +127,7 @@ test('POST /api/chat/message persists both the user message and the reply, GET r
   const user = await makeUser('chat-route@test.local');
   const server = await startTestApp();
   const port = server.address().port;
-  const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)) };
+  const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)).accessToken };
   try {
     const postRes = await fetch(`http://127.0.0.1:${port}/api/chat/message`, {
       method: 'POST',
@@ -154,7 +154,7 @@ test('POST /api/chat/message rejects an empty message', async () => {
   const user = await makeUser('chat-empty@test.local');
   const server = await startTestApp();
   const port = server.address().port;
-  const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)) };
+  const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)).accessToken };
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/chat/message`, {
       method: 'POST',
@@ -174,8 +174,8 @@ test('DELETE /api/chat/history clears only the requesting user\'s messages', asy
   const bob = await makeUser('chat-bob@test.local');
   const server = await startTestApp();
   const port = server.address().port;
-  const aliceHeaders = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(alice)) };
-  const bobHeaders = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(bob)) };
+  const aliceHeaders = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(alice)).accessToken };
+  const bobHeaders = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(bob)).accessToken };
   try {
     await fetch(`http://127.0.0.1:${port}/api/chat/message`, { method: 'POST', headers: aliceHeaders, body: JSON.stringify({ message: 'hi' }) });
     await fetch(`http://127.0.0.1:${port}/api/chat/message`, { method: 'POST', headers: bobHeaders, body: JSON.stringify({ message: 'hi' }) });

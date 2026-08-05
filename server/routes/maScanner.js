@@ -3,6 +3,7 @@ const { requireAuth, requireScanQuota } = require('../middleware/authMiddleware'
 const { refundScan, quotaFor } = require('../services/scanQuota');
 const { scanMA } = require('../services/maScanner');
 const { SP500, NASDAQ100, ALL_TICKERS, SECTOR_TICKERS } = require('../../tickers');
+const { reportError } = require('../utils/reportError');
 
 // Per-user scan progress (in-memory, cleared when scan finishes)
 const scanProgress = new Map(); // userId → { processed, total, found, phase, running }
@@ -96,7 +97,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
   } catch (err) {
     scanProgress.delete(userId);
     await refundScan(req.user);
-    console.error('[ma-scanner]', err);
+    reportError(err, '[ma-scanner]');
     res.status(500).json({ error: 'Server error' });
   }
 });

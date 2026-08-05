@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { requirePremium } = require('../middleware/authMiddleware');
 const yahooFinance = require('../services/yahoo');
 const { finnhubFetch } = require('../services/finnhub');
+const { reportError } = require('../utils/reportError');
 
 var SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
 
@@ -82,7 +83,7 @@ router.get('/chart/:symbol', requirePremium, async (req, res) => {
 
     res.json({ quotes, ma20, ma50, currentPrice, period, interval });
   } catch (err) {
-    console.error('[chart]', err);
+    reportError(err, '[chart]');
     res.status(500).json({ error: 'Server error' });
   }
 });

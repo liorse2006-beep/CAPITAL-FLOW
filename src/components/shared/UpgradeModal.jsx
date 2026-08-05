@@ -46,16 +46,18 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
   const panelRef = useModalA11y(onClose);
   const [payingTier, setPayingTier] = useState(null);
   const [payError, setPayError] = useState('');
-  const [checkoutSession, setCheckoutSession] = useState(null); // { sessionId, tierKey } | null
+  const [couponCode, setCouponCode] = useState('');
+  const [checkoutSession, setCheckoutSession] = useState(null); // { sessionId, tierKey, promoCode, discountPercent } | null
 
   async function goToCheckout(tierKey) {
     setPayError('');
     setPayingTier(tierKey);
     try {
+      const trimmedCoupon = couponCode.trim();
       const res = await fetch('/api/checkout/transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
-        body: JSON.stringify({ tier: tierKey }),
+        body: JSON.stringify({ tier: tierKey, ...(trimmedCoupon ? { couponCode: trimmedCoupon } : {}) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not start checkout');
@@ -64,7 +66,7 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
       // which tier was bought — stash it so the welcome screen can show the
       // right badge/copy immediately instead of waiting on the webhook.
       localStorage.setItem('vs_pending_tier', tierKey);
-      setCheckoutSession({ sessionId: data.sessionId, tierKey });
+      setCheckoutSession({ sessionId: data.sessionId, tierKey, promoCode: data.couponCode, discountPercent: data.discountPercent });
     } catch (err) {
       setPayError(err.message || 'Something went wrong — please try again.');
     } finally {
@@ -129,10 +131,16 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
             {TIER_LABEL[checkoutSession.tierKey]} checkout
           </h2>
           <p className="checkout-embed-promo-hint">
-            If you have a promo code, a field for it will appear inside the secure checkout below — it only shows up
-            while a promo is actually active, so don't worry if you don't see one.
+            {checkoutSession.promoCode
+              ? `Coupon "${checkoutSession.promoCode}" applied — if it doesn't show as active below, you can also re-enter it directly in the secure checkout.`
+              : 'If you have a promo code, a field for it will appear inside the secure checkout below — it only shows up while a promo is actually active, so don’t worry if you don’t see one.'}
           </p>
-          <EmbeddedCheckout sessionId={checkoutSession.sessionId} onComplete={handleComplete} onError={handlePaymentError} />
+          <EmbeddedCheckout
+            sessionId={checkoutSession.sessionId}
+            promoCode={checkoutSession.promoCode}
+            onComplete={handleComplete}
+            onError={handlePaymentError}
+          />
         </div>
       </div>
     );
@@ -199,6 +207,20 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
               </div>
             );
           })}
+        </div>
+        <div className="coupon-input-row">
+          <label htmlFor="upgrade-coupon-input" className="coupon-input-label">
+            Have a coupon code?
+          </label>
+          <input
+            id="upgrade-coupon-input"
+            className="coupon-input"
+            type="text"
+            placeholder="COUPON CODE"
+            value={couponCode}
+            onChange={(e) => setCouponCode(e.target.value)}
+            autoCapitalize="characters"
+          />
         </div>
         {payError && (
           <p className="coupon-apply-msg coupon-apply-error" style={{ textAlign: 'center', marginTop: 12 }}>

@@ -3,6 +3,7 @@ const { requireEliteOrTrial } = require('../middleware/authMiddleware');
 const { chatLimiter } = require('../middleware/rateLimiters');
 const { getHistory, addMessage, clearHistory } = require('../services/chatMessages');
 const { askCapi } = require('../services/chatbot');
+const { reportError } = require('../utils/reportError');
 
 const MAX_MESSAGE_LEN = 2000;
 
@@ -13,7 +14,7 @@ router.get('/chat/history', requireEliteOrTrial, async (req, res) => {
   try {
     res.json(await getHistory(req.user.id));
   } catch (err) {
-    console.error('[chat/history]', err);
+    reportError(err, '[chat/history]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -30,7 +31,7 @@ router.post('/chat/message', requireEliteOrTrial, chatLimiter, async (req, res) 
 
     res.json({ reply });
   } catch (err) {
-    console.error('[chat/message]', err);
+    reportError(err, '[chat/message]');
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -40,7 +41,7 @@ router.delete('/chat/history', requireEliteOrTrial, async (req, res) => {
     await clearHistory(req.user.id);
     res.json({ ok: true });
   } catch (err) {
-    console.error('[chat/history DELETE]', err);
+    reportError(err, '[chat/history DELETE]');
     res.status(500).json({ error: 'Server error' });
   }
 });

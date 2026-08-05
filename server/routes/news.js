@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { fetchNewsForSymbol, newsCache, resolveFinalUrl } = require('../services/newsService');
 const { scanLimiter } = require('../middleware/rateLimiters');
 const { requireAuth } = require('../middleware/authMiddleware');
+const { reportError } = require('../utils/reportError');
 
 // Real ticker symbols only — letters, digits, and . or - for share classes
 // (e.g. BRK.B). Blocks malformed/oversized input before it reaches the
@@ -23,7 +24,7 @@ router.get('/news/:symbol', requireAuth, scanLimiter, async function (req, res) 
       fetchTime: new Date(result.fetchTime).toISOString(),
     });
   } catch (err) {
-    console.error('[news]', err);
+    reportError(err, '[news]');
     return res.status(500).json({ error: 'Server error' });
   }
 });

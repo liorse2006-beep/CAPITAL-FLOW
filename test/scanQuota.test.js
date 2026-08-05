@@ -86,7 +86,7 @@ test('free tier: blocked in every category once the 7-day trial has elapsed', as
 
 test('free tier: requireScanQuota blocks every category once the trial has elapsed', async () => {
   const user = await makeUser('free-b@test.local', { createdAt: isoDaysAgo(FREE_TRIAL_DAYS + 1) });
-  const token = await issueToken(await reload(user.id));
+  const token = (await issueToken(await reload(user.id))).accessToken;
 
   const server = await startTestApp();
   const port = server.address().port;
@@ -151,7 +151,7 @@ test('premium tier: the pool resets once the 24h window has elapsed', async () =
 test('elite tier is never limited, no matter how many scans it racks up', async () => {
   const user = await makeUser('elite-a@test.local', { tier: 'elite' });
   for (let i = 0; i < 20; i++) await reserveScan(await reload(user.id), 'capitalFlow');
-  const token = await issueToken(await reload(user.id));
+  const token = (await issueToken(await reload(user.id))).accessToken;
 
   const server = await startTestApp();
   const port = server.address().port;
@@ -193,7 +193,7 @@ test('a free pilot account resolves to elite and is never blocked', async () => 
   await reserveScan(user, 'capitalFlow');
   await reserveScan(await reload(user.id), 'maScanner');
   await reserveScan(await reload(user.id), 'sectorMoving');
-  const token = await issueToken(await reload(user.id));
+  const token = (await issueToken(await reload(user.id))).accessToken;
 
   const server = await startTestApp();
   const port = server.address().port;

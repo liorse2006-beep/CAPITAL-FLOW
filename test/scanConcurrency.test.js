@@ -22,7 +22,7 @@ async function makeEliteUser(email) {
     .prepare("INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, 'elite', 1)")
     .run(email);
   const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-  return { id: user.id, token: await issueToken(user) };
+  return { id: user.id, token: (await issueToken(user)).accessToken };
 }
 
 function startTestApp() {
@@ -208,7 +208,7 @@ test('a cache-served scan does not spend the premium 5/day quota', async (t) => 
     .prepare("INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, 'premium', 1)")
     .run('conc-quota@test.local');
   const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-  const token = await issueToken(user);
+  const token = (await issueToken(user)).accessToken;
 
   const server = await startTestApp();
   const port = server.address().port;

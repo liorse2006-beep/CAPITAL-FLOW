@@ -82,6 +82,20 @@ const publicDataLimiter = rateLimit({
   message: { error: 'Too many requests. Please slow down.' },
 });
 
+// /api/auth/refresh and /api/auth/logout aren't brute-forceable the way
+// login is (the refresh token itself is a 384-bit random value, not a
+// guessable credential) but every other credential-adjacent endpoint has a
+// dedicated limiter, and a compromised/buggy client hammering refresh in a
+// loop shouldn't have only the generic 120/min apiLimiter floor standing in
+// the way. Sized well above realistic multi-device/multi-tab usage.
+const sessionLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please slow down.' },
+});
+
 module.exports = {
   authLimiter,
   otpLimiter,
@@ -91,4 +105,5 @@ module.exports = {
   chatLimiter,
   publicWriteLimiter,
   publicDataLimiter,
+  sessionLimiter,
 };

@@ -1,5 +1,6 @@
 const { scanTickers } = require('./scanner');
 const { SP500, NASDAQ100, ALL_TICKERS } = require('../../tickers');
+const { reportError } = require('../utils/reportError');
 
 var backgroundCache = {
   results: null,
@@ -152,7 +153,7 @@ async function checkWatchlistAlerts(results) {
     // (getAllAlertsGrouped returning a Promise, so Object.entries saw an
     // empty object) shipped to production and silently dropped every
     // watchlist alert with no error anywhere. Never swallow this again.
-    console.error('[checkWatchlistAlerts]', err);
+    reportError(err, '[checkWatchlistAlerts]');
   }
 }
 
@@ -202,7 +203,7 @@ async function runBackgroundScan() {
     // Check watchlist thresholds
     await checkWatchlistAlerts(res.results);
   } catch (e) {
-    console.error('[Background] Scan failed:', e.message);
+    reportError(e, '[Background] Scan failed');
     broadcast('scan-status', { running: false, error: e.message });
   } finally {
     // Guaranteed to run even if the hard timeout above fired, or anything

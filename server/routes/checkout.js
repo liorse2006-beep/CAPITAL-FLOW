@@ -3,6 +3,7 @@ const { requireAuth } = require('../middleware/authMiddleware');
 const { validateCoupon } = require('../services/coupons');
 const whop = require('../services/whop');
 const { WHOP_PREMIUM_PLAN_ID, WHOP_ELITE_PLAN_ID, WHOP_ELITE_UPGRADE_PLAN_ID, FRONTEND_URL } = require('../config');
+const { reportError } = require('../utils/reportError');
 
 const PLAN_ID = { premium: WHOP_PREMIUM_PLAN_ID, elite: WHOP_ELITE_PLAN_ID };
 
@@ -62,7 +63,7 @@ router.post('/checkout/transaction', requireAuth, async (req, res) => {
       // a fallback for any caller still using the old hosted-redirect flow.
       return res.json({ purchaseUrl: session.purchase_url, sessionId: session.id, planId: WHOP_ELITE_UPGRADE_PLAN_ID });
     } catch (err) {
-      console.error('[checkout/transaction eliteUpgrade]', err);
+      reportError(err, '[checkout/transaction eliteUpgrade]');
       return res.status(502).json({ error: 'Could not start checkout — please try again' });
     }
   }
@@ -71,30 +72,38 @@ router.post('/checkout/transaction', requireAuth, async (req, res) => {
   if (!planId) return res.status(400).json({ error: 'tier must be premium or elite, and its Whop plan must be configured' });
 
   try {
+    // Local coupons never change the amount Whop charges directly — Whop
+    // owns the actual price — but a code that validates here is passed
+    // through two ways: (1) as session metadata, so the webhook can credit
+    // it against this app's own uses_count/expiry/active bookkeeping once
+    // the payment actually completes, and (2) as the embed's `promoCode`
+    // prop (see EmbeddedCheckout.jsx), which pre-applies it inside Whop's
+    // checkout UI IF a Whop-side promo code with the same string also
+    // exists (created separately, in Whop's own dashboard) — that second
+    // part is what actually moves the price.
+    let coupon = null;
     if (couponCode) {
-      const coupon = await validateCoupon(couponCode, tier);
+      coupon = await validateCoupon(couponCode, tier);
       if (!coupon.valid) return res.status(400).json({ error: coupon.error });
-      // Local coupons are kept for backwards-compatible validation, but the
-      // actual discount must be entered in Whop's native promo-code field.
-      // Never pretend that metadata changes the amount charged.
-      return res.status(409).json({
-        error: 'Enter this promo code in the secure Whop checkout to apply the discount.',
-        code: 'USE_WHOP_PROMO_CODE_FIELD',
-      });
     }
 
     const session = await whop.createCheckoutSession({
       planId,
-      metadata: { userId: String(req.user.id), tier },
+      metadata: { userId: String(req.user.id), tier, ...(coupon ? { couponCode: coupon.code } : {}) },
       allowPromoCodes: true,
       // Whop redirects here regardless of outcome, appending its own
       // ?status=success|error — never bake an assumed outcome into this
       // URL ourselves (see src/App.jsx, which reads that param).
       redirectUrl: `${FRONTEND_URL}/`,
     });
-    res.json({ purchaseUrl: session.purchase_url, sessionId: session.id, planId });
+    res.json({
+      purchaseUrl: session.purchase_url,
+      sessionId: session.id,
+      planId,
+      ...(coupon ? { couponCode: coupon.code, discountPercent: coupon.discountPercent } : {}),
+    });
   } catch (err) {
-    console.error('[checkout/transaction]', err);
+    reportError(err, '[checkout/transaction]');
     res.status(502).json({ error: 'Could not start checkout — please try again' });
   }
 });

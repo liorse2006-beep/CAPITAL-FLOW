@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { recordVisit } = require('../services/siteVisits');
 const { publicWriteLimiter } = require('../middleware/rateLimiters');
+const { reportError } = require('../utils/reportError');
 
 // Public, unauthenticated, fire-and-forget. The frontend calls this once per
 // browser session (guarded by sessionStorage) so it counts "people who opened
@@ -10,7 +11,7 @@ router.post('/visit', publicWriteLimiter, async (req, res) => {
   try {
     await recordVisit();
   } catch (err) {
-    console.error('[visit]', err.message);
+    reportError(err, '[visit]');
   }
   res.json({ ok: true });
 });
