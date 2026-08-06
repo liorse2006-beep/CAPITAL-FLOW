@@ -1,25 +1,41 @@
 const pool = require('./finnhubKeyPool');
 const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
+const { createCircuitBreaker } = require('../utils/circuitBreaker');
+
+// A key-pool 429 already has its own next-key fallback below — this breaker
+// is for the case every key is exhausted or Finnhub itself is unreachable,
+// so callers (chart, sectors, scanner, news) stop paying a full timeout per
+// request during an outage and fall back to their own null-handling
+// immediately instead.
+const finnhubBreaker = createCircuitBreaker('finnhub', { failureThreshold: 5, cooldownMs: 20000 });
 
 /**
  * Fetch a Finnhub URL (without &token=) using the key pool, retrying once
  * on the next account if the first key is rate-limited.
  */
 async function finnhubFetch(urlWithoutToken) {
-  // Try every key in the pool before giving up — with N keys we get N attempts,
-  // so a single exhausted key never blocks the request when others are available.
-  const attempts = Math.max(pool.poolSize(), 1);
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    const key = pool.getKey();
-    if (!key) return null;
-    const res = await fetchWithTimeout(urlWithoutToken + '&token=' + key);
-    if (res.status === 429) {
-      pool.reportRateLimited(key);
-      continue; // try the next account
-    }
-    return res;
+  try {
+    return await finnhubBreaker.execute(async () => {
+      // Try every key in the pool before giving up — with N keys we get N
+      // attempts, so a single exhausted key never blocks the request when
+      // others are available.
+      const attempts = Math.max(pool.poolSize(), 1);
+      for (let attempt = 0; attempt < attempts; attempt++) {
+        const key = pool.getKey();
+        if (!key) return null;
+        const res = await fetchWithTimeout(urlWithoutToken + '&token=' + key);
+        if (res.status === 429) {
+          pool.reportRateLimited(key);
+          continue; // try the next account
+        }
+        return res;
+      }
+      return null;
+    });
+  } catch (err) {
+    if (err.circuitOpen) return null;
+    throw err;
   }
-  return null;
 }
 
 async function fetchFinnhubQuote(symbol, apiKey) {

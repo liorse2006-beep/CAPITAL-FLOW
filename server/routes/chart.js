@@ -3,6 +3,15 @@ const { requirePremium } = require('../middleware/authMiddleware');
 const yahooFinance = require('../services/yahoo');
 const { finnhubFetch } = require('../services/finnhub');
 const { reportError } = require('../utils/reportError');
+const { createTTLCache } = require('../utils/ttlCache');
+
+// Every premium user opening the same popular ticker's chart within the
+// same window previously re-fetched from Yahoo + Finnhub independently —
+// this route had zero caching. 45s is short enough that the live price
+// stays reasonably current, but long enough to absorb the common case of
+// several users (or one user re-opening a chart) hitting the same
+// symbol+period back to back.
+const chartCache = createTTLCache(45 * 1000);
 
 var SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
 
@@ -28,6 +37,10 @@ router.get('/chart/:symbol', requirePremium, async (req, res) => {
   if (!SYMBOL_RE.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
   const period = PERIODS[req.query.period] ? req.query.period : '1M';
   const { interval, lookbackMs } = PERIODS[period];
+
+  const cacheKey = symbol + ':' + period;
+  const cached = chartCache.get(cacheKey);
+  if (cached) return res.json(cached);
 
   try {
     const chart = await yahooFinance.chart(symbol, {
@@ -81,7 +94,9 @@ router.get('/chart/:symbol', requirePremium, async (req, res) => {
       } catch (_) {}
     }
 
-    res.json({ quotes, ma20, ma50, currentPrice, period, interval });
+    const payload = { quotes, ma20, ma50, currentPrice, period, interval };
+    chartCache.set(cacheKey, payload);
+    res.json(payload);
   } catch (err) {
     reportError(err, '[chart]');
     res.status(500).json({ error: 'Server error' });

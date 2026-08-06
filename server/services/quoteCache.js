@@ -11,6 +11,14 @@
  */
 
 const yahooFinance = require('./yahoo');
+const { createCircuitBreaker } = require('../utils/circuitBreaker');
+
+// Opens after 5 consecutive batch failures (real network/5xx failures —
+// the 429 branch below already retries those without going through the
+// breaker's own failure count) and stays open for 20s, so a Yahoo outage
+// stops burning a request per scan instead of every caller paying the
+// same timeout/retry cost simultaneously.
+const yahooBreaker = createCircuitBreaker('yahoo-quote', { failureThreshold: 5, cooldownMs: 20000 });
 
 const BATCH_SIZE = 100;           // symbols per HTTP call (Yahoo handles 200+ but 100 is safe)
 const CACHE_TTL_MS = 3 * 60 * 1000;  // 3 minutes
@@ -39,7 +47,9 @@ async function fetchBatch(symbols) {
       // validateResult:false — if any symbol has an unexpected field Yahoo returns,
       // the library normally throws and we'd lose the entire batch of 100. With
       // this option it skips schema validation and returns whatever data Yahoo sent.
-      const results = await yahooFinance.quote(symbols, {}, { validateResult: false });
+      const results = await yahooBreaker.execute(() =>
+        yahooFinance.quote(symbols, {}, { validateResult: false })
+      );
       const arr = Array.isArray(results) ? results : results ? [results] : [];
       const now = Date.now();
       arr.forEach((q) => {
