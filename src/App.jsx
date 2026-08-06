@@ -28,7 +28,6 @@ const MAScannerPage = lazy(() => import('./components/MAScanner/MAScannerPage'))
 const PolicyPage = lazy(() => import('./pages/PolicyPage'));
 const AccessibilityStatementPage = lazy(() => import('./pages/AccessibilityStatementPage'));
 const AuthModal = lazy(() => import('./components/Auth/AuthModal'));
-const NewsModal = lazy(() => import('./components/shared/NewsModal'));
 const ChatWidget = lazy(() => import('./components/shared/ChatWidget'));
 const WelcomeTierModal = lazy(() => import('./components/shared/WelcomeTierModal'));
 const ScheduledScanResultsModal = lazy(() => import('./components/shared/ScheduledScanResultsModal'));
@@ -495,18 +494,6 @@ function App() {
     }
     setAlertModalSymbol(symbol);
     setAlertModalPrice(price || 0);
-  }
-
-  /* ── News — same access policy as alerts/push (Elite, or free during the
-     7-day trial), enforced again server-side by requireEliteOrTrial. ── */
-  const [newsModalSymbol, setNewsModalSymbol] = useState(null);
-
-  function promptShowNews(symbol) {
-    if (!canNotify) {
-      setShowUpgradeModal(true);
-      return;
-    }
-    setNewsModalSymbol(symbol);
   }
 
   /* ── "Explain This" — hands a scan result's own data to Capi and asks it
@@ -1177,17 +1164,6 @@ function App() {
         />
       )}
 
-      {newsModalSymbol && (
-        <Suspense fallback={null}>
-          <NewsModal
-            symbol={newsModalSymbol}
-            getToken={getToken}
-            onClose={() => setNewsModalSymbol(null)}
-            onRequireUpgrade={() => setShowUpgradeModal(true)}
-          />
-        </Suspense>
-      )}
-
       <Suspense fallback={null}>
         <ChatWidget
           user={user}
@@ -1214,7 +1190,6 @@ function App() {
           <ScheduledScanResultsModal
             notification={scheduledScanNotif}
             onClose={() => setScheduledScanNotif(null)}
-            promptShowNews={promptShowNews}
             isInWatchlist={isInWatchlist}
             toggleWatchlistTicker={toggleWatchlistTicker}
           />
@@ -1264,7 +1239,6 @@ function App() {
                   toggleWatchlistTicker={toggleWatchlistTicker}
                   alertLevels={alertLevels}
                   promptCreateAlert={promptCreateAlert}
-                  promptShowNews={promptShowNews}
                 />
               </Suspense>
             }
@@ -1281,7 +1255,6 @@ function App() {
                   onTrialEnded={onTrialEnded}
                   alertLevels={alertLevels}
                   promptCreateAlert={promptCreateAlert}
-                  promptShowNews={promptShowNews}
                 />
               </Suspense>
             }
@@ -1316,7 +1289,6 @@ function App() {
                 }}
                 alertLevels={alertLevels}
                 promptCreateAlert={promptCreateAlert}
-                promptShowNews={promptShowNews}
                 onRequireAuth={() => setShowAuthModal(true)}
               />
             }
@@ -1370,7 +1342,6 @@ function App() {
                 handleSortDoubleClick={handleSortDoubleClick}
                 alertLevels={alertLevels}
                 promptCreateAlert={promptCreateAlert}
-                promptShowNews={promptShowNews}
                 explainWithCapi={explainWithCapi}
                 isInWatchlist={isInWatchlist}
                 toggleWatchlistTicker={toggleWatchlistTicker}

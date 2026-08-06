@@ -14,7 +14,7 @@ function formatWhen(unixSec) {
    (scanTickers) and maScanner (scanMA) share enough of a shape: symbol,
    name, price, change, marketCap, plus either volumeRatio or maDistance as
    the "why it showed up" signal. */
-export default function ScheduledScanResultsModal({ notification, onClose, promptShowNews, isInWatchlist, toggleWatchlistTicker }) {
+export default function ScheduledScanResultsModal({ notification, onClose, isInWatchlist, toggleWatchlistTicker }) {
   if (!notification) return null
   var results = notification.results || []
   var label = SCAN_LABEL[notification.scanType] || 'Scheduled Scan'
@@ -88,21 +88,6 @@ export default function ScheduledScanResultsModal({ notification, onClose, promp
                         <path d="M18.7 8l-5.1 5.1-4-4L3 15.6" />
                       </svg>
                     </a>
-                    {promptShowNews && (
-                      <button
-                        className="news-open-btn"
-                        onClick={() => promptShowNews(r.symbol)}
-                        title="Scan news for this ticker"
-                        aria-label={'Scan news for ' + r.symbol}
-                      >
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                          <polyline points="14 2 14 8 20 8" />
-                          <line x1="16" y1="13" x2="8" y2="13" />
-                          <line x1="16" y1="17" x2="8" y2="17" />
-                        </svg>
-                      </button>
-                    )}
                     {toggleWatchlistTicker && (
                       <button
                         className={'star-btn-remove' + (isInWatchlist && isInWatchlist(r.symbol) ? ' active' : '')}

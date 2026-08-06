@@ -5687,27 +5687,6 @@ html.a11y-highlight-links a {
   color: var(--accent);
 }
 
-.news-open-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  opacity: 0.5;
-  color: var(--text-1);
-  transition:
-    opacity 0.15s,
-    color 0.15s;
-  line-height: 1;
-}
-.news-open-btn:hover {
-  opacity: 1;
-  color: var(--accent);
-}
-
 .explain-capi-btn {
   display: inline-flex;
   align-items: center;
@@ -5747,7 +5726,7 @@ html.a11y-highlight-links a {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 20px rgba(34, 197, 94, 0.07);
 }
 /* ── Alert modal (volume/price threshold, shared across Capital Flow, MA
-   Scanner and Watchlist) — terminal readout style matching NewsModal. ── */
+   Scanner and Watchlist) — terminal readout style. ── */
 .alert-modal {
   width: 340px;
 }

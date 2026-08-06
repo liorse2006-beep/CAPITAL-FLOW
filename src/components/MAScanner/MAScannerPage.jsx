@@ -48,7 +48,6 @@ export default function MAScannerPage({
   toggleWatchlistTicker,
   alertLevels,
   promptCreateAlert,
-  promptShowNews,
 }) {
   const { getToken, user } = useAuth();
   const isPremium = !!(user && user.is_premium);
@@ -205,28 +204,6 @@ export default function MAScannerPage({
         { viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
         React.createElement('path', { d: 'M3 3v18h18' }),
         React.createElement('path', { d: 'M18.7 8l-5.1 5.1-4-4L3 15.6' })
-      )
-    );
-
-  const newsBtn = (symbol) =>
-    React.createElement(
-      'button',
-      {
-        className: 'news-open-btn',
-        onClick: (e) => {
-          e.stopPropagation();
-          promptShowNews(symbol);
-        },
-        title: 'Scan news for this ticker',
-        'aria-label': 'Scan news for ' + symbol,
-      },
-      React.createElement(
-        'svg',
-        { viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
-        React.createElement('path', { d: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' }),
-        React.createElement('polyline', { points: '14 2 14 8 20 8' }),
-        React.createElement('line', { x1: 16, y1: 13, x2: 8, y2: 13 }),
-        React.createElement('line', { x1: 16, y1: 17, x2: 8, y2: 17 })
       )
     );
 
@@ -654,7 +631,6 @@ export default function MAScannerPage({
                         'div',
                         { style: { display: 'flex', alignItems: 'center', gap: 4 } },
                         chartBtn(r.symbol),
-                        newsBtn(r.symbol),
                         alertBtn(r.symbol, r.price),
                         React.createElement('span', { className: 'mobile-card-rank' }, '#' + (i + 1))
                       )
@@ -762,7 +738,6 @@ export default function MAScannerPage({
                           'td',
                           { style: { display: 'flex', gap: 5, alignItems: 'center' } },
                           chartBtn(r.symbol),
-                          newsBtn(r.symbol),
                           alertBtn(r.symbol, r.price)
                         )
                       );

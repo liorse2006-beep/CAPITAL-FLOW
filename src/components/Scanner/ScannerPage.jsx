@@ -4,7 +4,6 @@ import ScheduleScan from '../shared/ScheduleScan'
 import useSmoothProgress from '../../hooks/useSmoothProgress'
 import { fmt, friendlyError, alertLevelLabel } from '../../utils/format'
 import { SECTOR_ICONS } from '../../constants/sectorIcons'
-import { useAuth } from '../../context/AuthContext'
 
 const ALL_SECTORS = [
   'Technology',
@@ -138,7 +137,6 @@ export default function ScannerPage({
   handleSortDoubleClick,
   alertLevels,
   promptCreateAlert,
-  promptShowNews,
   explainWithCapi,
   isInWatchlist,
   toggleWatchlistTicker,
@@ -184,30 +182,6 @@ export default function ScannerPage({
     setShowActionHint(false)
   }
 
-  // Warm the news cache for the strongest results the moment a scan lands,
-  // so clicking News on them opens instantly instead of replaying the
-  // loading screen. News is open to every signed-in tier — the only
-  // requirement is being logged in at all.
-  const { getToken } = useAuth() || {}
-  useEffect(
-    function () {
-      if (!results || results.length === 0 || !user) return
-      var top = results
-        .slice()
-        .sort(function (a, b) {
-          return b.volumeRatio - a.volumeRatio
-        })
-        .slice(0, 3)
-      import('../shared/NewsModal')
-        .then(function (m) {
-          top.forEach(function (r) {
-            m.prefetchNews(r.symbol, getToken)
-          })
-        })
-        .catch(function () {})
-    },
-    [results, user] // eslint-disable-line react-hooks/exhaustive-deps
-  )
 
   return (
     <div className="page-content">
@@ -661,15 +635,6 @@ export default function ScannerPage({
                   </span>
                   <span className="action-hint-item">
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <line x1="16" y1="13" x2="8" y2="13" />
-                      <line x1="16" y1="17" x2="8" y2="17" />
-                    </svg>
-                    News
-                  </span>
-                  <span className="action-hint-item">
-                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                       <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                     </svg>
@@ -792,19 +757,6 @@ export default function ScannerPage({
                             </svg>
                           </a>
                           <button
-                            className="news-open-btn"
-                            onClick={() => promptShowNews(r.symbol)}
-                            title="Scan news for this ticker"
-                            aria-label={'Scan news for ' + r.symbol}
-                          >
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                              <polyline points="14 2 14 8 20 8" />
-                              <line x1="16" y1="13" x2="8" y2="13" />
-                              <line x1="16" y1="17" x2="8" y2="17" />
-                            </svg>
-                          </button>
-                          <button
                             className={'alert-create-btn' + (alertLevels && alertLevels[r.symbol] ? ' active' : '')}
                             onClick={() => promptCreateAlert(r.symbol, r.price)}
                             title={
@@ -900,22 +852,6 @@ export default function ScannerPage({
                               <path d="M18.7 8l-5.1 5.1-4-4L3 15.6" />
                             </svg>
                           </a>
-                          <button
-                            className="news-open-btn"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              promptShowNews(r.symbol)
-                            }}
-                            title="Scan news for this ticker"
-                            aria-label={'Scan news for ' + r.symbol}
-                          >
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                              <polyline points="14 2 14 8 20 8" />
-                              <line x1="16" y1="13" x2="8" y2="13" />
-                              <line x1="16" y1="17" x2="8" y2="17" />
-                            </svg>
-                          </button>
                           <button
                             className={'alert-create-btn' + (alertLevels && alertLevels[r.symbol] ? ' active' : '')}
                             onClick={(e) => {
