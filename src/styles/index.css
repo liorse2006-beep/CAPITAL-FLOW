@@ -7076,9 +7076,14 @@ html.a11y-highlight-links a {
 /* ── Schedule Scan ─────────────────────────────────────────────────────────── */
 .schedule-scan-btn {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 5px;
-  padding: 6px 12px;
+  justify-content: center;
+  align-self: center;
+  width: fit-content;
+  gap: 4px;
+  padding: 0 10px;
+  height: 32px;
   font-size: 12px;
   font-family: var(--font);
   font-weight: 500;
@@ -7497,7 +7502,7 @@ html.a11y-highlight-links a {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  border: none;
+  border: 1.5px solid var(--accent-vivid);
   background: transparent;
   cursor: pointer;
   display: flex;
