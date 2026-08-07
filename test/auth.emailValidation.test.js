@@ -64,3 +64,41 @@ test('signup accepts a normal, well-formed email', async () => {
     server.close();
   }
 });
+
+// Regression: users.email is a plain case-sensitive TEXT UNIQUE — without
+// normalizing at every entry point, signing up as "Case@Test.local" and
+// later logging in as "case@test.local" (e.g. autofill on a different
+// device) would silently create a second account instead of matching the
+// first, splitting that person's chat history, watchlist, and push
+// subscriptions across two "different" users who are really the same
+// customer on two devices.
+test('signup + login resolve to the same account regardless of email casing', async () => {
+  const server = await startTestApp();
+  const port = server.address().port;
+  const base = `http://127.0.0.1:${port}/api/auth`;
+  try {
+    const signupRes = await fetch(`${base}/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'Case@Test.local', password: 'password123' }),
+    });
+    assert.strictEqual(signupRes.status, 200);
+
+    // Signing up again with different casing must be treated as the exact
+    // same (still-unverified) account, not rejected as a brand-new one nor
+    // silently creating a duplicate row.
+    const secondSignupRes = await fetch(`${base}/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'case@test.local', password: 'password123' }),
+    });
+    assert.strictEqual(secondSignupRes.status, 200);
+
+    const db = require('../server/db');
+    const rows = await db.prepare('SELECT id, email FROM users WHERE email = ?').all('case@test.local');
+    assert.strictEqual(rows.length, 1, 'must be exactly one account, not two');
+    assert.strictEqual(rows[0].email, 'case@test.local', 'stored email is normalized to lowercase');
+  } finally {
+    server.close();
+  }
+});

@@ -1207,7 +1207,7 @@ function App() {
 
       {isGuestLanding ? (
         <Suspense fallback={<div className="page-loading">Loading…</div>}>
-          <LandingPage onGetStarted={() => setShowAuthModal(true)} />
+          <LandingPage onGetStarted={() => navigate('/scanner')} />
         </Suspense>
       ) : (
       <div className="app">

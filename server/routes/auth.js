@@ -5,6 +5,7 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const db = require('../db');
 const {
+  normalizeEmail,
   hashPassword,
   verifyPassword,
   issueToken,
@@ -109,7 +110,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
       },
       async function (accessToken, refreshToken, profile, done) {
         try {
-          const email = profile.emails && profile.emails[0] && profile.emails[0].value;
+          const email = normalizeEmail(profile.emails && profile.emails[0] && profile.emails[0].value);
           if (!email) return done(new Error('No email from Google'));
 
           let user = await db.prepare('SELECT * FROM users WHERE google_id = ?').get(profile.id);
@@ -186,7 +187,8 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
 /* ── Sign Up ── */
 router.post('/signup', authLimiter, async (req, res) => {
   try {
-    const { email, password, captchaToken, inviteCode } = req.body;
+    const { password, captchaToken, inviteCode } = req.body;
+    const email = normalizeEmail(req.body.email);
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
     if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Please enter a valid email address' });
     if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -226,7 +228,8 @@ router.post('/signup', authLimiter, async (req, res) => {
 /* ── Verify OTP (email verification) ── */
 router.post('/verify-otp', otpLimiter, async (req, res) => {
   try {
-    const { email, code } = req.body;
+    const { code } = req.body;
+    const email = normalizeEmail(req.body.email);
     if (!email || !code) return res.status(400).json({ error: 'Missing fields' });
 
     const result = await verifyOTP(email, code, 'verify_email');
@@ -264,7 +267,8 @@ router.post('/verify-otp', otpLimiter, async (req, res) => {
 /* ── Resend OTP ── */
 router.post('/resend-otp', authLimiter, async (req, res) => {
   try {
-    const { email, type } = req.body;
+    const { type } = req.body;
+    const email = normalizeEmail(req.body.email);
     if (!email) return res.status(400).json({ error: 'Email required' });
     const otpType = type === 'reset_password' ? 'reset_password' : 'verify_email';
     // Only send to addresses with an actual account — otherwise this endpoint
@@ -290,7 +294,8 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
 /* ── Log In ── */
 router.post('/login', authLimiter, async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { password } = req.body;
+    const email = normalizeEmail(req.body.email);
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
 
     let user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
@@ -330,7 +335,7 @@ router.post('/login', authLimiter, async (req, res) => {
 /* ── Forgot Password ── */
 router.post('/forgot-password', authLimiter, async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = normalizeEmail(req.body.email);
     if (!email) return res.status(400).json({ error: 'Email required' });
 
     const user = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
@@ -350,7 +355,8 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
 /* ── Reset Password (verify OTP + set new password) ── */
 router.post('/reset-password', otpLimiter, async (req, res) => {
   try {
-    const { email, code, newPassword } = req.body;
+    const { code, newPassword } = req.body;
+    const email = normalizeEmail(req.body.email);
     if (!email || !code || !newPassword) return res.status(400).json({ error: 'Missing fields' });
     if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 

@@ -153,17 +153,7 @@ export default function AccessibilityWidget() {
         aria-expanded={open}
         title="Accessibility"
       >
-        {/* A plain wheelchair glyph (U+267F) renders as Windows' built-in
-            color emoji — a blue circle that ignores the button's own color,
-            clashing with the app's palette. An SVG with stroke="currentColor"
-            inherits it instead. */}
-        <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="9" cy="5" r="1.5" fill="currentColor" stroke="none" />
-          <path d="M9 8v5l-3 7" />
-          <path d="M9 13h5l3 6" />
-          <path d="M6.5 12.5H14" />
-          <path d="M14 8c1.5 0 3 1.2 3 3.2" />
-        </svg>
+        <span aria-hidden="true">&#9855;</span>
       </button>
     </div>
   )

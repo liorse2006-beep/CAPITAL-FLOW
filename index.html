@@ -2,6 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- Chrome/Edge can fire beforeinstallprompt as soon as it decides the
+         page is installable — on a first visit from a new device this can
+         happen before React has mounted and useInstallPrompt's own listener
+         is attached, silently dropping the event and the install prompt
+         with it. Capturing it here, before anything else loads, means it's
+         never missed regardless of how long the JS bundle takes to parse. -->
+    <script>
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__vsDeferredInstallPrompt = e;
+      });
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Capital Flow</title>
     <meta

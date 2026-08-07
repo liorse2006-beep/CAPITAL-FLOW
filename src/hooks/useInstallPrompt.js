@@ -28,9 +28,18 @@ export default function useInstallPrompt() {
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
     setIsIOS(ios);
 
+    // The browser can fire beforeinstallprompt before this effect ever runs
+    // (e.g. a slow bundle load on a new device) — index.html captures it as
+    // early as possible into window.__vsDeferredInstallPrompt so it isn't
+    // lost. Pick that up first, then still listen live for it firing later.
+    if (window.__vsDeferredInstallPrompt) {
+      setDeferredPrompt(window.__vsDeferredInstallPrompt);
+    }
+
     // Chrome/Edge/Android: capture the native install event
     function handleBeforeInstall(e) {
       e.preventDefault();
+      window.__vsDeferredInstallPrompt = e;
       setDeferredPrompt(e);
     }
 
@@ -43,6 +52,7 @@ export default function useInstallPrompt() {
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
     setDeferredPrompt(null);
+    window.__vsDeferredInstallPrompt = null; // a BeforeInstallPromptEvent can only be used once
     if (outcome === 'accepted') dismiss();
   }
 

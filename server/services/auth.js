@@ -4,6 +4,18 @@ const crypto = require('crypto');
 const db = require('../db');
 const { JWT_SECRET, ADMIN_EMAIL } = require('../config');
 
+// The users.email column is a plain case-sensitive TEXT UNIQUE — without
+// normalizing at every entry point, "User@Gmail.com" and "user@gmail.com"
+// look up as two different accounts. That's how a customer signing in with
+// the same email but different capitalization on their phone vs. computer
+// ends up looking like two separate users, each with its own empty Capi
+// chat history, watchlist, and push subscriptions instead of one shared
+// account. Every route that reads an email from the request must run it
+// through this before using it in a query.
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
 function hashPassword(password) {
   return bcrypt.hash(password, 12);
 }
@@ -169,6 +181,7 @@ async function verifyOTP(email, code, type) {
 }
 
 module.exports = {
+  normalizeEmail,
   hashPassword,
   verifyPassword,
   generateToken,

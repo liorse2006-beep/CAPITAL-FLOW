@@ -704,8 +704,21 @@ function setupDepthText(root, cleanupFns) {
   }
 }
 
+// Rewritten from the original hand-rolled rAF spring-physics version: that
+// implementation stepped every echo's position by wall-clock delta each
+// frame and only stopped once its own "stillMoving" heuristic went false —
+// which meant a single skipped/delayed frame (a backgrounded tab, a
+// throttled window, a slow first paint) could leave it parked mid-entrance
+// forever, since nothing forced it toward its resting state independent of
+// the loop actually running. Real users hit exactly that: the trailing
+// echoes stuck fully spread out, well past the entrance's own duration.
+// CSS transitions don't have that failure mode — the browser guarantees a
+// transition completes (resuming correctly even across a visibility
+// change) without any hand-written frame budget to get wrong, so the
+// entrance is expressed as one from/to state change instead of a per-frame
+// simulation.
 function mountEchoText(el, opts, cleanupFns) {
-  const o = Object.assign({ echoes: 12, lag: 0.24, offset: 36, direction: 'right', fade: 0.72, blur: 3, tint: '#fcda7d', mode: 'both', cursorRadius: 320, duration: 900, ease: 'ease-out', color: '#e2a545' }, opts || {});
+  const o = Object.assign({ echoes: 12, offset: 36, direction: 'right', fade: 0.72, blur: 3, tint: '#fcda7d', duration: 900, color: '#e2a545' }, opts || {});
   const text = el.textContent;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const echoCount = reducedMotion ? 0 : Math.min(Math.max(Math.round(o.echoes), 0), 24);
@@ -732,111 +745,45 @@ function mountEchoText(el, opts, cleanupFns) {
   el.appendChild(front);
   el.style.width = front.getBoundingClientRect().width + 'px';
 
-  const copies = [];
-  copies[0] = front;
+  if (reducedMotion || echoCount === 0) return;
+
+  const DIRS = { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, diagonal: { x: 0.72, y: 0.72 } };
+  const vector = DIRS[o.direction] || DIRS.right;
+
+  const echoes = [];
   for (let i = echoCount; i >= 1; i--) {
     const echo = document.createElement('span');
     echo.className = 'echo-text__echo';
     echo.setAttribute('aria-hidden', 'true');
     echo.style.color = o.tint ? ('color-mix(in srgb, ' + o.tint + ' ' + Math.min(72, 18 + i * 5) + '%, ' + o.color + ')') : o.color;
-    echo.style.opacity = '0';
     echo.textContent = text;
+    const depth = i / echoCount;
+    echo.style.filter = o.blur > 0 ? ('blur(' + (o.blur * depth).toFixed(2) + 'px)') : 'none';
+    // Starting (spread) pose, painted before any transition is attached —
+    // this is the very first frame the visitor sees, matching what the
+    // old entrance looked like at t=0.
+    const amt = o.offset * (i + 0.35);
+    echo.style.transform = 'translate3d(' + (vector.x * amt).toFixed(2) + 'px,' + (vector.y * amt).toFixed(2) + 'px,0)';
+    echo.style.opacity = '0';
     el.appendChild(echo);
-    copies[i] = echo;
+    echoes.push(echo);
   }
 
-  if (reducedMotion) return;
-
-  const DIRS = { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, diagonal: { x: 0.72, y: 0.72 } };
-  const EASE = {
-    linear: (t) => t,
-    'ease-out': (t) => 1 - Math.pow(1 - t, 3),
-    'ease-in-out': (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
-    snappy: (t) => 1 - Math.pow(1 - t, 5),
-  };
-  const vector = DIRS[o.direction] || DIRS.right;
-  const easeFn = EASE[o.ease] || EASE['ease-out'];
-  const entranceEnabled = o.mode === 'entrance' || o.mode === 'both';
-  const pointerEnabled = o.mode === 'pointer' || o.mode === 'both';
-  const positions = [];
-  for (let pi = 0; pi <= echoCount; pi++) {
-    const amt = entranceEnabled ? o.offset * (pi + 0.35) : 0;
-    positions[pi] = { x: vector.x * amt, y: vector.y * amt };
-  }
-  const state = { targetX: 0, targetY: 0, lastTargetX: 0, lastTargetY: 0, activity: entranceEnabled ? 1 : 0, startTime: performance.now() };
-  const canHover = pointerEnabled && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-  const listeners = [];
-
-  if (canHover) {
-    function onMove(e) {
-      const rect = el.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const dx = e.clientX - cx;
-      const dy = e.clientY - cy;
-      const dist = Math.hypot(dx, dy);
-      const reach = dist > 0 ? Math.min(Math.max(dist / o.cursorRadius, 0), 1) : 0;
-      const dirX = dist > 0 ? dx / dist : 0;
-      const dirY = dist > 0 ? dy / dist : 0;
-      state.targetX = dirX * reach * o.offset;
-      state.targetY = dirY * reach * o.offset * 0.72;
-    }
-    function onLeave() { state.targetX = 0; state.targetY = 0; }
-    window.addEventListener('pointermove', onMove, { passive: true });
-    document.addEventListener('pointerleave', onLeave);
-    listeners.push(['pointermove', onMove, window], ['pointerleave', onLeave, document]);
-  }
-
-  let rafId = 0;
-  let stopped = false;
-  function frame(now) {
-    if (stopped) return;
-    const elapsed = now - state.startTime;
-    const entranceProgress = entranceEnabled && o.duration > 0 ? Math.min(Math.max(elapsed / o.duration, 0), 1) : 1;
-    const easedEntrance = easeFn(entranceProgress);
-    const entranceRest = entranceEnabled ? 1 - easedEntrance : 0;
-    const targetVelocity = Math.hypot(state.targetX - state.lastTargetX, state.targetY - state.lastTargetY);
-    state.lastTargetX = state.targetX; state.lastTargetY = state.targetY;
-    let maxSeparation = 0;
-
-    for (let index = 0; index <= echoCount; index++) {
-      const copy = copies[index];
-      const current = positions[index];
-      if (!copy || !current) continue;
-      const entranceAmount = entranceRest * o.offset * (index + 0.35);
-      const desiredX = state.targetX + vector.x * entranceAmount;
-      const desiredY = state.targetY + vector.y * entranceAmount;
-      const lerp = Math.min(Math.max(0.34 / (1 + index * o.lag * 4.2), 0.018), 0.36);
-      current.x += (desiredX - current.x) * lerp;
-      current.y += (desiredY - current.y) * lerp;
-      copy.style.transform = 'translate3d(' + current.x.toFixed(3) + 'px,' + current.y.toFixed(3) + 'px,0)';
-      if (index > 0) {
-        const frontPos = positions[0];
-        const separation = frontPos ? Math.hypot(current.x - frontPos.x, current.y - frontPos.y) : 0;
-        maxSeparation = Math.max(maxSeparation, separation);
-        const depth = echoCount ? index / echoCount : 0;
-        copy.style.filter = o.blur > 0 ? ('blur(' + (o.blur * depth).toFixed(2) + 'px)') : 'none';
-      }
-    }
-    const separationActivity = o.offset > 0 ? Math.min(Math.max(maxSeparation / (o.offset * 2.25), 0), 1) : 0;
-    const targetActivity = o.offset > 0 ? Math.min(Math.max(targetVelocity / (o.offset * 0.35), 0), 1) : 0;
-    const nextActivity = Math.max(entranceRest, separationActivity, targetActivity);
-    state.activity += (nextActivity - state.activity) * 0.18;
-    for (let idx = 1; idx <= echoCount; idx++) {
-      const c2 = copies[idx];
-      if (c2) c2.style.opacity = String(Math.pow(o.fade, idx) * state.activity);
-    }
-    const stillMoving = state.activity > 0.002 || Math.abs(state.targetX) > 0.01 || Math.abs(state.targetY) > 0.01 || entranceProgress < 1 || canHover;
-    if (stillMoving) rafId = requestAnimationFrame(frame);
-  }
-  rafId = requestAnimationFrame(frame);
-
-  cleanupFns.push(() => {
-    stopped = true;
-    if (rafId) cancelAnimationFrame(rafId);
-    listeners.forEach(([type, fn, target]) => target.removeEventListener(type, fn));
+  // Two rAFs so the spread starting pose above is committed to a real
+  // paint before the transition (and its target values) are applied —
+  // otherwise the browser can coalesce both states into one frame and the
+  // transition never visibly runs.
+  const raf1 = requestAnimationFrame(() => {
+    const raf2 = requestAnimationFrame(() => {
+      echoes.forEach((echo, idx) => {
+        echo.style.transition = 'transform ' + o.duration + 'ms cubic-bezier(0.16,1,0.3,1), opacity ' + o.duration + 'ms ease-out';
+        echo.style.transform = 'translate3d(0,0,0)';
+        echo.style.opacity = String(Math.pow(o.fade, echoCount - idx));
+      });
+    });
+    cleanupFns.push(() => cancelAnimationFrame(raf2));
   });
+  cleanupFns.push(() => cancelAnimationFrame(raf1));
 }
 
 function setupHeroEntrance(root, cleanupFns) {
@@ -932,7 +879,7 @@ export function initLandingEffects(rootEl, onGetStarted) {
   runSafely('mountEchoText', () => {
     const heroEcho = rootEl.querySelector('#cfHeroEcho');
     if (heroEcho) {
-      mountEchoText(heroEcho, { echoes: 12, lag: 0.24, offset: 20, direction: 'right', fade: 0.72, blur: 3, tint: '#fcda7d', mode: 'both', cursorRadius: 320, duration: 900, ease: 'ease-out', color: '#e2a545' }, cleanupFns);
+      mountEchoText(heroEcho, { echoes: 12, offset: 20, direction: 'right', fade: 0.72, blur: 3, tint: '#fcda7d', duration: 900, color: '#e2a545' }, cleanupFns);
     }
   });
 

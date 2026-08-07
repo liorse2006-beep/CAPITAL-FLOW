@@ -114,3 +114,30 @@ test("sendPushToUser never touches another user's subscriptions", async () => {
 
   assert.strictEqual(calls.length, 0, "alice has no subscriptions — bob's must not be sent to");
 });
+
+test('sendPushToUser reaches every device the user is subscribed on — phone AND laptop, same account', async () => {
+  // There's no way to know which device the customer is actually looking at
+  // right now, so a single account's subscriptions (one per browser/device,
+  // keyed by their own unique endpoint — see the saveSubscription test
+  // above) must ALL get the same push in parallel, not just the most recent.
+  const u = await makeUser('push-multidevice@test.local');
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/phone', keys: { p256dh: 'p1', auth: 'a1' } });
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/laptop', keys: { p256dh: 'p2', auth: 'a2' } });
+
+  const calls = [];
+  const original = webpushLib.sendNotification;
+  webpushLib.sendNotification = async (sub) => {
+    calls.push(sub.endpoint);
+    return { statusCode: 201 };
+  };
+  let summary;
+  try {
+    summary = await webPush.sendPushToUser(u, { title: 'hi' });
+  } finally {
+    webpushLib.sendNotification = original;
+  }
+
+  assert.strictEqual(summary.devices, 2);
+  assert.strictEqual(summary.delivered, 2);
+  assert.deepStrictEqual(calls.sort(), ['https://push.example/laptop', 'https://push.example/phone']);
+});
