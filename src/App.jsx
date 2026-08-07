@@ -102,6 +102,11 @@ function App() {
   const [marketClosed, setMarketClosed] = useState(false);
   const [fromCache, setFromCache] = useState(false);
   const [cacheAge, setCacheAge] = useState(0);
+  // True only while the results on screen are the previous session's last
+  // scan, auto-restored on load — never after a scan the customer actually
+  // ran just now. Without this flag a plain page refresh silently repopulates
+  // the table with old data and nothing on screen explains why.
+  const [restoredFromLastScan, setRestoredFromLastScan] = useState(false);
   const [sortField, setSortField] = useState('volumeRatio');
   const [sortDir, setSortDir] = useState('desc');
   const [minRatio, setMinRatio] = useState('1.5');
@@ -799,6 +804,7 @@ function App() {
         if (d && d.results && d.results.length) {
           setResults(d.results);
           setScanTime(d.scanTime);
+          setRestoredFromLastScan(true);
         }
       })
       .catch(function () {});
@@ -924,6 +930,26 @@ function App() {
     [notificationsEnabled]
   );
 
+  // The bell's "Notifications on" label is a promise to the customer that
+  // this browser will actually show them — it must only ever go true once
+  // Notification.permission is actually 'granted'. The bug this replaces
+  // set it true whenever permission wasn't exactly 'default' (i.e. also for
+  // 'denied', and for browsers with no Notification API at all), so a
+  // customer who had blocked notifications — or whose browser doesn't
+  // support them — still saw "on" with zero chance any notification would
+  // ever fire.
+  function requestNotificationPermissionIfNeeded() {
+    if (!window.Notification) return; // unsupported — stays off, never claims otherwise
+    if (Notification.permission === 'granted') {
+      setNotificationsEnabled(true);
+    } else if (Notification.permission === 'default') {
+      Notification.requestPermission().then(function (perm) {
+        if (perm === 'granted') setNotificationsEnabled(true);
+      });
+    }
+    // 'denied': stays off — the browser will silently refuse anyway.
+  }
+
   function handleBellClick() {
     var opening = !showAlertPanel;
     setShowAlertPanel(opening);
@@ -933,15 +959,7 @@ function App() {
       if (user) {
         fetch('/api/notifications/read', { method: 'POST', headers: { Authorization: 'Bearer ' + getToken() } }).catch(function () {});
       }
-      if (!notificationsEnabled) {
-        if (window.Notification && Notification.permission === 'default') {
-          Notification.requestPermission().then(function (perm) {
-            if (perm === 'granted') setNotificationsEnabled(true);
-          });
-        } else if (!window.Notification || Notification.permission === 'granted') {
-          setNotificationsEnabled(true);
-        }
-      }
+      if (!notificationsEnabled) requestNotificationPermissionIfNeeded();
     }
   }
 
@@ -950,13 +968,7 @@ function App() {
       setNotificationsEnabled(false);
       prevResults.current = null;
     } else {
-      if (window.Notification && Notification.permission === 'default') {
-        Notification.requestPermission().then(function (perm) {
-          if (perm === 'granted') setNotificationsEnabled(true);
-        });
-      } else {
-        setNotificationsEnabled(true);
-      }
+      requestNotificationPermissionIfNeeded();
     }
   }
 
@@ -974,6 +986,7 @@ function App() {
       setScanning(true);
       setError(null);
       setFromCache(false);
+      setRestoredFromLastScan(false);
       setProgress({ processed: 0, total: 1, found: 0 });
       setLiveResults([]);
       setCurrentTicker('');
@@ -1347,6 +1360,7 @@ function App() {
                 scanTime={scanTime}
                 fromCache={fromCache}
                 cacheAge={cacheAge}
+                restoredFromLastScan={restoredFromLastScan}
                 sorted={sorted}
                 visibleCount={visibleCount}
                 setVisibleCount={setVisibleCount}

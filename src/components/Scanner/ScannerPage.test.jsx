@@ -63,48 +63,60 @@ function baseProps(overrides = {}) {
 }
 
 describe('ScannerPage sector limit', () => {
-  it('shows the free-tier sector hint and limit', () => {
-    render(<ScannerPage {...baseProps({ isPremium: false, isElite: false, sectorLimit: () => 2 })} />);
+  // "By Sector" now opens SectorPickerModal (showSectorModal is internal
+  // component state, not a prop) rather than expanding an inline grid —
+  // every case here has to click into the modal first, same as a real user.
+  async function openSectorModal(user, props) {
+    render(<ScannerPage {...baseProps(props)} />);
+    await user.click(screen.getByText('By Sector').closest('button'));
+  }
+
+  it('shows the free-tier sector hint and limit', async () => {
+    const user = userEvent.setup();
+    await openSectorModal(user, { isPremium: false, isElite: false, sectorLimit: () => 2 });
     expect(screen.getByText(/free tier: up to 2 sectors/i)).toBeInTheDocument();
   });
 
-  it('shows the premium-tier sector hint and limit', () => {
-    render(
-      <ScannerPage
-        {...baseProps({ isPremium: true, isElite: false, maxPremiumSectors: 5, sectorLimit: () => 5 })}
-      />
-    );
+  it('shows the premium-tier sector hint and limit', async () => {
+    const user = userEvent.setup();
+    await openSectorModal(user, { isPremium: true, isElite: false, maxPremiumSectors: 5, sectorLimit: () => 5 });
     expect(screen.getByText(/premium: up to 5 sectors/i)).toBeInTheDocument();
   });
 
-  it('shows no sector-count hint for elite (unlimited) users', () => {
-    render(<ScannerPage {...baseProps({ isPremium: true, isElite: true, sectorLimit: () => Infinity })} />);
+  it('shows no sector-count hint for elite (unlimited) users', async () => {
+    const user = userEvent.setup();
+    await openSectorModal(user, { isPremium: true, isElite: true, sectorLimit: () => Infinity });
     expect(screen.queryByText(/up to .* sectors/i)).not.toBeInTheDocument();
   });
 
-  it('shows the "N/limit sectors selected" badge once the limit is reached', () => {
-    render(
-      <ScannerPage
-        {...baseProps({
-          isPremium: false,
-          isElite: false,
-          selectedSectors: ['Technology', 'Financials'],
-          sectorLimit: () => 2,
-        })}
-      />
-    );
+  it('shows the "N/limit sectors selected" badge once the limit is reached', async () => {
+    const user = userEvent.setup();
+    await openSectorModal(user, {
+      isPremium: false,
+      isElite: false,
+      selectedSectors: ['Technology', 'Financials'],
+      sectorLimit: () => 2,
+    });
     expect(screen.getByText('2/2 sectors selected')).toBeInTheDocument();
   });
 
   it('calls toggleSector with the sector name when a sector card is clicked', async () => {
     const user = userEvent.setup();
     const toggleSector = vi.fn();
-    render(<ScannerPage {...baseProps({ toggleSector })} />);
+    await openSectorModal(user, { toggleSector });
     // Scope to the sector-grid card specifically — the logged-out demo preview
     // also renders a "Technology" sector chip, so an unscoped text query is
     // ambiguous. The card's name lives in .sector-card-name.
     await user.click(screen.getByText('Technology', { selector: '.sector-card-name' }).closest('button'));
     expect(toggleSector).toHaveBeenCalledWith('Technology');
+  });
+
+  it('Done closes the modal and returns to the main screen', async () => {
+    const user = userEvent.setup();
+    await openSectorModal(user, {});
+    expect(screen.getByRole('dialog', { name: /select sectors/i })).toBeInTheDocument();
+    await user.click(screen.getByText(/^Done/));
+    expect(screen.queryByRole('dialog', { name: /select sectors/i })).not.toBeInTheDocument();
   });
 });
 
@@ -124,5 +136,48 @@ describe('ScannerPage universe selector', () => {
     render(<ScannerPage {...baseProps({ scanMode: null, setScanMode, setSelectedSectors })} />);
     await user.click(screen.getByText('By Sector').closest('button'));
     expect(setScanMode).toHaveBeenCalledWith('sectors');
+  });
+});
+
+const mockRow = {
+  symbol: 'AAPL',
+  name: 'Apple Inc.',
+  price: 190.12,
+  change: 1.23,
+  volumeRatio: 3,
+  marketCap: 3e12,
+  sector: 'Technology',
+};
+
+describe('ScannerPage restored-last-scan label', () => {
+  // A plain page refresh auto-restores the customer's last scan (see
+  // App.jsx's /api/last-results effect) instead of a blank screen — without
+  // a label, that data looks like it appeared from nowhere.
+  it('labels results restored on load as the last scan, not a fresh one', () => {
+    render(
+      <ScannerPage
+        {...baseProps({
+          results: [mockRow],
+          sorted: [mockRow],
+          scanTime: new Date().toISOString(),
+          restoredFromLastScan: true,
+        })}
+      />
+    );
+    expect(screen.getByText(/Last scan from .* — click Run Scan to refresh/)).toBeInTheDocument();
+  });
+
+  it('does not show the restored label after an actual scan', () => {
+    render(
+      <ScannerPage
+        {...baseProps({
+          results: [mockRow],
+          sorted: [mockRow],
+          scanTime: new Date().toISOString(),
+          restoredFromLastScan: false,
+        })}
+      />
+    );
+    expect(screen.queryByText(/click Run Scan to refresh/)).not.toBeInTheDocument();
   });
 });

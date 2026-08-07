@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react'
 import ScanLoader from '../shared/ScanLoader'
 import ScheduleScan from '../shared/ScheduleScan'
 import ElectricBorder from '../shared/ElectricBorder'
+import SectorPickerModal from './SectorPickerModal'
 import useSmoothProgress from '../../hooks/useSmoothProgress'
 import { fmt, friendlyError, alertLevelLabel } from '../../utils/format'
-import { SECTOR_ICONS } from '../../constants/sectorIcons'
 
 const ALL_SECTORS = [
   'Technology',
@@ -129,6 +129,7 @@ export default function ScannerPage({
   scanTime,
   fromCache,
   cacheAge,
+  restoredFromLastScan,
   sorted,
   visibleCount,
   setVisibleCount,
@@ -151,6 +152,7 @@ export default function ScannerPage({
   onSignIn,
 }) {
   const [currentTime, setCurrentTime] = useState(null)
+  const [showSectorModal, setShowSectorModal] = useState(false)
 
   useEffect(() => {
     const updateCurrentTime = () => setCurrentTime(new Date())
@@ -383,7 +385,8 @@ export default function ScannerPage({
                   className={'scan-mode-card' + (isActive ? ' active' : '')}
                   onClick={() => {
                     setScanMode(cfg.mode)
-                    if (cfg.mode !== 'sectors') setSelectedSectors([])
+                    if (cfg.mode === 'sectors') setShowSectorModal(true)
+                    else setSelectedSectors([])
                   }}
                   style={{ '--card-color': cfg.color }}
                 >
@@ -419,49 +422,18 @@ export default function ScannerPage({
             })}
           </div>
 
-          {/* Sector grid — only when "By Sector" is selected */}
+          {/* "By Sector" opens SectorPickerModal instead of expanding this
+              screen — this is just the compact after-the-fact summary. */}
           {scanMode === 'sectors' && (
-            <div className="sector-grid-wrap">
-              <div className="sector-grid-header">
-                <span>Select Sectors</span>
-                {selectedSectors.length > 0 && (
-                  <button className="sector-clear" onClick={() => setSelectedSectors([])}>
-                    Clear all
-                  </button>
-                )}
-              </div>
-              <div className="sector-grid">
-                {ALL_SECTORS.map((s) => {
-                  const active = selectedSectors.indexOf(s) >= 0
-                  return (
-                    <button
-                      key={s}
-                      className={'sector-card' + (active ? ' active' : '')}
-                      onClick={() => toggleSector(s)}
-                    >
-                      <div className="sector-card-glow" />
-                      <div className="sector-card-icon">{SECTOR_ICONS[s] || null}</div>
-                      <div className="sector-card-name">{s}</div>
-                      <div className="sector-card-count">5 tickers</div>
-                    </button>
-                  )
-                })}
-              </div>
-              {selectedSectors.length === 0 && (
-                <div className="sector-hint">No sectors selected — will scan top 5 from all sectors</div>
-              )}
-              {!isElite && (
-                <div className="sector-hint">
-                  {isPremium
-                    ? 'Premium: up to ' + maxPremiumSectors + ' sectors. Upgrade to Elite for unlimited.'
-                    : 'Free tier: up to ' + maxFreeSectors + ' sectors. Upgrade for more.'}
-                </div>
-              )}
-              {!isElite && selectedSectors.length >= sectorLimit() && (
-                <div className="sector-limit-badge">
-                  {selectedSectors.length + '/' + sectorLimit() + ' sectors selected'}
-                </div>
-              )}
+            <div className="sector-summary-row">
+              <span className="sector-summary-text">
+                {selectedSectors.length === 0
+                  ? 'No sectors selected — will scan top 5 from all sectors'
+                  : selectedSectors.length + ' sector' + (selectedSectors.length === 1 ? '' : 's') + ' selected: ' + selectedSectors.join(', ')}
+              </span>
+              <button className="sector-clear" onClick={() => setShowSectorModal(true)}>
+                Change sectors
+              </button>
             </div>
           )}
         </div>
@@ -586,6 +558,19 @@ export default function ScannerPage({
                 // Re-scanning inside that window intentionally returns the
                 // same snapshot; without this label that looks like the
                 // scanner is broken rather than just not-yet-refreshed.
+                // A plain page refresh restores whatever was last scanned
+                // (see App.jsx's /api/last-results effect) rather than
+                // showing a blank screen — without this label that restored
+                // data looks like it came from nowhere, since nothing was
+                // actually re-run.
+                if (restoredFromLastScan) {
+                  return (
+                    <span className="table-bar-sub table-bar-sub-restored" title="Restored from your last scan — click Run Scan for current results">
+                      {'📋 Last scan from ' + new Date(scanTime).toLocaleString() + ' — click Run Scan to refresh'}
+                    </span>
+                  );
+                }
+
                 if (fromCache && !marketClosed) {
                   const remain = Math.max(0, 15 - Math.round((cacheAge || 0) / 60));
                   return (
@@ -931,6 +916,21 @@ export default function ScannerPage({
           )}
         </div>
         </>
+      )}
+
+      {showSectorModal && (
+        <SectorPickerModal
+          allSectors={ALL_SECTORS}
+          selectedSectors={selectedSectors}
+          toggleSector={toggleSector}
+          setSelectedSectors={setSelectedSectors}
+          onDone={() => setShowSectorModal(false)}
+          isElite={isElite}
+          isPremium={isPremium}
+          maxFreeSectors={maxFreeSectors}
+          maxPremiumSectors={maxPremiumSectors}
+          sectorLimit={sectorLimit}
+        />
       )}
     </div>
   )
