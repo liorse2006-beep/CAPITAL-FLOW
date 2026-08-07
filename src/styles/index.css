@@ -550,6 +550,41 @@ body {
   margin-left: 4px;
 }
 
+/* ── Brand mark — fixed to the left edge of the viewport, roughly level
+   with the top of the results table. The logo sits inside ElectricBorder;
+   "CAPITAL FLOW" appears as plain text above and below it. Hidden below
+   1400px so it never overlaps the table on narrower viewports. ── */
+.scanner-brand-mark {
+  position: fixed;
+  left: 24px;
+  top: 180px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 120px;
+  pointer-events: none;
+}
+.scanner-brand-word {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  text-align: center;
+}
+.scanner-brand-logo {
+  display: block;
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 16px;
+}
+@media (max-width: 1400px) {
+  .scanner-brand-mark { display: none; }
+}
+
 /* ── Table Card ── */
 .table-card {
   background: var(--bg-1);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import ScanLoader from '../shared/ScanLoader'
 import ScheduleScan from '../shared/ScheduleScan'
+import ElectricBorder from '../shared/ElectricBorder'
 import useSmoothProgress from '../../hooks/useSmoothProgress'
 import { fmt, friendlyError, alertLevelLabel } from '../../utils/format'
 import { SECTOR_ICONS } from '../../constants/sectorIcons'
@@ -562,6 +563,14 @@ export default function ScannerPage({
       )}
 
       {results && (
+        <>
+          <div className="scanner-brand-mark">
+            <span className="scanner-brand-word">CAPITAL FLOW</span>
+            <ElectricBorder color="#ffd17d" speed={1.5} chaos={0.01} thickness={2} style={{ borderRadius: 16 }}>
+              <img src="/home-logo.jpeg" alt="Capital Flow" className="scanner-brand-logo" />
+            </ElectricBorder>
+            <span className="scanner-brand-word">CAPITAL FLOW</span>
+          </div>
         <div className="table-card">
           <div className="table-bar">
             <div>
@@ -921,6 +930,7 @@ export default function ScannerPage({
             </>
           )}
         </div>
+        </>
       )}
     </div>
   )

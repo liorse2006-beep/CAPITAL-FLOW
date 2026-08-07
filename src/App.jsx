@@ -31,6 +31,7 @@ const AuthModal = lazy(() => import('./components/Auth/AuthModal'));
 const ChatWidget = lazy(() => import('./components/shared/ChatWidget'));
 const WelcomeTierModal = lazy(() => import('./components/shared/WelcomeTierModal'));
 const ScheduledScanResultsModal = lazy(() => import('./components/shared/ScheduledScanResultsModal'));
+const LandingPage = lazy(() => import('./pages/LandingPage'));
 
 /* ── Main App ── */
 function App() {
@@ -1120,6 +1121,12 @@ function App() {
   }
   var uniqueSectors = Object.keys(sectorSet).sort();
 
+  // The public marketing page shown to logged-out visitors at "/" — Capi
+  // (below) is an in-app tool with nothing to do until someone has an
+  // account, so it stays hidden here instead of floating over the page's
+  // own "Start free" CTAs.
+  var isGuestLanding = location.pathname === '/' && !user;
+
   return (
     <>
       <Toast message={toastMsg} show={toastShow} onClose={() => setToastShow(false)} />
@@ -1164,16 +1171,18 @@ function App() {
         />
       )}
 
-      <Suspense fallback={null}>
-        <ChatWidget
-          user={user}
-          isElite={eliteAccess}
-          getToken={getToken}
-          externalPrompt={capiExternalPrompt}
-          onExternalPromptSent={() => setCapiExternalPrompt(null)}
-          onRequireAuth={() => setShowAuthModal(true)}
-        />
-      </Suspense>
+      {!isGuestLanding && (
+        <Suspense fallback={null}>
+          <ChatWidget
+            user={user}
+            isElite={eliteAccess}
+            getToken={getToken}
+            externalPrompt={capiExternalPrompt}
+            onExternalPromptSent={() => setCapiExternalPrompt(null)}
+            onRequireAuth={() => setShowAuthModal(true)}
+          />
+        </Suspense>
+      )}
 
       {welcomeTier && (
         <Suspense fallback={null}>
@@ -1196,6 +1205,11 @@ function App() {
         </Suspense>
       )}
 
+      {isGuestLanding ? (
+        <Suspense fallback={<div className="page-loading">Loading…</div>}>
+          <LandingPage onGetStarted={() => setShowAuthModal(true)} />
+        </Suspense>
+      ) : (
       <div className="app">
         <Topbar
           user={user}
@@ -1389,6 +1403,7 @@ function App() {
           </div>
         </footer>
       </div>
+      )}
 
       {chartOpen && (
         <Suspense fallback={null}>

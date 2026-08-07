@@ -34,9 +34,12 @@ afterEach(() => {
 })
 
 describe('App routing', () => {
-  it('renders the scanner page at the root path', () => {
+  it('renders the public landing page at the root path for a logged-out visitor', async () => {
+    // "/" is the marketing page for guests (see App.jsx's isGuestLanding) —
+    // only an authenticated user lands on the scanner at "/". LandingPage is
+    // lazy-loaded, so its first render in this file resolves asynchronously.
     renderAt('/')
-    expect(screen.getByText('Full Scan')).toBeInTheDocument()
+    expect(await screen.findByText('CAPITAL FLOW · DEMO SCAN')).toBeInTheDocument()
   })
 
   it('renders the watchlist page at /watchlist', () => {

@@ -67,6 +67,13 @@ export default function MAScannerPage({
   const [sortField, setSort] = useState('maDistance');
   const [sortDir, setSortDir] = useState('asc');
   const [dirFilter, setDirFilter] = useState('all');
+  // Optional, off by default — narrows results to crosses the scan itself
+  // actually detected within the last FRESH_CROSS_MAX_BARS bars (see
+  // daysSinceCross in server/services/maScanner.js). A stock whose data
+  // didn't show a real recent cross (daysSinceCross === null) never counts
+  // as fresh, no matter what.
+  const [freshCrossOnly, setFreshCrossOnly] = useState(false);
+  const FRESH_CROSS_MAX_BARS = 3;
 
   const { scanMeta, setScanMeta, refreshQuota } = useScanQuota();
 
@@ -147,6 +154,7 @@ export default function MAScannerPage({
 
   const filtered = (results || []).filter((r) => {
     if (dirFilter !== 'all' && r.direction !== dirFilter) return false;
+    if (freshCrossOnly && (r.daysSinceCross == null || r.daysSinceCross > FRESH_CROSS_MAX_BARS)) return false;
     return true;
   });
 
@@ -186,6 +194,16 @@ export default function MAScannerPage({
       )
     );
   };
+
+  // Renders exactly what the scan computed — never invents a number. null
+  // means the scan's own historical data didn't show a cross within its
+  // lookback window, and that is shown as-is rather than as "0" or blank.
+  function crossLabel(daysSinceCross) {
+    if (daysSinceCross == null) return 'No recent cross'
+    if (daysSinceCross === 0) return 'Just now'
+    var unit = timeframe === '1wk' ? 'wk' : 'd'
+    return daysSinceCross + unit + ' ago'
+  }
 
   const chartBtn = (symbol) =>
     React.createElement(
@@ -434,6 +452,30 @@ export default function MAScannerPage({
         )
       ),
 
+      // Optional — off by default, so a guest/first-time user gets the same
+      // full result set as before. When on, keeps only rows whose
+      // daysSinceCross the scan itself actually computed as recent (see
+      // filtered above) — never a fabricated freshness value.
+      React.createElement(
+        'div',
+        { className: 'ma-ctrl-group' },
+        React.createElement('span', { className: 'ma-ctrl-label' }, 'Focus'),
+        React.createElement(
+          'div',
+          { className: 'ma-ctrl-btns' },
+          React.createElement(
+            'button',
+            {
+              className: 'ma-ctrl-btn' + (freshCrossOnly ? ' active' : ''),
+              onClick: guarded(() => setFreshCrossOnly((v) => !v)),
+              disabled: loading,
+              title: 'Only show stocks whose scan data shows a real MA cross within the last ' + FRESH_CROSS_MAX_BARS + ' bars',
+            },
+            'Fresh crosses only'
+          )
+        )
+      ),
+
       // Usage counter — premium tier only; the free trial is never advertised
       // up front, only surfaced via the upgrade modal once it's exhausted.
       !isPremium &&
@@ -647,6 +689,11 @@ export default function MAScannerPage({
                         'span',
                         { className: 'mobile-card-change', style: { color: distColor } },
                         (r.maDistance >= 0 ? '+' : '') + r.maDistance.toFixed(2) + '%'
+                      ),
+                      React.createElement(
+                        'span',
+                        { style: { fontFamily: 'var(--mono)', fontSize: 11, color: r.daysSinceCross != null ? 'var(--text-1)' : 'var(--text-3)' } },
+                        crossLabel(r.daysSinceCross)
                       )
                     ),
                     React.createElement(
@@ -680,6 +727,7 @@ export default function MAScannerPage({
                   React.createElement(TH, { label: 'Price', field: 'price' }),
                   React.createElement(TH, { label: `SMA${ma}`, field: 'maValue' }),
                   React.createElement(TH, { label: 'Distance %', field: 'maDistance' }),
+                  React.createElement(TH, { label: 'Cross', field: 'daysSinceCross' }),
                   React.createElement('th', { style: { width: 120 } })
                 )
               ),
@@ -693,7 +741,7 @@ export default function MAScannerPage({
                       React.createElement(
                         'td',
                         {
-                          colSpan: 7,
+                          colSpan: 8,
                           style: {
                             textAlign: 'center',
                             padding: '32px',
@@ -733,6 +781,11 @@ export default function MAScannerPage({
                             { className: 'ma-distance-cell', style: { color: distColor } },
                             (r.maDistance >= 0 ? '+' : '') + r.maDistance.toFixed(2) + '%'
                           )
+                        ),
+                        React.createElement(
+                          'td',
+                          { style: { fontFamily: 'var(--mono)', fontSize: 11.5, color: r.daysSinceCross != null ? 'var(--text-1)' : 'var(--text-3)' } },
+                          crossLabel(r.daysSinceCross)
                         ),
                         React.createElement(
                           'td',

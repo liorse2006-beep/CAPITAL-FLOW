@@ -4,6 +4,11 @@ const quoteCache = require('./quoteCache');
 const CHART_BATCH_SIZE = 20;
 const CHART_DELAY_MS = 250;
 const MIN_MKT_CAP = 300_000_000;
+// How many bars back we're willing to look for an actual MA crossing. Chosen
+// so a chart's own historical closes decide the answer — never a guess or a
+// default — and results.length beyond this window come back as `null`
+// rather than a fabricated number.
+const CROSS_LOOKBACK_BARS = 10;
 
 // Daily closes cache — the expensive half of an MA scan is fetching a chart
 // per symbol (hundreds of HTTP calls per scan). Closing prices gain at most
@@ -39,7 +44,44 @@ function sma(closes, period) {
 
 function lookbackMs(ma, interval) {
   const daysPerBar = interval === '1wk' ? 7 : 1;
-  return Math.ceil(ma * daysPerBar * 1.65) * 24 * 60 * 60 * 1000;
+  // Needs to cover the MA window itself plus CROSS_LOOKBACK_BARS of history
+  // before it, so daysSinceCross always has real bars to check rather than
+  // running out of data and having to guess.
+  const barsNeeded = ma + CROSS_LOOKBACK_BARS + 1;
+  return Math.ceil(barsNeeded * daysPerBar * 1.65) * 24 * 60 * 60 * 1000;
+}
+
+/**
+ * How many bars ago the price last crossed from one side of SMA(period) to
+ * the other, computed strictly from `closes` — the same historical bars
+ * Yahoo returned for this symbol, nothing else. Walks backward bar by bar,
+ * each time computing the SMA as it actually stood using only the closes up
+ * to and including that bar (never a later bar's data), and compares the
+ * bar's own close against it.
+ *
+ * Returns:
+ *  - 0 if the most recently completed bar is the first bar on its side
+ *    (i.e. it flipped relative to the bar before it) — "crossed as of the
+ *    latest close".
+ *  - N > 0 if the flip happened N bars before the latest completed bar.
+ *  - null if no flip is found within CROSS_LOOKBACK_BARS, OR there isn't
+ *    enough history to check that far back. null always means "unknown
+ *    from the data available" — it is never coerced into 0 or any other
+ *    number.
+ */
+function daysSinceCross(closes, period) {
+  const latest = closes.length - 1;
+  let prevSide = null;
+  for (let k = 0; k <= CROSS_LOOKBACK_BARS; k++) {
+    const j = latest - k;
+    if (j - period + 1 < 0) return null; // ran out of real history — unknown, not guessed
+    const maAtJ = sma(closes.slice(0, j + 1), period);
+    if (maAtJ === null) return null;
+    const side = closes[j] >= maAtJ ? 'above' : 'below';
+    if (prevSide !== null && side !== prevSide) return k - 1;
+    prevSide = side;
+  }
+  return null; // side held for the entire lookback window — no cross found
 }
 
 /**
@@ -84,7 +126,7 @@ async function scanMA(tickers, { ma, distance, interval, onProgress }) {
     const batchRes = await Promise.all(
       batch.map(async ({ symbol, q }) => {
         try {
-          let closes = getCachedCloses(symbol, interval, ma);
+          let closes = getCachedCloses(symbol, interval, ma + CROSS_LOOKBACK_BARS + 1);
           if (closes === null) {
             batchFetches++;
             const chart = await yahooFinance.chart(symbol, {
@@ -114,6 +156,10 @@ async function scanMA(tickers, { ma, distance, interval, onProgress }) {
             maValue: +maValue.toFixed(2),
             maDistance: +pctDist.toFixed(2),
             direction: pctDist >= 0 ? 'above' : 'below',
+            // Real bars-since-crossing computed from the same `closes`
+            // history above, or null when the data doesn't show one within
+            // the lookback window — see daysSinceCross's own doc comment.
+            daysSinceCross: daysSinceCross(closes, ma),
           };
         } catch {
           phase2Done++;
