@@ -1,4 +1,33 @@
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+const { verifyToken } = require('../services/auth');
+
+// Default express-rate-limit keys by IP alone — fine for pre-login
+// endpoints (see authLimiter/otpLimiter below, which must stay IP-keyed:
+// that's exactly the brute-force surface, and there's no authenticated
+// identity yet to key by instead). But for limiters that gate a signed-in
+// account's own usage (scans, the API floor, chat), IP-keying means every
+// customer behind the same shared IP — an office, a campus, a mobile
+// carrier's CGNAT (common in Israel) — draws from ONE shared budget and can
+// throttle each other even though each of them individually did nothing
+// wrong. Keying by the account instead (when a valid access token is
+// present) gives every signed-in customer their own budget; a request with
+// no/invalid token still falls back to the IP key, so guests and abuse
+// attempts are still covered.
+function userOrIpKey(req, res) {
+  const header = req.headers.authorization;
+  if (header && header.startsWith('Bearer ')) {
+    try {
+      const payload = verifyToken(header.slice(7));
+      if (payload && payload.id) return 'user:' + payload.id;
+    } catch (err) {
+      // invalid/expired token — fall through to the IP key below
+    }
+  }
+  // ipKeyGenerator takes the IP string itself (normalizes IPv6 to a /56
+  // subnet so one visitor can't dodge the limit across addresses within
+  // their own allocated block) — not (req, res).
+  return ipKeyGenerator(req.ip);
+}
 
 // Tight limiter for credential endpoints — stops brute-force on login,
 // signup, OTP verification, and password reset. Keyed by IP.
@@ -21,24 +50,28 @@ const otpLimiter = rateLimit({
 });
 
 // Looser limiter for expensive scan/data endpoints — guards against DoS
-// without getting in the way of normal use.
+// without getting in the way of normal use. Keyed by account (see
+// userOrIpKey above) so scanning is budgeted per customer, not per shared IP.
 const scanLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: userOrIpKey,
   message: { error: 'Too many requests. Please slow down.' },
 });
 
 // Floor limiter applied to every /api route. Endpoints like /chart and
 // /watchlist-quotes had no limit at all before this — an easy vector for a
 // script to slowly walk the whole ticker universe and rebuild the dataset.
-// Generous enough that no real user in the UI would ever notice it.
+// Generous enough that no real user in the UI would ever notice it. Keyed
+// by account for the same reason as scanLimiter.
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: userOrIpKey,
   message: { error: 'Too many requests. Please slow down.' },
 });
 
@@ -56,11 +89,13 @@ const adminLimiter = rateLimit({
 // Capi (chat) calls a metered external API — this is tighter than
 // scanLimiter to keep one chatty user from burning through the app-wide
 // daily Gemini quota (see services/chatbot.js's own DAILY_CALL_CAP too).
+// Keyed by account for the same reason as scanLimiter.
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 12,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: userOrIpKey,
   message: { error: 'Too many messages. Please slow down.' },
 });
 

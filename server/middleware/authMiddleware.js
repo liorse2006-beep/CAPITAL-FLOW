@@ -1,41 +1,59 @@
 const { verifyToken } = require('../services/auth');
 const db = require('../db');
 const { reserveScan, quotaFor, freeTrialActive } = require('../services/scanQuota');
-const { ADMIN_EMAIL } = require('../config');
+const { ADMIN_EMAIL, SESSION_SECRET } = require('../config');
 const crypto = require('crypto');
 
 // EventSource cannot send Authorization headers. Use short-lived, opaque
 // tickets instead of putting a seven-day JWT in the stream URL. Tickets are
 // deliberately reusable until expiry so a browser reconnect does not need to
-// race a second ticket request, but they contain no user data or privileges.
-const sseTickets = new Map();
+// race a second ticket request, but they contain no user data or privileges
+// beyond the user id itself, which is not sensitive.
+//
+// This used to be an in-memory Map (issue on whichever worker handles
+// /stream-ticket, look up on whichever worker the /stream connection that
+// redeems it a moment later happens to land on — not necessarily the same
+// one). Keeping two workers' copies of that map in sync required relaying
+// every issuance over clusterBus, which is asynchronous — a fast machine
+// could open the /stream connection before the relay finished, and get
+// rejected as unauthenticated. That's a real bug, not a theoretical one: it
+// reproduced in test/cluster.integration.test.js.
+//
+// The actual fix is to not need shared state at all: the ticket is its own
+// proof, HMAC-signed with SESSION_SECRET, carrying the userId and expiry
+// right in it. Any worker can verify it alone, instantly, with zero
+// coordination — same principle as the session-cookie switch in
+// server/index.js (a signed token beats a shared store that has to somehow
+// stay in sync).
 const SSE_TICKET_TTL_MS = 10 * 60 * 1000;
 
+function signSseTicket(userId, expiresAt) {
+  return crypto.createHmac('sha256', SESSION_SECRET).update(`${userId}.${expiresAt}`).digest('base64url');
+}
+
 function issueSseTicket(userId) {
-  const ticket = crypto.randomBytes(32).toString('base64url');
-  sseTickets.set(ticket, { userId, expiresAt: Date.now() + SSE_TICKET_TTL_MS });
-  return ticket;
+  const expiresAt = Date.now() + SSE_TICKET_TTL_MS;
+  const sig = signSseTicket(userId, expiresAt);
+  return `${userId}.${expiresAt}.${sig}`;
 }
 
 function resolveSseTicket(ticket) {
   if (!ticket || typeof ticket !== 'string') return null;
-  const record = sseTickets.get(ticket);
-  if (!record) return null;
-  if (record.expiresAt <= Date.now()) {
-    sseTickets.delete(ticket);
-    return null;
-  }
-  return record.userId;
-}
+  const parts = ticket.split('.');
+  if (parts.length !== 3) return null;
+  const [userIdStr, expiresAtStr, sig] = parts;
+  const userId = Number(userIdStr);
+  const expiresAt = Number(expiresAtStr);
+  if (!Number.isInteger(userId) || !Number.isFinite(expiresAt)) return null;
+  if (expiresAt <= Date.now()) return null;
 
-function pruneSseTickets() {
-  const now = Date.now();
-  for (const [ticket, record] of sseTickets) {
-    if (record.expiresAt <= now) sseTickets.delete(ticket);
-  }
+  const expected = signSseTicket(userId, expiresAt);
+  const expectedBuf = Buffer.from(expected);
+  const sigBuf = Buffer.from(sig || '');
+  if (expectedBuf.length !== sigBuf.length || !crypto.timingSafeEqual(expectedBuf, sigBuf)) return null;
+
+  return userId;
 }
-const sseTicketPruner = setInterval(pruneSseTickets, SSE_TICKET_TTL_MS);
-sseTicketPruner.unref();
 
 /** Resolve a JWT string → verified DB user, or null on failure */
 async function resolveToken(token) {
@@ -250,4 +268,5 @@ module.exports = {
   requireScanQuota,
   resolveToken,
   issueSseTicket,
+  resolveSseTicket,
 };

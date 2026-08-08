@@ -360,11 +360,37 @@ async function initDb() {
   setInterval(() => pruneStaleSessions(), 24 * 60 * 60 * 1000).unref();
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// SQLITE_BUSY/SQLITE_LOCKED are transient — the schema is identical on every
+// boot (every migration is CREATE-IF-NOT-EXISTS/ALTER-IF-MISSING, so running
+// it twice is always safe), so retrying past a brief lock is correct, not
+// just convenient. This matters most when multiple processes share one
+// local SQLite file and boot at the same moment — e.g. `CLUSTER_WORKERS`
+// (server.js) starting several workers together, each running this same
+// initDb() independently. Real Turso in production is a proper client/
+// server database rather than raw file locking, so this path is expected
+// to matter mainly for local/file-mode DBs, but retrying costs nothing
+// either way.
+async function initDbWithRetry(maxAttempts = 5) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await initDb();
+    } catch (err) {
+      const transient = err && (err.code === 'SQLITE_BUSY' || err.code === 'SQLITE_LOCKED');
+      if (!transient || attempt === maxAttempts) throw err;
+      await sleep(50 * attempt + Math.random() * 50);
+    }
+  }
+}
+
 // Kick off schema init. All db consumers must await db.ready before their
 // first query — but since this only takes a few ms on startup and every
 // consumer is in an async context (route handlers, service functions) the
 // natural startup order is fine in practice.
-const ready = initDb().catch((err) => {
+const ready = initDbWithRetry().catch((err) => {
   console.error('[db] Fatal: schema init failed:', err);
   process.exit(1);
 });

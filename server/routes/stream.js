@@ -1,22 +1,50 @@
 const router = require('express').Router();
 const { requirePremium, requirePremiumSSE, issueSseTicket } = require('../middleware/authMiddleware');
+const clusterBus = require('../services/clusterBus');
 
-// ── Single-instance constraint — read this before scaling horizontally ─────
-// `clients`, backgroundCache (services/backgroundScan.js), the per-user scan
-// locks (state.js), and the SSE ticket store (authMiddleware.js) all live in
-// THIS process's memory, with zero cross-process coordination. That's fine
-// running one instance (the only thing this app has ever been deployed as),
-// but it silently breaks the moment a second instance is added behind a
-// load balancer: broadcastToUser only reaches clients connected to whichever
-// instance actually ran the scan, so roughly half of users would stop
-// getting live alerts/pushes with no error anywhere telling anyone why.
-// Fixing this for real requires a shared pub/sub layer (Redis or similar) —
-// there is no such infrastructure provisioned today. Do not scale to
-// multiple instances of this app without adding one first.
-//
-// Active SSE clients — each entry is { res, userId } so alerts can be routed
-// to the specific user who owns them, never broadcast across accounts.
+// Active SSE clients THIS worker is directly holding the connection for —
+// each entry is { res, userId } so alerts can be routed to the specific
+// user who owns them, never broadcast across accounts. broadcast()/
+// broadcastToUser() below publish over clusterBus rather than writing to
+// `clients` directly, so a scan/alert that happened on a different worker
+// still reaches whichever worker is holding a given user's connection —
+// see clusterBus.js for why that distinction matters once there's more
+// than one worker.
 const clients = new Set();
+
+clusterBus.subscribe('sse-broadcast', ({ event, data }) => {
+  deliverToAll(event, data);
+});
+clusterBus.subscribe('sse-broadcast-user', ({ userId, event, data }) => {
+  deliverToUser(userId, event, data);
+});
+
+function deliverToAll(event, data) {
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  const dead = [];
+  clients.forEach((client) => {
+    try {
+      client.res.write(payload);
+    } catch (e) {
+      dead.push(client);
+    }
+  });
+  dead.forEach((c) => clients.delete(c));
+}
+
+function deliverToUser(userId, event, data) {
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  const dead = [];
+  clients.forEach((client) => {
+    if (client.userId !== userId) return;
+    try {
+      client.res.write(payload);
+    } catch (e) {
+      dead.push(client);
+    }
+  });
+  dead.forEach((c) => clients.delete(c));
+}
 
 // EventSource cannot attach an Authorization header. This endpoint exchanges
 // the normal bearer token for a short-lived opaque stream ticket. The ticket
@@ -42,7 +70,13 @@ router.get('/stream', requirePremiumSSE, (req, res) => {
     } catch (e) {}
   };
 
-  send('connected', { ts: Date.now(), clientCount: clients.size });
+  // pid identifies which worker this particular connection landed on —
+  // harmless to expose (just a process id, reveals nothing about the
+  // deployment) and is how the multi-worker integration test proves a
+  // broadcast fired by one worker actually reaches a client connected to
+  // a different one, instead of trusting that round-robin spread things
+  // out without checking.
+  send('connected', { ts: Date.now(), clientCount: clients.size, pid: process.pid });
 
   // Keep-alive every 25s (below typical 30s proxy timeout)
   const keepAlive = setInterval(() => send('ping', { ts: Date.now() }), 25000);
@@ -53,42 +87,67 @@ router.get('/stream', requirePremiumSSE, (req, res) => {
   });
 });
 
+// Test-only, strictly gated: exercises the exact same broadcastToUser()
+// every real alert path calls (background scan matches, watchlist
+// thresholds), from an HTTP request, so the multi-worker integration test
+// (test/cluster.integration.test.js) can prove a broadcast issued while
+// handling ONE request reaches a client whose /stream connection landed on
+// a DIFFERENT worker — without needing to drive an entire real scan through
+// the cluster to get there. NODE_ENV is never 'test' outside the test
+// suite/CI (Render runs with NODE_ENV=production — see server/config.js),
+// so this route does not exist in any real deployment.
+if (process.env.NODE_ENV === 'test') {
+  router.post('/stream/_test-broadcast', require('express').json(), (req, res) => {
+    const { userId, event, data } = req.body || {};
+    if (userId) broadcastToUser(userId, event, data);
+    else broadcast(event, data);
+    res.json({ ok: true });
+  });
+
+  // Seeds a real elite user + real session (via the actual issueToken —
+  // the same code path login uses) using THIS worker's own already-open DB
+  // connection. The multi-worker integration test needs a user to exist
+  // before it can request an SSE ticket, but its own separate process
+  // opening a third connection to the same local SQLite file (on top of
+  // both workers' own connections) hits SQLITE_BUSY under real concurrent
+  // load — a local-file-mode limitation, not something real (remote,
+  // client/server) Turso has. Routing the seed through a worker's existing
+  // connection sidesteps that without changing anything about how the app
+  // itself talks to the database.
+  router.post('/stream/_test-seed-user', require('express').json(), async (req, res) => {
+    const db = require('../db');
+    const { issueToken } = require('../services/auth');
+    const email = (req.body && req.body.email) || 'cluster-it-user@test.local';
+    const result = await db
+      .prepare("INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, 'elite', 1)")
+      .run(email);
+    const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+    const { accessToken } = await issueToken(user);
+    res.json({ userId: user.id, accessToken });
+  });
+}
+
 /**
- * Broadcast an SSE event to ALL connected clients. Use only for global,
- * non-personal events (scan status, market-wide notices).
- * Dead connections are pruned automatically.
+ * Broadcast an SSE event to ALL connected clients across every worker. Use
+ * only for global, non-personal events (scan status, market-wide notices).
+ * Dead connections are pruned automatically on whichever worker holds them.
  */
 function broadcast(event, data) {
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  const dead = [];
-  clients.forEach((client) => {
-    try {
-      client.res.write(payload);
-    } catch (e) {
-      dead.push(client);
-    }
-  });
-  dead.forEach((c) => clients.delete(c));
+  clusterBus.publish('sse-broadcast', { event, data });
 }
 
 /**
- * Send an SSE event only to the connections owned by a specific user.
- * Used for personal watchlist alerts so thresholds never leak across accounts.
+ * Send an SSE event only to the connections owned by a specific user,
+ * wherever in the cluster they're connected. Used for personal watchlist
+ * alerts so thresholds never leak across accounts.
  */
 function broadcastToUser(userId, event, data) {
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  const dead = [];
-  clients.forEach((client) => {
-    if (client.userId !== userId) return;
-    try {
-      client.res.write(payload);
-    } catch (e) {
-      dead.push(client);
-    }
-  });
-  dead.forEach((c) => clients.delete(c));
+  clusterBus.publish('sse-broadcast-user', { userId, event, data });
 }
 
+// This worker's own connected-client count only — informational (sent in
+// the 'connected' event so a client can see roughly how busy things are),
+// not a cluster-wide total, and nothing server-side depends on it being one.
 function clientCount() {
   return clients.size;
 }

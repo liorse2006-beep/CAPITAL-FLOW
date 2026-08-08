@@ -5,8 +5,7 @@ const compression = require('compression');
 const cors = require('cors');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
-const session = require('express-session');
-const MemoryStore = require('memorystore')(session);
+const cookieSession = require('cookie-session');
 const passport = require('passport');
 const path = require('path');
 const fs = require('fs');
@@ -17,6 +16,7 @@ const { startScheduledScanRunner } = require('./services/scheduledScanRunner');
 const { startScheduledBackup } = require('./services/dbBackup');
 const { startHealthMonitor } = require('./services/healthMonitor');
 const { scanLimiter, apiLimiter, adminLimiter } = require('./middleware/rateLimiters');
+const { isSingletonWorker } = require('./services/clusterBus');
 
 const app = express();
 
@@ -133,21 +133,27 @@ app.use('/api/webhooks/whop', express.raw({ type: 'application/json', limit: '25
 app.use('/api', require('./routes/webhooks'));
 
 app.use(express.json({ limit: '256kb' }));
+// The OAuth handshake's session (just Passport's transient state — never
+// real app data) lives entirely in a signed cookie on the client, not
+// server memory. That was a deliberate choice, not just "the default":
+// server-side session storage (express-session + MemoryStore, or any
+// in-process store) only lives in the ONE process that handled the /google
+// redirect — if a second server process/worker handles the /callback that
+// follows a few seconds later, that process has never heard of the session
+// and the login silently fails. A signed cookie carries the session with
+// the browser itself, so it works identically whether one process or many
+// end up handling the two halves of the OAuth round trip — this is what
+// lets the app scale horizontally later without an OAuth outage.
 app.use(
-  session({
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    // 'auto' asks express-session to set Secure only when the request is
-    // actually HTTPS (it trusts req.secure, which respects 'trust proxy'
-    // above) — so the cookie is hardened for free the moment a TLS-terminating
-    // proxy is put in front of this server, without breaking plain-HTTP dev.
-    cookie: { secure: 'auto', sameSite: 'lax', maxAge: 1000 * 60 * 10 }, // 10 min — only for OAuth dance
-    // Sessions here are short-lived (OAuth handshake only), but the default
-    // MemoryStore never prunes expired entries — a slow, real memory leak over
-    // long uptimes. MemoryStore (the npm package) sweeps expired sessions on
-    // an interval, closing that leak without adding external infra.
-    store: new MemoryStore({ checkPeriod: 1000 * 60 * 15 }),
+  cookieSession({
+    name: 'vs.sess',
+    keys: [SESSION_SECRET],
+    // Omitting `secure` (rather than hardcoding true) makes the underlying
+    // cookies library infer it from the request's own protocol/
+    // x-forwarded-proto (respecting 'trust proxy' above) — Secure only when
+    // actually HTTPS, so this still works over plain HTTP in local dev.
+    sameSite: 'lax',
+    maxAge: 1000 * 60 * 10, // 10 min — only for the OAuth dance
   })
 );
 app.use(passport.initialize());
@@ -243,23 +249,36 @@ function crashCleanly(label, err) {
 process.on('unhandledRejection', (err) => crashCleanly('unhandledRejection', err));
 process.on('uncaughtException', (err) => crashCleanly('uncaughtException', err));
 
-startBackgroundScheduler();
-startScheduledDigest();
-startScheduledScanRunner();
-startScheduledBackup();
-startHealthMonitor();
+// Each of these runs on an interval that mutates shared state (the
+// background-scan cache, sends digests/pushes, writes a backup) — starting
+// it in every worker would mean every worker doing that work redundantly
+// (N background scans instead of one, N digest emails per user, etc).
+// isSingletonWorker() is true in every non-cluster process (today's actual
+// deployment, local dev, tests) and true for exactly one worker when
+// running under server/cluster.js.
+if (isSingletonWorker()) {
+  startBackgroundScheduler();
+  startScheduledDigest();
+  startScheduledScanRunner();
+  startScheduledBackup();
+  startHealthMonitor();
+}
 
 app.listen(PORT, () => {
   console.log(`Volume Scanner running at http://localhost:${PORT}`);
-  // Printed on every boot, unconditionally — see the longer comment in
-  // routes/stream.js. This app's live-alert delivery (SSE), scan locks, and
-  // session store all assume exactly one running instance. Scaling to a
-  // second instance behind a load balancer will silently drop live
-  // alerts/pushes for roughly half of users with no error anywhere — this
-  // line is the only thing standing between that and a truly silent trap.
-  console.warn(
-    '[startup] Single-instance only: SSE broadcast, background-scan state, and the session store are all in-process memory with no cross-instance coordination. Do not run more than one instance of this server without adding a shared pub/sub/session layer first.'
-  );
+  // The session store (now a signed cookie — see the cookieSession setup
+  // above) and SSE broadcast/scan-scheduling (now routed through
+  // services/clusterBus.js — see routes/stream.js, middleware/
+  // authMiddleware.js's SSE ticket store, and isSingletonWorker() above)
+  // are all safe to run as more than one process now. What's NOT
+  // automatically cluster-aware: express-rate-limit's default MemoryStore
+  // is still per-process, so under CLUSTER_WORKERS > 1 (see server.js) each
+  // customer's rate-limit budget is effectively workers-many times looser
+  // (still bounded, just not as tight as the configured number implies) —
+  // a capacity/cost tradeoff to know about, not a correctness bug.
+  if (process.env.CLUSTER_WORKERS && parseInt(process.env.CLUSTER_WORKERS, 10) > 1) {
+    console.log('[startup] Running as one of multiple cluster workers — see server.js and services/clusterBus.js.');
+  }
 });
 
 module.exports = app;
