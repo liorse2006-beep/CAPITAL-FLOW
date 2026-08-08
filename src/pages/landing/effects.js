@@ -147,14 +147,25 @@ function mountScanner(container, opts, cleanupFns) {
   });
   const mesh = new Mesh(gl, { geometry, program });
 
+  // setSize renders a frame itself (matching the React Bits reference
+  // implementation) rather than only resizing — the loop below refuses to
+  // start at all until the container is both intersecting the viewport AND
+  // the document is visible, and this environment routinely loads pages
+  // into a backgrounded/occluded tab. Without an unconditional render
+  // here, that combination left the canvas fully blank (alpha:0 clear
+  // color, never painted once) instead of showing at least a static first
+  // frame until the animation loop gets to start.
   function setSize() {
-    const w = Math.max(1, Math.floor(container.clientWidth));
-    const h = Math.max(1, Math.floor(container.clientHeight));
+    const rect = container.getBoundingClientRect();
+    const w = Math.max(1, Math.floor(rect.width));
+    const h = Math.max(1, Math.floor(rect.height));
     renderer.setSize(w, h);
     program.uniforms.iResolution.value[0] = gl.drawingBufferWidth;
     program.uniforms.iResolution.value[1] = gl.drawingBufferHeight;
+    renderer.render({ scene: mesh });
   }
-  window.addEventListener('resize', setSize);
+  const ro = new ResizeObserver(setSize);
+  ro.observe(container);
   setSize();
 
   const mouseTarget = [0.5, 0.5];
@@ -176,9 +187,7 @@ function mountScanner(container, opts, cleanupFns) {
 
   const t0 = performance.now();
   let rafId = 0;
-  let stopped = false;
   function loop(t) {
-    if (stopped) return;
     program.uniforms.iTime.value = (t - t0) * 0.001;
     mouseCurrent[0] += 0.05 * (mouseTarget[0] - mouseCurrent[0]);
     mouseCurrent[1] += 0.05 * (mouseTarget[1] - mouseCurrent[1]);
@@ -187,18 +196,42 @@ function mountScanner(container, opts, cleanupFns) {
     mouseActive += 0.05 * (mouseActiveTarget - mouseActive);
     program.uniforms.uMouseActive.value = mouseActive;
     renderer.render({ scene: mesh });
-    if (!reduceMotion) rafId = requestAnimationFrame(loop);
-  }
-  if (reduceMotion) {
-    renderer.render({ scene: mesh });
-  } else {
     rafId = requestAnimationFrame(loop);
   }
 
+  // Only actually animate while both intersecting the viewport and the
+  // tab/window is visible — and, critically, resume automatically via
+  // visibilitychange when it becomes visible again, instead of staying
+  // parked forever the way a plain "if hidden, skip rAF" check would.
+  let isIntersecting = true;
+  let isPageVisible = !document.hidden;
+  function tryStart() {
+    if (reduceMotion) return;
+    if (isIntersecting && isPageVisible && !rafId) rafId = requestAnimationFrame(loop);
+  }
+  function tryStop() {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+  }
+  const io = new IntersectionObserver(([entry]) => {
+    isIntersecting = entry.isIntersecting;
+    isIntersecting ? tryStart() : tryStop();
+  });
+  io.observe(container);
+  function onVisibilityChange() {
+    isPageVisible = !document.hidden;
+    isPageVisible ? tryStart() : tryStop();
+  }
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  tryStart();
+
   cleanupFns.push(() => {
-    stopped = true;
-    if (rafId) cancelAnimationFrame(rafId);
-    window.removeEventListener('resize', setSize);
+    tryStop();
+    ro.disconnect();
+    io.disconnect();
+    document.removeEventListener('visibilitychange', onVisibilityChange);
     container.removeEventListener('mousemove', onMouseMove);
     container.removeEventListener('mouseleave', onMouseLeave);
     const lose = gl.getExtension('WEBGL_lose_context');
@@ -650,6 +683,20 @@ function mountDepthText(el, opts, cleanupFns) {
     stage.appendChild(layer);
   }
 
+  // Restores `el` to exactly what it looked like before this function
+  // touched it. React 18 StrictMode (dev only) runs an effect, its
+  // cleanup, then the effect again on the SAME DOM node — without this,
+  // the second mount call would read `el.textContent` (line 637 above)
+  // AFTER it had already been replaced with 34+ concatenated copies of
+  // the string by the first mount, compounding into a heading that
+  // renders as a long repeated run instead of a single line. Restoring
+  // textContent (not just canceling rAFs/listeners) is what makes a
+  // second real mount call safe to run from scratch.
+  cleanupFns.push(() => {
+    el.classList.remove('depth-text');
+    el.textContent = text;
+  });
+
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const baseX = -safeTilt * 0.32;
   const baseY = safeTilt * 0.42;
@@ -758,6 +805,19 @@ function mountEchoText(el, opts, cleanupFns) {
   el.appendChild(front);
   el.style.width = front.getBoundingClientRect().width + 'px';
 
+  // Restores `el` to exactly what it looked like before this function
+  // touched it — see mountDepthText's identical cleanup for the full
+  // explanation (React 18 StrictMode's dev-only double-effect-invoke on
+  // the same DOM node; without this, a second real mount call would read
+  // `el.textContent` after it already held this run's echoes concatenated
+  // together).
+  cleanupFns.push(() => {
+    el.classList.remove('echo-text');
+    el.style.color = '';
+    el.style.width = '';
+    el.textContent = text;
+  });
+
   if (reducedMotion || echoCount === 0) return;
 
   const DIRS = { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, diagonal: { x: 0.72, y: 0.72 } };
@@ -782,46 +842,80 @@ function mountEchoText(el, opts, cleanupFns) {
     echoes.push(echo);
   }
 
-  // Two rAFs so the spread starting pose above is committed to a real
-  // paint before the transition (and its target values) are applied —
-  // otherwise the browser can coalesce both states into one frame and the
-  // transition never visibly runs.
-  const raf1 = requestAnimationFrame(() => {
-    const raf2 = requestAnimationFrame(() => {
-      echoes.forEach((echo, idx) => {
-        echo.style.transition = 'transform ' + o.duration + 'ms cubic-bezier(0.16,1,0.3,1), opacity ' + o.duration + 'ms ease-out';
-        echo.style.transform = 'translate3d(0,0,0)';
-        echo.style.opacity = String(Math.pow(o.fade, echoCount - idx));
-      });
+  // Forces the spread starting pose above to commit to a real paint before
+  // the transition (and its target values) are applied, the same way
+  // setupHeroEntrance does — a double-rAF achieves the same ordering in a
+  // normal foreground tab, but rAF never fires at all while the document
+  // is hidden, which this environment routinely delivers pages in. Reading
+  // offsetHeight forces that flush synchronously instead, so this can't
+  // get stuck at its starting (fully spread, invisible) pose forever.
+  void el.offsetHeight;
+  {
+    echoes.forEach((echo, idx) => {
+      echo.style.transition = 'transform ' + o.duration + 'ms cubic-bezier(0.16,1,0.3,1), opacity ' + o.duration + 'ms ease-out';
+      echo.style.transform = 'translate3d(0,0,0)';
+      echo.style.opacity = String(Math.pow(o.fade, echoCount - idx));
     });
-    cleanupFns.push(() => cancelAnimationFrame(raf2));
-  });
+  }
   cleanupFns.push(() => cancelAnimationFrame(raf1));
 }
 
+// Rewritten off gsap for the entrance itself (kept only for the
+// scroll-linked background dim, which is scoped to a decorative dim, never
+// blocks real content). gsap.timeline()'s playback is driven by its own
+// rAF ticker same as every other hand-rolled loop in this file — this
+// environment routinely delivers a page that starts backgrounded, and a
+// ticker that never gets its first tick leaves elements parked at whatever
+// gsap.set() put them at, which was opacity:0, i.e. an invisible hero.
+// CSS transitions don't have that failure mode: the compositor owns them,
+// they always reach their end state (resuming correctly across a
+// visibility change) without a JS ticker needing to run at all.
 function setupHeroEntrance(root, cleanupFns) {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const bgEl = root.querySelector('.cf-bg');
-  if (reduceMotion || !bgEl) return;
+  if (!bgEl) return;
 
-  const bgTween = gsap.to(bgEl, {
-    opacity: 0.3, ease: 'none',
-    scrollTrigger: { trigger: root.querySelector('.cf-hero'), start: 'top top', end: 'bottom top', scrub: true },
+  if (!reduceMotion) {
+    const bgTween = gsap.to(bgEl, {
+      opacity: 0.3, ease: 'none',
+      scrollTrigger: { trigger: root.querySelector('.cf-hero'), start: 'top top', end: 'bottom top', scrub: true },
+    });
+    cleanupFns.push(() => {
+      bgTween.scrollTrigger && bgTween.scrollTrigger.kill();
+      bgTween.kill();
+    });
+  }
+
+  if (reduceMotion) return;
+
+  const targets = [
+    { el: root.querySelector('.cf-hero-eyebrow'), delay: 100, y: 22 },
+    { el: root.querySelector('.cf-hero h1'), delay: 220, y: 22 },
+    { el: root.querySelector('.cf-proof-wrap'), delay: 350, y: 34, x: 18 },
+    { el: root.querySelector('.cf-cta-row'), delay: 500, y: 22 },
+  ].filter((t) => t.el);
+
+  targets.forEach((t) => {
+    t.el.style.opacity = '0';
+    t.el.style.transform = 'translate3d(' + (t.x || 0) + 'px,' + t.y + 'px,0)';
   });
 
-  gsap.set(root.querySelectorAll('.cf-hero-eyebrow, .cf-hero h1, .cf-cta-row, .cf-proof-wrap'), { opacity: 0, y: 22 });
-  gsap.set(root.querySelector('.cf-proof-wrap'), { y: 34, x: 18 });
-  const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
-  tl
-    .to(root.querySelector('.cf-hero-eyebrow'), { opacity: 1, y: 0, duration: 0.6 }, 0.1)
-    .to(root.querySelector('.cf-hero h1'), { opacity: 1, y: 0, duration: 0.85 }, 0.22)
-    .to(root.querySelector('.cf-cta-row'), { opacity: 1, y: 0, duration: 0.6 }, 0.5)
-    .to(root.querySelector('.cf-proof-wrap'), { opacity: 1, y: 0, x: 0, duration: 1, ease: 'power3.out' }, 0.35);
-
-  cleanupFns.push(() => {
-    bgTween.scrollTrigger && bgTween.scrollTrigger.kill();
-    bgTween.kill();
-    tl.kill();
+  // requestAnimationFrame never fires at all while the document is hidden
+  // (this is exactly the state a freshly opened tab is routinely in here),
+  // so the double-rAF trigger this used originally — reliable in a normal
+  // foreground tab — left the hero permanently at its opacity:0 starting
+  // state just like the gsap version it replaced. Forcing a synchronous
+  // layout read between setting the start state and the end state achieves
+  // the same "commit the first frame, then animate" effect without waiting
+  // on any callback: reading offsetHeight flushes pending style changes to
+  // the render tree immediately, so the transition still has something to
+  // transition *from* once these elements are actually painted, whenever
+  // that ends up being.
+  void root.offsetHeight;
+  targets.forEach((t) => {
+    t.el.style.transition = 'opacity 0.7s ' + t.delay + 'ms cubic-bezier(0.16,1,0.3,1), transform 0.7s ' + t.delay + 'ms cubic-bezier(0.16,1,0.3,1)';
+    t.el.style.opacity = '1';
+    t.el.style.transform = 'translate3d(0,0,0)';
   });
 }
 
@@ -875,22 +969,18 @@ function runSafely(name, fn) {
 export function initLandingEffects(rootEl, onGetStarted) {
   // React 18 StrictMode (dev only) runs an effect, its cleanup, then the
   // effect again — on the SAME dangerouslySetInnerHTML DOM node, not a
-  // fresh one. mountDepthText/mountEchoText read `el.textContent` to get
-  // the "real" heading/hero text, but neither cleanup undoes the DOM they
-  // build (removing 24+ generated layer spans on every unmount was more
-  // teardown code for no real benefit — the whole root gets thrown away on
-  // a genuine route change anyway). Left unmounted-in-place, a second real
-  // mount call reads `el.textContent` AFTER the first mount already turned
-  // it into 24+ concatenated copies of the string, and duplicates it
-  // again — the actual cause of the landing page's heading/hero text
-  // rendering as a long repeated run instead of a single line. Guarding
-  // the whole init on a one-time marker means the second StrictMode pass
-  // is a no-op instead of compounding onto already-mutated DOM; a real
-  // remount (navigating away and back to "/") always gets a brand new
-  // root from React, which never carries this marker.
-  if (rootEl.dataset.landingEffectsInit) return () => {};
-  rootEl.dataset.landingEffectsInit = '1';
-
+  // fresh one. An earlier version of this file worked around that with a
+  // one-time marker that made the second StrictMode pass a no-op — but
+  // that also skipped the FIRST pass's cleanup from ever being followed by
+  // a real remount, so anything whose cleanup actually tears down real DOM
+  // (mountScanner's WebGL canvas, in particular) stayed torn down forever:
+  // cleanup1 removes the canvas, the marker blocks effect2 from ever
+  // recreating it. The real fix is for every mount function's cleanup to
+  // fully restore what it changed (see mountDepthText/mountEchoText's own
+  // comments — they restore el.textContent, which is what the
+  // el.textContent-compounding bug actually needed), so the ordinary
+  // effect → cleanup → effect cycle is safe to just let run twice, the
+  // same as any other React effect.
   const cleanupFns = [];
 
   // These two are the page's actual function (navigation + FAQ + the CTA
