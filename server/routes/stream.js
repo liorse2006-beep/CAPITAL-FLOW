@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { requirePremium, requirePremiumSSE, issueSseTicket } = require('../middleware/authMiddleware');
+const { sseStreamLimiter } = require('../middleware/rateLimiters');
 const clusterBus = require('../services/clusterBus');
 
 // Active SSE clients THIS worker is directly holding the connection for —
@@ -54,7 +55,7 @@ router.get('/stream-ticket', requirePremium, (req, res) => {
   res.json({ ticket: issueSseTicket(req.user.id), expiresIn: 600 });
 });
 
-router.get('/stream', requirePremiumSSE, (req, res) => {
+router.get('/stream', sseStreamLimiter, requirePremiumSSE, (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');

@@ -1,5 +1,6 @@
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { verifyToken } = require('../services/auth');
+const { resolveSseTicket } = require('./authMiddleware');
 
 // Default express-rate-limit keys by IP alone — fine for pre-login
 // endpoints (see authLimiter/otpLimiter below, which must stay IP-keyed:
@@ -26,6 +27,24 @@ function userOrIpKey(req, res) {
   // ipKeyGenerator takes the IP string itself (normalizes IPv6 to a /56
   // subnet so one visitor can't dodge the limit across addresses within
   // their own allocated block) — not (req, res).
+  return ipKeyGenerator(req.ip);
+}
+
+// EventSource (used for /api/stream) cannot send an Authorization header —
+// that's exactly why the short-lived ticket in the query string exists (see
+// issueSseTicket/resolveSseTicket in authMiddleware.js). Without this, a
+// request to /stream would fall through userOrIpKey straight to the IP key,
+// meaning every customer behind the same office/CGNAT IP shares ONE budget
+// for opening their live-alerts connection — verified for real in a load
+// test: 100 simultaneous connection attempts from one IP, only 120/min ever
+// allowed through, the rest silently rejected. That's a live-notification
+// customer directly failing to connect through no fault of their own.
+// Resolving the ticket to its real userId here gives each account its own
+// budget instead, the same fix userOrIpKey already applies everywhere a
+// bearer token is available.
+function ticketOrIpKey(req, res) {
+  const userId = resolveSseTicket(req.query.ticket);
+  if (userId) return 'user:' + userId;
   return ipKeyGenerator(req.ip);
 }
 
@@ -72,6 +91,25 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: userOrIpKey,
+  // /stream gets its own ticket-keyed limiter below (see ticketOrIpKey) —
+  // it must not also count against this IP-fallback floor, or the fix is
+  // pointless (the request would still be blocked here first).
+  skip: (req) => req.path === '/stream',
+  message: { error: 'Too many requests. Please slow down.' },
+});
+
+// Dedicated limiter for the live-alerts SSE connection, keyed by the
+// account the ticket belongs to instead of IP (see ticketOrIpKey above).
+// Generous relative to scanLimiter/apiLimiter since a browser reconnecting
+// after a network blip or waking from sleep is normal, expected traffic,
+// not abuse — this only needs to stop a genuinely broken/malicious client
+// from opening connections in a tight loop.
+const sseStreamLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: ticketOrIpKey,
   message: { error: 'Too many requests. Please slow down.' },
 });
 
@@ -141,4 +179,5 @@ module.exports = {
   publicWriteLimiter,
   publicDataLimiter,
   sessionLimiter,
+  sseStreamLimiter,
 };

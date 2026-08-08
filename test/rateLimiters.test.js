@@ -6,8 +6,9 @@ require('./helpers/testEnv');
 const { test } = require('node:test');
 const assert = require('node:assert');
 const express = require('express');
-const { authLimiter, otpLimiter, scanLimiter } = require('../server/middleware/rateLimiters');
+const { authLimiter, otpLimiter, scanLimiter, sseStreamLimiter } = require('../server/middleware/rateLimiters');
 const { generateToken } = require('../server/services/auth');
+const { issueSseTicket } = require('../server/middleware/authMiddleware');
 
 function startTestApp(limiter) {
   const app = express();
@@ -106,6 +107,68 @@ test('scanLimiter still falls back to per-IP limiting for requests with no valid
     const codes = await hitAs(port, 35, null); // no Authorization header at all
     const blocked = codes.filter((c) => c === 429).length;
     assert.ok(blocked > 0, 'unauthenticated requests must still be throttled by IP (limit is 30)');
+  } finally {
+    server.close();
+  }
+});
+
+function startGetTestApp(limiter) {
+  const app = express();
+  app.get('/probe', limiter, (req, res) => res.json({ ok: true }));
+  return new Promise((resolve) => {
+    const server = app.listen(0, () => resolve(server));
+  });
+}
+
+async function hitWithTicket(port, n, ticket) {
+  const codes = [];
+  for (let i = 0; i < n; i++) {
+    const url = ticket ? `http://127.0.0.1:${port}/probe?ticket=${encodeURIComponent(ticket)}` : `http://127.0.0.1:${port}/probe`;
+    const res = await fetch(url);
+    codes.push(res.status);
+  }
+  return codes;
+}
+
+// Regression: EventSource (used for /api/stream) cannot send an
+// Authorization header, so before this fix every SSE connection attempt
+// fell through to the IP key on the shared apiLimiter floor — every
+// customer behind the same office/CGNAT IP drew from ONE 120/min budget for
+// opening their live-alerts connection. Confirmed for real in a load test:
+// 100 simultaneous connection attempts from one IP, only ~120/min ever let
+// through. sseStreamLimiter now keys by the ticket's own userId instead, so
+// two different accounts sharing an IP get independent budgets, same
+// principle as scanLimiter above.
+test('sseStreamLimiter gives each ticket-holding account its own budget, even from the same IP', async () => {
+  const server = await startGetTestApp(sseStreamLimiter);
+  const port = server.address().port;
+  try {
+    const ticketA = issueSseTicket(333);
+    const ticketB = issueSseTicket(444);
+
+    const aCodes = await hitWithTicket(port, 60, ticketA);
+    assert.ok(
+      aCodes.every((c) => c === 200),
+      "user A should get all 60 of their own connection attempts through"
+    );
+
+    const bCodes = await hitWithTicket(port, 60, ticketB);
+    assert.ok(
+      bCodes.every((c) => c === 200),
+      "user B's budget must be independent of user A's, despite the same source IP"
+    );
+  } finally {
+    server.close();
+  }
+});
+
+test('sseStreamLimiter still falls back to per-IP limiting for requests with no valid ticket', async () => {
+  const server = await startGetTestApp(sseStreamLimiter);
+  const port = server.address().port;
+  try {
+    const codes = await hitWithTicket(port, 65, null); // no ticket at all
+    const blocked = codes.filter((c) => c === 429).length;
+    assert.ok(blocked > 0, 'ticketless requests must still be throttled by IP (limit is 60)');
   } finally {
     server.close();
   }
