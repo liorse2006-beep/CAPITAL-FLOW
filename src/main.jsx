@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, useLocation } from 'react-router-dom';
 import App from './App';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ErrorBoundary from './components/shared/ErrorBoundary';
@@ -181,6 +181,17 @@ function Root() {
   return <App key={user ? String(user.id) : 'guest'} />;
 }
 
+// The landing page (App.jsx's own logged-out "/" route) has its own
+// complete, self-contained design — the app-wide accessibility widget
+// doesn't belong floating on top of it. Only suppressed there; every real
+// app screen still gets it.
+function ConditionalAccessibilityWidget() {
+  const { user } = useAuth();
+  const location = useLocation();
+  if (location.pathname === '/' && !user) return null;
+  return <AccessibilityWidget />;
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
@@ -189,7 +200,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Root />
           <CookieConsent />
           <UpdateToast />
-          <AccessibilityWidget />
+          <ConditionalAccessibilityWidget />
         </BrowserRouter>
       </AuthProvider>
     </ErrorBoundary>
