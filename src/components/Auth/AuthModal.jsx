@@ -169,6 +169,7 @@ export default function AuthModal({ onClose }) {
       setOtp('');
       setScreen('otp');
       startResendCooldown();
+      setLoading(false);
     } catch (err) {
       handleErr(err.message);
       setCaptchaToken('');
@@ -183,11 +184,13 @@ export default function AuthModal({ onClose }) {
       const data = await api('login', { email, password });
       login(data.token, data.user);
       onClose();
+      setLoading(false);
     } catch (err) {
       if (err.message.includes('not verified')) {
         setPendingEmail(email);
         setScreen('otp');
         startResendCooldown();
+        setLoading(false);
       } else {
         handleErr(err.message);
       }
@@ -206,6 +209,7 @@ export default function AuthModal({ onClose }) {
       const data = await api(path, body);
       login(data.token, data.user);
       onClose();
+      setLoading(false);
     } catch (err) {
       handleErr(err.message);
     }
@@ -221,6 +225,7 @@ export default function AuthModal({ onClose }) {
       setOtp('');
       setScreen('reset');
       startResendCooldown();
+      setLoading(false);
     } catch (err) {
       handleErr(err.message);
     }
