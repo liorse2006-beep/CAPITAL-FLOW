@@ -101,13 +101,19 @@
   gap: 16px; margin-top: 56px;
 }.cf-landing-page .cf-tool {
   background: var(--bg-1); border-radius: var(--radius); padding: 30px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
   box-shadow: 0 2px 4px rgba(0,0,0,0.3), 0 30px 50px -24px rgba(0,0,0,0.75),
-    inset 0 1px 0 rgba(255,255,255,0.04);
-  transform-style: preserve-3d; transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent),
+    0 0 22px -4px color-mix(in srgb, var(--accent) 65%, transparent);
+  transform-style: preserve-3d; transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, border-color 0.15s ease-out;
   will-change: transform;
 }.cf-landing-page .cf-tool:hover {
+  border-color: var(--accent);
   box-shadow: 0 4px 8px rgba(0,0,0,0.35), 0 40px 64px -22px rgba(0,0,0,0.8),
-    inset 0 1px 0 rgba(255,255,255,0.06);
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent),
+    0 0 32px -2px color-mix(in srgb, var(--accent) 85%, transparent);
 }.cf-landing-page .cf-tool-icon {
   width: 42px; height: 42px; border-radius: 12px; margin-bottom: 20px;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;

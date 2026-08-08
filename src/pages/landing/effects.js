@@ -618,6 +618,26 @@ function mountDepthText(el, opts, cleanupFns) {
 
   const stage = document.createElement('span');
   stage.className = 'depth-text__stage';
+
+  // Same fix as mountEchoText's front-first measurement (see its own
+  // comment for the full explanation): `stage` is an auto-width
+  // inline-grid whose only in-flow child is `face`, but the `layers`
+  // absolutely-positioned copies of the same text (grid-area:1/1, taken
+  // out of flow) still get folded into Chromium's shrink-to-fit width
+  // pass for the ancestor when nothing else pins a definite width — with
+  // up to 64 stacked copies, that's the difference between a ~200px
+  // heading and one over 2000px wide, overflowing the page instead of
+  // rendering as a normal in-place heading. Appending and measuring
+  // `face` before any layer exists, then locking `stage`'s width to it,
+  // removes the browser's sizing pass from the equation entirely.
+  const face = document.createElement('span');
+  face.className = 'depth-text__face';
+  face.textContent = text;
+  stage.appendChild(face);
+  el.textContent = '';
+  el.appendChild(stage);
+  stage.style.width = face.getBoundingClientRect().width + 'px';
+
   for (let li = safeLayers; li >= 1; li--) {
     const layer = document.createElement('span');
     layer.className = 'depth-text__layer';
@@ -629,13 +649,6 @@ function mountDepthText(el, opts, cleanupFns) {
     layer.textContent = text;
     stage.appendChild(layer);
   }
-  const face = document.createElement('span');
-  face.className = 'depth-text__face';
-  face.textContent = text;
-  stage.appendChild(face);
-
-  el.textContent = '';
-  el.appendChild(stage);
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const baseX = -safeTilt * 0.32;
@@ -860,6 +873,24 @@ function runSafely(name, fn) {
 }
 
 export function initLandingEffects(rootEl, onGetStarted) {
+  // React 18 StrictMode (dev only) runs an effect, its cleanup, then the
+  // effect again — on the SAME dangerouslySetInnerHTML DOM node, not a
+  // fresh one. mountDepthText/mountEchoText read `el.textContent` to get
+  // the "real" heading/hero text, but neither cleanup undoes the DOM they
+  // build (removing 24+ generated layer spans on every unmount was more
+  // teardown code for no real benefit — the whole root gets thrown away on
+  // a genuine route change anyway). Left unmounted-in-place, a second real
+  // mount call reads `el.textContent` AFTER the first mount already turned
+  // it into 24+ concatenated copies of the string, and duplicates it
+  // again — the actual cause of the landing page's heading/hero text
+  // rendering as a long repeated run instead of a single line. Guarding
+  // the whole init on a one-time marker means the second StrictMode pass
+  // is a no-op instead of compounding onto already-mutated DOM; a real
+  // remount (navigating away and back to "/") always gets a brand new
+  // root from React, which never carries this marker.
+  if (rootEl.dataset.landingEffectsInit) return () => {};
+  rootEl.dataset.landingEffectsInit = '1';
+
   const cleanupFns = [];
 
   // These two are the page's actual function (navigation + FAQ + the CTA
