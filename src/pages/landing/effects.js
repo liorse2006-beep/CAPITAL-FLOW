@@ -764,6 +764,57 @@ function setupDepthText(root, cleanupFns) {
   }
 }
 
+// ── ScrollFloat (React Bits) — splits text into one span per character and
+// scrubs their reveal (fade + settle from an over-scaled, dropped-in pose)
+// directly to scroll position via ScrollTrigger, rather than playing once
+// on a timer. Ported as vanilla DOM instead of the source React component
+// since this markup isn't real React (see LandingPage.jsx's own comment on
+// why) — same gsap.fromTo() call, same easing/scrub config. ──
+function mountScrollFloat(el, opts, cleanupFns) {
+  const o = Object.assign({ duration: 1, ease: 'back.inOut(2)', scrollStart: 'top bottom-=10%', scrollEnd: 'bottom bottom-=35%', stagger: 0.03 }, opts || {});
+  const text = el.textContent;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  el.classList.add('scroll-float');
+  const chars = text.split('').map((ch) => {
+    const span = document.createElement('span');
+    span.className = 'char';
+    span.textContent = ch === ' ' ? ' ' : ch;
+    return span;
+  });
+  el.textContent = '';
+  chars.forEach((c) => el.appendChild(c));
+
+  // Restores `el` to plain text on cleanup — see mountDepthText's identical
+  // comment for why this matters (React 18 StrictMode's dev-only
+  // double-effect-invoke on the same DOM node).
+  cleanupFns.push(() => {
+    el.classList.remove('scroll-float');
+    el.textContent = text;
+  });
+
+  if (reducedMotion) return;
+
+  const tween = gsap.fromTo(
+    chars,
+    { willChange: 'opacity, transform', opacity: 0, yPercent: 120, scaleY: 2.3, scaleX: 0.7, transformOrigin: '50% 0%' },
+    {
+      duration: o.duration, ease: o.ease, opacity: 1, yPercent: 0, scaleY: 1, scaleX: 1, stagger: o.stagger,
+      scrollTrigger: { trigger: el, start: o.scrollStart, end: o.scrollEnd, scrub: true },
+    }
+  );
+  cleanupFns.push(() => {
+    tween.scrollTrigger && tween.scrollTrigger.kill();
+    tween.kill();
+  });
+}
+
+function setupScrollFloat(root, cleanupFns) {
+  root.querySelectorAll('.cf-final h2, .cf-tool h3').forEach((el) => {
+    mountScrollFloat(el, {}, cleanupFns);
+  });
+}
+
 // Rewritten from the original hand-rolled rAF spring-physics version: that
 // implementation stepped every echo's position by wall-clock delta each
 // frame and only stopped once its own "stillMoving" heuristic went false —
@@ -923,6 +974,17 @@ function setupHeroEntrance(root, cleanupFns) {
 // checkout — the original page never had auth). One delegated listener
 // routes every click to the caller's onGetStarted, matching the historical
 // LandingPage.jsx pattern of opening the sign-in modal for any CTA.
+function setupScrollCta(root, cleanupFns) {
+  const btn = root.querySelector('#cfScrollCta');
+  const target = root.querySelector('#how-tools');
+  if (!btn || !target) return;
+  function onClick() {
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  btn.addEventListener('click', onClick);
+  cleanupFns.push(() => btn.removeEventListener('click', onClick));
+}
+
 function setupCtaDelegation(root, onGetStarted, cleanupFns) {
   function onClick(e) {
     const btn = e.target.closest('.cf-btn');
@@ -987,6 +1049,7 @@ export function initLandingEffects(rootEl, onGetStarted) {
   // that gets someone to sign in) — allowed to throw so a real bug here is
   // loud, not silently swallowed like the decorative effects below.
   setupCtaDelegation(rootEl, onGetStarted, cleanupFns);
+  runSafely('setupScrollCta', () => setupScrollCta(rootEl, cleanupFns));
   setupFaqAccordion(rootEl, cleanupFns);
 
   runSafely('setupSmoothAnchorScroll', () => setupSmoothAnchorScroll(cleanupFns));
@@ -996,6 +1059,7 @@ export function initLandingEffects(rootEl, onGetStarted) {
   runSafely('setupGradualBlur', () => setupGradualBlur(rootEl, cleanupFns));
   runSafely('setupElectricBorders', () => setupElectricBorders(rootEl, cleanupFns));
   runSafely('setupDepthText', () => setupDepthText(rootEl, cleanupFns));
+  runSafely('setupScrollFloat', () => setupScrollFloat(rootEl, cleanupFns));
 
   runSafely('mountEchoText', () => {
     const heroEcho = rootEl.querySelector('#cfHeroEcho');
