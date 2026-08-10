@@ -100,8 +100,7 @@
 @media (prefers-reduced-motion: reduce) {
   .cf-landing-page .cf-scroll-cta { animation: none; }
 }
-.cf-landing-page .scroll-float { overflow: hidden; display: block; }
-.cf-landing-page .scroll-float .char { display: inline-block; }.cf-landing-page .cf-label {
+.cf-landing-page .cf-label {
   font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em;
   color: var(--text-2); text-transform: uppercase;
 }.cf-landing-page .cf-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--up); display: inline-block; animation: cf-pulse 1.8s ease-in-out infinite; }
