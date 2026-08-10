@@ -632,138 +632,6 @@ function setupElectricBorders(root, cleanupFns) {
   });
 }
 
-function mountDepthText(el, opts, cleanupFns) {
-  const o = Object.assign({ layers: 34, depth: 2.4, faceColor: '#f8fafc', depthColor: '#e2a545', tilt: 7.5, pointerTracking: true, smoothing: 0.14, perspective: 900, autoOrbit: true, orbitSpeed: 0.35, fontWeight: 900, shadow: true }, opts || {});
-  const text = el.textContent;
-  const cs = getComputedStyle(el);
-  const safeLayers = Math.min(Math.max(Math.round(o.layers), 2), 64);
-  const safeDepth = Math.min(Math.max(o.depth, 0), 12);
-  const safeTilt = Math.min(Math.max(o.tilt, 0), 12);
-  const safeSmoothing = Math.min(Math.max(o.smoothing, 0.02), 0.35);
-
-  el.classList.add('depth-text');
-  el.style.setProperty('--depth-text-perspective', o.perspective + 'px');
-  el.style.setProperty('--depth-text-font-size', o.fontSize || cs.fontSize);
-  el.style.setProperty('--depth-text-font-weight', String(o.fontWeight));
-  el.style.setProperty('--depth-text-face-color', o.faceColor);
-  el.style.setProperty('--depth-text-depth-color', o.depthColor);
-  el.style.setProperty('--depth-text-shadow', o.shadow ? ('0 22px 34px color-mix(in srgb, ' + o.depthColor + ' 36%, transparent), 0 4px 8px rgba(0,0,0,0.28)') : 'none');
-
-  const stage = document.createElement('span');
-  stage.className = 'depth-text__stage';
-
-  // Same fix as mountEchoText's front-first measurement (see its own
-  // comment for the full explanation): `stage` is an auto-width
-  // inline-grid whose only in-flow child is `face`, but the `layers`
-  // absolutely-positioned copies of the same text (grid-area:1/1, taken
-  // out of flow) still get folded into Chromium's shrink-to-fit width
-  // pass for the ancestor when nothing else pins a definite width — with
-  // up to 64 stacked copies, that's the difference between a ~200px
-  // heading and one over 2000px wide, overflowing the page instead of
-  // rendering as a normal in-place heading. Appending and measuring
-  // `face` before any layer exists, then locking `stage`'s width to it,
-  // removes the browser's sizing pass from the equation entirely.
-  const face = document.createElement('span');
-  face.className = 'depth-text__face';
-  face.textContent = text;
-  stage.appendChild(face);
-  el.textContent = '';
-  el.appendChild(stage);
-  stage.style.width = face.getBoundingClientRect().width + 'px';
-
-  for (let li = safeLayers; li >= 1; li--) {
-    const layer = document.createElement('span');
-    layer.className = 'depth-text__layer';
-    layer.setAttribute('aria-hidden', 'true');
-    const prog = safeLayers <= 1 ? 1 : li / safeLayers;
-    const faceMix = Math.round((1 - prog * prog) * 72 + 4);
-    layer.style.color = 'color-mix(in srgb, ' + o.faceColor + ' ' + faceMix + '%, ' + o.depthColor + ')';
-    layer.style.transform = 'translateZ(' + (-li * safeDepth) + 'px)';
-    layer.textContent = text;
-    stage.appendChild(layer);
-  }
-
-  // Restores `el` to exactly what it looked like before this function
-  // touched it. React 18 StrictMode (dev only) runs an effect, its
-  // cleanup, then the effect again on the SAME DOM node — without this,
-  // the second mount call would read `el.textContent` (line 637 above)
-  // AFTER it had already been replaced with 34+ concatenated copies of
-  // the string by the first mount, compounding into a heading that
-  // renders as a long repeated run instead of a single line. Restoring
-  // textContent (not just canceling rAFs/listeners) is what makes a
-  // second real mount call safe to run from scratch.
-  cleanupFns.push(() => {
-    el.classList.remove('depth-text');
-    el.textContent = text;
-  });
-
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const baseX = -safeTilt * 0.32;
-  const baseY = safeTilt * 0.42;
-  if (reducedMotion) {
-    stage.style.transform = 'rotateX(' + baseX.toFixed(3) + 'deg) rotateY(' + baseY.toFixed(3) + 'deg)';
-    return;
-  }
-
-  const current = { x: baseX, y: baseY };
-  const target = { x: baseX, y: baseY };
-  const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-  const canTrack = o.pointerTracking && finePointer;
-  let active = false;
-  const startTime = performance.now();
-  const listeners = [];
-
-  if (canTrack) {
-    function onMove(e) {
-      const rect = el.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-      active = true;
-      const x = Math.min(Math.max((e.clientX - (rect.left + rect.width / 2)) / (rect.width * 0.8), -1), 1);
-      const y = Math.min(Math.max((e.clientY - (rect.top + rect.height / 2)) / (rect.height * 0.8), -1), 1);
-      target.x = baseX - y * safeTilt;
-      target.y = baseY + x * safeTilt;
-    }
-    function onLeave() { active = false; target.x = baseX; target.y = baseY; }
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerleave', onLeave);
-    listeners.push(['pointermove', onMove], ['pointerleave', onLeave]);
-  }
-
-  let rafId = 0;
-  let stopped = false;
-  function tick(now) {
-    if (stopped) return;
-    if ((!canTrack || !active) && o.autoOrbit) {
-      const elapsed = (now - startTime) / 1000;
-      const orbit = elapsed * o.orbitSpeed * Math.PI * 2;
-      const fallback = canTrack ? 0.18 : 0.55;
-      target.x = baseX + Math.sin(orbit) * safeTilt * fallback;
-      target.y = baseY + Math.cos(orbit * 0.85) * safeTilt * fallback;
-    }
-    current.x += (target.x - current.x) * safeSmoothing;
-    current.y += (target.y - current.y) * safeSmoothing;
-    stage.style.transform = 'rotateX(' + current.x.toFixed(3) + 'deg) rotateY(' + current.y.toFixed(3) + 'deg)';
-    rafId = requestAnimationFrame(tick);
-  }
-  rafId = requestAnimationFrame(tick);
-
-  cleanupFns.push(() => {
-    stopped = true;
-    if (rafId) cancelAnimationFrame(rafId);
-    listeners.forEach(([type, fn]) => window.removeEventListener(type, fn));
-  });
-}
-
-function setupDepthText(root, cleanupFns) {
-  root.querySelectorAll('.cf-depth-heading, .cf-how-title').forEach((el) => {
-    mountDepthText(el, { layers: 24, depth: 2, faceColor: '#f8fafc', depthColor: '#e2a545', tilt: 6, fontSize: getComputedStyle(el).fontSize, fontWeight: 800 }, cleanupFns);
-  });
-  const pricingHeading = root.querySelector('.cf-pricing-lifetime');
-  if (pricingHeading) {
-    mountDepthText(pricingHeading, { layers: 24, depth: 2, faceColor: '#f8fafc', depthColor: '#e2a545', tilt: 6, fontSize: getComputedStyle(pricingHeading).fontSize, fontWeight: 800 }, cleanupFns);
-  }
-}
-// Rewritten from the original hand-rolled rAF spring-physics version: that
 // implementation stepped every echo's position by wall-clock delta each
 // frame and only stopped once its own "stillMoving" heuristic went false —
 // which meant a single skipped/delayed frame (a backgrounded tab, a
@@ -805,9 +673,9 @@ function mountEchoText(el, opts, cleanupFns) {
   el.style.width = front.getBoundingClientRect().width + 'px';
 
   // Restores `el` to exactly what it looked like before this function
-  // touched it — see mountDepthText's identical cleanup for the full
-  // explanation (React 18 StrictMode's dev-only double-effect-invoke on
-  // the same DOM node; without this, a second real mount call would read
+  // touched it. React 18 StrictMode's dev-only double-effect-invoke runs
+  // this on the same DOM node twice; without this, a second real mount
+  // call would read
   // `el.textContent` after it already held this run's echoes concatenated
   // together).
   cleanupFns.push(() => {
@@ -986,8 +854,8 @@ export function initLandingEffects(rootEl, onGetStarted) {
   // (mountScanner's WebGL canvas, in particular) stayed torn down forever:
   // cleanup1 removes the canvas, the marker blocks effect2 from ever
   // recreating it. The real fix is for every mount function's cleanup to
-  // fully restore what it changed (see mountDepthText/mountEchoText's own
-  // comments — they restore el.textContent, which is what the
+  // fully restore what it changed (see mountEchoText's own comment —
+  // it restores el.textContent, which is what the
   // el.textContent-compounding bug actually needed), so the ordinary
   // effect → cleanup → effect cycle is safe to just let run twice, the
   // same as any other React effect.
@@ -1006,7 +874,6 @@ export function initLandingEffects(rootEl, onGetStarted) {
   runSafely('setupTiltCards', () => setupTiltCards(rootEl, cleanupFns));
   runSafely('setupGradualBlur', () => setupGradualBlur(rootEl, cleanupFns));
   runSafely('setupElectricBorders', () => setupElectricBorders(rootEl, cleanupFns));
-  runSafely('setupDepthText', () => setupDepthText(rootEl, cleanupFns));
 
   runSafely('mountEchoText', () => {
     const heroEcho = rootEl.querySelector('#cfHeroEcho');
