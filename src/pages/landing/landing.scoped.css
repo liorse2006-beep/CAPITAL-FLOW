@@ -109,7 +109,18 @@
    @keyframes animation, it starts the instant the stylesheet parses —
    no JS mount delay, no empty frame before content shows up — and runs
    entirely on the compositor, so it can't drop frames from main-thread
-   work the way the old per-frame JS/SVG update did. */
+   work the way the old per-frame JS/SVG update did.
+
+   Each .text-loop-seg in the markup (landing.body.html) repeats the
+   phrase enough times to be wider than any real viewport (~3470px at the
+   current repeat count) — the loop only ever scrolls by one segment's
+   width, so if a segment were narrower than the browser window, the
+   track would run out of content before the animation completes one
+   cycle and a blank gap would scroll into view mid-loop. Keep the repeat
+   count comfortably ahead of the widest realistic monitor if the phrase,
+   font size, or letter-spacing ever changes. animation duration is tied
+   to that width (56s ≈ one segment's width ÷ ~62px/s) — rescale it too
+   if the repeat count changes, or the scroll speed will jump. */
 .cf-landing-page .text-loop {
   position: fixed; top: 0; left: 0; right: 0; z-index: 70;
   width: 100%; height: var(--text-loop-h); overflow: hidden;
@@ -118,7 +129,7 @@
 }
 .cf-landing-page .text-loop-track {
   display: flex; width: max-content; flex-shrink: 0;
-  animation: cf-text-loop-scroll 14s linear infinite;
+  animation: cf-text-loop-scroll 56s linear infinite;
   will-change: transform;
 }
 .cf-landing-page .text-loop:hover .text-loop-track { animation-play-state: paused; }
