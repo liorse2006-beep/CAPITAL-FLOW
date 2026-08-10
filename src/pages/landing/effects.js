@@ -876,20 +876,22 @@ function setupHeroEntrance(root, cleanupFns) {
 // checkout — the original page never had auth). One delegated listener
 // routes every click to the caller's onGetStarted, matching the historical
 // LandingPage.jsx pattern of opening the sign-in modal for any CTA.
-// Shows the floating bottom dock once the original top nav has scrolled
-// out of view, hides it again if the visitor scrolls back up past it.
-// IntersectionObserver, not a scroll-position/rAF calculation — its
-// callback is driven by the browser's own layout/compositor, not a JS
-// ticker, so (unlike several other effects in this file) it can't get
-// stuck mid-transition if the tab starts backgrounded.
+// There is no top nav any more — the page has only this floating bottom
+// dock, hidden until the visitor scrolls at all, then shown for the rest
+// of the page (hidden again if they scroll back up to the very top).
+// Tracked via IntersectionObserver on a 1px sentinel pinned to the top of
+// .cf-root, not a scroll-position/rAF calculation — its callback is driven
+// by the browser's own layout/compositor, not a JS ticker, so (unlike
+// several other effects in this file) it can't get stuck mid-transition if
+// the tab starts backgrounded.
 function setupDock(root, cleanupFns) {
   const dock = root.querySelector('#cfDock');
-  const topNav = root.querySelector('.cf-nav');
-  if (!dock || !topNav) return;
+  const sentinel = root.querySelector('#cfTopSentinel');
+  if (!dock || !sentinel) return;
   const io = new IntersectionObserver(([entry]) => {
     dock.classList.toggle('cf-dock-visible', !entry.isIntersecting);
   });
-  io.observe(topNav);
+  io.observe(sentinel);
   cleanupFns.push(() => io.disconnect());
 }
 

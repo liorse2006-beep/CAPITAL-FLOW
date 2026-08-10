@@ -62,19 +62,14 @@
     --accent: #e2a545; --accent-ink: #241704;
     --up: #4cbf8a; --down: #e0685f;
   }
-}.cf-landing-page * { box-sizing: border-box; }.cf-landing-page { scroll-behavior: smooth; scroll-padding-top: 78px; }
-@media (prefers-reduced-motion: reduce) {.cf-landing-page { scroll-behavior: auto; } }.cf-landing-page .cf-nav {
-  position: relative; z-index: 50;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 24px 32px;
-}.cf-landing-page .cf-nav-brand { font-family: var(--font-display); font-weight: 800; font-size: 15px; letter-spacing: -0.01em; color: var(--text-0); text-decoration: none; }.cf-landing-page .cf-nav-links { display: flex; align-items: center; gap: 30px; margin: 0 auto; }.cf-landing-page .cf-nav-links a { font-size: 13.5px; color: var(--text-1); text-decoration: none; transition: color 0.15s; }.cf-landing-page .cf-nav-links a:hover { color: var(--text-0); }.cf-landing-page .cf-nav-cta { font-size: 12.5px; padding: 10px 20px; }
+}.cf-landing-page * { box-sizing: border-box; }.cf-landing-page { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {.cf-landing-page { scroll-behavior: auto; } }
 
-/* The floating bottom dock (combines the two directions picked: nav starts
-   big/part of the hero above — no longer sticky, see .cf-nav — and once
-   scrolled past it, this compact pill takes over from the bottom of the
-   screen instead of a shrunk copy pinned to the top). Hidden by default;
-   effects.js toggles .cf-dock-visible via an IntersectionObserver on the
-   original nav, so it appears exactly when that one scrolls out of view. */
+/* There is no top nav — the page opens straight into the hero. This
+   floating bottom dock is the only navigation, hidden by default;
+   effects.js toggles .cf-dock-visible via an IntersectionObserver on a
+   sentinel pinned to the top of the page, so it appears the moment the
+   visitor scrolls at all and hides again back at the very top. */
 .cf-landing-page .cf-dock {
   position: fixed; left: 50%; bottom: 22px; z-index: 60;
   transform: translateX(-50%) translateY(24px);
@@ -100,8 +95,7 @@
 @media (prefers-reduced-motion: reduce) {
   .cf-landing-page .cf-dock { transition: opacity 0.01ms; transform: translateX(-50%); }
 }
-@media (max-width: 800px) {.cf-landing-page .cf-nav-links { display: none; }.cf-landing-page .cf-nav { padding: 14px 20px; }
-}.cf-landing-page .cf-hero { overflow-x: clip; }.cf-landing-page .cf-root {
+.cf-landing-page .cf-hero { overflow-x: clip; }.cf-landing-page .cf-root {
   direction: rtl;
   font-family: var(--font-body);
   background: var(--bg-0);
@@ -250,16 +244,4 @@
 }.cf-landing-page .gradual-blur { pointer-events: none; isolation: isolate; }.cf-landing-page .gradual-blur-inner { position: relative; width: 100%; height: 100%; }.cf-landing-page .gradual-blur-inner > div { -webkit-backdrop-filter: inherit; backdrop-filter: inherit; }.cf-landing-page .electric-border { position: relative; border-radius: inherit; overflow: visible; isolation: isolate; }.cf-landing-page .eb-canvas-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 2; }.cf-landing-page .eb-canvas { display: block; }.cf-landing-page .eb-layers { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 0; }.cf-landing-page .eb-glow-1, .cf-landing-page .eb-glow-2, .cf-landing-page .eb-background-glow { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-sizing: border-box; }.cf-landing-page .eb-glow-1 { border: 2px solid color-mix(in srgb, var(--electric-border-color) 60%, transparent); filter: blur(1px); }.cf-landing-page .eb-glow-2 { border: 2px solid var(--electric-border-color); filter: blur(4px); }.cf-landing-page .eb-background-glow { z-index: -1; transform: scale(1.1); filter: blur(32px); opacity: 0.3; background: linear-gradient(-30deg, var(--electric-border-color), transparent, var(--electric-border-color)); }.cf-landing-page .depth-text { display: inline-block; perspective: var(--depth-text-perspective); perspective-origin: 50% 48%; isolation: isolate; }.cf-landing-page .depth-text__stage { position: relative; display: inline-grid; place-items: center; transform-style: preserve-3d; transform: rotateX(-2.4deg) rotateY(3.15deg); transform-origin: 50% 50%; will-change: transform; }.cf-landing-page .depth-text__layer, .cf-landing-page .depth-text__face { grid-area: 1 / 1; display: inline-block; font-size: var(--depth-text-font-size); font-weight: var(--depth-text-font-weight); line-height: 0.86; letter-spacing: -0.02em; white-space: nowrap; user-select: none; transform-style: preserve-3d; backface-visibility: hidden; }.cf-landing-page .depth-text__layer { position: absolute; inset: 0; z-index: 0; filter: saturate(0.95) brightness(0.92); pointer-events: none; }.cf-landing-page .depth-text__face { position: relative; z-index: 1; color: var(--depth-text-face-color); text-shadow: var(--depth-text-shadow); transform: translateZ(0.6px); }
 @media (prefers-reduced-motion: reduce) {.cf-landing-page .depth-text__stage { will-change: auto; } }.cf-landing-page .echo-text { position: relative; display: inline-block; white-space: nowrap; line-height: 0.9; }.cf-landing-page .echo-text__echo { position: absolute; top: 0; left: 0; right: auto; bottom: 0; display: block; pointer-events: none; transform: translate3d(0,0,0); transform-origin: 50% 50%; will-change: transform, opacity; backface-visibility: hidden; }.cf-landing-page .echo-text__echo--front { position: relative; z-index: 2; opacity: 1; filter: none; will-change: transform; }
 @media (prefers-reduced-motion: reduce) {.cf-landing-page .echo-text__echo:not(.echo-text__echo--front) { display: none; }.cf-landing-page .echo-text__echo--front { transform: none !important; }
-}.cf-landing-page .cf-orbit-wrap { position: relative; width: 64px; height: 64px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }.cf-landing-page .cf-orbit-text {
-  position: absolute; inset: 0; width: 64px; height: 64px;
-  animation: cf-orbit-spin 14s linear infinite;
-}.cf-landing-page .cf-orbit-text text {
-  fill: var(--accent);
-  font-family: var(--font-mono);
-  font-weight: 700;
 }
-@keyframes cf-orbit-spin { to { transform: rotate(360deg); } }.cf-landing-page .cf-orbit-logo {
-  position: absolute; width: 30px; height: 30px; border-radius: 50%;
-  object-fit: cover; box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
-}
-@media (prefers-reduced-motion: reduce) {.cf-landing-page .cf-orbit-text { animation: none; } }
