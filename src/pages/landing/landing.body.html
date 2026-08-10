@@ -2,6 +2,20 @@
 <div class="cf-root">
   <div class="cf-bg"></div>
   <div id="cfTopSentinel" aria-hidden="true" style="position:absolute;top:0;left:0;width:1px;height:1px;pointer-events:none;"></div>
+
+  <div class="text-loop" id="cfTextLoop" aria-hidden="true">
+    <svg class="text-loop-svg" viewBox="0 0 1200 100" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Capital Flow">
+      <path id="cfTextLoopPath" class="text-loop-path" d="" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+      <text class="text-loop-measure" aria-hidden="true"></text>
+      <text class="text-loop-text" dominant-baseline="central" aria-hidden="true">
+        <textPath class="text-loop-head" href="#cfTextLoopPath" startOffset="0" lengthAdjust="spacing"></textPath>
+      </text>
+      <text class="text-loop-text" dominant-baseline="central" aria-hidden="true">
+        <textPath class="text-loop-tail" href="#cfTextLoopPath" startOffset="0" lengthAdjust="spacing"></textPath>
+      </text>
+    </svg>
+  </div>
+
   <nav class="cf-dock" id="cfDock" aria-label="ניווט">
     <a href="#" class="cf-dock-logo" aria-label="Capital Flow"><img src="/home-logo.jpeg" alt="" /></a>
     <a href="#how">איך זה עובד</a>

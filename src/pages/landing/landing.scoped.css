@@ -43,6 +43,7 @@
   --radius-lg: 22px;
   --radius: 14px;
   --radius-sm: 8px;
+  --text-loop-h: 72px;
 }.cf-landing-page[data-theme="light"] {
   --bg-0: #f4efe6;
   --bg-1: #ffffff;
@@ -92,6 +93,28 @@
   .cf-landing-page .cf-dock a:not(.cf-dock-logo) { display: none; }
   .cf-landing-page .cf-dock { gap: 12px; }
 }
+
+/* TextLoop (React Bits) — glued to the very top of the page permanently,
+   above everything including the dock, not part of the normal scrolling
+   flow. Fixed pixel height (not the source component's aspect-locked
+   width:100%/height:auto) so it stays a slim constant-height ribbon at
+   any viewport width instead of growing taller on wide screens — the SVG
+   fills that box via preserveAspectRatio="xMidYMid slice" in the markup,
+   which crops rather than letterboxes. .cf-root's padding-top (see above,
+   var(--text-loop-h)) reserves the matching space so page content never
+   sits underneath it. */
+.cf-landing-page .text-loop {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 70;
+  width: 100%; height: var(--text-loop-h); overflow: hidden;
+  background: var(--bg-0);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--bg-2));
+}
+.cf-landing-page .text-loop-svg { display: block; width: 100%; height: 100%; }
+.cf-landing-page .text-loop-text { user-select: none; }
+.cf-landing-page .text-loop-measure { visibility: hidden; pointer-events: none; }
+@media (max-width: 640px) {
+  .cf-landing-page { --text-loop-h: 52px; }
+}
 @media (prefers-reduced-motion: reduce) {
   .cf-landing-page .cf-dock { transition: opacity 0.01ms; transform: translateX(-50%); }
 }
@@ -104,6 +127,7 @@
   position: relative;
   isolation: isolate;
   font-variant-numeric: tabular-nums;
+  padding-top: var(--text-loop-h);
 }.cf-landing-page .cf-root h1, .cf-landing-page .cf-root h2, .cf-landing-page .cf-root h3 {
   text-wrap: balance; margin: 0; font-weight: 800;
   font-family: var(--font-display); letter-spacing: -0.01em;
