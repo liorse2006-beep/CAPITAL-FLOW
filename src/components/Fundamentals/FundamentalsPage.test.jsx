@@ -15,10 +15,11 @@ function renderPage(props = {}) {
 }
 
 describe('FundamentalsPage', () => {
-  it('gates the scan behind sign-in for a logged-out visitor, never showing the results UI', () => {
+  it('gates the lookup behind sign-in for a logged-out visitor, never showing the search UI', () => {
     renderPage()
     expect(screen.getByText(/Premium\/Elite feature/)).toBeInTheDocument()
-    expect(screen.queryByText('Run Scan')).not.toBeInTheDocument()
+    expect(screen.queryByText('Analyze')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText(/Enter a ticker/)).not.toBeInTheDocument()
   })
 
   it('the sign-in prompt calls onSignIn, not onUpgrade, for a logged-out visitor', async () => {

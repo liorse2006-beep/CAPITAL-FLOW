@@ -1,9 +1,13 @@
-// Fundamentals scanner — swing-trading-relevant company data (Float, Short
-// Interest, P/E, Debt/Equity, 5-year revenue growth, next earnings date)
-// across a chosen ticker universe. Deliberately NOT the same six-metric
-// deep-value screen a long-term investor would want: no PEG, no institutional
-// ownership, no multi-year balance-sheet detail — just the handful of numbers
-// that matter for a position measured in days-to-weeks, not years.
+// Fundamentals lookup — swing-trading-relevant company data (Float, Short
+// Interest, P/E, Debt/Equity, 5-year revenue growth, next earnings date) for
+// a ticker the customer picked themselves. Deliberately NOT the same
+// six-metric deep-value screen a long-term investor would want: no PEG, no
+// institutional ownership, no multi-year balance-sheet detail — just the
+// handful of numbers that matter for a position measured in days-to-weeks,
+// not years. And deliberately no market-cap floor here either — if the
+// customer typed in a specific ticker, that's their call, not this
+// service's to second-guess.
+//
 // Accessed via the module object (quoteCache.getQuotes(...), finnhub.fetchFinnhubMetric(...))
 // rather than destructured — a destructured const captures the function
 // reference at require-time, which test mocks (t.mock.method(mod, 'fn', ...))
@@ -12,10 +16,8 @@ const yahooFinance = require('./yahoo');
 const quoteCache = require('./quoteCache');
 const finnhub = require('./finnhub');
 
-const MIN_MKT_CAP = 300_000_000; // matches maScanner's floor — same reasoning: sub-$300M names are too thin to swing-trade reliably
-
 // Finnhub's 24h-cached metric=all payload already carries most fields this
-// scan needs (see finnhub.js's fetchFinnhubMetric) — no separate Yahoo call
+// lookup needs (see finnhub.js's fetchFinnhubMetric) — no separate Yahoo call
 // for those, no extra API budget spent beyond what the app already pays.
 // Next earnings date is the one field Finnhub's metric endpoint doesn't
 // carry, so it gets its own small 24h cache (earnings dates don't change
@@ -43,32 +45,25 @@ async function fetchNextEarningsDate(symbol) {
   }
 }
 
-async function scanFundamentals(tickers, options) {
-  options = options || {};
-  var onProgress = options.onProgress;
-
+// tickers is normally a single-element array (one lookup per customer
+// request) but stays array-in/array-out for testability and in case a
+// future caller ever needs to batch a few at once.
+async function scanFundamentals(tickers) {
   var results = [];
   var errors = [];
 
-  var quotesMap = await quoteCache.getQuotes(tickers, function (fetched, total) {
-    if (onProgress) onProgress({ processed: Math.round((fetched / total) * tickers.length * 0.4), total: tickers.length, found: 0 });
-  });
+  var quotesMap = await quoteCache.getQuotes(tickers);
 
   var candidates = [];
   tickers.forEach(function (symbol) {
     var quote = quotesMap.get(symbol);
-    if (!quote) {
+    if (!quote || !quote.regularMarketPrice) {
       errors.push(symbol);
       return;
     }
-    if ((quote.marketCap || 0) < MIN_MKT_CAP) return;
-    if (!quote.regularMarketPrice) return;
     candidates.push({ symbol: symbol, quote: quote });
   });
 
-  if (onProgress) onProgress({ processed: Math.round(tickers.length * 0.4), total: tickers.length, found: 0 });
-
-  var enrichedCount = 0;
   await Promise.all(
     candidates.map(async function (c) {
       try {
@@ -100,19 +95,11 @@ async function scanFundamentals(tickers, options) {
         });
       } catch (e) {
         errors.push(c.symbol);
-      } finally {
-        enrichedCount++;
-        if (onProgress) {
-          var approx = Math.round(tickers.length * 0.4) + Math.round((enrichedCount / (candidates.length || 1)) * tickers.length * 0.6);
-          onProgress({ processed: approx, total: tickers.length, found: results.length });
-        }
       }
     })
   );
 
-  if (onProgress) onProgress({ processed: tickers.length, total: tickers.length, found: results.length });
-
-  return { results: results, errors: errors, processed: tickers.length };
+  return { results: results, errors: errors };
 }
 
 module.exports = { scanFundamentals };

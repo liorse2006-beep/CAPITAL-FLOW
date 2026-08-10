@@ -1,7 +1,7 @@
 // server/services/fundamentalsScanner.js — swing-trading fundamentals
 // (float, short interest, P/E, debt/equity, 5yr revenue growth, next
-// earnings date) across a ticker universe. 0/null must always mean "the
-// data source didn't report this" — never a guessed number.
+// earnings date) for a ticker the customer picked themselves. 0/null must
+// always mean "the data source didn't report this" — never a guessed number.
 require('./helpers/testEnv');
 const { test, before } = require('node:test');
 const assert = require('node:assert');
@@ -38,20 +38,15 @@ function quotesMapFor(entries) {
   return map;
 }
 
-test('scanFundamentals filters out companies below the market-cap floor', async (t) => {
-  t.mock.method(quoteCache, 'getQuotes', async () =>
-    quotesMapFor([
-      ['BIG', 5e9],
-      ['TINY', 1e8], // below MIN_MKT_CAP (300M)
-    ])
-  );
+test('scanFundamentals has no market-cap floor — a small-cap ticker the customer chose is still looked up', async (t) => {
+  t.mock.method(quoteCache, 'getQuotes', async () => quotesMapFor([['TINY', 5e7]])); // $50M — would have failed the old universe-scan floor
   t.mock.method(finnhub, 'fetchFinnhubMetric', async () => ({ peRatio: 20, debtToEquity: 0.5, revenueGrowth5Y: 12.3 }));
   t.mock.method(yahoo, 'quoteSummary', async () => ({ calendarEvents: { earnings: { earningsDate: [] } } }));
 
-  const { results } = await scanFundamentals(['BIG', 'TINY']);
+  const { results } = await scanFundamentals(['TINY']);
   assert.deepStrictEqual(
     results.map((r) => r.symbol),
-    ['BIG']
+    ['TINY']
   );
 });
 

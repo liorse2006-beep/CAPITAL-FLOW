@@ -593,6 +593,108 @@ body {
   overflow: hidden;
 }
 
+/* ── Fundamentals — single-ticker lookup, not a universe scan: a search
+   row instead of filter controls, a result card instead of a table. ── */
+.fund-search-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+}
+.fund-search-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-0);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  color: var(--text-0);
+  font-size: 15px;
+  font-family: var(--mono);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.fund-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.fund-search-input::placeholder {
+  text-transform: none;
+  color: var(--text-3);
+  font-family: var(--font-body, inherit);
+  letter-spacing: normal;
+}
+.fund-result-card {
+  padding: 24px;
+}
+.fund-result-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+.fund-result-symbol {
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 800;
+  margin-right: 10px;
+}
+.fund-result-name {
+  color: var(--text-2);
+  font-size: 14px;
+}
+.fund-result-price {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 700;
+}
+.fund-result-price span:last-child {
+  font-size: 14px;
+  font-weight: 600;
+}
+.fund-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.fund-metric-tile {
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+}
+.fund-metric-label {
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+.fund-metric-value {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-0);
+}
+@media (max-width: 900px) {
+  .fund-metric-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 500px) {
+  .fund-search-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 .table-bar {
   display: flex;
   align-items: center;
