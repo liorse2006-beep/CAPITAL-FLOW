@@ -8,6 +8,13 @@
 // customer typed in a specific ticker, that's their call, not this
 // service's to second-guess.
 //
+// Two failure modes get told apart on purpose, never collapsed into one
+// "—": a field the data source genuinely doesn't report (a pre-revenue
+// company with no P/E) stays a permanent "—", while a source that just
+// failed to answer right now (network hiccup, rate limit) is flagged as
+// unverified so the UI can say "try again in a few minutes" instead of
+// silently showing an incomplete result as if it were the whole truth.
+//
 // Accessed via the module object (quoteCache.getQuotes(...), finnhub.fetchFinnhubMetric(...))
 // rather than destructured — a destructured const captures the function
 // reference at require-time, which test mocks (t.mock.method(mod, 'fn', ...))
@@ -16,15 +23,14 @@ const yahooFinance = require('./yahoo');
 const quoteCache = require('./quoteCache');
 const finnhub = require('./finnhub');
 
-// Finnhub's 24h-cached metric=all payload already carries most fields this
-// lookup needs (see finnhub.js's fetchFinnhubMetric) — no separate Yahoo call
-// for those, no extra API budget spent beyond what the app already pays.
-// Next earnings date is the one field Finnhub's metric endpoint doesn't
-// carry, so it gets its own small 24h cache (earnings dates don't change
-// intraday) via Yahoo's quoteSummary calendarEvents module.
+// Finnhub's 24h-cached metric=all payload carries P/E, debt/equity, and 5yr
+// revenue growth (see finnhub.js's fetchFinnhubMetric) — no separate Yahoo
+// call for those. Float, short interest, and next earnings date all live in
+// one combined Yahoo quoteSummary call instead (defaultKeyStatistics +
+// calendarEvents) — one request instead of two, same 24h cache.
 const METRIC_TTL_MS = 24 * 60 * 60 * 1000;
 const metricCache = new Map(); // symbol → { data, fetchedAt }
-const earningsCache = new Map(); // symbol → { data, fetchedAt }
+const keyStatsCache = new Map(); // symbol → { data, fetchedAt }
 
 function slowGet(cache, symbol) {
   const e = cache.get(symbol);
@@ -34,15 +40,18 @@ function slowSet(cache, symbol, data) {
   cache.set(symbol, { data, fetchedAt: Date.now() });
 }
 
-async function fetchNextEarningsDate(symbol) {
-  try {
-    var summary = await yahooFinance.quoteSummary(symbol, { modules: ['calendarEvents'] });
-    var dates = summary.calendarEvents && summary.calendarEvents.earnings && summary.calendarEvents.earnings.earningsDate;
-    if (!dates || !dates.length) return null;
-    return new Date(dates[0]).toISOString().slice(0, 10);
-  } catch (e) {
-    return null;
-  }
+// Returns null only when Yahoo genuinely has no such data for this symbol
+// (a real, successful response with empty fields) — throws are left to the
+// caller, which is what distinguishes "not reported" from "couldn't check".
+async function fetchKeyStatsAndEarnings(symbol) {
+  var summary = await yahooFinance.quoteSummary(symbol, { modules: ['defaultKeyStatistics', 'calendarEvents'] });
+  var stats = summary.defaultKeyStatistics || {};
+  var dates = summary.calendarEvents && summary.calendarEvents.earnings && summary.calendarEvents.earnings.earningsDate;
+  return {
+    floatShares: stats.floatShares || 0,
+    shortPercent: stats.shortPercentOfFloat != null ? stats.shortPercentOfFloat : 0,
+    nextEarningsDate: dates && dates.length ? new Date(dates[0]).toISOString().slice(0, 10) : null,
+  };
 }
 
 // tickers is normally a single-element array (one lookup per customer
@@ -66,36 +75,60 @@ async function scanFundamentals(tickers) {
 
   await Promise.all(
     candidates.map(async function (c) {
-      try {
-        var cachedMetric = slowGet(metricCache, c.symbol);
-        var cachedEarnings = slowGet(earningsCache, c.symbol);
-        var resolved = await Promise.all([
-          cachedMetric !== null ? Promise.resolve(cachedMetric) : finnhub.fetchFinnhubMetric(c.symbol),
-          cachedEarnings !== null ? Promise.resolve(cachedEarnings) : fetchNextEarningsDate(c.symbol),
-        ]);
-        var metric = resolved[0];
-        var nextEarningsDate = resolved[1];
-        if (metric && cachedMetric === null) slowSet(metricCache, c.symbol, metric);
-        if (cachedEarnings === null) slowSet(earningsCache, c.symbol, nextEarningsDate);
+      var metricFailed = false;
+      var keyStatsFailed = false;
 
-        results.push({
-          symbol: c.symbol,
-          name: c.quote.shortName || c.quote.longName || c.symbol,
-          price: c.quote.regularMarketPrice || 0,
-          change: c.quote.regularMarketChangePercent || 0,
-          marketCap: c.quote.marketCap || 0,
-          // 0/null means the data source didn't report a value for this
-          // company — rendered as "—" in the UI, never a fabricated number.
-          floatShares: c.quote.floatShares || 0,
-          shortPercent: c.quote.shortPercentOfFloat || 0,
-          peRatio: (metric && metric.peRatio) || 0,
-          debtToEquity: (metric && metric.debtToEquity) || 0,
-          revenueGrowth5Y: metric && metric.revenueGrowth5Y != null ? metric.revenueGrowth5Y : null,
-          nextEarningsDate: nextEarningsDate || null,
-        });
-      } catch (e) {
-        errors.push(c.symbol);
-      }
+      var cachedMetric = slowGet(metricCache, c.symbol);
+      var metricPromise =
+        cachedMetric !== null
+          ? Promise.resolve(cachedMetric)
+          : finnhub.fetchFinnhubMetric(c.symbol).catch(function () {
+              metricFailed = true;
+              return null;
+            });
+
+      var cachedKeyStats = slowGet(keyStatsCache, c.symbol);
+      var keyStatsPromise =
+        cachedKeyStats !== null
+          ? Promise.resolve(cachedKeyStats)
+          : fetchKeyStatsAndEarnings(c.symbol).catch(function () {
+              keyStatsFailed = true;
+              return null;
+            });
+
+      var resolved = await Promise.all([metricPromise, keyStatsPromise]);
+      var metric = resolved[0];
+      var keyStats = resolved[1];
+      if (metric && cachedMetric === null) slowSet(metricCache, c.symbol, metric);
+      if (keyStats && cachedKeyStats === null) slowSet(keyStatsCache, c.symbol, keyStats);
+
+      results.push({
+        symbol: c.symbol,
+        name: c.quote.shortName || c.quote.longName || c.symbol,
+        price: c.quote.regularMarketPrice || 0,
+        change: c.quote.regularMarketChangePercent || 0,
+        marketCap: c.quote.marketCap || 0,
+        // 0/null means the source reported no value for this company —
+        // rendered as "—", never a fabricated number. `Unverified` (below)
+        // is a separate, distinct case: the source failed to answer at all.
+        floatShares: (keyStats && keyStats.floatShares) || 0,
+        shortPercent: (keyStats && keyStats.shortPercent) || 0,
+        nextEarningsDate: (keyStats && keyStats.nextEarningsDate) || null,
+        peRatio: (metric && metric.peRatio) || 0,
+        debtToEquity: (metric && metric.debtToEquity) || 0,
+        revenueGrowth5Y: metric && metric.revenueGrowth5Y != null ? metric.revenueGrowth5Y : null,
+        // Which groups genuinely failed to load (network/API error) rather
+        // than just having nothing to report — the UI shows these as "not
+        // verified — try again in a few minutes", not as "—".
+        unverified: {
+          peRatio: metricFailed,
+          debtToEquity: metricFailed,
+          revenueGrowth5Y: metricFailed,
+          floatShares: keyStatsFailed,
+          shortPercent: keyStatsFailed,
+          nextEarningsDate: keyStatsFailed,
+        },
+      });
     })
   );
 

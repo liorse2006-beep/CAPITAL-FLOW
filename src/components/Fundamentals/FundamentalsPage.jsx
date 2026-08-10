@@ -9,9 +9,10 @@ const SYMBOL_RE = /^[A-Za-z0-9.-]{1,10}$/;
 // for a position measured in days-to-weeks: liquidity/squeeze setup (Float,
 // Short %), a quick valuation sanity check (P/E), balance-sheet risk
 // (Debt/Equity), a growth signal (5Y revenue growth), and the next
-// volatility catalyst (earnings date).
-const METRICS = [
-  { key: 'marketCap', label: 'Market Cap', fmt: fmtCap },
+// volatility catalyst (earnings date). The customer picks which of these to
+// see — Market Cap/Price/Change stay in the header, always shown, since
+// they're baseline context rather than a "filter" choice.
+const SELECTABLE_METRICS = [
   { key: 'floatShares', label: 'Float', fmt: fmtShares },
   { key: 'shortPercent', label: 'Short % of Float', fmt: (v) => fmtPct(v * 100) },
   { key: 'peRatio', label: 'P/E Ratio', fmt: fmtRatio },
@@ -19,6 +20,7 @@ const METRICS = [
   { key: 'revenueGrowth5Y', label: '5-Year Revenue Growth', fmt: fmtGrowth },
   { key: 'nextEarningsDate', label: 'Next Earnings', fmt: fmtEarnings },
 ];
+const ALL_METRIC_KEYS = SELECTABLE_METRICS.map((m) => m.key);
 
 function fmtCap(v) {
   if (!v) return '—';
@@ -56,9 +58,22 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
   const isPremium = !!(user && user.is_premium);
 
   const [symbolInput, setSymbolInput] = useState('');
+  const [selectedMetrics, setSelectedMetrics] = useState(() => new Set(ALL_METRIC_KEYS));
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  function toggleMetric(key) {
+    setSelectedMetrics((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+  function selectAllMetrics() {
+    setSelectedMetrics(new Set(ALL_METRIC_KEYS));
+  }
 
   async function runLookup(e) {
     e.preventDefault();
@@ -87,6 +102,13 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
       if (res.status === 403) {
         onUpgrade();
         throw new Error('Premium subscription required');
+      }
+      if (res.status === 404) {
+        const d = await res.json().catch(() => ({}));
+        // A genuine "we looked and there's nothing" — distinct from the
+        // per-field "couldn't verify" case below, which still returns 200
+        // with whatever the source did answer.
+        throw new Error(d.error || ('No data found for ' + symbol + ' right now — try again in a few minutes.'));
       }
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -140,6 +162,27 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
             {loading ? 'Looking up…' : 'Analyze'}
           </button>
         </form>
+
+        <div className="fund-metric-picker">
+          <div className="fund-metric-picker-head">
+            <span className="ma-ctrl-label">Show</span>
+            <button type="button" className="sector-clear" onClick={selectAllMetrics}>
+              ALL
+            </button>
+          </div>
+          <div className="fund-metric-chips">
+            {SELECTABLE_METRICS.map((m) => (
+              <label key={m.key} className={'fund-metric-chip' + (selectedMetrics.has(m.key) ? ' active' : '')}>
+                <input
+                  type="checkbox"
+                  checked={selectedMetrics.has(m.key)}
+                  onChange={() => toggleMetric(m.key)}
+                />
+                {m.label}
+              </label>
+            ))}
+          </div>
+        </div>
       </div>
 
       {error && <div className="error-bar">{error}</div>}
@@ -156,17 +199,29 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
               <span className={result.change >= 0 ? 'col-pos' : 'col-neg'}>
                 {(result.change >= 0 ? '+' : '') + result.change.toFixed(2) + '%'}
               </span>
+              <span className="fund-result-cap">{fmtCap(result.marketCap)}</span>
             </div>
           </div>
 
-          <div className="fund-metric-grid">
-            {METRICS.map((m) => (
-              <div key={m.key} className="fund-metric-tile">
-                <div className="fund-metric-label">{m.label}</div>
-                <div className="fund-metric-value">{m.fmt(result[m.key])}</div>
-              </div>
-            ))}
-          </div>
+          {selectedMetrics.size === 0 ? (
+            <div className="sector-hint">Nothing selected above — pick at least one metric, or click ALL.</div>
+          ) : (
+            <div className="fund-metric-grid">
+              {SELECTABLE_METRICS.filter((m) => selectedMetrics.has(m.key)).map((m) => {
+                const unverified = result.unverified && result.unverified[m.key];
+                return (
+                  <div key={m.key} className="fund-metric-tile">
+                    <div className="fund-metric-label">{m.label}</div>
+                    {unverified ? (
+                      <div className="fund-metric-unverified">Not verified — try again in a few minutes</div>
+                    ) : (
+                      <div className="fund-metric-value">{m.fmt(result[m.key])}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
