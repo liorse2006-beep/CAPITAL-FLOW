@@ -67,13 +67,6 @@ export default function MAScannerPage({
   const [sortField, setSort] = useState('maDistance');
   const [sortDir, setSortDir] = useState('asc');
   const [dirFilter, setDirFilter] = useState('all');
-  // Optional, off by default — narrows results to crosses the scan itself
-  // actually detected within the last FRESH_CROSS_MAX_BARS bars (see
-  // daysSinceCross in server/services/maScanner.js). A stock whose data
-  // didn't show a real recent cross (daysSinceCross === null) never counts
-  // as fresh, no matter what.
-  const [freshCrossOnly, setFreshCrossOnly] = useState(false);
-  const FRESH_CROSS_MAX_BARS = 3;
 
   const { scanMeta, setScanMeta, refreshQuota } = useScanQuota();
 
@@ -154,7 +147,6 @@ export default function MAScannerPage({
 
   const filtered = (results || []).filter((r) => {
     if (dirFilter !== 'all' && r.direction !== dirFilter) return false;
-    if (freshCrossOnly && (r.daysSinceCross == null || r.daysSinceCross > FRESH_CROSS_MAX_BARS)) return false;
     return true;
   });
 
@@ -448,30 +440,6 @@ export default function MAScannerPage({
               },
               React.createElement('span', null, opt.label)
             )
-          )
-        )
-      ),
-
-      // Optional — off by default, so a guest/first-time user gets the same
-      // full result set as before. When on, keeps only rows whose
-      // daysSinceCross the scan itself actually computed as recent (see
-      // filtered above) — never a fabricated freshness value.
-      React.createElement(
-        'div',
-        { className: 'ma-ctrl-group' },
-        React.createElement('span', { className: 'ma-ctrl-label' }, 'Focus'),
-        React.createElement(
-          'div',
-          { className: 'ma-ctrl-btns' },
-          React.createElement(
-            'button',
-            {
-              className: 'ma-ctrl-btn' + (freshCrossOnly ? ' active' : ''),
-              onClick: guarded(() => setFreshCrossOnly((v) => !v)),
-              disabled: loading,
-              title: 'Only show stocks whose scan data shows a real MA cross within the last ' + FRESH_CROSS_MAX_BARS + ' bars',
-            },
-            'Fresh crosses only'
           )
         )
       ),
