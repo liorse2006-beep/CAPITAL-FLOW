@@ -43,7 +43,7 @@
   --radius-lg: 22px;
   --radius: 14px;
   --radius-sm: 8px;
-  --text-loop-h: 72px;
+  --text-loop-h: 36px;
 }.cf-landing-page[data-theme="light"] {
   --bg-0: #f4efe6;
   --bg-1: #ffffff;
@@ -113,7 +113,7 @@
 .cf-landing-page .text-loop-text { user-select: none; }
 .cf-landing-page .text-loop-measure { visibility: hidden; pointer-events: none; }
 @media (max-width: 640px) {
-  .cf-landing-page { --text-loop-h: 52px; }
+  .cf-landing-page { --text-loop-h: 26px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cf-landing-page .cf-dock { transition: opacity 0.01ms; transform: translateX(-50%); }

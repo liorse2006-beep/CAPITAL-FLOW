@@ -1129,9 +1129,9 @@ export function initLandingEffects(rootEl, onGetStarted) {
     if (textLoopEl) {
       mountTextLoop(textLoopEl, {
         text: 'Capital Flow', shape: 'wave', speed: 105, direction: 'forward',
-        separator: '＄', curviness: 0, fontSize: 46, fontWeight: 800, letterSpacing: 2,
-        uppercase: true, color: '#ffffff', ribbon: true, ribbonColor: '#c6772c', ribbonWidth: 86,
-        pauseOnHover: true,
+        separator: '＄', curviness: 0, fontSize: 23, fontWeight: 800, letterSpacing: 1,
+        uppercase: true, color: '#ffffff', ribbon: true, ribbonColor: '#c6772c', ribbonWidth: 43,
+        pauseOnHover: true, viewW: 1200, viewH: 50,
       }, cleanupFns);
     }
   });
