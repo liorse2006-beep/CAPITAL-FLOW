@@ -64,12 +64,42 @@
   }
 }.cf-landing-page * { box-sizing: border-box; }.cf-landing-page { scroll-behavior: smooth; scroll-padding-top: 78px; }
 @media (prefers-reduced-motion: reduce) {.cf-landing-page { scroll-behavior: auto; } }.cf-landing-page .cf-nav {
-  position: sticky; top: 0; z-index: 50;
+  position: relative; z-index: 50;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 32px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  background: color-mix(in srgb, var(--bg-0) 74%, transparent);
-  border-bottom: 1px solid var(--bg-2);
+  padding: 24px 32px;
 }.cf-landing-page .cf-nav-brand { font-family: var(--font-display); font-weight: 800; font-size: 15px; letter-spacing: -0.01em; color: var(--text-0); text-decoration: none; }.cf-landing-page .cf-nav-links { display: flex; align-items: center; gap: 30px; margin: 0 auto; }.cf-landing-page .cf-nav-links a { font-size: 13.5px; color: var(--text-1); text-decoration: none; transition: color 0.15s; }.cf-landing-page .cf-nav-links a:hover { color: var(--text-0); }.cf-landing-page .cf-nav-cta { font-size: 12.5px; padding: 10px 20px; }
+
+/* The floating bottom dock (combines the two directions picked: nav starts
+   big/part of the hero above — no longer sticky, see .cf-nav — and once
+   scrolled past it, this compact pill takes over from the bottom of the
+   screen instead of a shrunk copy pinned to the top). Hidden by default;
+   effects.js toggles .cf-dock-visible via an IntersectionObserver on the
+   original nav, so it appears exactly when that one scrolls out of view. */
+.cf-landing-page .cf-dock {
+  position: fixed; left: 50%; bottom: 22px; z-index: 60;
+  transform: translateX(-50%) translateY(24px);
+  display: flex; align-items: center; gap: 22px;
+  padding: 10px 14px 10px 10px; border-radius: 100px;
+  background: color-mix(in srgb, var(--bg-1) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--bg-2));
+  box-shadow: 0 12px 32px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03) inset;
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+.cf-landing-page .cf-dock.cf-dock-visible { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+.cf-landing-page .cf-dock-logo { display: flex; width: 34px; height: 34px; border-radius: 50%; overflow: hidden; flex-shrink: 0; }
+.cf-landing-page .cf-dock-logo img { width: 100%; height: 100%; object-fit: cover; }
+.cf-landing-page .cf-dock a:not(.cf-dock-logo) { font-size: 13px; color: var(--text-1); text-decoration: none; white-space: nowrap; transition: color 0.15s; }
+.cf-landing-page .cf-dock a:not(.cf-dock-logo):hover { color: var(--text-0); }
+.cf-landing-page .cf-dock-cta { font-size: 12.5px; padding: 9px 18px; }
+@media (max-width: 800px) {
+  .cf-landing-page .cf-dock a:not(.cf-dock-logo) { display: none; }
+  .cf-landing-page .cf-dock { gap: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cf-landing-page .cf-dock { transition: opacity 0.01ms; transform: translateX(-50%); }
+}
 @media (max-width: 800px) {.cf-landing-page .cf-nav-links { display: none; }.cf-landing-page .cf-nav { padding: 14px 20px; }
 }.cf-landing-page .cf-hero { overflow-x: clip; }.cf-landing-page .cf-root {
   direction: rtl;

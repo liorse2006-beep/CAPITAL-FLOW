@@ -625,6 +625,7 @@ function mountScrollFloat(el, opts, cleanupFns) {
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   el.classList.add('scroll-float');
+  el.textContent = '';
   const words = text.split(' ');
   const wordEls = [];
   words.forEach((word, i) => {
@@ -661,7 +662,16 @@ function mountScrollFloat(el, opts, cleanupFns) {
 }
 
 function setupScrollFloat(root, cleanupFns) {
-  root.querySelectorAll('.cf-how-title, #tools h2, #faq h2, .cf-final h2, .cf-tool h3').forEach((el) => {
+  // Deliberately excludes .cf-tool h3: those titles mix in an English brand
+  // name ("MA Scanner", "Capital Flow", "Hot Sectors") — an LTR run inside
+  // this RTL page. Splitting it into per-word inline-block spans hits the
+  // same bidi-reordering problem as the character-level attempt did, just
+  // one level up: the browser's bidi algorithm reorders the two isolated
+  // "atoms" according to the RTL container instead of preserving their
+  // LTR order, so "MA Scanner" rendered as "Scanner MA". The section
+  // headings below are pure Hebrew, where the reading-order direction and
+  // the container direction agree, so word-splitting them is safe.
+  root.querySelectorAll('.cf-how-title, #tools h2, #faq h2, .cf-final h2').forEach((el) => {
     mountScrollFloat(el, {}, cleanupFns);
   });
 }
@@ -854,6 +864,23 @@ function setupHeroEntrance(root, cleanupFns) {
 // checkout — the original page never had auth). One delegated listener
 // routes every click to the caller's onGetStarted, matching the historical
 // LandingPage.jsx pattern of opening the sign-in modal for any CTA.
+// Shows the floating bottom dock once the original top nav has scrolled
+// out of view, hides it again if the visitor scrolls back up past it.
+// IntersectionObserver, not a scroll-position/rAF calculation — its
+// callback is driven by the browser's own layout/compositor, not a JS
+// ticker, so (unlike several other effects in this file) it can't get
+// stuck mid-transition if the tab starts backgrounded.
+function setupDock(root, cleanupFns) {
+  const dock = root.querySelector('#cfDock');
+  const topNav = root.querySelector('.cf-nav');
+  if (!dock || !topNav) return;
+  const io = new IntersectionObserver(([entry]) => {
+    dock.classList.toggle('cf-dock-visible', !entry.isIntersecting);
+  });
+  io.observe(topNav);
+  cleanupFns.push(() => io.disconnect());
+}
+
 function setupScrollCta(root, cleanupFns) {
   const btn = root.querySelector('#cfScrollCta');
   const target = root.querySelector('#how-tools');
@@ -930,6 +957,7 @@ export function initLandingEffects(rootEl, onGetStarted) {
   // loud, not silently swallowed like the decorative effects below.
   setupCtaDelegation(rootEl, onGetStarted, cleanupFns);
   runSafely('setupScrollCta', () => setupScrollCta(rootEl, cleanupFns));
+  runSafely('setupDock', () => setupDock(rootEl, cleanupFns));
   setupFaqAccordion(rootEl, cleanupFns);
 
   runSafely('setupSmoothAnchorScroll', () => setupSmoothAnchorScroll(cleanupFns));

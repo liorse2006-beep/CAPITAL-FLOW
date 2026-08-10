@@ -877,7 +877,7 @@ function App() {
                   var body = '$' + stock.price.toFixed(2) + '  ·  ' + stock.volumeRatio + 'x avg volume';
                   addAlertToHistory(sym, title, body);
                   if (window.Notification && Notification.permission === 'granted') {
-                    new Notification(title, { body: body, icon: '/favicon.svg', tag: sym });
+                    new Notification(title, { body: body, icon: '/icon-192.png', tag: sym });
                   }
                   playBeep();
                 });
@@ -908,7 +908,7 @@ function App() {
               alertFired.current[stock.symbol] = true;
               addAlertToHistory(stock.symbol, title, body);
               if (window.Notification && Notification.permission === 'granted') {
-                new Notification(title, { body: body, icon: '/favicon.svg', tag: 'alert-' + stock.symbol });
+                new Notification(title, { body: body, icon: '/icon-192.png', tag: 'alert-' + stock.symbol });
               }
               playBeep();
               // One-shot: cancel the threshold itself once it fires, same
