@@ -731,7 +731,7 @@ function setupElectricBorders(root, cleanupFns) {
 // entrance is expressed as one from/to state change instead of a per-frame
 // simulation.
 function mountEchoText(el, opts, cleanupFns) {
-  const o = Object.assign({ echoes: 12, offset: 36, direction: 'right', fade: 0.72, blur: 3, tint: '#fcda7d', duration: 900, color: '#e2a545' }, opts || {});
+  const o = Object.assign({ echoes: 12, offset: 36, direction: 'right', blur: 3, tint: '#fcda7d', duration: 900, color: '#e2a545' }, opts || {});
   const text = el.textContent;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const echoCount = reducedMotion ? 0 : Math.min(Math.max(Math.round(o.echoes), 0), 24);
@@ -807,10 +807,16 @@ function mountEchoText(el, opts, cleanupFns) {
     echoes.forEach((echo, idx) => {
       echo.style.transition = 'transform ' + o.duration + 'ms cubic-bezier(0.16,1,0.3,1), opacity ' + o.duration + 'ms ease-out';
       echo.style.transform = 'translate3d(0,0,0)';
-      echo.style.opacity = String(Math.pow(o.fade, echoCount - idx));
+      // Fades all the way to 0, not just decayed toward it (the old target
+      // was Math.pow(o.fade, echoCount - idx), which never actually reaches
+      // 0) — every echo converges on the exact same position as the front
+      // copy, so leaving them at any nonzero opacity meant the headline
+      // stayed permanently smeared/blurred behind a stack of tinted
+      // duplicates instead of settling to clean text once the entrance
+      // finishes.
+      echo.style.opacity = '0';
     });
   }
-  cleanupFns.push(() => cancelAnimationFrame(raf1));
 }
 
 // Rewritten off gsap for the entrance itself (kept only for the
@@ -985,7 +991,7 @@ export function initLandingEffects(rootEl, onGetStarted) {
   runSafely('mountEchoText', () => {
     const heroEcho = rootEl.querySelector('#cfHeroEcho');
     if (heroEcho) {
-      mountEchoText(heroEcho, { echoes: 12, offset: 20, direction: 'right', fade: 0.72, blur: 3, tint: '#fcda7d', duration: 900, color: '#e2a545' }, cleanupFns);
+      mountEchoText(heroEcho, { echoes: 12, offset: 20, direction: 'right', blur: 3, tint: '#fcda7d', duration: 900, color: '#e2a545' }, cleanupFns);
     }
   });
 

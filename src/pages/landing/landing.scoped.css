@@ -117,13 +117,13 @@
   background: var(--accent);
 }
 .cf-landing-page .text-loop-track {
-  display: flex; width: max-content;
+  display: flex; width: max-content; flex-shrink: 0;
   animation: cf-text-loop-scroll 14s linear infinite;
   will-change: transform;
 }
 .cf-landing-page .text-loop:hover .text-loop-track { animation-play-state: paused; }
 .cf-landing-page .text-loop-seg {
-  display: inline-flex; align-items: center; white-space: nowrap;
+  display: inline-flex; align-items: center; white-space: nowrap; flex-shrink: 0;
   user-select: none;
   font-family: var(--font-display);
   font-weight: 800;
