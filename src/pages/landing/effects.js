@@ -602,6 +602,70 @@ function mountElectricBorder(el, opts, ebInstances) {
   return { layers, canvasContainer, ro };
 }
 
+// ── ScrollFloat (React Bits) — reveals text on scroll, scrubbed directly
+// to scroll position via gsap ScrollTrigger rather than a one-shot timer.
+// Split by WORD, not by individual character like the source component:
+// this page is Hebrew (RTL), and character-level splitting broke it two
+// different ways —
+//   1. each character became its own inline-block "atom" for the
+//      browser's bidi algorithm, which visually reordered them instead of
+//      keeping the natural right-to-left reading order.
+//   2. Hebrew has five letters that take a different final/"sofit" shape
+//      at the end of a word (ך ם ן ף ץ) — that shape is chosen by the
+//      font's text-shaping engine based on word position, which requires
+//      the letters to still be part of one text run. Splitting into
+//      single-letter spans handed the shaper isolated one-letter runs, so
+//      final letters could render in the wrong form.
+// Whole words are never split apart internally, so both problems disappear
+// while the stagger reveal still reads essentially the same for headline-
+// length text. ──
+function mountScrollFloat(el, opts, cleanupFns) {
+  const o = Object.assign({ duration: 1, ease: 'back.inOut(2)', scrollStart: 'top bottom-=10%', scrollEnd: 'bottom bottom-=35%', stagger: 0.05 }, opts || {});
+  const text = el.textContent;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  el.classList.add('scroll-float');
+  const words = text.split(' ');
+  const wordEls = [];
+  words.forEach((word, i) => {
+    const span = document.createElement('span');
+    span.className = 'word';
+    span.textContent = word;
+    el.appendChild(span);
+    wordEls.push(span);
+    if (i < words.length - 1) el.appendChild(document.createTextNode(' '));
+  });
+
+  // Restores `el` to plain text on cleanup — see mountEchoText's identical
+  // comment for why (React 18 StrictMode's dev-only double-effect-invoke
+  // on the same DOM node).
+  cleanupFns.push(() => {
+    el.classList.remove('scroll-float');
+    el.textContent = text;
+  });
+
+  if (reducedMotion) return;
+
+  const tween = gsap.fromTo(
+    wordEls,
+    { willChange: 'opacity, transform', opacity: 0, yPercent: 120, scaleY: 1.6, scaleX: 0.85, transformOrigin: '50% 100%' },
+    {
+      duration: o.duration, ease: o.ease, opacity: 1, yPercent: 0, scaleY: 1, scaleX: 1, stagger: o.stagger,
+      scrollTrigger: { trigger: el, start: o.scrollStart, end: o.scrollEnd, scrub: true },
+    }
+  );
+  cleanupFns.push(() => {
+    tween.scrollTrigger && tween.scrollTrigger.kill();
+    tween.kill();
+  });
+}
+
+function setupScrollFloat(root, cleanupFns) {
+  root.querySelectorAll('.cf-how-title, #tools h2, #faq h2, .cf-final h2, .cf-tool h3').forEach((el) => {
+    mountScrollFloat(el, {}, cleanupFns);
+  });
+}
+
 function setupElectricBorders(root, cleanupFns) {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduceMotion) return;
@@ -874,6 +938,7 @@ export function initLandingEffects(rootEl, onGetStarted) {
   runSafely('setupTiltCards', () => setupTiltCards(rootEl, cleanupFns));
   runSafely('setupGradualBlur', () => setupGradualBlur(rootEl, cleanupFns));
   runSafely('setupElectricBorders', () => setupElectricBorders(rootEl, cleanupFns));
+  runSafely('setupScrollFloat', () => setupScrollFloat(rootEl, cleanupFns));
 
   runSafely('mountEchoText', () => {
     const heroEcho = rootEl.querySelector('#cfHeroEcho');
