@@ -29,4 +29,7 @@ yahooFinance.quote = (query, queryOptions, moduleOptions) => originalQuote(query
 const originalChart = yahooFinance.chart.bind(yahooFinance);
 yahooFinance.chart = (symbol, queryOptions, moduleOptions) => originalChart(symbol, queryOptions, withTimeout(moduleOptions));
 
+const originalQuoteSummary = yahooFinance.quoteSummary.bind(yahooFinance);
+yahooFinance.quoteSummary = (symbol, queryOptions, moduleOptions) => originalQuoteSummary(symbol, queryOptions, withTimeout(moduleOptions));
+
 module.exports = yahooFinance;

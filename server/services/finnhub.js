@@ -76,6 +76,13 @@ async function fetchFinnhubMetric(symbol, apiKey) {
       weekLow52: data.metric['52WeekLow'] || 0,
       marketCap: (data.metric.marketCapitalization || 0) * 1e6,
       avgVol10d: (data.metric['10DayAverageTradingVolume'] || 0) * 1e6,
+      // Swing-trading fundamentals (Premium/Elite) — all come from this same
+      // already-cached 24h metric payload, so no extra API call is needed.
+      // 0/undefined from Finnhub means "not reported for this company" (e.g.
+      // early-stage names with no P/E) — passed through as-is, never guessed.
+      peRatio: data.metric.peExclExtraTTM || data.metric.peTTM || 0,
+      debtToEquity: data.metric['totalDebt/totalEquityQuarterly'] || 0,
+      revenueGrowth5Y: data.metric.revenueGrowth5Y != null ? data.metric.revenueGrowth5Y : null,
     };
   } catch (e) {
     return null;

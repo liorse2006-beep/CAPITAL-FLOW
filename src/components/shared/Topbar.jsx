@@ -131,6 +131,9 @@ export default function Topbar({
         <button className={'nav-tab ' + (page === 'ma' ? 'active' : '')} onClick={() => setPage('ma')}>
           MA Scanner
         </button>
+        <button className={'nav-tab ' + (page === 'fundamentals' ? 'active' : '')} onClick={() => setPage('fundamentals')}>
+          Fundamentals
+        </button>
         <button className={'nav-tab ' + (page === 'watchlist' ? 'active' : '')} onClick={() => setPage('watchlist')}>
           Watchlist
           {watchlistCount > 0 && <span className="tab-badge">{watchlistCount}</span>}

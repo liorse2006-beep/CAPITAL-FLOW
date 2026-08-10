@@ -524,6 +524,17 @@ router.get('/admin', asyncRoute(async (req, res) => {
 <div class="toast" id="toast"></div>
 
 <script nonce="${nonce}">
+// A thrown error anywhere in this script (a missing element, a typo) used
+// to fail completely silently — no console visibility on the admin's side,
+// and worse, since every button's addEventListener call below runs in the
+// same top-level script body, one throwing partway through this file left
+// every listener registered AFTER it never attached, so unrelated buttons
+// (backup, coupons, etc.) looked "dead" with zero indication why. This
+// surfaces exactly that as a toast instead of failing invisibly.
+window.addEventListener('error', function (e) {
+  if (typeof toast === 'function') toast('Script error: ' + (e.message || 'see console'), true);
+});
+
 // Static ADMIN_TOKEN wins when provided via URL; otherwise use the live JWT
 // from localStorage — it's always fresh and never needs a manual refresh.
 function authHeaders() {
@@ -535,7 +546,22 @@ function authHeaders() {
 let AUTH_HEADERS = authHeaders();
 function refreshAuthHeaders() { AUTH_HEADERS = authHeaders(); return AUTH_HEADERS; }
 
-document.getElementById('admin-token-save').addEventListener('click', function () {
+// One element missing/renamed used to throw and silently abort every
+// addEventListener call still queued after it in this script — so a typo
+// in one button's id could leave every button wired further down (backup,
+// coupons, refresh, ...) completely dead with no error visible anywhere.
+// Each wiring call is independent: a missing element logs a console
+// warning but never stops the rest from attaching.
+function safeOn(id, event, handler) {
+  const el = document.getElementById(id);
+  if (!el) {
+    console.warn('[admin] #' + id + ' not found — ' + event + ' handler not attached');
+    return;
+  }
+  el.addEventListener(event, handler);
+}
+
+safeOn('admin-token-save', 'click', function () {
   const value = document.getElementById('admin-token-input').value.trim();
   if (!value) return;
   sessionStorage.setItem('vs_admin_token', value);
@@ -961,8 +987,8 @@ document.addEventListener('click', function (e) {
     case 'coupon-del':    return deleteCoupon(d.id, d.code);
   }
 });
-document.getElementById('coupon-form').addEventListener('submit', createCoupon);
-document.getElementById('btn-refresh-coupons').addEventListener('click', async function () {
+safeOn('coupon-form', 'submit', createCoupon);
+safeOn('btn-refresh-coupons', 'click', async function () {
   const ok = await loadCoupons();
   toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
 });
@@ -973,16 +999,16 @@ document.getElementById('btn-refresh-coupons').addEventListener('click', async f
 // in the background and on initial page load, where a toast would just be
 // noise. This way a click always confirms it landed, whether or not the
 // data actually changed.
-document.getElementById('btn-refresh-audit').addEventListener('click', async function () {
+safeOn('btn-refresh-audit', 'click', async function () {
   const ok = await loadAuditLog();
   toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
 });
-document.getElementById('btn-refresh-users').addEventListener('click', async function () {
+safeOn('btn-refresh-users', 'click', async function () {
   const ok = await load();
   toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
 });
-document.getElementById('search').addEventListener('input', filterTable);
-document.getElementById('backup-run-now').addEventListener('click', function (e) {
+safeOn('search', 'input', filterTable);
+safeOn('backup-run-now', 'click', function (e) {
   e.preventDefault();
   runBackupNow();
 });

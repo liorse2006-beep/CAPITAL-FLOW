@@ -55,7 +55,7 @@ describe('App routing', () => {
 
   it('highlights the active tab in the topbar to match the current route', () => {
     const { container } = renderAt('/watchlist')
-    const watchlistTab = container.querySelector('.nav-tabs .nav-tab:nth-child(4)')
+    const watchlistTab = container.querySelector('.nav-tabs .nav-tab:nth-child(5)')
     expect(watchlistTab.textContent).toMatch(/Watchlist/)
     expect(watchlistTab.className).toMatch(/active/)
   })

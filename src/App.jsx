@@ -25,6 +25,7 @@ import ScannerPage from './components/Scanner/ScannerPage';
 const MoneyFlow = lazy(() => import('./components/MoneyFlow/MoneyFlow'));
 const ChartModal = lazy(() => import('./components/Chart/ChartModal'));
 const MAScannerPage = lazy(() => import('./components/MAScanner/MAScannerPage'));
+const FundamentalsPage = lazy(() => import('./components/Fundamentals/FundamentalsPage'));
 const PolicyPage = lazy(() => import('./pages/PolicyPage'));
 const AccessibilityStatementPage = lazy(() => import('./pages/AccessibilityStatementPage'));
 const AuthModal = lazy(() => import('./components/Auth/AuthModal'));
@@ -1282,6 +1283,18 @@ function App() {
                   onTrialEnded={onTrialEnded}
                   alertLevels={alertLevels}
                   promptCreateAlert={promptCreateAlert}
+                />
+              </Suspense>
+            }
+          />
+
+          <Route
+            path="/fundamentals"
+            element={
+              <Suspense fallback={<div className="page-loading">Loading…</div>}>
+                <FundamentalsPage
+                  onUpgrade={() => setShowUpgradeModal(true)}
+                  onSignIn={() => setShowAuthModal(true)}
                 />
               </Suspense>
             }

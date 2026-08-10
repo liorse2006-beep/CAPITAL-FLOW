@@ -204,6 +204,7 @@ app.use('/api', require('./routes/volumeContext'));
 app.use('/api', require('./routes/background'));
 app.use('/api', require('./routes/stream').router);
 app.use('/api', require('./routes/maScanner'));
+app.use('/api', require('./routes/fundamentals'));
 app.use('/api', require('./routes/scanQuota'));
 app.use('/api', require('./routes/push'));
 app.use('/api', require('./routes/scheduledScans'));
