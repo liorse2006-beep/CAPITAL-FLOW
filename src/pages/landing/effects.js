@@ -602,8 +602,10 @@ function mountElectricBorder(el, opts, ebInstances) {
   return { layers, canvasContainer, ro };
 }
 
-// ── ScrollFloat (React Bits) — reveals text on scroll, scrubbed directly
-// to scroll position via gsap ScrollTrigger rather than a one-shot timer.
+// ── ScrollFloat (React Bits) — reveals text once, the first time it
+// scrolls into view, via IntersectionObserver + a one-shot gsap tween
+// (not a continuous scrub tied to scroll position — see the comment above
+// the IntersectionObserver below for why).
 // Split by WORD, not by individual character like the source component:
 // this page is Hebrew (RTL), and character-level splitting broke it two
 // different ways —
@@ -620,7 +622,7 @@ function mountElectricBorder(el, opts, ebInstances) {
 // while the stagger reveal still reads essentially the same for headline-
 // length text. ──
 function mountScrollFloat(el, opts, cleanupFns) {
-  const o = Object.assign({ duration: 1, ease: 'back.inOut(2)', scrollStart: 'top bottom-=10%', scrollEnd: 'bottom bottom-=35%', stagger: 0.05 }, opts || {});
+  const o = Object.assign({ duration: 1, ease: 'back.out(1.7)', stagger: 0.05 }, opts || {});
   const text = el.textContent;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -647,18 +649,28 @@ function mountScrollFloat(el, opts, cleanupFns) {
 
   if (reducedMotion) return;
 
-  const tween = gsap.fromTo(
-    wordEls,
-    { willChange: 'opacity, transform', opacity: 0, yPercent: 120, scaleY: 1.6, scaleX: 0.85, transformOrigin: '50% 100%' },
-    {
-      duration: o.duration, ease: o.ease, opacity: 1, yPercent: 0, scaleY: 1, scaleX: 1, stagger: o.stagger,
-      scrollTrigger: { trigger: el, start: o.scrollStart, end: o.scrollEnd, scrub: true },
-    }
+  gsap.set(wordEls, { willChange: 'opacity, transform', opacity: 0, yPercent: 120, scaleY: 1.6, scaleX: 0.85, transformOrigin: '50% 100%' });
+
+  // Plays once, triggered by IntersectionObserver rather than scrubbed to
+  // scroll position via gsap's ScrollTrigger. A continuous scrub tween only
+  // advances via gsap's rAF-driven ticker, which this codebase has
+  // repeatedly found unreliable for revealing content (see
+  // setupHeroEntrance / mountEchoText); an IntersectionObserver callback is
+  // compositor-driven, same as the nav dock's, and doesn't depend on a
+  // scroll-position recalculation firing every frame, so the reveal can't
+  // get stuck at opacity:0 mid-scroll the way the scrub version did.
+  let played = false;
+  const io = new IntersectionObserver(
+    (entries) => {
+      if (played || !entries[0].isIntersecting) return;
+      played = true;
+      gsap.to(wordEls, { duration: o.duration, ease: o.ease, opacity: 1, yPercent: 0, scaleY: 1, scaleX: 1, stagger: o.stagger });
+      io.disconnect();
+    },
+    { threshold: 0.2, rootMargin: '0px 0px -10% 0px' }
   );
-  cleanupFns.push(() => {
-    tween.scrollTrigger && tween.scrollTrigger.kill();
-    tween.kill();
-  });
+  io.observe(el);
+  cleanupFns.push(() => io.disconnect());
 }
 
 function setupScrollFloat(root, cleanupFns) {
