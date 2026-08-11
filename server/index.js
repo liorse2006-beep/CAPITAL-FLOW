@@ -196,6 +196,24 @@ app.use(function (req, res, next) {
   })(req, res, next);
 });
 
+// Apple Pay domain verification. Whop (and Apple) fetch this exact path to
+// confirm we own the domain before Apple Pay can appear in the embedded
+// checkout. It needs an EXPLICIT route for two reasons the default setup
+// breaks on: (1) express.static ignores dotfiles, so a file under
+// .well-known/ is never served by it, and (2) the SPA fallback below would
+// otherwise answer with index.html (HTTP 200 text/html), which is exactly
+// what made Whop's verification hang — it got a web page instead of the
+// token. Served as text/plain from a committed file; 404 (not the SPA) when
+// the file isn't present yet, so a missing token fails loudly rather than
+// silently returning HTML. Must come before the static + SPA handlers.
+const APPLE_PAY_FILE = path.join(__dirname, '../public/.well-known/apple-developer-merchantid-domain-association');
+app.get('/.well-known/apple-developer-merchantid-domain-association', (req, res) => {
+  fs.readFile(APPLE_PAY_FILE, 'utf8', (err, data) => {
+    if (err || !data || !data.trim()) return res.status(404).type('text/plain').send('Not found');
+    res.type('text/plain').send(data);
+  });
+});
+
 // Health check — before all other routes so monitoring can always reach it
 app.use('/', require('./routes/health'));
 
