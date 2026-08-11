@@ -141,6 +141,11 @@ async function refreshAccessToken(refreshToken) {
 /** Revoke one device's session (logout) — leaves every other device's session untouched. */
 async function revokeSession(sessionId, userId) {
   await db.prepare('DELETE FROM user_sessions WHERE id = ? AND user_id = ?').run(sessionId, userId);
+  // Lazy require — authMiddleware already requires this module, so a
+  // top-level require here would be circular. resolveToken() caches a
+  // short-lived successful resolution (see authMiddleware.js); without this
+  // the revoked device would keep working until that cache entry ages out.
+  require('../middleware/authMiddleware').invalidateSession(userId, sessionId);
 }
 
 /**
@@ -154,6 +159,7 @@ async function revokeSession(sessionId, userId) {
  */
 async function revokeAllSessions(userId) {
   await db.prepare('DELETE FROM user_sessions WHERE user_id = ?').run(userId);
+  require('../middleware/authMiddleware').invalidateUserSessions(userId);
 }
 
 function verifyToken(token) {

@@ -13,7 +13,7 @@ function timingSafeStringEqual(a, b) {
 }
 
 const DB_ENV = TURSO_DB_URL ? 'PRODUCTION (Turso)' : 'LOCAL (SQLite)';
-const { resolveToken } = require('../middleware/authMiddleware');
+const { resolveToken, invalidateUserSessions } = require('../middleware/authMiddleware');
 
 // Catches unhandled promise rejections in async route handlers (Express 4 doesn't do this natively)
 function asyncRoute(fn) {
@@ -121,6 +121,10 @@ router.post('/admin/api/users/:id/block', asyncRoute(async (req, res) => {
   if (!actor) return;
   const { value } = req.body; // 1 or 0
   await db.prepare('UPDATE users SET is_blocked = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
+  // is_blocked doesn't delete the user's sessions, so a blocked account's
+  // cached resolveToken() result (see authMiddleware.js) would otherwise
+  // keep working until it ages out on its own.
+  if (value) invalidateUserSessions(Number(req.params.id));
   logAction(actor, value ? 'block_user' : 'unblock_user', req.params.id);
   res.json({ ok: true });
 }));

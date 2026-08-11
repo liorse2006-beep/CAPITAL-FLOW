@@ -55,9 +55,82 @@ function resolveSseTicket(ticket) {
   return userId;
 }
 
+// Every call to resolveToken() was two sequential round trips to the remote
+// Turso DB (session lookup, then user lookup) — on every single authenticated
+// request: every scan, every page load, every poll. Under concurrent load
+// that's exactly the "I/O-bound, not CPU-bound" ceiling described in
+// PRODUCTION_AUDIT.md — the event loop itself is free while waiting, but the
+// request sits open for the full remote round trip before it can respond and
+// free up. Caching a successful resolution for a short window turns N
+// requests from the same logged-in user within that window into 1 DB round
+// trip instead of 2N, without weakening the actual check: a revoked session,
+// a block, or a tier change is still re-verified against the DB within
+// RESOLVE_CACHE_TTL_MS of the change taking effect — never indefinitely
+// stale, just briefly (worst case) trailing reality by a few seconds, which
+// is already true of the JWT's own 1h validity window today.
+const RESOLVE_CACHE_TTL_MS = 20 * 1000;
+const resolveCache = new Map(); // token → { user, cachedAt, sessionKey }
+// A session (device) can be revoked at any moment — logout, a password
+// reset, an admin "force logout", or simply getting evicted as the
+// least-recently-used device past MAX_ACTIVE_SESSIONS. That must take
+// effect immediately, not up to RESOLVE_CACHE_TTL_MS later — a TTL alone
+// would mean a logged-out device (or a stolen token an admin just tried to
+// kill) keeps working for several more seconds. This index lets
+// invalidateSession/invalidateUserSessions below find and drop exactly the
+// cached token(s) tied to a session the instant it's revoked, in-process —
+// the DB write in auth.js already made the revocation real; this just makes
+// the in-memory cache stop lying about it.
+const sessionIndex = new Map(); // "userId:sid" → Set<token>
+
+function sessionKeyFor(userId, sid) {
+  return `${userId}:${sid}`;
+}
+
+function cacheResolvedUser(token, user, sessionKey) {
+  resolveCache.set(token, { user, cachedAt: Date.now(), sessionKey });
+  let tokens = sessionIndex.get(sessionKey);
+  if (!tokens) sessionIndex.set(sessionKey, (tokens = new Set()));
+  tokens.add(token);
+}
+
+function dropCachedToken(token) {
+  const entry = resolveCache.get(token);
+  resolveCache.delete(token);
+  if (!entry) return;
+  const tokens = sessionIndex.get(entry.sessionKey);
+  if (!tokens) return;
+  tokens.delete(token);
+  if (tokens.size === 0) sessionIndex.delete(entry.sessionKey);
+}
+
+/** Called from auth.js the instant one session (device) is revoked. */
+function invalidateSession(userId, sessionId) {
+  const key = sessionKeyFor(userId, sessionId);
+  const tokens = sessionIndex.get(key);
+  if (!tokens) return;
+  for (const token of tokens) resolveCache.delete(token);
+  sessionIndex.delete(key);
+}
+
+/** Called from auth.js the instant every session for an account is revoked. */
+function invalidateUserSessions(userId) {
+  const prefix = `${userId}:`;
+  for (const key of sessionIndex.keys()) {
+    if (!key.startsWith(prefix)) continue;
+    for (const token of sessionIndex.get(key)) resolveCache.delete(token);
+    sessionIndex.delete(key);
+  }
+}
+
 /** Resolve a JWT string → verified DB user, or null on failure */
 async function resolveToken(token) {
   if (!token) return null;
+
+  const cached = resolveCache.get(token);
+  if (cached && Date.now() - cached.cachedAt < RESOLVE_CACHE_TTL_MS) {
+    return cached.user;
+  }
+
   try {
     const payload = verifyToken(token);
     // The token's session (sid) must still exist — it's deleted the moment
@@ -70,7 +143,10 @@ async function resolveToken(token) {
       payload.sid,
       payload.id
     );
-    if (!session) return null;
+    if (!session) {
+      dropCachedToken(token);
+      return null;
+    }
     const user = await db
       .prepare(
         `SELECT id, email, is_verified, is_premium, is_blocked, free_scan_count,
@@ -80,7 +156,10 @@ async function resolveToken(token) {
          FROM users WHERE id = ?`
       )
       .get(payload.id);
-    if (!user || user.is_blocked) return null;
+    if (!user || user.is_blocked) {
+      dropCachedToken(token);
+      return null;
+    }
     // Pilot accounts (and the configured admin's own account) get full
     // (Elite) access for as long as that's true — this is the ONLY place
     // that needs to know that, since every tier check (requirePremium,
@@ -96,11 +175,25 @@ async function resolveToken(token) {
     } else {
       user.is_premium = user.tier !== 'free' ? 1 : 0;
     }
+    cacheResolvedUser(token, user, sessionKeyFor(payload.id, payload.sid));
     return user;
   } catch {
+    dropCachedToken(token);
     return null;
   }
 }
+
+// Tokens naturally fall out of resolveCache once their 1h JWT expiry passes
+// (verifyToken starts throwing, the catch above deletes the entry) — but a
+// user who authenticates once and never returns would otherwise leave a
+// dangling entry alive for that full hour. A periodic sweep bounds the map's
+// size to genuinely active tokens instead of every token ever seen.
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, entry] of resolveCache) {
+    if (now - entry.cachedAt >= RESOLVE_CACHE_TTL_MS) dropCachedToken(token);
+  }
+}, 60 * 1000).unref();
 
 /** Require a valid JWT in Authorization: Bearer <token> */
 async function requireAuth(req, res, next) {
@@ -267,6 +360,8 @@ module.exports = {
   requirePremiumSSE,
   requireScanQuota,
   resolveToken,
+  invalidateSession,
+  invalidateUserSessions,
   issueSseTicket,
   resolveSseTicket,
 };
