@@ -610,20 +610,24 @@ body {
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
 }
 /* A single seamless pill (icon + input + button share one border) rather
-   than a plain boxy input beside a separate flat button — that combination
-   was the "cheap form" look this replaces. */
+   than a plain boxy input beside a separate flat button. The button's
+   height is deliberately NOT fixed — .scan-btn's own height:36px would
+   override align-items:stretch and leave a visible gap above/below it
+   inside this taller row (exactly the "gap around a small button" look
+   that reads as unfinished); height:auto lets it fill the row exactly. */
 .fund-search-row {
   display: flex;
   align-items: stretch;
   background: var(--bg-0);
-  border: 1.5px solid var(--border-strong);
+  border: 1px solid rgba(245, 158, 11, 0.2);
   border-radius: 100px;
-  padding: 5px 5px 5px 0;
+  padding: 6px;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.55);
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .fund-search-row:focus-within {
   border-color: var(--accent-vivid);
-  box-shadow: 0 0 0 3px var(--accent-dim), 0 0 24px rgba(245, 158, 11, 0.14);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.55), 0 0 0 3px var(--accent-dim), 0 0 28px rgba(245, 158, 11, 0.2);
 }
 .fund-search-field {
   flex: 1;
@@ -642,7 +646,7 @@ body {
   width: 100%;
   background: transparent;
   border: none;
-  padding: 14px 14px 14px 48px;
+  padding: 15px 16px 15px 48px;
   color: var(--text-0);
   font-size: 15px;
   font-family: var(--mono);
@@ -662,11 +666,17 @@ body {
 }
 .fund-analyze-btn {
   flex-shrink: 0;
+  height: auto;
   border-radius: 100px;
-  padding-left: 28px;
-  padding-right: 28px;
+  padding-left: 32px;
+  padding-right: 32px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
+  font-weight: 800;
+  box-shadow: 0 3px 14px rgba(245, 158, 11, 0.3);
+}
+.fund-analyze-btn:hover {
+  box-shadow: 0 3px 18px rgba(245, 158, 11, 0.45);
 }
 
 .fund-recent {
