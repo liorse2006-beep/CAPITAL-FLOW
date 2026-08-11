@@ -292,16 +292,14 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
 
         <div className="fund-picker">
           <div className="fund-picker-head">
-            <span className="fund-picker-title">Displayed metrics</span>
-            <div className="fund-picker-meta">
-              <span className="fund-picker-count">
-                {selectedMetrics.size} <span className="fund-picker-count-total">/ {ALL_METRIC_KEYS.length}</span>
-              </span>
-              <button type="button" className="fund-picker-toggle-all" onClick={toggleAll}>
-                {allSelected ? 'Clear all' : 'Select all'}
-              </button>
-            </div>
+            <span className="fund-picker-title">Select Attributes</span>
+            <span className="fund-picker-count">
+              {selectedMetrics.size} <span className="fund-picker-count-total">/ {ALL_METRIC_KEYS.length}</span>
+            </span>
           </div>
+          <button type="button" className="fund-picker-toggle-all" onClick={toggleAll}>
+            {allSelected ? 'Clear all' : 'Select all'}
+          </button>
           <div className="fund-toggles">
             {SELECTABLE_METRICS.map((m) => {
               const on = selectedMetrics.has(m.key);
