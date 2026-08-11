@@ -65,36 +65,29 @@
 }.cf-landing-page * { box-sizing: border-box; }.cf-landing-page { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {.cf-landing-page { scroll-behavior: auto; } }
 
-/* There is no top nav — the page opens straight into the hero. This
-   floating bottom dock is the only navigation, hidden by default;
-   effects.js toggles .cf-dock-visible via an IntersectionObserver on a
-   sentinel pinned to the top of the page, so it appears the moment the
-   visitor scrolls at all and hides again back at the very top. */
-.cf-landing-page .cf-dock {
-  position: fixed; left: 50%; bottom: 22px; z-index: 60;
-  transform: translateX(-50%) translateY(24px);
-  display: flex; align-items: center; gap: 22px;
-  padding: 10px 14px 10px 10px; border-radius: 100px;
-  background: color-mix(in srgb, var(--bg-1) 88%, transparent);
+/* Floating pill nav, sticky from the top of the page — replaces the old
+   bottom dock that only appeared after scrolling. Being `position:
+   sticky` (not fixed) it's part of normal document flow, so it naturally
+   reserves its own space above the hero with no padding-top hack needed
+   on .cf-root. */
+.cf-landing-page .cf-nav { position: sticky; top: 18px; z-index: 60; padding: 0 32px; margin-top: 18px; }
+.cf-landing-page .cf-nav-in {
+  display: flex; align-items: center; justify-content: space-between; gap: 28px;
+  max-width: 840px; margin: 0 auto; padding: 9px 9px 9px 22px; border-radius: 100px;
+  background: color-mix(in srgb, var(--bg-1) 92%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--bg-2));
-  box-shadow: 0 12px 32px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03) inset;
+  box-shadow: 0 14px 38px -12px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04);
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-  opacity: 0; pointer-events: none;
-  transition: opacity 0.28s ease, transform 0.28s ease;
 }
-.cf-landing-page .cf-dock.cf-dock-visible { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
-.cf-landing-page .cf-dock-logo { display: flex; width: 34px; height: 34px; border-radius: 50%; overflow: hidden; flex-shrink: 0; }
-.cf-landing-page .cf-dock-logo img { width: 100%; height: 100%; object-fit: cover; }
-.cf-landing-page .cf-dock a:not(.cf-dock-logo) { font-size: 13px; color: var(--text-1); text-decoration: none; white-space: nowrap; transition: color 0.15s; }
-.cf-landing-page .cf-dock a:not(.cf-dock-logo):hover { color: var(--text-0); }
-.cf-landing-page .cf-dock-cta { font-size: 12.5px; padding: 9px 18px; }
+.cf-landing-page .cf-nav-logo { display: flex; width: 34px; height: 34px; border-radius: 50%; overflow: hidden; flex-shrink: 0; }
+.cf-landing-page .cf-nav-logo img { width: 100%; height: 100%; object-fit: cover; }
+.cf-landing-page .cf-nav-links { display: flex; align-items: center; gap: 26px; margin: 0 auto; }
+.cf-landing-page .cf-nav-links a { font-size: 14px; color: var(--text-1); text-decoration: none; white-space: nowrap; transition: color 0.15s; }
+.cf-landing-page .cf-nav-links a:hover { color: var(--text-0); }
+.cf-landing-page .cf-nav-cta { font-size: 14px; padding: 10px 22px; }
 @media (max-width: 800px) {
-  .cf-landing-page .cf-dock a:not(.cf-dock-logo) { display: none; }
-  .cf-landing-page .cf-dock { gap: 12px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cf-landing-page .cf-dock { transition: opacity 0.01ms; transform: translateX(-50%); }
+  .cf-landing-page .cf-nav-links { display: none; }
+  .cf-landing-page .cf-nav { padding: 0 20px; }
 }
 .cf-landing-page .cf-hero { overflow-x: clip; }.cf-landing-page .cf-root {
   direction: rtl;
@@ -139,7 +132,20 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .cf-landing-page .cf-hero h1 { animation: none; }
-}.cf-landing-page .cf-hero-echo { display: inline-block; }.cf-landing-page .cf-cta-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }.cf-landing-page .cf-btn {
+}.cf-landing-page .cf-hero-echo { display: inline-block; }
+.cf-landing-page .cf-hero-grad {
+  background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 60%, white), var(--accent));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.cf-landing-page .cf-hero-lead { font-size: 18px; color: var(--text-1); max-width: 520px; margin: 0 0 30px; line-height: 1.65; }
+.cf-landing-page .cf-stat-row { display: flex; flex-wrap: wrap; gap: 18px 26px; margin-top: 40px; padding-top: 26px; border-top: 1px solid color-mix(in srgb, var(--accent) 16%, transparent); }
+.cf-landing-page .cf-stat-n { font-size: 15.5px; font-weight: 700; color: var(--text-0); white-space: nowrap; }
+.cf-landing-page .cf-stat-n b { color: var(--accent); font-weight: 800; }
+@media (max-width: 800px) {
+  .cf-landing-page .cf-stat-row { gap: 12px 20px; }
+  .cf-landing-page .cf-stat-n { font-size: 14px; }
+}
+.cf-landing-page .cf-cta-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }.cf-landing-page .cf-btn {
   font-family: var(--font-body); font-size: 15px; font-weight: 600;
   border-radius: 100px; padding: 16px 32px; border: none; cursor: pointer;
   display: inline-flex; align-items: center; gap: 8px;
@@ -245,4 +251,68 @@
 }.cf-landing-page .gradual-blur { pointer-events: none; isolation: isolate; }.cf-landing-page .gradual-blur-inner { position: relative; width: 100%; height: 100%; }.cf-landing-page .gradual-blur-inner > div { -webkit-backdrop-filter: inherit; backdrop-filter: inherit; }.cf-landing-page .electric-border { position: relative; border-radius: inherit; overflow: visible; isolation: isolate; }.cf-landing-page .eb-canvas-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 2; }.cf-landing-page .eb-canvas { display: block; }.cf-landing-page .eb-layers { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 0; }.cf-landing-page .eb-glow-1, .cf-landing-page .eb-glow-2, .cf-landing-page .eb-background-glow { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-sizing: border-box; }.cf-landing-page .eb-glow-1 { border: 2px solid color-mix(in srgb, var(--electric-border-color) 60%, transparent); filter: blur(1px); }.cf-landing-page .eb-glow-2 { border: 2px solid var(--electric-border-color); filter: blur(4px); }.cf-landing-page .eb-background-glow { z-index: -1; transform: scale(1.1); filter: blur(32px); opacity: 0.3; background: linear-gradient(-30deg, var(--electric-border-color), transparent, var(--electric-border-color)); }.cf-landing-page .depth-text { display: inline-block; perspective: var(--depth-text-perspective); perspective-origin: 50% 48%; isolation: isolate; }.cf-landing-page .depth-text__stage { position: relative; display: inline-grid; place-items: center; transform-style: preserve-3d; transform: rotateX(-2.4deg) rotateY(3.15deg); transform-origin: 50% 50%; will-change: transform; }.cf-landing-page .depth-text__layer, .cf-landing-page .depth-text__face { grid-area: 1 / 1; display: inline-block; font-size: var(--depth-text-font-size); font-weight: var(--depth-text-font-weight); line-height: 0.86; letter-spacing: -0.02em; white-space: nowrap; user-select: none; transform-style: preserve-3d; backface-visibility: hidden; }.cf-landing-page .depth-text__layer { position: absolute; inset: 0; z-index: 0; filter: saturate(0.95) brightness(0.92); pointer-events: none; }.cf-landing-page .depth-text__face { position: relative; z-index: 1; color: var(--depth-text-face-color); text-shadow: var(--depth-text-shadow); transform: translateZ(0.6px); }
 @media (prefers-reduced-motion: reduce) {.cf-landing-page .depth-text__stage { will-change: auto; } }.cf-landing-page .echo-text { position: relative; display: inline-block; white-space: nowrap; line-height: 0.9; }.cf-landing-page .echo-text__echo { position: absolute; top: 0; left: 0; right: auto; bottom: 0; display: block; pointer-events: none; transform: translate3d(0,0,0); transform-origin: 50% 50%; will-change: transform, opacity; backface-visibility: hidden; }.cf-landing-page .echo-text__echo--front { position: relative; z-index: 2; opacity: 1; filter: none; will-change: transform; }
 @media (prefers-reduced-motion: reduce) {.cf-landing-page .echo-text__echo:not(.echo-text__echo--front) { display: none; }.cf-landing-page .echo-text__echo--front { transform: none !important; }
+}
+
+/* Trust strip — a live moving marquee of short status phrases (built by
+   effects.js's mountTrustMarquee, two identical copies of the phrase set
+   translated -50% on a loop; see that function's comment for why it's a
+   plain CSS animation and not JS-driven). Edge fade masks so phrases
+   scroll in/out smoothly at the container edges instead of clipping mid-word. */
+.cf-landing-page .cf-trust {
+  border-top: 1px solid color-mix(in srgb, var(--accent) 16%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 16%, transparent);
+  background: color-mix(in srgb, var(--bg-1) 55%, transparent);
+  overflow: hidden; position: relative; height: 56px; display: flex; align-items: center;
+}
+.cf-landing-page .cf-trust::before, .cf-landing-page .cf-trust::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 90px; z-index: 2; pointer-events: none;
+}
+.cf-landing-page .cf-trust::before { right: 0; background: linear-gradient(to left, var(--bg-0), transparent); }
+.cf-landing-page .cf-trust::after { left: 0; background: linear-gradient(to right, var(--bg-0), transparent); }
+.cf-landing-page .cf-marq { display: flex; width: max-content; flex-shrink: 0; animation: cf-marq-scroll 26s linear infinite; }
+.cf-landing-page .cf-trust:hover .cf-marq { animation-play-state: paused; }
+@keyframes cf-marq-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.cf-landing-page .cf-marq-seg { display: flex; align-items: center; flex-shrink: 0; }
+.cf-landing-page .cf-marq-item {
+  display: inline-flex; align-items: center; gap: 10px; padding: 0 34px; white-space: nowrap;
+  font-size: 15px; font-weight: 600; color: var(--text-1); line-height: 1;
+}
+.cf-landing-page .cf-marq-item .cf-marq-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--up); flex-shrink: 0;
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--up) 55%, transparent);
+}
+.cf-landing-page .cf-marq-item b { color: var(--accent); font-weight: 700; }
+.cf-landing-page .cf-marq-sep { color: var(--text-3); font-size: 12px; }
+@media (prefers-reduced-motion: reduce) {
+  .cf-landing-page .cf-marq { animation: none; }
+}
+
+/* "Why" section — bulleted contrast card, without/with Capital Flow. */
+.cf-landing-page .cf-sec-head { text-align: center; max-width: 640px; margin: 0 auto 56px; }
+.cf-landing-page .cf-sec-tag { font-size: 13px; font-weight: 700; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px; }
+.cf-landing-page .cf-sec-head h2 { font-size: 36px; margin-bottom: 16px; }
+.cf-landing-page .cf-sec-head p { font-size: 16px; color: var(--text-1); margin: 0; }
+.cf-landing-page .cf-vs { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 900px; margin: 0 auto; }
+.cf-landing-page .cf-vs-card { border-radius: var(--radius-lg); padding: 34px 32px; border: 1px solid color-mix(in srgb, var(--accent) 16%, transparent); }
+.cf-landing-page .cf-vs-bad { background: color-mix(in srgb, var(--down) 5%, transparent); }
+.cf-landing-page .cf-vs-good {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, transparent), color-mix(in srgb, var(--accent) 2%, transparent));
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: 0 0 40px -18px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.cf-landing-page .cf-vs-card h3 { font-size: 19px; margin-bottom: 22px; display: flex; align-items: center; gap: 10px; }
+.cf-landing-page .cf-vs-bad h3 { color: var(--text-1); }
+.cf-landing-page .cf-vs-tag { color: var(--accent); }
+.cf-landing-page .cf-vs-card ul { display: flex; flex-direction: column; gap: 15px; margin: 0; padding: 0; list-style: none; }
+.cf-landing-page .cf-vs-card li { display: flex; gap: 12px; font-size: 15px; color: var(--text-1); line-height: 1.5; }
+.cf-landing-page .cf-vs-ic {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 12px; margin-top: 1px;
+}
+.cf-landing-page .cf-vs-bad .cf-vs-ic { background: color-mix(in srgb, var(--down) 16%, transparent); color: var(--down); }
+.cf-landing-page .cf-vs-good .cf-vs-ic { background: color-mix(in srgb, var(--up) 16%, transparent); color: var(--up); }
+.cf-landing-page .cf-vs-good li { color: var(--text-0); }
+@media (max-width: 800px) {
+  .cf-landing-page .cf-vs { grid-template-columns: 1fr; }
+  .cf-landing-page .cf-sec-head h2 { font-size: 26px; }
 }

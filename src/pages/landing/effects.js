@@ -890,15 +890,43 @@ function setupHeroEntrance(root, cleanupFns) {
 // by the browser's own layout/compositor, not a JS ticker, so (unlike
 // several other effects in this file) it can't get stuck mid-transition if
 // the tab starts backgrounded.
-function setupDock(root, cleanupFns) {
-  const dock = root.querySelector('#cfDock');
-  const sentinel = root.querySelector('#cfTopSentinel');
-  if (!dock || !sentinel) return;
-  const io = new IntersectionObserver(([entry]) => {
-    dock.classList.toggle('cf-dock-visible', !entry.isIntersecting);
+// Builds the trust strip's moving marquee: two identical copies of the
+// phrase set placed side by side, translated -50% on a CSS loop (see
+// .cf-marq's @keyframes in landing.scoped.css) — the standard seamless-
+// marquee trick already used for the top ticker banner earlier in this
+// project, and for the same reason: a plain CSS animation starts the
+// instant the stylesheet parses (no JS-timing gap before content shows
+// up) and runs on the compositor, so it can't stutter from main-thread
+// contention with the WebGL scanner background or ElectricBorder's rAF
+// loops. Built via JS rather than hand-duplicated in the static markup
+// purely to avoid maintaining two copies of the same phrase list by hand.
+function mountTrustMarquee(el, phrases, cleanupFns) {
+  function buildSegment() {
+    const seg = document.createElement('div');
+    seg.className = 'cf-marq-seg';
+    // Repeated a few times over so a single segment is comfortably wider
+    // than any realistic viewport — otherwise the track runs out of
+    // content mid-loop and a blank gap scrolls into view (the exact bug
+    // fixed for the old top ticker banner).
+    for (let rep = 0; rep < 4; rep++) {
+      phrases.forEach((p) => {
+        const item = document.createElement('span');
+        item.className = 'cf-marq-item';
+        item.innerHTML = '<span class="cf-marq-dot"></span><span><b>' + p[0] + '</b> ' + p[1] + '</span>';
+        seg.appendChild(item);
+        const sep = document.createElement('span');
+        sep.className = 'cf-marq-sep';
+        sep.textContent = '◆';
+        seg.appendChild(sep);
+      });
+    }
+    return seg;
+  }
+  el.appendChild(buildSegment());
+  el.appendChild(buildSegment());
+  cleanupFns.push(() => {
+    el.textContent = '';
   });
-  io.observe(sentinel);
-  cleanupFns.push(() => io.disconnect());
 }
 
 function setupScrollCta(root, cleanupFns) {
@@ -977,8 +1005,23 @@ export function initLandingEffects(rootEl, onGetStarted) {
   // loud, not silently swallowed like the decorative effects below.
   setupCtaDelegation(rootEl, onGetStarted, cleanupFns);
   runSafely('setupScrollCta', () => setupScrollCta(rootEl, cleanupFns));
-  runSafely('setupDock', () => setupDock(rootEl, cleanupFns));
   setupFaqAccordion(rootEl, cleanupFns);
+
+  runSafely('mountTrustMarquee', () => {
+    const marqEl = rootEl.querySelector('#cfMarq');
+    if (marqEl) {
+      mountTrustMarquee(
+        marqEl,
+        [
+          ['מזהה', 'תזוזות של מניות עכשיו'],
+          ['ווליום מוסדי', 'נבנה בזמן אמת'],
+          ['הכסף הגדול', 'זז — לפני כולם'],
+          ['נפח חריג', 'מתגלה בשניות'],
+        ],
+        cleanupFns
+      );
+    }
+  });
 
   runSafely('setupSmoothAnchorScroll', () => setupSmoothAnchorScroll(cleanupFns));
   runSafely('setupProofTableSort', () => setupProofTableSort(rootEl, cleanupFns));
