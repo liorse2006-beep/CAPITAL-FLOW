@@ -13,6 +13,10 @@ vi.mock('@whop/checkout/react', () => ({
       <button onClick={() => props.onComplete('plan_x', 'receipt_x', {})}>Simulate payment complete</button>
     </div>
   ),
+  WhopExpressCheckoutButton: (props) => {
+    if (props.onExpressMethodResolved) props.onExpressMethodResolved({ rendered: 'none' })
+    return <div data-testid="whop-express-button" data-plan-id={props.planId} />
+  },
 }))
 
 function renderWithProviders(ui) {

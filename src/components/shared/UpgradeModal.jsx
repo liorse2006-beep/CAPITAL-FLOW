@@ -66,7 +66,7 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
       // which tier was bought — stash it so the welcome screen can show the
       // right badge/copy immediately instead of waiting on the webhook.
       localStorage.setItem('vs_pending_tier', tierKey);
-      setCheckoutSession({ sessionId: data.sessionId, tierKey, promoCode: data.couponCode, discountPercent: data.discountPercent });
+      setCheckoutSession({ sessionId: data.sessionId, planId: data.planId, tierKey, promoCode: data.couponCode, discountPercent: data.discountPercent });
     } catch (err) {
       setPayError(err.message || 'Something went wrong — please try again.');
     } finally {
@@ -137,6 +137,7 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
           </p>
           <EmbeddedCheckout
             sessionId={checkoutSession.sessionId}
+            planId={checkoutSession.planId}
             promoCode={checkoutSession.promoCode}
             onComplete={handleComplete}
             onError={handlePaymentError}

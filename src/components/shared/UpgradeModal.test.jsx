@@ -15,6 +15,13 @@ vi.mock('@whop/checkout/react', () => ({
       <button onClick={() => props.onComplete('plan_x', 'receipt_x', {})}>Simulate payment complete</button>
     </div>
   ),
+  // The Apple Pay / Google Pay express button — in a real browser it resolves
+  // which wallet is available; in jsdom we just report 'none' so it renders
+  // nothing, exactly as it would on a browser with no wallet configured.
+  WhopExpressCheckoutButton: (props) => {
+    if (props.onExpressMethodResolved) props.onExpressMethodResolved({ rendered: 'none' });
+    return <div data-testid="whop-express-button" data-plan-id={props.planId} />;
+  },
 }));
 
 function renderWithProviders(ui) {
@@ -74,6 +81,26 @@ describe('UpgradeModal', () => {
     expect(embed).toHaveAttribute('data-session-id', 'ch_test123');
     // Never navigated away — this is the whole point of the embed.
     expect(window.location.href).not.toContain('whop.com');
+  });
+
+  it('passes the plan id to the Apple Pay / Google Pay express button so a one-tap wallet can render', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ sessionId: 'ch_test123', planId: 'plan_test' }),
+      })
+    );
+    renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /get premium/i }));
+
+    // The express button needs the planId (not the session id) — without it,
+    // Apple/Google Pay never render and the customer only ever sees the card
+    // form, which was the whole complaint.
+    const express = await screen.findByTestId('whop-express-button');
+    expect(express).toHaveAttribute('data-plan-id', 'plan_test');
   });
 
   it('stashes the requested tier before mounting the embed, so the welcome screen knows what was bought', async () => {

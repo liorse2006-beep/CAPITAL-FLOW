@@ -3467,6 +3467,33 @@ html.a11y-highlight-links a {
   font-size: 12.5px;
   font-family: var(--mono);
 }
+/* Apple Pay / Google Pay express button, above the card form. The wrapper
+   stays in the DOM even before Whop resolves which wallet (if any) is
+   available, so there's no layout jump — it just collapses to zero height
+   until onExpressMethodResolved fires with a real method. */
+.embedded-express {
+  margin-bottom: 16px;
+}
+.embedded-express-hidden {
+  display: none;
+}
+.embedded-express-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  color: var(--text-3);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.embedded-express-divider::before,
+.embedded-express-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
 .embedded-checkout-powered-by {
   margin-top: 14px;
   text-align: center;

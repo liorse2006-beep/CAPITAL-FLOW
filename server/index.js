@@ -86,10 +86,21 @@ const spaCsp = helmet.contentSecurityPolicy({
       'https://*.whop.com',
       'https://whop.tw',
       'https://*.whop.tw',
+      // Google Pay (via Whop's express checkout button) talks to
+      // pay.google.com; Apple Pay uses the browser's native Payment Request
+      // API and needs no origin allow-listed here.
+      'https://pay.google.com',
     ],
     // Turnstile renders its challenge inside a sandboxed iframe from
-    // Cloudflare; the embedded checkout form itself is a whop.com iframe.
-    frameSrc: ["'self'", 'https://challenges.cloudflare.com', 'https://whop.com', 'https://*.whop.com'],
+    // Cloudflare; the embedded checkout form itself is a whop.com iframe;
+    // the Google Pay wallet sheet renders from pay.google.com.
+    frameSrc: [
+      "'self'",
+      'https://challenges.cloudflare.com',
+      'https://whop.com',
+      'https://*.whop.com',
+      'https://pay.google.com',
+    ],
     objectSrc: ["'none'"],
     baseUri: ["'self'"],
     frameAncestors: ["'none'"],
