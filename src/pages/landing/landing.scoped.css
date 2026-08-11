@@ -43,7 +43,6 @@
   --radius-lg: 22px;
   --radius: 14px;
   --radius-sm: 8px;
-  --text-loop-h: 18px;
 }.cf-landing-page[data-theme="light"] {
   --bg-0: #f4efe6;
   --bg-1: #ffffff;
@@ -94,68 +93,6 @@
   .cf-landing-page .cf-dock { gap: 12px; }
 }
 
-/* TextLoop (React Bits) — glued to the very top of the page permanently,
-   above everything including the dock, not part of the normal scrolling
-   flow. Plain CSS transform marquee rather than the source component's
-   SVG textPath approach: the requested shape is curviness 0 (a flat
-   line), so there's no curve to actually draw, and animating a
-   textPath's startOffset forces the browser to recompute text-on-path
-   layout every single frame — expensive enough to visibly stutter,
-   especially with several other rAF-driven effects (the WebGL scanner
-   background, ElectricBorder) competing for the same main thread. Two
-   identical copies of the same repeated phrase sit side by side in a flex
-   track; translating the track exactly -50% (one copy's width) on a
-   loop is the standard seamless-marquee trick, and being a plain CSS
-   @keyframes animation, it starts the instant the stylesheet parses —
-   no JS mount delay, no empty frame before content shows up — and runs
-   entirely on the compositor, so it can't drop frames from main-thread
-   work the way the old per-frame JS/SVG update did.
-
-   Each .text-loop-seg in the markup (landing.body.html) repeats the
-   phrase enough times to be wider than any real viewport (~3470px at the
-   current repeat count) — the loop only ever scrolls by one segment's
-   width, so if a segment were narrower than the browser window, the
-   track would run out of content before the animation completes one
-   cycle and a blank gap would scroll into view mid-loop. Keep the repeat
-   count comfortably ahead of the widest realistic monitor if the phrase,
-   font size, or letter-spacing ever changes. animation duration is tied
-   to that width (56s ≈ one segment's width ÷ ~62px/s) — rescale it too
-   if the repeat count changes, or the scroll speed will jump. */
-.cf-landing-page .text-loop {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 70;
-  width: 100%; height: var(--text-loop-h); overflow: hidden;
-  display: flex; align-items: center;
-  background: var(--accent);
-}
-.cf-landing-page .text-loop-track {
-  display: flex; width: max-content; flex-shrink: 0;
-  animation: cf-text-loop-scroll 56s linear infinite;
-  will-change: transform;
-}
-.cf-landing-page .text-loop:hover .text-loop-track { animation-play-state: paused; }
-.cf-landing-page .text-loop-seg {
-  display: inline-flex; align-items: center; white-space: nowrap; flex-shrink: 0;
-  user-select: none;
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 12px;
-  line-height: 1; /* .cf-root sets line-height:1.6 — at 1.6 each line is
-    taller than this 18px banner, and .text-loop's overflow:hidden slices
-    straight through the middle of every glyph as a result. */
-  letter-spacing: 0.5px;
-  color: var(--accent-ink);
-}
-@keyframes cf-text-loop-scroll {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-@media (max-width: 640px) {
-  .cf-landing-page { --text-loop-h: 13px; }
-  .cf-landing-page .text-loop-seg { font-size: 9px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .cf-landing-page .text-loop-track { animation: none; }
-}
 @media (prefers-reduced-motion: reduce) {
   .cf-landing-page .cf-dock { transition: opacity 0.01ms; transform: translateX(-50%); }
 }
@@ -168,7 +105,6 @@
   position: relative;
   isolation: isolate;
   font-variant-numeric: tabular-nums;
-  padding-top: var(--text-loop-h);
 }.cf-landing-page .cf-root h1, .cf-landing-page .cf-root h2, .cf-landing-page .cf-root h3 {
   text-wrap: balance; margin: 0; font-weight: 800;
   font-family: var(--font-display); letter-spacing: -0.01em;
