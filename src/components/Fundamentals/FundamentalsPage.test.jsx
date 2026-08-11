@@ -95,7 +95,9 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     await user.type(screen.getByPlaceholderText(/Enter a ticker/), 'AAPL')
     await user.click(screen.getByText('Analyze'))
 
-    expect(await screen.findByText('AAPL')).toBeInTheDocument()
+    // 'AAPL' text now also appears in the Recent chip added by this same
+    // lookup — wait on the company name instead, which stays unique.
+    expect(await screen.findByText('Apple Inc.')).toBeInTheDocument()
     expect(screen.getByText('Not verified — try again in a few minutes')).toBeInTheDocument()
     // A field Finnhub actually answered must never be replaced by the
     // unverified message — only the one flagged unverified is.
@@ -110,7 +112,7 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     await screen.findByPlaceholderText(/Enter a ticker/)
     await user.type(screen.getByPlaceholderText(/Enter a ticker/), 'AAPL')
     await user.click(screen.getByText('Analyze'))
-    await screen.findByText('AAPL')
+    await screen.findByText('Apple Inc.')
 
     // "Debt / Equity" appears twice while its tile is shown: the filter chip
     // and the result tile. Deselecting removes the tile, leaving just the chip.
@@ -124,5 +126,26 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     // restores every tile.
     await user.click(screen.getByRole('button', { name: /select all/i }))
     expect(screen.getAllByText('Debt / Equity')).toHaveLength(2)
+  })
+
+  it('a successful lookup adds a Recent chip, and clicking it re-runs the lookup for that ticker', async () => {
+    const user = userEvent.setup()
+    const { fetchMock } = renderPremiumPage()
+
+    await screen.findByPlaceholderText(/Enter a ticker/)
+    await user.type(screen.getByPlaceholderText(/Enter a ticker/), 'AAPL')
+    await user.click(screen.getByText('Analyze'))
+    await screen.findByText('Apple Inc.')
+
+    const chip = screen.getByRole('button', { name: 'AAPL' })
+    expect(chip).toBeInTheDocument()
+
+    fetchMock.mockClear()
+    await user.click(chip)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/fundamentals?symbol=AAPL'),
+      expect.anything()
+    )
   })
 })

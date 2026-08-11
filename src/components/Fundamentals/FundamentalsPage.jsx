@@ -121,6 +121,33 @@ function hintEarnings(v) {
   return null;
 }
 
+// Quick-access chips for the last few tickers looked up — a device-local
+// convenience, not app data, so plain localStorage is enough. Scoped per
+// account (like the app's other per-user localStorage keys) so switching
+// users on the same browser doesn't leak one customer's tickers to another.
+const RECENT_KEY_PREFIX = 'vs_fund_recent:';
+const MAX_RECENT = 5;
+
+function loadRecentTickers(userId) {
+  if (!userId) return [];
+  try {
+    const raw = JSON.parse(localStorage.getItem(RECENT_KEY_PREFIX + userId));
+    return Array.isArray(raw) ? raw.slice(0, MAX_RECENT) : [];
+  } catch (e) {
+    return [];
+  }
+}
+function saveRecentTicker(userId, symbol) {
+  const next = [symbol, ...loadRecentTickers(userId).filter((s) => s !== symbol)].slice(0, MAX_RECENT);
+  try {
+    localStorage.setItem(RECENT_KEY_PREFIX + userId, JSON.stringify(next));
+  } catch (e) {
+    // localStorage unavailable/full — the chips are a convenience, not
+    // required for the lookup itself, so just skip persisting silently.
+  }
+  return next;
+}
+
 export default function FundamentalsPage({ onUpgrade, onSignIn }) {
   const { getToken, user } = useAuth();
   const isPremium = !!(user && user.is_premium);
@@ -130,6 +157,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [recentTickers, setRecentTickers] = useState(() => loadRecentTickers(user && user.id));
 
   function toggleMetric(key) {
     setSelectedMetrics((prev) => {
@@ -144,8 +172,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
     setSelectedMetrics(allSelected ? new Set() : new Set(ALL_METRIC_KEYS));
   }
 
-  async function runLookup(e) {
-    e.preventDefault();
+  async function lookupSymbol(symbol) {
     if (!user) {
       onSignIn();
       return;
@@ -154,7 +181,6 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
       onUpgrade();
       return;
     }
-    const symbol = symbolInput.trim().toUpperCase();
     if (!SYMBOL_RE.test(symbol)) {
       setError('Enter a valid ticker symbol.');
       return;
@@ -182,11 +208,22 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
       }
       const d = await res.json();
       setResult(d.result);
+      setRecentTickers(saveRecentTicker(user.id, symbol));
     } catch (e2) {
       setError(friendlyError(e2));
     } finally {
       setLoading(false);
     }
+  }
+
+  function runLookup(e) {
+    e.preventDefault();
+    lookupSymbol(symbolInput.trim().toUpperCase());
+  }
+
+  function lookupRecent(symbol) {
+    setSymbolInput(symbol);
+    lookupSymbol(symbol);
   }
 
   if (!isPremium) {
@@ -235,6 +272,23 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
             {loading ? 'Analyzing…' : 'Analyze'}
           </button>
         </form>
+
+        {recentTickers.length > 0 && (
+          <div className="fund-recent">
+            <span className="fund-recent-label">Recent</span>
+            {recentTickers.map((sym) => (
+              <button
+                key={sym}
+                type="button"
+                className="fund-recent-chip"
+                disabled={loading}
+                onClick={() => lookupRecent(sym)}
+              >
+                {sym}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="fund-picker">
           <div className="fund-picker-head">
