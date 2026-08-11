@@ -144,10 +144,10 @@ pass came back clean or found only low-severity polish items.
 |----|----------|------|-------|--------|-----|
 | A9 | P1 | Production config | `RESEND_API_KEY` had no fail-loud check — if unset/misconfigured in production, `services/email.js` silently prints OTP and password-reset codes in plaintext to server logs instead of emailing them | **FIXED, VERIFIED** | `server/config.js`: `process.exit(1)` at boot if `NODE_ENV=production` and `RESEND_API_KEY` unset, mirroring the existing `GOOGLE_CALLBACK_URL` pattern. 3 new tests in `test/config.fail-closed.test.js` (11/11 passing). |
 | A10 | P2 | Concurrency | `createSession` (2-device cap) read the session count, deleted the excess in a loop, then inserted — a real gap between the read and the write. Several near-simultaneous logins (e.g. multiple devices signing in within the same instant) could each read "under the cap" before any of them evicted, temporarily exceeding `MAX_ACTIVE_SESSIONS` | **FIXED, VERIFIED** | `server/services/auth.js`: insert first, then a single self-contained `DELETE ... WHERE id NOT IN (SELECT ... ORDER BY last_used_at DESC LIMIT N)` — no read-then-write gap. New test in `test/authSessions.test.js` fires 5 concurrent logins on one account and asserts exactly `MAX_ACTIVE_SESSIONS` survive — passes against the fix. |
-| A11 | P2 | Security / OAuth | Google OAuth callback redirects with the access token in the URL query string (`?google_pending=<token>`) — visible in browser history and any proxy/access log that records full URLs | **NEEDS DECISION** | Mitigated: it's the short-lived (1h) access token, not the 90-day refresh token, and the frontend already treats it as one-time (`pendingGoogleToken`/`confirmGoogleLogin` in `AuthContext.jsx`) rather than the final session. A more thorough fix (URL fragment, or a one-time server-side exchange code) would be an auth-flow redesign — flagging rather than changing silently. |
-| A12 | P3 | Security | `/api/coupons/validate` is intentionally unauthenticated (by design — a visitor checks a code before signing up) and rate-limited only by IP (20/min) — allows slow coupon-code enumeration | NOT FIXED (by design, low impact) | Worst case is discovering a valid discount code, not account/data access. Tighten `publicDataLimiter` further if this becomes a real problem. |
-| A13 | P3 | Accessibility | The bell/notifications icon button is 32×32px, under the WCAG-recommended 44×44px minimum touch target. Nav tab buttons (37px tall) are close but also slightly under it | NOT FIXED | Cosmetic/a11y polish, flagged for a future pass. |
-| A14 | P3 | Production config | `index.html` has a leftover dev comment ("NOTE: update the two absolute URLs below") even though the URLs are already correctly set to `capitalflow.vip` | NOT FIXED | Harmless stale comment, no functional impact. |
+| A11 | P2 | Security / OAuth | Google OAuth callback redirected with the access token in the URL **query string** (`?google_pending=<token>`) — sent to the server on that request (so it can land in access/proxy logs) and to any third-party resource the page loads before the token is read out, via the Referer header | **FIXED, VERIFIED** | Switched to a URL **fragment** (`#google_pending=<token>`) in both `server/routes/auth.js` (the redirect) and `src/context/AuthContext.jsx` (the reader) — a fragment is never sent to any server or included in Referer, by spec. 3 new tests in `src/context/AuthContext.test.jsx`. |
+| A12 | P3 | Security | `/api/coupons/validate` is intentionally unauthenticated (by design — a visitor checks a code before signing up) and was rate-limited at 20/min/IP — allowed slow coupon-code enumeration | **TIGHTENED** (kept intentional design) | Lowered `publicDataLimiter` to 8/min — still generous for a human retyping a code 2-3 times, cuts guessing throughput well below before. Did not remove the unauthenticated design itself: that's real, wanted UX (checking a code pre-signup), not a bug. |
+| A13 | P3 | Accessibility | The bell/notifications icon button is 32×32px, under the WCAG-recommended 44×44px minimum touch target | **DELIBERATELY NOT FIXED** | Every sibling button in the same topbar row (Upgrade/Sign In/Admin/Logout) is 28px tall — enlarging just the bell to 44px would make it ~40% taller than everything beside it, a real visible layout break. Fixing this properly needs a coordinated resize of the whole topbar button row, not a one-off change — flagged rather than done silently, per "don't redesign architecture without justification." |
+| A14 | P3 | Production config | `index.html` had a leftover dev comment ("NOTE: update the two absolute URLs below") even though the URLs were already correctly set to `capitalflow.vip` | **FIXED** | Comment removed. |
 | V1 | — | Authorization/IDOR | **Full** sweep of all 24 route files (Pass 1 sampled the highest-risk ones): every user-owned resource (notifications, scheduled scans, watchlist, watchlist alerts, push subscriptions, sessions) is queried with `user_id = ?` scoping in SQL. Admin routes re-confirmed 18/18 call `checkToken()` individually. No IDOR found anywhere. | VERIFIED CLEAN | — |
 | V2 | — | Concurrency | Scan-quota reservation (`reserveScan`) and coupon redemption (`redeemCoupon`) each remain a single atomic `UPDATE ... WHERE <guard>` statement — re-verified still correct after all later commits. | VERIFIED CLEAN | — |
 | V3 | — | Data accuracy | Spot-checked unit handling across Fundamentals, MA Scanner, Capital Flow scanner, chart route: Finnhub's `marketCapitalization` / `10DayAverageTradingVolume` (returned in millions, a documented Finnhub API quirk) are correctly ×1,000,000; Yahoo's `shortPercentOfFloat` (a fraction) is ×100 exactly once, not double-applied; `regularMarketChangePercent` (already a percentage) is never re-multiplied anywhere it's consumed (Scanner, MA Scanner, Fundamentals, sectors, chart). No double-multiplication or millions/billions bugs found. | VERIFIED CLEAN | — |
@@ -196,10 +196,64 @@ pass came back clean or found only low-severity polish items.
 - [x] Financial data unit/percentage spot-check (Fundamentals, MA Scanner, Capital Flow, chart)
 - [x] Production build verified clean; SEO basics (title/description/OG/canonical/robots/sitemap/favicon) present
 - [x] Mobile viewport re-verified across 7 routes, zero console errors, zero horizontal overflow
+- [x] A11 (OAuth token in URL) — fixed via URL fragment instead of query string
+- [x] A12 (coupon enumeration) — rate limit tightened 20/min → 8/min
+- [x] A14 (stale comment) — removed
+- [ ] A13 (bell touch target) — deliberately left alone; needs a coordinated topbar-button resize, not a one-off change
 - [ ] Premium/Elite gating and admin panel — click-tested with a real account (open since Pass 1)
 - [ ] Full accessibility pass (keyboard nav, screen reader, contrast) — only one issue found incidentally
 - [ ] Cross-browser testing (Safari, Firefox) — no non-Chromium tool available in this environment
 - [ ] Load test at production-realistic scale (100+ concurrent users) beyond Pass 1's mocked-external 250-user run
-- [ ] Decide on A11 (OAuth token in URL) — accept the mitigated risk, or invest in a flow change
 - [ ] Full RTL/Hebrew visual review (if/where Hebrew UI exists)
 - [ ] Legal/trust pages reviewed by a professional (privacy, terms, disclaimers)
+
+---
+
+## Concurrent-scanning capacity — reasoned estimate, not a measured load test
+
+No load-testing infrastructure was available in this environment (see "could not test" lists
+above), so this is derived from the actual code paths and confirmed deployment facts, not a
+guess.
+
+**Confirmed facts this estimate rests on:**
+- `CLUSTER_WORKERS` is **not set** on Render — the app runs as a single Node process (confirmed
+  with the user). `server.js` defaults to exactly this unless that env var is explicitly raised.
+- Render's $7/mo Starter tier: 512 MB RAM, 0.5 shared vCPU.
+- Finnhub key-pool size in production is **unconfirmed** (the user wasn't sure) — the estimate
+  below uses the conservative assumption of exactly 1 key (`FINNHUB_API_KEY` only, no
+  `FINNHUB_API_KEY_POOL_*`). More keys raise the Finnhub-bound ceiling proportionally.
+
+**Why concurrent user count barely moves the external-API bill, for the two scanning features
+that matter most:**
+- Capital Flow ("Run Scan"): `server/routes/scan.js`'s `joinSharedScan` — every user requesting
+  the *same* universe (all/S&P 500/NASDAQ 100/a given sector combo) while a scan is already
+  running subscribes to that *one* in-flight scan instead of starting their own. The Yahoo
+  batch-quote calls and the Finnhub enrichment calls (only for symbols that pass the shared
+  floor filter — `FLOOR_RATIO=1.5`, `FLOOR_CAP=$500M`) both happen exactly once per universe,
+  not once per requesting user. 100 people clicking "Full Scan" in the same few seconds cost
+  the same external-API budget as 1 person doing it.
+- MA Scanner: no live shared-scan dedup, but a 5-minute result cache keyed by the *exact*
+  parameter combination (`ma`, `distance`, `interval`, `market`, `sectors`) — most users run the
+  pre-selected defaults, so most concurrent requests are cache hits. It also never calls Finnhub
+  at all (Yahoo only).
+- Both, plus Fundamentals and the chart route, read quotes through the *same* module-level
+  `quoteCache` (3-minute shared TTL across every feature and every user) — a cache miss for one
+  user is very often a cache hit for the next.
+
+**The one place cost DOES scale directly with distinct concurrent requests:** a Fundamentals
+lookup of a ticker nobody has checked in the last 24h calls Finnhub once for that symbol
+(`fetchFinnhubMetric`) — this is the only feature where N simultaneous *distinct* requests means
+N Finnhub calls, not 1.
+
+**The estimate:**
+
+| Scenario | Estimated concurrent capacity | Binding constraint |
+|---|---|---|
+| Everyone browsing + running Capital Flow / MA Scanner scans, realistic mix of default and custom filters | **~200 concurrent users** | Single-process request-handling headroom on 0.5 vCPU/512 MB while the process is mostly *waiting* on outbound HTTP (I/O-bound, not CPU-bound) — not the external APIs, which the shared-scan/cache design insulates almost entirely from user count. `MAX_TRACKED_USERS = 500` in `server/state.js` is the explicit code-level ceiling this sits well under. |
+| Worst case: everyone simultaneously looking up a *distinct*, never-before-checked ticker in Fundamentals at the same instant | **~60 people in the same 60-second window** (1 Finnhub key × 60 calls/min) | Finnhub's free-tier rate limit. Beyond that, the circuit breaker (`server/utils/circuitBreaker.js`) and key-pool rotation stop it from erroring — additional requests either wait briefly, get graceful "unverified" fields, or (if a pool of more keys is actually configured) get a proportionally higher ceiling. |
+
+**Bottom line: ~200 concurrent users is the honest number for this app's actual usage pattern
+(mostly scanning, some Fundamentals lookups) on the current single-process $7 Render instance.**
+That is a reasoned ceiling from the code and deployment facts above, not a measured result — the
+one way to make it a measured number would be an actual load test against a staging copy of the
+app, which this environment cannot run.

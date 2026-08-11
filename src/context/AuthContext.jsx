@@ -12,8 +12,13 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    // google_pending travels as a URL fragment (#...), not a query string —
+    // the browser never sends a fragment to any server or Referer header,
+    // where a query string carrying the same access token would. See
+    // routes/auth.js's /google/callback for the redirect side of this.
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     const tokenFromUrl = params.get('token');
-    const pendingFromUrl = params.get('google_pending');
+    const pendingFromUrl = hashParams.get('google_pending');
     const errorFromUrl = params.get('auth_error');
     const inviteFromUrl = params.get('invite');
 

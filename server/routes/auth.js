@@ -175,8 +175,16 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
         (process.env.NODE_ENV === 'production'
           ? `https://${req.get('host')}`
           : 'http://localhost:5173');
-      console.log('[google/callback] redirecting to:', dest + '/?google_pending=<JWT>');
-      res.redirect(`${dest}/?google_pending=${accessToken}`);
+      console.log('[google/callback] redirecting to:', dest + '/#google_pending=<JWT>');
+      // A URL fragment (#...), not a query string (?...) — the browser never
+      // sends the fragment to any server (this one included, on the very
+      // next request) and strips it from the Referer header on any outbound
+      // request the landing page makes before React mounts. A query string
+      // has neither protection: it travels in this redirect's own request
+      // line (so it can end up in this server's/a reverse proxy's access
+      // log) and rides along in Referer to any third-party resource the page
+      // loads before the token is read out of the URL.
+      res.redirect(`${dest}/#google_pending=${accessToken}`);
     })(req, res, next);
   });
 } else {

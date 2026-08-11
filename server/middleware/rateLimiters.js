@@ -147,9 +147,15 @@ const publicWriteLimiter = rateLimit({
   message: { error: 'Too many requests. Please try again shortly.' },
 });
 
+// Currently backs only /coupons/validate — deliberately unauthenticated (a
+// visitor can check a code before signing up), which also means it's the
+// one endpoint in the app open to slow coupon-code enumeration. 8/min still
+// comfortably covers a human mistyping a code 2-3 times, while cutting the
+// guessing throughput well below the 20/min floor this used to share with
+// nothing else.
 const publicDataLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 20,
+  max: 8,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests. Please slow down.' },
