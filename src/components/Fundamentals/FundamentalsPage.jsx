@@ -153,7 +153,10 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
   const isPremium = !!(user && user.is_premium);
 
   const [symbolInput, setSymbolInput] = useState('');
-  const [selectedMetrics, setSelectedMetrics] = useState(() => new Set(ALL_METRIC_KEYS));
+  // Starts with nothing selected — every toggle is off until the customer
+  // actually picks one themselves, rather than defaulting to "everything
+  // chosen" and making them deselect what they don't want.
+  const [selectedMetrics, setSelectedMetrics] = useState(() => new Set());
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);

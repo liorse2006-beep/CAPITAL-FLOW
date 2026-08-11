@@ -87,6 +87,23 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     return { ...utils, fetchMock }
   }
 
+  it('starts with no attribute selected, so a lookup shows the empty-selection hint rather than every tile', async () => {
+    const user = userEvent.setup()
+    renderPremiumPage()
+
+    await screen.findByPlaceholderText(/Enter a ticker/)
+    // None of the six toggle buttons should read as pressed before the
+    // customer has touched any of them.
+    expect(screen.getByRole('button', { name: 'Float' })).toHaveAttribute('aria-pressed', 'false')
+
+    await user.type(screen.getByPlaceholderText(/Enter a ticker/), 'AAPL')
+    await user.click(screen.getByText('Analyze'))
+
+    expect(await screen.findByText('Apple Inc.')).toBeInTheDocument()
+    expect(screen.getByText(/No metrics selected/)).toBeInTheDocument()
+    expect(screen.queryByText('1.45')).not.toBeInTheDocument()
+  })
+
   it('runs a lookup and shows the result, with an unverified field flagged distinctly instead of a value', async () => {
     const user = userEvent.setup()
     renderPremiumPage()
@@ -98,6 +115,9 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     // 'AAPL' text now also appears in the Recent chip added by this same
     // lookup — wait on the company name instead, which stays unique.
     expect(await screen.findByText('Apple Inc.')).toBeInTheDocument()
+    // Nothing is selected by default — turn every tile on to check them.
+    await user.click(screen.getByRole('button', { name: /select all/i }))
+
     expect(screen.getByText('Not verified — try again in a few minutes')).toBeInTheDocument()
     // A field Finnhub actually answered must never be replaced by the
     // unverified message — only the one flagged unverified is.
@@ -113,6 +133,10 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     await user.type(screen.getByPlaceholderText(/Enter a ticker/), 'AAPL')
     await user.click(screen.getByText('Analyze'))
     await screen.findByText('Apple Inc.')
+
+    // Nothing is selected by default — select everything first so this
+    // test can exercise deselecting a single one against a known baseline.
+    await user.click(screen.getByRole('button', { name: /select all/i }))
 
     // "Debt / Equity" appears twice while its tile is shown: the filter chip
     // and the result tile. Deselecting removes the tile, leaving just the chip.
