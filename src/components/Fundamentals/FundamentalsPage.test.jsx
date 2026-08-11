@@ -22,7 +22,8 @@ function renderPage(props = {}) {
 describe('FundamentalsPage', () => {
   it('gates the lookup behind sign-in for a logged-out visitor, never showing the search UI', () => {
     renderPage()
-    expect(screen.getByText(/Premium\/Elite feature/)).toBeInTheDocument()
+    // Upsell copy pitches the swing-decision framing; the search UI is absent.
+    expect(screen.getByText(/swing decision/i)).toBeInTheDocument()
     expect(screen.queryByText('Analyze')).not.toBeInTheDocument()
     expect(screen.queryByPlaceholderText(/Enter a ticker/)).not.toBeInTheDocument()
   })
@@ -102,7 +103,7 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     expect(screen.getByText('1.45')).toBeInTheDocument()
   })
 
-  it('deselecting a metric hides its tile, and ALL brings every tile back', async () => {
+  it('deselecting a metric hides its tile, and Select all brings every tile back', async () => {
     const user = userEvent.setup()
     renderPremiumPage()
 
@@ -111,13 +112,17 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     await user.click(screen.getByText('Analyze'))
     await screen.findByText('AAPL')
 
-    // "Debt / Equity" appears twice while its tile is shown: once as the
-    // filter chip label, once as the result tile label.
+    // "Debt / Equity" appears twice while its tile is shown: the filter chip
+    // and the result tile. Deselecting removes the tile, leaving just the chip.
     expect(screen.getAllByText('Debt / Equity')).toHaveLength(2)
-    await user.click(screen.getByLabelText('Debt / Equity'))
+    // Toggle the chip off via its accessible name (the check glyph is
+    // aria-hidden, so the button's name is just the metric label).
+    await user.click(screen.getByRole('button', { name: /^Debt \/ Equity$/ }))
     expect(screen.getAllByText('Debt / Equity')).toHaveLength(1)
 
-    await user.click(screen.getByText('ALL'))
+    // With one deselected the batch button reads "Select all" — clicking it
+    // restores every tile.
+    await user.click(screen.getByRole('button', { name: /select all/i }))
     expect(screen.getAllByText('Debt / Equity')).toHaveLength(2)
   })
 })

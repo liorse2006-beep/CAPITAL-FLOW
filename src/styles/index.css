@@ -593,156 +593,406 @@ body {
   overflow: hidden;
 }
 
-/* ── Fundamentals — single-ticker lookup, not a universe scan: a search
-   row instead of filter controls, a result card instead of a table. ── */
+/* ── Fundamentals — single-ticker lookup. Design language matches the
+   scanner's cards: bg-1 surfaces, --border-strong, mono for every number,
+   the amber accent spent only on the active/primary state, and semantic
+   green/red/amber reserved for what the data actually means (a short-squeeze
+   risk, shrinking revenue, an earnings date days out). ── */
+.fund-page {
+  max-width: 920px;
+  margin: 0 auto;
+}
+.fund-panel {
+  background: var(--bg-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+}
 .fund-search-row {
   display: flex;
   gap: 10px;
-  align-items: center;
-  width: 100%;
+  align-items: stretch;
 }
-.fund-search-input {
+.fund-search-field {
   flex: 1;
   min-width: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.fund-search-icon {
+  position: absolute;
+  left: 14px;
+  color: var(--text-2);
+  pointer-events: none;
+}
+.fund-search-input {
+  width: 100%;
   background: var(--bg-0);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  padding: 11px 14px;
+  border-radius: 10px;
+  padding: 13px 14px 13px 42px;
   color: var(--text-0);
-  font-size: 15px;
+  font-size: 16px;
   font-family: var(--mono);
-  letter-spacing: 0.03em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .fund-search-input:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
 }
 .fund-search-input::placeholder {
   text-transform: none;
   color: var(--text-3);
   font-family: var(--font-body, inherit);
+  font-weight: 400;
   letter-spacing: normal;
 }
-.fund-result-card {
-  padding: 24px;
+.fund-analyze-btn {
+  flex-shrink: 0;
+  padding-left: 26px;
+  padding-right: 26px;
 }
-.fund-result-header {
+
+.fund-picker {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.fund-picker-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.fund-picker-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-2);
+}
+.fund-picker-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.fund-picker-count {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.fund-picker-count-total {
+  color: var(--text-3);
+  font-weight: 500;
+}
+.fund-picker-toggle-all {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  transition: color 0.16s ease;
+}
+.fund-picker-toggle-all:hover {
+  color: var(--accent);
+}
+.fund-toggles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.fund-toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg-0);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+.fund-toggle:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--bg-1);
+  color: var(--text-0);
+}
+.fund-toggle-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--bg-2);
+  color: var(--text-2);
+  transition: background 0.16s ease, color 0.16s ease;
+}
+.fund-toggle-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fund-toggle-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-3);
+  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.fund-toggle.active {
+  border-color: rgba(245, 158, 11, 0.55);
+  background: linear-gradient(160deg, rgba(245, 158, 11, 0.09) 0%, rgba(245, 158, 11, 0.02) 100%);
+  color: var(--text-0);
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.12), 0 4px 14px -6px rgba(245, 158, 11, 0.35);
+}
+.fund-toggle.active .fund-toggle-icon {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--accent-2);
+}
+.fund-toggle.active .fund-toggle-dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+}
+
+.fund-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 180px;
+  color: var(--text-2);
+  font-size: 13px;
+  font-family: var(--mono);
+}
+
+.fund-result {
+  margin-top: 16px;
+  background: var(--bg-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+.fund-result-head {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
-  padding-bottom: 18px;
-  margin-bottom: 18px;
+  gap: 14px;
+  padding: 22px 24px;
+  background: linear-gradient(160deg, rgba(245, 158, 11, 0.05) 0%, transparent 60%);
   border-bottom: 1px solid var(--border);
+}
+.fund-result-id {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 .fund-result-symbol {
   font-family: var(--mono);
-  font-size: 26px;
+  font-size: 30px;
   font-weight: 800;
-  margin-right: 10px;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  color: var(--text-0);
 }
 .fund-result-name {
+  font-size: 13px;
   color: var(--text-2);
-  font-size: 14px;
 }
-.fund-result-price {
+.fund-result-quote {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.fund-result-price {
   font-family: var(--mono);
-  font-size: 20px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-0);
+}
+.fund-result-change {
+  font-family: var(--mono);
+  font-size: 13px;
   font-weight: 700;
 }
-.fund-result-price span:last-child {
-  font-size: 14px;
-  font-weight: 600;
+.fund-result-change.is-up {
+  color: var(--green);
+}
+.fund-result-change.is-down {
+  color: var(--red);
 }
 .fund-result-cap {
+  font-size: 11.5px;
   color: var(--text-2);
-  font-weight: 600;
-}
-.fund-metric-picker {
-  width: 100%;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-}
-.fund-metric-picker-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-.fund-metric-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.fund-metric-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  font-size: 12.5px;
-  color: var(--text-2);
-  cursor: pointer;
-  user-select: none;
-  transition: all 0.15s ease;
-}
-.fund-metric-chip input {
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-.fund-metric-chip.active {
-  border-color: var(--accent);
-  color: var(--text-0);
-  background: rgba(245, 158, 11, 0.06);
-}
-.fund-metric-unverified {
-  font-size: 12.5px;
-  color: var(--accent);
-  font-weight: 600;
-  line-height: 1.4;
-}
-.fund-metric-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-}
-.fund-metric-tile {
-  background: var(--bg-0);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 14px 16px;
-}
-.fund-metric-label {
-  font-size: 11px;
-  color: var(--text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 6px;
-}
-.fund-metric-value {
   font-family: var(--mono);
-  font-size: 18px;
+}
+.fund-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+}
+.fund-tile {
+  background: var(--bg-1);
+  padding: 18px 20px;
+  min-height: 104px;
+  transition: background 0.18s ease;
+}
+.fund-tile:hover {
+  background: var(--bg-2);
+}
+.fund-tile-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.fund-tile-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.fund-tile-sub {
+  font-size: 10px;
+  color: var(--text-3);
+  text-align: right;
+  white-space: nowrap;
+}
+.fund-tile-value {
+  font-family: var(--mono);
+  font-size: 24px;
   font-weight: 700;
   color: var(--text-0);
+  line-height: 1.1;
 }
-@media (max-width: 900px) {
-  .fund-metric-grid {
+.fund-tile-value.is-unverified {
+  color: var(--text-3);
+}
+.fund-tile-value.tone-good {
+  color: var(--green);
+}
+.fund-tile-value.tone-bad {
+  color: var(--red);
+}
+.fund-tile-hint {
+  margin-top: 7px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.fund-tile-hint.tone-warn {
+  color: var(--accent-2);
+}
+.fund-tile-hint.tone-good {
+  color: var(--green);
+}
+.fund-tile-hint.tone-bad {
+  color: var(--red);
+}
+.fund-tile-hint.tone-muted {
+  color: var(--text-2);
+}
+.fund-empty-hint {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.fund-upsell {
+  max-width: 440px;
+  margin: 40px auto;
+  text-align: center;
+  background: var(--bg-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  padding: 36px 32px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.3);
+}
+.fund-upsell-mark {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 700;
+  font-style: italic;
+}
+.fund-upsell-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.fund-upsell-sub {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-1);
+  margin-bottom: 22px;
+}
+.fund-upsell-btn {
+  min-width: 200px;
+}
+@media (max-width: 720px) {
+  .fund-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .fund-toggles {
     grid-template-columns: repeat(2, 1fr);
   }
 }
-@media (max-width: 500px) {
+@media (max-width: 480px) {
   .fund-search-row {
     flex-direction: column;
-    align-items: stretch;
+  }
+  .fund-grid {
+    grid-template-columns: 1fr;
+  }
+  .fund-toggles {
+    grid-template-columns: 1fr;
+  }
+  .fund-result-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .fund-result-quote {
+    justify-content: flex-start;
   }
 }
+
 
 .table-bar {
   display: flex;
