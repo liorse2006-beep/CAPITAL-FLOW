@@ -334,7 +334,7 @@ function setupTiltCards(root, cleanupFns) {
 
   const tiltCards = [];
   const listeners = [];
-  root.querySelectorAll('.cf-tool, .cf-proof, .cf-faq-item, .cf-compare-row').forEach((card) => {
+  root.querySelectorAll('.cf-feat, .cf-proof, .cf-faq-item').forEach((card) => {
     const entry = { el: card, rx: makeSpring(0), ry: makeSpring(0), scale: makeSpring(1) };
     tiltCards.push(entry);
     function onMove(e) {
@@ -683,7 +683,7 @@ function setupScrollFloat(root, cleanupFns) {
   // LTR order, so "MA Scanner" rendered as "Scanner MA". The section
   // headings below are pure Hebrew, where the reading-order direction and
   // the container direction agree, so word-splitting them is safe.
-  root.querySelectorAll('.cf-how-title, #tools h2, #faq h2, .cf-final h2').forEach((el) => {
+  root.querySelectorAll('#why h2, #why-tools h2, #how h2, #faq h2, .cf-final h2').forEach((el) => {
     mountScrollFloat(el, {}, cleanupFns);
   });
 }
@@ -694,7 +694,7 @@ function setupElectricBorders(root, cleanupFns) {
 
   const ebInstances = [];
   const mounted = [];
-  root.querySelectorAll('.cf-tool, .cf-faq-item, .cf-compare-row, .cf-proof, .cf-stack-card').forEach((el) => {
+  root.querySelectorAll('.cf-feat, .cf-faq-item, .cf-proof').forEach((el) => {
     mounted.push(mountElectricBorder(el, { color: '#ffd17d', speed: 1.5, chaos: 0.01, thickness: 2, borderRadius: 16 }, ebInstances));
   });
 
@@ -931,7 +931,7 @@ function mountTrustMarquee(el, phrases, cleanupFns) {
 
 function setupScrollCta(root, cleanupFns) {
   const btn = root.querySelector('#cfScrollCta');
-  const target = root.querySelector('#how-tools');
+  const target = root.querySelector('#why');
   if (!btn || !target) return;
   function onClick() {
     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
