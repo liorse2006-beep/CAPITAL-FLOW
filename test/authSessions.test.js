@@ -69,6 +69,28 @@ test('revokeSession invalidates only that session — a sibling session on the s
   assert.ok(await refreshAccessToken(refreshB), 'the sibling session must still work');
 });
 
+// Regression: createSession used to SELECT the existing session count, then
+// DELETE the excess in a loop, then INSERT — a real gap between the read and
+// the write. Five logins fired at once (e.g. several devices signing in
+// within the same instant, or a retried request racing the original) could
+// each read "under the cap" before any of them had evicted anything, letting
+// the account end up with more than MAX_ACTIVE_SESSIONS active sessions at
+// once. createSession now inserts first and prunes with a single
+// self-contained DELETE, which has no such gap.
+test('N concurrent logins on one account never leave more than MAX_ACTIVE_SESSIONS sessions active', async () => {
+  const { MAX_ACTIVE_SESSIONS } = require('../server/services/auth');
+  const user = await makeUser('concurrent-login@test.local');
+
+  await Promise.all(Array.from({ length: 5 }, () => createSession(user.id)));
+
+  const rows = await db.prepare('SELECT id FROM user_sessions WHERE user_id = ?').all(user.id);
+  assert.strictEqual(
+    rows.length,
+    MAX_ACTIVE_SESSIONS,
+    `expected exactly ${MAX_ACTIVE_SESSIONS} surviving sessions after 5 concurrent logins, got ${rows.length}`
+  );
+});
+
 test('POST /api/auth/refresh mints a new access token from the httpOnly cookie set at login', async () => {
   const user = await makeUser('refresh-route-a@test.local');
   const { refreshToken } = await issueToken(user);

@@ -73,20 +73,34 @@ function generateToken(user, sessionId) {
  * new session's id, to embed in the paired access token.
  */
 async function createSession(userId) {
-  const existing = await db
-    .prepare('SELECT id FROM user_sessions WHERE user_id = ? ORDER BY last_used_at ASC')
-    .all(userId);
-  if (existing.length >= MAX_ACTIVE_SESSIONS) {
-    const toEvict = existing.slice(0, existing.length - MAX_ACTIVE_SESSIONS + 1);
-    for (const row of toEvict) {
-      await db.prepare('DELETE FROM user_sessions WHERE id = ?').run(row.id);
-    }
-  }
   const refreshToken = crypto.randomBytes(48).toString('base64url');
   const now = Math.floor(Date.now() / 1000);
   const result = await db
     .prepare('INSERT INTO user_sessions (user_id, refresh_token_hash, created_at, last_used_at) VALUES (?, ?, ?, ?)')
     .run(userId, hashRefreshToken(refreshToken), now, now);
+
+  // Prune down to the MAX_ACTIVE_SESSIONS most-recently-used rows in one
+  // self-contained statement, run AFTER inserting this new session — a
+  // separate SELECT-then-DELETE-in-a-loop (the previous approach) has a gap
+  // between reading "how many sessions exist" and deleting the excess, so
+  // two logins arriving within that gap (two devices signing in within
+  // milliseconds of each other) could both read the same under-the-cap
+  // count and neither would evict, briefly leaving 3+ active sessions
+  // instead of enforcing the 2-device cap. This DELETE has no such gap: it
+  // always re-evaluates "which rows are outside the newest N" against the
+  // database as it stands the instant it runs, and SQLite/libsql serializes
+  // writes to the same table, so concurrent calls still converge on exactly
+  // MAX_ACTIVE_SESSIONS surviving rows once both have run.
+  await db
+    .prepare(
+      `DELETE FROM user_sessions
+       WHERE user_id = ?
+         AND id NOT IN (
+           SELECT id FROM user_sessions WHERE user_id = ? ORDER BY last_used_at DESC LIMIT ?
+         )`
+    )
+    .run(userId, userId, MAX_ACTIVE_SESSIONS);
+
   return { refreshToken, sessionId: result.lastInsertRowid };
 }
 
