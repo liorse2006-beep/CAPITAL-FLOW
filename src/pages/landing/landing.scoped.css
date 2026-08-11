@@ -139,6 +139,9 @@
   font-family: var(--font-display);
   font-weight: 800;
   font-size: 12px;
+  line-height: 1; /* .cf-root sets line-height:1.6 — at 1.6 each line is
+    taller than this 18px banner, and .text-loop's overflow:hidden slices
+    straight through the middle of every glyph as a result. */
   letter-spacing: 0.5px;
   color: var(--accent-ink);
 }
