@@ -9,6 +9,10 @@ const assert = require('node:assert');
 process.env.MASSIVE_API_KEY = 'test-massive-key';
 process.env.MARKETAUX_API_KEY = 'test-marketaux-key';
 process.env.NEWSDATA_API_KEY = 'test-newsdata-key';
+// The enrichment test below mocks Gemini's HTTP response. Set a fake key so
+// the test exercises that branch identically in CI, where the real developer
+// .env is intentionally absent, and locally, where it may be present.
+process.env.GOOGLE_AI_STUDIO_KEY = 'test-gemini-key';
 delete require.cache[require.resolve('../server/config')];
 
 // finnhubFetch is destructured (by value) into newsService at require time,
