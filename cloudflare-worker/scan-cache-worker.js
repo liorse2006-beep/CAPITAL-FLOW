@@ -18,14 +18,20 @@
 //
 // WHAT IT DELIBERATELY DOES NOT DO
 // It does not replace the origin's own auth checks. A structurally valid,
-// unexpired JWT is required just to reach the cache — but is_blocked,
-// session-revocation (logout / force-logout), and quota enforcement all
-// still happen on Render, on every cache MISS (same as today) and via the
-// live /api/scan-quota call layered on every cache HIT. The one accepted
-// gap: a user blocked in the few seconds between two cache refreshes can
-// still read an already-cached, already-public-by-the-time-anyone-else-saw-
-// it market snapshot until the entry's TTL expires — not sensitive data,
-// and never their own personalized quota (that's always fetched live).
+// unexpired JWT is required just to reach the cache — but is_blocked and
+// session-revocation (logout / force-logout) still happen on Render, on
+// every cache MISS (same as today). Quota is re-checked here explicitly on
+// every cache HIT too (hasQuotaRemaining, below) against a live
+// /api/scan-quota read — without that check, a cache HIT never calls the
+// origin's /api/scan at all, so an account with zero scans left (trial
+// expired, or premium's daily 5 already used) could otherwise read a full
+// scan result for free forever, as long as someone else's identical query
+// happened to be warm. The one accepted gap: a user blocked in the few
+// seconds between two cache refreshes can still read an already-cached,
+// already-public-by-the-time-anyone-else-saw-it market snapshot until the
+// entry's TTL expires — not sensitive data, and never bypasses quota (that
+// check above still runs and still rejects them the moment is_blocked would
+// also make their own live quota read fail closed).
 //
 // DEPLOY (Cloudflare dashboard, free plan, no cost):
 //   1. Workers & Pages → Create → paste this file as the Worker's script.
@@ -71,6 +77,22 @@ async function verifyJwtHS256(token, secret) {
 function stripPersonalFields(body) {
   const { tier, isPremium, premium, free, ...shared } = body;
   return shared;
+}
+
+// Mirrors server/middleware/authMiddleware.js's requireScanQuota gate.
+// Elite is unlimited; Premium gets PREMIUM_DAILY_LIMIT/day; Free only during
+// its trial window. Without this, a cache HIT never calls the origin's
+// /api/scan at all — meaning an account with zero scans left (trial
+// expired, or premium's daily 5 already used) could still read a full
+// scan result for free forever, as long as someone else's identical query
+// happened to be warm in the edge cache. A cache MISS is unaffected: that
+// path already goes through the real /api/scan, which enforces this the
+// same way it always has.
+export function hasQuotaRemaining(quota) {
+  if (!quota || !quota.tier) return false; // quota fetch itself failed — fail closed, not open
+  if (quota.tier === 'elite') return true;
+  if (quota.tier === 'premium') return !!quota.premium && quota.premium.left > 0;
+  return !!quota.free && quota.free.trialActive === true;
 }
 
 export default {
@@ -122,9 +144,21 @@ export default {
 
     // Cache hit — the heavy scan never ran for this request. Still fetch the
     // caller's own live quota (cheap; see server/routes/scanQuota.js) so the
-    // response is indistinguishable from an uncached one.
+    // response is indistinguishable from an uncached one — and so it can be
+    // enforced below, not just displayed.
     const quotaResp = await fetch(env.ORIGIN + QUOTA_PATH, { headers: { Authorization: auth } });
-    const quota = quotaResp.ok ? await quotaResp.json() : {};
+    const quota = quotaResp.ok ? await quotaResp.json() : null;
+
+    if (!hasQuotaRemaining(quota)) {
+      // Same shape as the origin's own requireScanQuota rejection
+      // (server/middleware/authMiddleware.js) — an account with no scans
+      // left must be rejected here too, not just on a cache MISS.
+      return new Response(JSON.stringify({ error: 'Scan limit reached', code: 'SCAN_LIMIT', ...(quota || {}) }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify({ ...sharedJson, ...quota, fromCache: true }), {
       headers: { 'Content-Type': 'application/json' },
     });

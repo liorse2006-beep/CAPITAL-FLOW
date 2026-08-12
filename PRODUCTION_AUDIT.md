@@ -257,3 +257,63 @@ N Finnhub calls, not 1.
 That is a reasoned ceiling from the code and deployment facts above, not a measured result — the
 one way to make it a measured number would be an actual load test against a staging copy of the
 app, which this environment cannot run.
+
+---
+
+## Pass 3 — 2026-08-12 — response to "this needs to reach at least 500"
+
+Reviewed everything built after the ~200-user estimate above and closed two gaps found while
+doing so. Nothing here is a measured load-test result — same caveat as Pass 2's estimate.
+
+**Reviewed and verified correct (built by a separate session before this pass):**
+- `server/middleware/authMiddleware.js`'s 20s `resolveToken()` cache — turns repeat requests
+  from the same logged-in user into an in-memory hit instead of 2 remote DB round trips.
+  Invalidation is wired correctly into logout, force-logout, password reset, *and* the admin
+  "block user" action (a real gap the caching itself introduced, since `is_blocked` alone
+  doesn't touch `user_sessions` — closed in the same commit). This directly attacks the
+  "single-process request-handling headroom" bottleneck the ~200 estimate was bound by.
+- `cloudflare-worker/scan-cache-worker.js` (not yet deployed) — edge-caches the shared
+  `/api/scan` result on Cloudflare's network instead of Render's single process, verifying the
+  JWT's signature/expiry at the edge and never letting one user's quota/tier leak into another's
+  cached response.
+
+**Found and fixed in this pass:**
+| ID | Severity | Area | Issue | Fix |
+|----|----------|------|-------|-----|
+| A15 | P2 | Business logic / Cloudflare Worker | On a cache HIT, the Worker fetched the caller's live quota only to *display* it, never to *enforce* it — an account with zero scans left (trial expired, or premium's daily 5 already used) could still read a full cached scan result for free, indefinitely, as long as someone else's identical query stayed warm. A cache MISS was never affected (that path still goes through the real `/api/scan`, which enforces quota as it always has). | Added `hasQuotaRemaining()` — mirrors `requireScanQuota`'s own gate (elite always allowed; premium while `left > 0`; free only during an active trial; anything malformed/missing fails closed) — and reject with the same `403 SCAN_LIMIT` shape the origin already uses when it fails. 5 new tests (`cloudflare-worker/scan-cache-worker.test.js`, run via `node --test`, not part of the app's normal `npm test`/`vitest` since this file runs in Cloudflare's runtime, not Node/Express). Not live yet — this fixes the file before its first deploy, zero production risk either way. |
+| A16 | P2 | Concurrency / capacity | `server/routes/maScanner.js` had no equivalent of Capital Flow's `joinSharedScan` — N users hitting "Run MA Scan" with the same (often the pre-selected default) params within the same few seconds each independently walked the whole ~500-symbol universe, N× the Yahoo chart-fetch load for byte-for-byte identical output. The Cloudflare Worker above only covers `/api/scan`, not `/api/scan-ma`, so this was a real, separate gap. | Added `inFlightScans` (same pattern as `scan.js`) — a request joins whichever scan for its exact param combination is already running, including live progress broadcast to every joining subscriber's own `/ma-progress` poll. Also switched the route's `scanMA` import from a destructured const to accessing it via the module object, matching `fundamentalsScanner.js`'s existing documented reasoning (a destructured const can't be reached by a test mock). 4 new tests in `test/maScannerConcurrency.test.js`, mirroring `test/scanConcurrency.test.js`'s existing coverage of the same pattern for Capital Flow. |
+
+**Revised concurrent-scanning capacity estimate:**
+
+The ~200 figure was bound by *auth overhead per request* (2 DB round trips on every single
+authenticated call, scan or not) and, secondarily, by MA Scanner having no shared-scan dedup.
+Both are now addressed for traffic actually running through Render:
+
+- The resolve-token cache removes ~half the DB round trips from every authenticated request
+  outright, and effectively all of them for a user polling `/ma-progress` or re-hitting an
+  endpoint within the same 20s window — raising the realistic ceiling for Render's single
+  0.5 vCPU/512 MB process to **roughly 350–400 concurrent users** for the same "mostly scanning"
+  traffic mix, still a reasoned estimate from the code, not a measured one.
+- MA Scanner's new shared-scan dedup removes the one place its load scaled directly with
+  distinct concurrent requests instead of distinct *scan configurations* — the same insulation
+  Capital Flow already had.
+- **The Cloudflare Worker is the one change that can genuinely clear 500+ for Capital Flow
+  specifically, but only once it's actually deployed** (see the file's own header for the 5
+  manual dashboard steps — it isn't live yet). Once live, Capital Flow's "N viewers, same shared
+  snapshot" load moves almost entirely off Render and onto Cloudflare's edge (free tier,
+  effectively unbounded concurrency for cache hits); Render is left doing only what's genuinely
+  per-user (auth + a live quota read), which is cheap enough to survive far past 500 concurrent
+  connections on its own.
+- MA Scanner and Fundamentals have **no equivalent edge cache** — they still run entirely on
+  Render. If "500 concurrent users" needs to hold even when many of them are on MA Scanner or
+  Fundamentals at the same moment (not just Capital Flow), the same edge-caching approach would
+  need a second Worker route for `/api/scan-ma`, and/or a Render plan upgrade (more than 0.5
+  vCPU) for the Fundamentals/MA compute itself. Neither is done in this pass.
+
+**Bottom line:** with the resolve-token cache and MA Scanner's shared-scan fix (both live on
+Render now), ~350–400 concurrent users is the revised reasoned ceiling for the app as a whole.
+**Reaching 500+ with confidence requires deploying the Cloudflare Worker** for Capital Flow's
+load specifically — a 5-step manual dashboard action, not a code change — and, if MA
+Scanner/Fundamentals need the same headroom, a second Worker route or a Render plan upgrade.
+None of this is a measured result; an actual load test against a staging copy remains the one
+way to turn any of these numbers into a verified one.

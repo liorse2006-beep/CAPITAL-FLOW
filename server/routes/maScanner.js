@@ -1,7 +1,12 @@
 const router = require('express').Router();
 const { requireAuth, requireScanQuota } = require('../middleware/authMiddleware');
 const { refundScan, quotaFor } = require('../services/scanQuota');
-const { scanMA } = require('../services/maScanner');
+// Accessed via the module object (maScannerService.scanMA(...)) rather than
+// destructured — a destructured const captures the function reference at
+// require-time, which test mocks (t.mock.method(mod, 'fn', ...)) can never
+// reach since they replace the property on the module object itself. Same
+// reasoning as services/fundamentalsScanner.js's own top-of-file comment.
+const maScannerService = require('../services/maScanner');
 const { SP500, NASDAQ100, ALL_TICKERS, SECTOR_TICKERS } = require('../../tickers');
 const { reportError } = require('../utils/reportError');
 
@@ -15,6 +20,17 @@ const scanProgress = new Map(); // userId → { processed, total, found, phase, 
 // intraday, so freshness isn't meaningfully sacrificed.
 const resultCache = new Map(); // cacheKey → { results, scanTime, expiresAt }
 const CACHE_TTL_MS = 5 * 60 * 1000;
+
+// The cache above only helps once a scan has already finished — it does
+// nothing for N users hitting "Run MA Scan" with the same (very often the
+// pre-selected default) params within the same few seconds, before any of
+// them has completed and populated it. Without this, each of those N
+// requests independently walks the whole ~500-symbol universe: N times the
+// Yahoo chart-fetch load for work that produces byte-for-byte the same
+// result. Mirrors routes/scan.js's joinSharedScan for Capital Flow — a
+// request joins whichever scan for its exact param combination is already
+// in flight instead of starting a duplicate one.
+const inFlightScans = new Map(); // cacheKey → { promise, subscribers: Set<userId> }
 
 function cacheKeyFor(ma, distance, interval, market, sectors) {
   return [ma, distance, interval, market, sectors.slice().sort().join('+')].join('|');
@@ -76,12 +92,30 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
   scanProgress.set(userId, { processed: 0, total: tickersToScan.length, found: 0, phase: 1, running: true });
 
   try {
-    const { results } = await scanMA(tickersToScan, {
-      ma,
-      distance,
-      interval,
-      onProgress: (p) => scanProgress.set(userId, { ...p, running: true }),
-    });
+    // Join whichever scan for this exact cacheKey is already running instead
+    // of starting a duplicate one — see inFlightScans' own comment above.
+    let entry = inFlightScans.get(cacheKey);
+    if (!entry) {
+      entry = { subscribers: new Set() };
+      entry.promise = maScannerService.scanMA(tickersToScan, {
+        ma,
+        distance,
+        interval,
+        // Broadcast progress to every subscriber's own progress slot, not
+        // just the request that happened to start the scan — /ma-progress
+        // is polled per-user, so a joining subscriber still sees live
+        // progress instead of a frozen 0% until the shared scan finishes.
+        onProgress: (p) => {
+          entry.subscribers.forEach((uid) => {
+            if (scanProgress.get(uid)) scanProgress.set(uid, { ...p, running: true });
+          });
+        },
+      }).finally(() => inFlightScans.delete(cacheKey));
+      inFlightScans.set(cacheKey, entry);
+    }
+    entry.subscribers.add(userId);
+
+    const { results } = await entry.promise;
 
     scanProgress.delete(userId);
 
