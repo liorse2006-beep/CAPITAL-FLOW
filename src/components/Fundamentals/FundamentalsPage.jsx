@@ -329,9 +329,32 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
       {error && <div className="error-bar">{error}</div>}
 
       {loading && (
-        <div className="fund-loading">
-          <div className="spinner" />
-          Pulling verified data…
+        <div className="fund-result fund-skeleton">
+          <div className="fund-result-head">
+            <div className="fund-result-id">
+              <span className="skel-bar skel-symbol" />
+              <span className="skel-bar skel-name" />
+            </div>
+            <div className="fund-result-quote">
+              <span className="skel-bar skel-price" />
+              <span className="skel-bar skel-change" />
+              <span className="skel-bar skel-cap" />
+            </div>
+          </div>
+          <div className="fund-grid">
+            {(visibleMetrics.length ? visibleMetrics : SELECTABLE_METRICS.slice(0, 6)).map((m) => (
+              <div key={m.key} className="fund-tile">
+                <div className="fund-tile-top">
+                  <span className="skel-bar skel-tile-label" />
+                  <span className="skel-bar skel-tile-sub" />
+                </div>
+                <span className="skel-bar skel-tile-value" />
+              </div>
+            ))}
+          </div>
+          <div className="fund-loading-caption">
+            Pulling verified data for <span className="mono">{symbolInput.trim().toUpperCase()}</span>…
+          </div>
         </div>
       )}
 

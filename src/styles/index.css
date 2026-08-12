@@ -835,15 +835,78 @@ body {
   box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
 }
 
-.fund-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  min-height: 180px;
-  color: var(--text-2);
-  font-size: 13px;
+/* Loading state mirrors .fund-result's own card/head/grid frame (not a bare
+   spinner floating on the page background) so the transition into the real
+   result reads as "the same card filling in," not "a different, cheaper
+   thing swapped for a nicer one." Bars shimmer via a moving gradient rather
+   than a flat pulse — reads as "actively fetching," not "stuck." */
+.fund-skeleton {
+  cursor: default;
+}
+.skel-bar {
+  display: inline-block;
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 75%
+  );
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes skel-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.skel-symbol {
+  width: 92px;
+  height: 26px;
+}
+.skel-name {
+  width: 140px;
+  height: 12px;
+  margin-top: 4px;
+}
+.skel-price {
+  width: 68px;
+  height: 20px;
+}
+.skel-change {
+  width: 52px;
+  height: 12px;
+}
+.skel-cap {
+  width: 58px;
+  height: 12px;
+}
+.skel-tile-label {
+  width: 72px;
+  height: 11px;
+}
+.skel-tile-sub {
+  width: 30px;
+  height: 9px;
+}
+.skel-tile-value {
+  width: 88px;
+  height: 22px;
+}
+.fund-loading-caption {
+  padding: 16px 24px 20px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.fund-loading-caption .mono {
   font-family: var(--mono);
+  color: var(--text-1);
+  font-weight: 700;
 }
 
 .fund-result {
