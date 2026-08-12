@@ -90,6 +90,11 @@ const spaCsp = helmet.contentSecurityPolicy({
       // pay.google.com; Apple Pay uses the browser's native Payment Request
       // API and needs no origin allow-listed here.
       'https://pay.google.com',
+      // Same VITE_SCAN_WORKER_URL Render env var that gets baked into the
+      // frontend bundle at build time (see Dockerfile) — reused here at
+      // runtime so the CSP allow-list never drifts out of sync with
+      // whatever origin the built JS actually fetches /api/scan from.
+      ...(process.env.VITE_SCAN_WORKER_URL ? [process.env.VITE_SCAN_WORKER_URL] : []),
     ],
     // Turnstile renders its challenge inside a sandboxed iframe from
     // Cloudflare; the embedded checkout form itself is a whop.com iframe;
