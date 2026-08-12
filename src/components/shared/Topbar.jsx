@@ -64,7 +64,6 @@ export default function Topbar({
   onOpenNotification,
   onToggleNotifications,
   setPage,
-  watchlistCount,
 }) {
   return (
     <>
@@ -136,7 +135,6 @@ export default function Topbar({
         </button>
         <button className={'nav-tab ' + (page === 'watchlist' ? 'active' : '')} onClick={() => setPage('watchlist')}>
           Watchlist
-          {watchlistCount > 0 && <span className="tab-badge">{watchlistCount}</span>}
         </button>
       </nav>
     </>

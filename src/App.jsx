@@ -1253,7 +1253,6 @@ function App() {
           onOpenNotification={openScheduledNotification}
           onToggleNotifications={toggleNotifications}
           setPage={setPage}
-          watchlistCount={watchlist.length}
         />
 
         <Routes>

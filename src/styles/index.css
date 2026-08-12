@@ -539,17 +539,6 @@ body {
 .nav-tab svg {
   flex-shrink: 0;
 }
-.nav-tab .tab-badge {
-  font-size: 9px;
-  font-weight: 600;
-  font-family: var(--mono);
-  background: var(--accent-vivid);
-  color: #0a0a0a;
-  padding: 1px 6px;
-  border-radius: 3px;
-  margin-left: 4px;
-}
-
 /* ── Brand mark — fixed to the left edge of the viewport, roughly level
    with the top of the results table. The logo sits inside ElectricBorder;
    "CAPITAL FLOW" appears as plain text above and below it. Hidden below
@@ -1425,6 +1414,13 @@ body {
   color: var(--text-1);
 }
 .sector-card-name {
+  /* .sector-card is a column flexbox with align-items:center — without an
+     explicit width, a flex child shrink-wraps to its own content's natural
+     (unwrapped) size instead of the card's actual width, so a long name
+     like "Communication Services" never wraps at all; it just overflows the
+     card equally on both sides and gets clipped by .sector-card's own
+     overflow:hidden, chopping off the first/last letters. */
+  width: 100%;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.2px;
@@ -1432,6 +1428,8 @@ body {
   min-height: 26px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 .sector-hint {
   font-size: 11px;

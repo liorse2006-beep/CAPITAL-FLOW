@@ -25,7 +25,6 @@ function baseProps(overrides = {}) {
     onRemoveAlert: vi.fn(),
     onToggleNotifications: vi.fn(),
     setPage: vi.fn(),
-    watchlistCount: 0,
     ...overrides,
   };
 }
@@ -57,10 +56,20 @@ describe('Topbar tier badge', () => {
 });
 
 describe('Topbar nav tabs', () => {
-  it('marks the active page tab and shows the watchlist badge count', () => {
-    render(<Topbar {...baseProps({ page: 'watchlist', watchlistCount: 3 })} />);
+  it('marks the active page tab', () => {
+    render(<Topbar {...baseProps({ page: 'watchlist' })} />);
     const watchlistTab = screen.getByText('Watchlist').closest('button');
     expect(watchlistTab.className).toMatch(/active/);
-    expect(screen.getByText('3')).toBeInTheDocument();
+  });
+
+  // A numeric badge on the Watchlist tab used to show how many tickers are
+  // starred — removed because it read as an unread-style notification badge
+  // (the same visual language as the alert bell's unread count), making
+  // customers think something needed their attention when nothing had
+  // actually happened.
+  it('never shows a numeric badge on the Watchlist tab', () => {
+    render(<Topbar {...baseProps({ page: 'watchlist' })} />);
+    const watchlistTab = screen.getByText('Watchlist').closest('button');
+    expect(watchlistTab.querySelector('.tab-badge')).toBeNull();
   });
 });
