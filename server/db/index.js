@@ -13,8 +13,9 @@ function makeUrl() {
   return 'file:' + path.join(dataDir, 'users.db');
 }
 
+const databaseUrl = makeUrl();
 const client = createClient({
-  url: makeUrl(),
+  url: databaseUrl,
   authToken: process.env.TURSO_AUTH_TOKEN || undefined,
 });
 
@@ -79,7 +80,9 @@ async function initDb() {
   // once. Wait on the file lock instead of failing the worker immediately;
   // Turso production connections do not need this, but it makes the local
   // file-mode cluster path behave like the shared production database.
-  await client.execute('PRAGMA busy_timeout = 5000');
+  if (databaseUrl.startsWith('file:')) {
+    await client.execute('PRAGMA busy_timeout = 5000');
+  }
   await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
