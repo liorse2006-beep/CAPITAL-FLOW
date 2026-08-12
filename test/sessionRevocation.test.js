@@ -11,7 +11,9 @@ const assert = require('node:assert');
 const express = require('express');
 
 const db = require('../server/db');
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 
 const { issueToken, refreshAccessToken, hashPassword, saveOTP } = require('../server/services/auth');
 const { resolveToken } = require('../server/middleware/authMiddleware');
@@ -104,7 +106,11 @@ test('resetting a password revokes every existing session — the actual fix for
     assert.strictEqual(res.status, 200);
 
     assert.strictEqual(await resolveToken(oldToken), null, 'the pre-reset access token must be dead');
-    assert.strictEqual(await refreshAccessToken(oldRefresh), null, 'the pre-reset refresh token must be dead too — this is the actual leaked-token kill switch');
+    assert.strictEqual(
+      await refreshAccessToken(oldRefresh),
+      null,
+      'the pre-reset refresh token must be dead too — this is the actual leaked-token kill switch'
+    );
 
     const data = await res.json();
     assert.ok(await resolveToken(data.token), 'the NEW session issued by this same reset must still work');
@@ -158,7 +164,10 @@ test('admin coupon routes: create, list, toggle, delete, all requiring admin aut
     const afterToggle = await db.prepare('SELECT active FROM coupons WHERE id = ?').get(created.id);
     assert.strictEqual(afterToggle.active, 0);
 
-    const del = await fetch(`http://127.0.0.1:${port}/admin/api/coupons/${created.id}`, { method: 'DELETE', headers: H });
+    const del = await fetch(`http://127.0.0.1:${port}/admin/api/coupons/${created.id}`, {
+      method: 'DELETE',
+      headers: H,
+    });
     assert.strictEqual(del.status, 200);
     assert.strictEqual(await db.prepare('SELECT id FROM coupons WHERE id = ?').get(created.id), undefined);
 
@@ -185,7 +194,9 @@ test('admin manual backup run and feedback deletion are audit-logged', async () 
   try {
     const del = await fetch(`http://127.0.0.1:${port}/admin/api/feedback/${fb.id}`, { method: 'DELETE', headers: H });
     assert.strictEqual(del.status, 200);
-    const logged = await db.prepare("SELECT * FROM admin_audit_log WHERE action = 'delete_feedback' AND detail = ?").get('feedback #' + fb.id);
+    const logged = await db
+      .prepare("SELECT * FROM admin_audit_log WHERE action = 'delete_feedback' AND detail = ?")
+      .get('feedback #' + fb.id);
     assert.ok(logged, 'deleting feedback must leave an audit-log entry');
   } finally {
     server.close();

@@ -7,7 +7,9 @@ const assert = require('node:assert');
 const express = require('express');
 
 const db = require('../server/db');
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 
 const { issueToken } = require('../server/services/auth');
 const { addNotification } = require('../server/services/notifications');

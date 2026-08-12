@@ -1,6 +1,6 @@
-import React from 'react'
-import useModalA11y from '../../hooks/useModalA11y'
-import { SECTOR_ICONS } from '../../constants/sectorIcons'
+import React from 'react';
+import useModalA11y from '../../hooks/useModalA11y';
+import { SECTOR_ICONS } from '../../constants/sectorIcons';
 
 // "By Sector" used to expand an inline grid on the main scan screen. Moved
 // into its own modal so picking sectors is a deliberate, focused step —
@@ -18,7 +18,7 @@ export default function SectorPickerModal({
   maxPremiumSectors,
   sectorLimit,
 }) {
-  const panelRef = useModalA11y(onDone)
+  const panelRef = useModalA11y(onDone);
 
   return (
     <div className="upgrade-overlay sector-modal-overlay" onClick={onDone}>
@@ -43,7 +43,7 @@ export default function SectorPickerModal({
 
         <div className="sector-modal-grid">
           {allSectors.map((s, i) => {
-            const active = selectedSectors.indexOf(s) >= 0
+            const active = selectedSectors.indexOf(s) >= 0;
             return (
               <button
                 key={s}
@@ -56,7 +56,7 @@ export default function SectorPickerModal({
                 <div className="sector-card-name">{s}</div>
                 {active && <div className="sector-card-check">✓</div>}
               </button>
-            )
+            );
           })}
         </div>
 
@@ -83,5 +83,5 @@ export default function SectorPickerModal({
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -69,7 +69,8 @@ router.post('/checkout/transaction', requireAuth, async (req, res) => {
   }
 
   const planId = PLAN_ID[tier];
-  if (!planId) return res.status(400).json({ error: 'tier must be premium or elite, and its Whop plan must be configured' });
+  if (!planId)
+    return res.status(400).json({ error: 'tier must be premium or elite, and its Whop plan must be configured' });
 
   try {
     // Local coupons never change the amount Whop charges directly — Whop

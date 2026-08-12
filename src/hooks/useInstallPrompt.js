@@ -6,19 +6,19 @@ export default function useInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return !!localStorage.getItem(STORAGE_KEY);
+    } catch (e) {
+      return false;
+    }
+  });
 
   useEffect(() => {
-    // Already dismissed or installed before
-    if (localStorage.getItem(STORAGE_KEY)) {
-      setDismissed(true);
-      return;
-    }
+    if (dismissed) return;
 
     // Already running as installed PWA
-    const standalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true;
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     if (standalone) {
       setIsStandalone(true);
       return;
@@ -45,7 +45,7 @@ export default function useInstallPrompt() {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
-  }, []);
+  }, [dismissed]);
 
   async function triggerInstall() {
     if (!deferredPrompt) return;

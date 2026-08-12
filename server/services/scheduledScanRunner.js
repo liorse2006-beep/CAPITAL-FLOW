@@ -35,7 +35,9 @@ function israelNowMinutes() {
     hour12: false,
   }).formatToParts(new Date());
   const map = {};
-  parts.forEach((p) => { map[p.type] = p.value; });
+  parts.forEach((p) => {
+    map[p.type] = p.value;
+  });
   return Number(map.hour) * 60 + Number(map.minute);
 }
 
@@ -47,7 +49,9 @@ function israelToday() {
     day: '2-digit',
   }).formatToParts(new Date());
   const map = {};
-  parts.forEach((p) => { map[p.type] = p.value; });
+  parts.forEach((p) => {
+    map[p.type] = p.value;
+  });
   return `${map.year}-${map.month}-${map.day}`;
 }
 
@@ -87,12 +91,18 @@ async function runScanForType(scanType) {
 function payloadForType(scanType, results) {
   if (scanType === 'maScanner') {
     return results.length > 0
-      ? { title: `MA signal detected — ${results[0].symbol}`, body: `${results.length} stocks near their moving average. Tap to see the full scan.` }
+      ? {
+          title: `MA signal detected — ${results[0].symbol}`,
+          body: `${results.length} stocks near their moving average. Tap to see the full scan.`,
+        }
       : { title: 'MA Scanner — Daily Scan', body: 'No MA signals right now. Check back later.' };
   }
   if (scanType === 'sectorMoving') {
     return results.length > 0
-      ? { title: `Sector flow detected — ${results[0].symbol}`, body: `${results.length} sector movers right now. Tap to see the full scan.` }
+      ? {
+          title: `Sector flow detected — ${results[0].symbol}`,
+          body: `${results.length} sector movers right now. Tap to see the full scan.`,
+        }
       : { title: 'Hot Sectors — Daily Scan', body: 'No sector flow right now. Markets look quiet.' };
   }
   return results.length > 0

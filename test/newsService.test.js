@@ -3,7 +3,7 @@
 // never fabricate an article; an exhausted chain must report an empty
 // result, not invented content.
 require('./helpers/testEnv');
-const { test, before, after } = require('node:test');
+const { test, after } = require('node:test');
 const assert = require('node:assert');
 
 process.env.MASSIVE_API_KEY = 'test-massive-key';
@@ -127,8 +127,16 @@ test('NewsData.io results that never actually mention the ticker are dropped —
     assert.match(url, /newsdata\.io/);
     return jsonResponse({
       results: [
-        { title: 'Completely unrelated market roundup', description: 'General commentary with no ticker mention.', link: 'https://example.com/unrelated' },
-        { title: 'ALLX reports strong demand', description: 'ALLX shares moved on the news.', link: 'https://example.com/real' },
+        {
+          title: 'Completely unrelated market roundup',
+          description: 'General commentary with no ticker mention.',
+          link: 'https://example.com/unrelated',
+        },
+        {
+          title: 'ALLX reports strong demand',
+          description: 'ALLX shares moved on the news.',
+          link: 'https://example.com/real',
+        },
       ],
     });
   });
@@ -150,7 +158,9 @@ test('a provider erroring out is treated the same as empty — chain keeps going
   global.fetch = withHeadPassthrough(async (url) => {
     if (url.includes('massive.com')) throw new Error('network down');
     return jsonResponse({
-      data: [{ title: 'Recovered via MarketAux', source: 'X', published_at: '2026-01-01T00:00:00Z', url: 'https://x.com' }],
+      data: [
+        { title: 'Recovered via MarketAux', source: 'X', published_at: '2026-01-01T00:00:00Z', url: 'https://x.com' },
+      ],
     });
   });
 
@@ -167,7 +177,14 @@ test('a successful result is cached for subsequent calls within the TTL', async 
     // the summarizer just fails to parse this shape and returns null,
     // which is fine, only the call *count* matters for this test.
     return jsonResponse({
-      results: [{ title: 'Cached headline', publisher: {}, published_utc: '2026-01-01T00:00:00Z', article_url: 'https://x.com' }],
+      results: [
+        {
+          title: 'Cached headline',
+          publisher: {},
+          published_utc: '2026-01-01T00:00:00Z',
+          article_url: 'https://x.com',
+        },
+      ],
     });
   });
 
@@ -196,7 +213,13 @@ test('a successful Gemini summary is merged onto the article, but real provider 
     // Gemini call
     return jsonResponse({
       output_text: JSON.stringify([
-        { index: 1, summary: 'Two sentence AI summary.', sentiment: 'positive', impact: 'This may add volatility.', catalyst: 'earnings' },
+        {
+          index: 1,
+          summary: 'Two sentence AI summary.',
+          sentiment: 'positive',
+          impact: 'This may add volatility.',
+          catalyst: 'earnings',
+        },
       ]),
     });
   });
@@ -206,7 +229,11 @@ test('a successful Gemini summary is merged onto the article, but real provider 
   assert.strictEqual(article.summary, 'Two sentence AI summary.');
   assert.strictEqual(article.impact, 'This may add volatility.');
   assert.strictEqual(article.sentiment, 'negative', "Massive's real per-ticker sentiment must win over Gemini's guess");
-  assert.strictEqual(article.url, 'https://x.com/enriched', 'the real source link must survive the enrichment merge unchanged');
+  assert.strictEqual(
+    article.url,
+    'https://x.com/enriched',
+    'the real source link must survive the enrichment merge unchanged'
+  );
   assert.strictEqual(article.catalyst, 'earnings');
 });
 
@@ -216,7 +243,12 @@ test('an article with no source link is dropped — never shown as "verified" wi
       return jsonResponse({
         results: [
           { title: 'No link here', publisher: {}, published_utc: '2026-01-01T00:00:00Z', article_url: '' },
-          { title: 'Has a real link', publisher: {}, published_utc: '2026-01-01T00:00:00Z', article_url: 'https://x.com/real' },
+          {
+            title: 'Has a real link',
+            publisher: {},
+            published_utc: '2026-01-01T00:00:00Z',
+            article_url: 'https://x.com/real',
+          },
         ],
       });
     }
@@ -233,7 +265,14 @@ test('summarizer failure leaves the raw article untouched — no summary field a
   global.fetch = withHeadPassthrough(async (url) => {
     if (url.includes('massive.com')) {
       return jsonResponse({
-        results: [{ title: 'Unenriched headline', publisher: {}, published_utc: '2026-01-01T00:00:00Z', article_url: 'https://x.com' }],
+        results: [
+          {
+            title: 'Unenriched headline',
+            publisher: {},
+            published_utc: '2026-01-01T00:00:00Z',
+            article_url: 'https://x.com',
+          },
+        ],
       });
     }
     return jsonResponse({ output_text: 'not valid json' });
@@ -284,7 +323,11 @@ test('the displayed source is derived from where the article actually resolves t
     'Reuters',
     "the displayed source must match where the link actually goes, not the provider's claimed label"
   );
-  assert.notStrictEqual(article.source, 'Yahoo Finance', 'must never show a publisher name that disagrees with the real destination');
+  assert.notStrictEqual(
+    article.source,
+    'Yahoo Finance',
+    'must never show a publisher name that disagrees with the real destination'
+  );
 });
 
 test('falls back to the provider-supplied source label only if the resolved domain has no known clean name, still never inventing anything', async () => {

@@ -136,22 +136,24 @@ test('each subscriber gets its own filtered view of the shared scan', async (t) 
 
   try {
     // Alice: everything above the floor. Bob: min price $10 — CHEAP excluded.
-    const aReq = fetch(
-      `http://localhost:${port}/api/scan?minVolumeRatio=1.5&minMarketCap=500000000`,
-      { headers: { Authorization: 'Bearer ' + alice.token } }
-    );
+    const aReq = fetch(`http://localhost:${port}/api/scan?minVolumeRatio=1.5&minMarketCap=500000000`, {
+      headers: { Authorization: 'Bearer ' + alice.token },
+    });
     await new Promise((r) => setTimeout(r, 100));
-    const bReq = fetch(
-      `http://localhost:${port}/api/scan?minVolumeRatio=1.5&minMarketCap=500000000&minPrice=10`,
-      { headers: { Authorization: 'Bearer ' + bob.token } }
-    );
+    const bReq = fetch(`http://localhost:${port}/api/scan?minVolumeRatio=1.5&minMarketCap=500000000&minPrice=10`, {
+      headers: { Authorization: 'Bearer ' + bob.token },
+    });
     await new Promise((r) => setTimeout(r, 100));
     gate.resolve();
 
     const aData = await (await aReq).json();
     const bData = await (await bReq).json();
     assert.deepStrictEqual(aData.results.map((r) => r.symbol).sort(), ['AAPL', 'CHEAP']);
-    assert.deepStrictEqual(bData.results.map((r) => r.symbol), ['AAPL'], "bob's minPrice filter must apply to his view only");
+    assert.deepStrictEqual(
+      bData.results.map((r) => r.symbol),
+      ['AAPL'],
+      "bob's minPrice filter must apply to his view only"
+    );
     assert.strictEqual(mocked.mock.callCount(), 1);
   } finally {
     server.close();

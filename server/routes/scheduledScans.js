@@ -18,7 +18,9 @@ function israelNow() {
     hour12: false,
   }).formatToParts(new Date());
   const map = {};
-  parts.forEach((p) => { map[p.type] = p.value; });
+  parts.forEach((p) => {
+    map[p.type] = p.value;
+  });
   return { date: `${map.year}-${map.month}-${map.day}`, hm: `${map.hour}:${map.minute}` };
 }
 
@@ -99,8 +101,7 @@ router.put('/scheduled-scans/:id', requireEliteOrTrial, async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Not found' });
 
     const newActive = typeof active === 'boolean' ? (active ? 1 : 0) : existing.active;
-    const newTime =
-      scan_time && /^\d{2}:\d{2}$/.test(scan_time) ? scan_time : existing.scan_time;
+    const newTime = scan_time && /^\d{2}:\d{2}$/.test(scan_time) ? scan_time : existing.scan_time;
 
     await db
       .prepare('UPDATE scheduled_scans SET active = ?, scan_time = ? WHERE id = ?')

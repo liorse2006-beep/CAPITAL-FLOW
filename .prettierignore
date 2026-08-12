@@ -4,3 +4,9 @@ data
 logs
 tools
 package-lock.json
+.env
+*.log
+capture-reel-*.js
+LANDING PAGE/**
+payment-provider-guide.html
+UPDATE SESSION.md

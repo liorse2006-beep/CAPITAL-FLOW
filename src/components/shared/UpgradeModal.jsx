@@ -7,7 +7,16 @@ import EmbeddedCheckout from './EmbeddedCheckout';
 
 function Check() {
   return (
-    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <polyline points="20 6 9 17 4 12" />
     </svg>
   );
@@ -67,7 +76,13 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
       // which tier was bought — stash it so the welcome screen can show the
       // right badge/copy immediately instead of waiting on the webhook.
       localStorage.setItem('vs_pending_tier', tierKey);
-      setCheckoutSession({ sessionId: data.sessionId, planId: data.planId, tierKey, promoCode: data.couponCode, discountPercent: data.discountPercent });
+      setCheckoutSession({
+        sessionId: data.sessionId,
+        planId: data.planId,
+        tierKey,
+        promoCode: data.couponCode,
+        discountPercent: data.discountPercent,
+      });
     } catch (err) {
       setPayError(err.message || 'Something went wrong — please try again.');
     } finally {
@@ -173,7 +188,10 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
           {CARD_TIERS.map((t) => {
             const checklist = tierFeatureChecklist(t.key);
             return (
-              <div key={t.key} className={'pricing-card ' + t.accentClass + (t.featured ? ' pricing-card-featured' : '')}>
+              <div
+                key={t.key}
+                className={'pricing-card ' + t.accentClass + (t.featured ? ' pricing-card-featured' : '')}
+              >
                 {t.featured && <div className="pricing-card-ribbon">Most Popular</div>}
 
                 <div className="pricing-card-tier">{t.label}</div>
@@ -181,11 +199,15 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
                 {t.key === 'free' ? (
                   <div className="pricing-card-subprice">Full access, 7 days</div>
                 ) : (
-                  <div className="pricing-card-subprice pricing-card-subprice-onetime">One-time payment · Lifetime access</div>
+                  <div className="pricing-card-subprice pricing-card-subprice-onetime">
+                    One-time payment · Lifetime access
+                  </div>
                 )}
 
                 <div className="pricing-card-scans">{SCANS_ROW[t.key]}</div>
-                <div className="pricing-card-scans pricing-card-fundamentals">Fundamentals: {FUNDAMENTALS_ROW[t.key]}</div>
+                <div className="pricing-card-scans pricing-card-fundamentals">
+                  Fundamentals: {FUNDAMENTALS_ROW[t.key]}
+                </div>
 
                 <ul className="pricing-card-features">
                   {checklist.map((f) => (

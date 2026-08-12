@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react';
 
 // Capi's persona leans on **bold** and bullets to stay scannable — a tiny
 // line-based parser is enough here, no need for a full markdown library.
@@ -8,27 +8,27 @@ import React, { useEffect, useRef, useState } from 'react'
 function renderCapiInline(text, keyPrefix) {
   return text.split(/(\*\*[^*]+\*\*)/g).map(function (part, i) {
     if (part.length > 4 && part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={keyPrefix + '-' + i}>{part.slice(2, -2)}</strong>
+      return <strong key={keyPrefix + '-' + i}>{part.slice(2, -2)}</strong>;
     }
-    return part
-  })
+    return part;
+  });
 }
 
 function renderCapiMessage(text) {
   return text.split('\n').map(function (line, li) {
-    var bulletMatch = line.match(/^(\s*)[•*-]\s+(.*)/)
+    var bulletMatch = line.match(/^(\s*)[•*-]\s+(.*)/);
     if (bulletMatch) {
-      var nested = bulletMatch[1].length > 0
+      var nested = bulletMatch[1].length > 0;
       return (
         <div key={li} className={'chat-bullet-line' + (nested ? ' nested' : '')}>
           <span className="chat-bullet-dot">•</span>
           <span>{renderCapiInline(bulletMatch[2], li)}</span>
         </div>
-      )
+      );
     }
-    if (line.trim() === '') return <div key={li} className="chat-line-gap" />
-    return <div key={li}>{renderCapiInline(line, li)}</div>
-  })
+    if (line.trim() === '') return <div key={li} className="chat-line-gap" />;
+    return <div key={li}>{renderCapiInline(line, li)}</div>;
+  });
 }
 
 // The teaser is a permanent fixture next to the launcher, not a one-time
@@ -36,70 +36,70 @@ function renderCapiMessage(text) {
 // it for the current closed stretch: opening the chat and closing it again
 // brings it right back, so a user can wave it away without killing it
 // forever the way the old localStorage flag did.
-var TEASER_READY_DELAY_MS = 1500
+var TEASER_READY_DELAY_MS = 1500;
 
 export default function ChatWidget({ user, isElite, getToken, externalPrompt, onExternalPromptSent, onRequireAuth }) {
-  const [open, setOpen] = useState(false)
-  const [teaserReady, setTeaserReady] = useState(false)
-  const [teaserDismissed, setTeaserDismissed] = useState(false)
-  const [messages, setMessages] = useState([])
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-  const [input, setInput] = useState('')
-  const [sending, setSending] = useState(false)
-  const listRef = useRef(null)
-  const historyLoadingRef = useRef(false)
+  const [open, setOpen] = useState(false);
+  const [teaserReady, setTeaserReady] = useState(false);
+  const [teaserDismissed, setTeaserDismissed] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const listRef = useRef(null);
+  const historyLoadingRef = useRef(false);
 
   useEffect(function () {
     // Shown to everyone, signed in or not — a guest who taps it gets asked
     // to sign in (see toggleOpen) rather than never knowing Capi exists.
     var t = setTimeout(function () {
-      setTeaserReady(true)
-    }, TEASER_READY_DELAY_MS)
+      setTeaserReady(true);
+    }, TEASER_READY_DELAY_MS);
     return function () {
-      clearTimeout(t)
-    }
-  }, [])
+      clearTimeout(t);
+    };
+  }, []);
 
   useEffect(
     function () {
-      if (open) setTeaserDismissed(false)
+      if (open) setTeaserDismissed(false);
     },
     [open]
-  )
+  );
 
   function dismissTeaser() {
-    setTeaserDismissed(true)
+    setTeaserDismissed(true);
   }
 
   function toggleOpen() {
     if (!user) {
-      if (onRequireAuth) onRequireAuth()
-      return
+      if (onRequireAuth) onRequireAuth();
+      return;
     }
-    setOpen((o) => !o)
+    setOpen((o) => !o);
   }
 
-  var showTeaser = teaserReady && !open && !teaserDismissed
+  var showTeaser = teaserReady && !open && !teaserDismissed;
 
   function loadHistory() {
-    if (historyLoadingRef.current) return Promise.resolve()
-    historyLoadingRef.current = true
+    if (historyLoadingRef.current) return Promise.resolve();
+    historyLoadingRef.current = true;
     return fetch('/api/chat/history', { headers: { Authorization: 'Bearer ' + getToken() } })
       .then((r) => (r.ok ? r.json() : []))
       .then((rows) => {
-        setMessages((rows || []).map((r) => ({ role: r.role, content: r.content })))
-        setHistoryLoaded(true)
+        setMessages((rows || []).map((r) => ({ role: r.role, content: r.content })));
+        setHistoryLoaded(true);
       })
-      .catch(() => setHistoryLoaded(true))
+      .catch(() => setHistoryLoaded(true));
   }
 
   useEffect(
     function () {
-      if (!open || historyLoaded) return
-      loadHistory()
+      if (!open || historyLoaded) return;
+      loadHistory();
     },
     [open]
-  )
+  );
 
   useEffect(
     function () {
@@ -107,17 +107,17 @@ export default function ChatWidget({ user, isElite, getToken, externalPrompt, on
       // on reopen, so without this a reopen with unchanged history (already
       // loaded, nothing new since) would sit at the top instead of jumping
       // straight to the most recent message like a chat should.
-      if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
+      if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
     },
     [messages, sending, open]
-  )
+  );
 
   function send(overrideText) {
-    var text = (typeof overrideText === 'string' ? overrideText : input).trim()
-    if (!text || sending) return
-    setInput('')
-    setMessages((prev) => prev.concat([{ role: 'user', content: text }]))
-    setSending(true)
+    var text = (typeof overrideText === 'string' ? overrideText : input).trim();
+    if (!text || sending) return;
+    setInput('');
+    setMessages((prev) => prev.concat([{ role: 'user', content: text }]));
+    setSending(true);
     fetch('/api/chat/message', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
@@ -125,12 +125,14 @@ export default function ChatWidget({ user, isElite, getToken, externalPrompt, on
     })
       .then((r) => r.json())
       .then((d) => {
-        setMessages((prev) => prev.concat([{ role: 'assistant', content: d.reply || "Sorry, something went wrong." }]))
+        setMessages((prev) => prev.concat([{ role: 'assistant', content: d.reply || 'Sorry, something went wrong.' }]));
       })
       .catch(() => {
-        setMessages((prev) => prev.concat([{ role: 'assistant', content: "Sorry, I couldn't send that — try again." }]))
+        setMessages((prev) =>
+          prev.concat([{ role: 'assistant', content: "Sorry, I couldn't send that — try again." }])
+        );
       })
-      .finally(() => setSending(false))
+      .finally(() => setSending(false));
   }
 
   // Lets other parts of the app (e.g. an "Explain This" button on a scan
@@ -139,34 +141,38 @@ export default function ChatWidget({ user, isElite, getToken, externalPrompt, on
   // lands after it rather than racing it, then sends.
   useEffect(
     function () {
-      if (!externalPrompt || !user) return
-      setOpen(true)
-      var ready = historyLoaded ? Promise.resolve() : loadHistory()
+      if (!externalPrompt || !user) return;
+      setOpen(true);
+      var ready = historyLoaded ? Promise.resolve() : loadHistory();
       ready.then(function () {
-        send(externalPrompt)
-      })
-      if (onExternalPromptSent) onExternalPromptSent()
+        send(externalPrompt);
+      });
+      if (onExternalPromptSent) onExternalPromptSent();
     },
     [externalPrompt]
-  )
+  );
 
   function clearChat() {
-    setMessages([])
-    fetch('/api/chat/history', { method: 'DELETE', headers: { Authorization: 'Bearer ' + getToken() } }).catch(() => {})
+    setMessages([]);
+    fetch('/api/chat/history', { method: 'DELETE', headers: { Authorization: 'Bearer ' + getToken() } }).catch(
+      () => {}
+    );
   }
 
-  // Capi is an Elite feature, gated server-side too (requireElite on every
-  // /chat route) — a signed-in Free/Premium account without trial access
+  // Capi is an Elite feature, gated server-side too (requireEliteOrTrial on
+  // every /chat route) — a signed-in Free/Premium account without trial access
   // still never sees the launcher. A GUEST, though, still sees it: tapping
   // it just asks them to sign in first (toggleOpen above) instead of hiding
   // the feature's existence entirely.
-  if (user && !isElite) return null
+  if (user && !isElite) return null;
 
   return (
     <div className="chat-widget">
       {showTeaser && (
         <div className="chat-teaser">
-          <button className="chat-teaser-close" onClick={dismissTeaser} aria-label="Dismiss">×</button>
+          <button className="chat-teaser-close" onClick={dismissTeaser} aria-label="Dismiss">
+            ×
+          </button>
           <span>Hi, I&apos;m Capi — your market mentor 👋</span>
         </div>
       )}
@@ -189,13 +195,19 @@ export default function ChatWidget({ user, isElite, getToken, externalPrompt, on
               </div>
             </div>
             <div className="chat-panel-actions">
-              <button className="chat-clear-btn" onClick={clearChat} title="Clear chat">Clear</button>
-              <button className="chat-panel-close" onClick={() => setOpen(false)} aria-label="Close chat">×</button>
+              <button className="chat-clear-btn" onClick={clearChat} title="Clear chat">
+                Clear
+              </button>
+              <button className="chat-panel-close" onClick={() => setOpen(false)} aria-label="Close chat">
+                ×
+              </button>
             </div>
           </div>
           <div className="chat-panel-body" ref={listRef}>
             {messages.length === 0 && historyLoaded && (
-              <div className="chat-empty">Ask me about scan types, tiers, alerts, or anything else about Capital Flow.</div>
+              <div className="chat-empty">
+                Ask me about scan types, tiers, alerts, or anything else about Capital Flow.
+              </div>
             )}
             {messages.map((m, i) => (
               <div key={i} className={'chat-bubble-row ' + m.role}>
@@ -209,7 +221,9 @@ export default function ChatWidget({ user, isElite, getToken, externalPrompt, on
               <div className="chat-bubble-row assistant">
                 <img src="/icon-192.png" alt="" className="chat-msg-avatar" />
                 <div className="chat-bubble assistant chat-typing">
-                  <span /><span /><span />
+                  <span />
+                  <span />
+                  <span />
                 </div>
               </div>
             )}
@@ -221,12 +235,21 @@ export default function ChatWidget({ user, isElite, getToken, externalPrompt, on
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') send()
+                if (e.key === 'Enter') send();
               }}
               maxLength={2000}
             />
             <button onClick={send} disabled={sending || !input.trim()} aria-label="Send">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <line x1="22" y1="2" x2="11" y2="13" />
                 <polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
@@ -246,5 +269,5 @@ export default function ChatWidget({ user, isElite, getToken, externalPrompt, on
         <img src="/icon-192.png" alt="" />
       </button>
     </div>
-  )
+  );
 }

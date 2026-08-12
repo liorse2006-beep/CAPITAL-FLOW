@@ -4,7 +4,9 @@ const assert = require('node:assert');
 const db = require('../server/db');
 const { isAllowed, addToAllowlist, removeFromAllowlist, listAllowlist } = require('../server/services/pilotAllowlist');
 
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 
 test('an email must be explicitly added before it is allowed', async () => {
   assert.strictEqual(await isAllowed('nobody@test.local'), false);

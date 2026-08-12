@@ -19,7 +19,9 @@ const path = require('path');
     if (admin && legacy && typeof legacy === 'object') {
       for (const [s, r] of Object.entries(legacy)) {
         if (typeof r === 'number' && r > 0) {
-          await db.prepare('INSERT OR IGNORE INTO watchlist_alerts (user_id, symbol, min_ratio) VALUES (?, ?, ?)').run(admin.id, s, r);
+          await db
+            .prepare('INSERT OR IGNORE INTO watchlist_alerts (user_id, symbol, min_ratio) VALUES (?, ?, ?)')
+            .run(admin.id, s, r);
         }
       }
     }
@@ -38,7 +40,9 @@ function rowToAlert(r) {
 
 /** All alert thresholds for one user → { SYMBOL: {type, minRatio|targetPrice, ...} } */
 async function getWatchlistAlerts(userId) {
-  const rows = await db.prepare('SELECT symbol, min_ratio, type, target_price, starting_side FROM watchlist_alerts WHERE user_id = ?').all(userId);
+  const rows = await db
+    .prepare('SELECT symbol, min_ratio, type, target_price, starting_side FROM watchlist_alerts WHERE user_id = ?')
+    .all(userId);
   const out = {};
   rows.forEach((r) => {
     out[r.symbol] = rowToAlert(r);
@@ -56,10 +60,12 @@ async function setAlert(userId, symbol, alert) {
   const minRatio = alert.type === 'price' ? 0 : alert.minRatio;
   const targetPrice = alert.type === 'price' ? alert.targetPrice : null;
   const startingSide = alert.type === 'price' ? alert.startingSide : null;
-  await db.prepare(
-    `INSERT INTO watchlist_alerts (user_id, symbol, min_ratio, type, target_price, starting_side) VALUES (?, ?, ?, ?, ?, ?)
+  await db
+    .prepare(
+      `INSERT INTO watchlist_alerts (user_id, symbol, min_ratio, type, target_price, starting_side) VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, symbol) DO UPDATE SET min_ratio = excluded.min_ratio, type = excluded.type, target_price = excluded.target_price, starting_side = excluded.starting_side`
-  ).run(userId, symbol, minRatio, alert.type, targetPrice, startingSide);
+    )
+    .run(userId, symbol, minRatio, alert.type, targetPrice, startingSide);
 }
 
 async function removeAlert(userId, symbol) {
@@ -75,7 +81,9 @@ async function clearAlerts(userId) {
  * { userId: { SYMBOL: {type, minRatio|targetPrice, ...}, ... }, ... }
  */
 async function getAllAlertsGrouped() {
-  const rows = await db.prepare('SELECT user_id, symbol, min_ratio, type, target_price, starting_side FROM watchlist_alerts').all();
+  const rows = await db
+    .prepare('SELECT user_id, symbol, min_ratio, type, target_price, starting_side FROM watchlist_alerts')
+    .all();
   const out = {};
   rows.forEach((r) => {
     (out[r.user_id] ||= {})[r.symbol] = rowToAlert(r);

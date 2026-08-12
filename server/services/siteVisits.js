@@ -26,12 +26,8 @@ async function getVisitStats() {
 
   const totalRow = await db.prepare('SELECT COALESCE(SUM(count), 0) AS n FROM site_visits').get();
   const todayRow = await db.prepare('SELECT count AS n FROM site_visits WHERE day = ?').get(today);
-  const weekRow = await db
-    .prepare('SELECT COALESCE(SUM(count), 0) AS n FROM site_visits WHERE day >= ?')
-    .get(weekAgo);
-  const daily = await db
-    .prepare('SELECT day, count FROM site_visits WHERE day >= ? ORDER BY day DESC')
-    .all(weekAgo);
+  const weekRow = await db.prepare('SELECT COALESCE(SUM(count), 0) AS n FROM site_visits WHERE day >= ?').get(weekAgo);
+  const daily = await db.prepare('SELECT day, count FROM site_visits WHERE day >= ? ORDER BY day DESC').all(weekAgo);
 
   return {
     today: todayRow ? todayRow.n : 0,

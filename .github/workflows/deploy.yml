@@ -26,18 +26,17 @@ jobs:
           TURNSTILE_SECRET: ''
           HCAPTCHA_SECRET: ''
       - run: npx vitest run
+      - run: npm run test:worker
+      - run: npm run lint
+      - run: npm run format:check
       - run: npm run build
+      - run: npm audit --audit-level=critical
 
   # ── 2. Trigger Render redeploy via deploy hook ────────────────────────────
   deploy:
     needs: test
-    if: always()
+    if: needs.test.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Render
-        run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}" --max-time 30)
-          echo "Render deploy hook status: $STATUS"
-          if [ "$STATUS" != "200" ] && [ "$STATUS" != "201" ]; then
-            echo "Warning: deploy hook returned $STATUS"
-          fi
+        run: curl --fail --silent --show-error -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}" --max-time 30

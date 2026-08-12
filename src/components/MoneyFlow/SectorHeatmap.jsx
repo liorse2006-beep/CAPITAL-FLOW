@@ -35,11 +35,6 @@ export default function SectorHeatmap(props) {
     return '#EF4444';
   }
 
-  function getTextColor(change) {
-    if (Math.abs(change) >= 1) return '#E4E4E7';
-    return '#A0A0A8';
-  }
-
   function getChangeBg(change) {
     if (change >= 3) return 'rgba(34,197,94,0.18)';
     if (change >= 1) return 'rgba(34,197,94,0.10)';

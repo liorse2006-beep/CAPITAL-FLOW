@@ -254,8 +254,7 @@ export default function ChartModal({ symbol, name, onClose }) {
     if (!h) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const mx = e.clientX - rect.left;
-    const { px, quotes, barW, PAD, W } = h;
-    const chartW = W - PAD.left - PAD.right;
+    const { px, quotes, PAD } = h;
 
     // Find nearest bar
     let closestI = 0;
@@ -327,7 +326,14 @@ export default function ChartModal({ symbol, name, onClose }) {
     },
     React.createElement(
       'div',
-      { className: 'chart-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': `${symbol} chart`, ref: panelRef, tabIndex: -1 },
+      {
+        className: 'chart-modal',
+        role: 'dialog',
+        'aria-modal': 'true',
+        'aria-label': `${symbol} chart`,
+        ref: panelRef,
+        tabIndex: -1,
+      },
 
       // ── Header ──────────────────────────────────────────────────────────
       React.createElement(

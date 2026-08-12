@@ -27,7 +27,7 @@ export default [
       ecmaVersion: 2022,
       sourceType: 'module',
       parserOptions: { ecmaFeatures: { jsx: true } },
-      globals: { ...globals.browser },
+      globals: { ...globals.browser, global: 'readonly' },
     },
     plugins: { react, 'react-hooks': reactHooks, 'react-refresh': reactRefresh },
     rules: {

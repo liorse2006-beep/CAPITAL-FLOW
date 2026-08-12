@@ -15,6 +15,7 @@ export default function useSSE(url, handlers, enabled = true) {
   const timerRef = useRef(null);
   const delayRef = useRef(BASE_DELAY);
   const handlersRef = useRef(handlers);
+  const connectRef = useRef(null);
 
   // Keep handler refs current without re-connecting
   useEffect(() => {
@@ -39,7 +40,9 @@ export default function useSSE(url, handlers, enabled = true) {
       esRef.current = null;
       const delay = delayRef.current;
       delayRef.current = Math.min(delay * 2, MAX_DELAY);
-      timerRef.current = setTimeout(connect, delay);
+      timerRef.current = setTimeout(() => {
+        if (connectRef.current) connectRef.current();
+      }, delay);
     };
 
     // Register each named event listener
@@ -54,6 +57,13 @@ export default function useSSE(url, handlers, enabled = true) {
       });
     });
   }, [url]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+    return () => {
+      if (connectRef.current === connect) connectRef.current = null;
+    };
+  }, [connect]);
 
   useEffect(() => {
     if (!enabled || !url) {

@@ -30,17 +30,56 @@ const ICONS = {
 
 const SELECTABLE_METRICS = [
   { key: 'floatShares', label: 'Float', sub: 'Tradable shares', icon: ICONS.float, fmt: fmtShares, hint: hintFloat },
-  { key: 'shortPercent', label: 'Short Interest', sub: '% of float', icon: ICONS.short, fmt: (v) => fmtPct(v * 100), hint: hintShort },
+  {
+    key: 'shortPercent',
+    label: 'Short Interest',
+    sub: '% of float',
+    icon: ICONS.short,
+    fmt: (v) => fmtPct(v * 100),
+    hint: hintShort,
+  },
   { key: 'peRatio', label: 'P/E Ratio', sub: 'Price / earnings', icon: ICONS.pe, fmt: fmtRatio, hint: hintPE },
-  { key: 'debtToEquity', label: 'Debt / Equity', sub: 'Balance-sheet risk', icon: ICONS.debt, fmt: fmtRatio, hint: hintDebt },
-  { key: 'revenueGrowth5Y', label: 'Revenue Growth', sub: '5-year average', icon: ICONS.growth, fmt: fmtGrowth, hint: hintGrowth, tone: toneGrowth },
-  { key: 'nextEarningsDate', label: 'Next Earnings', sub: 'Volatility catalyst', icon: ICONS.earnings, fmt: fmtEarnings, hint: hintEarnings },
+  {
+    key: 'debtToEquity',
+    label: 'Debt / Equity',
+    sub: 'Balance-sheet risk',
+    icon: ICONS.debt,
+    fmt: fmtRatio,
+    hint: hintDebt,
+  },
+  {
+    key: 'revenueGrowth5Y',
+    label: 'Revenue Growth',
+    sub: '5-year average',
+    icon: ICONS.growth,
+    fmt: fmtGrowth,
+    hint: hintGrowth,
+    tone: toneGrowth,
+  },
+  {
+    key: 'nextEarningsDate',
+    label: 'Next Earnings',
+    sub: 'Volatility catalyst',
+    icon: ICONS.earnings,
+    fmt: fmtEarnings,
+    hint: hintEarnings,
+  },
 ];
 const ALL_METRIC_KEYS = SELECTABLE_METRICS.map((m) => m.key);
 
 function MetricIcon({ path }) {
   return (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      width="15"
+      height="15"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d={path} />
     </svg>
   );
@@ -116,7 +155,8 @@ function hintEarnings(v) {
   if (!v) return null;
   const days = Math.round((new Date(v + 'T00:00:00') - new Date()) / 86400000);
   if (days < 0) return null;
-  if (days <= 7) return { text: 'In ' + days + ' day' + (days === 1 ? '' : 's') + ' — expect volatility', tone: 'warn' };
+  if (days <= 7)
+    return { text: 'In ' + days + ' day' + (days === 1 ? '' : 's') + ' — expect volatility', tone: 'warn' };
   if (days <= 21) return { text: 'In ' + days + ' days', tone: 'muted' };
   return null;
 }
@@ -243,8 +283,8 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
           </div>
           <h2 className="fund-upsell-title">Fundamentals</h2>
           <p className="fund-upsell-sub">
-            Pull up any ticker and read its float, short interest, P/E, debt/equity, 5-year revenue growth, and
-            next earnings date — the numbers that matter for a swing decision, not a full equity-research report.
+            Pull up any ticker and read its float, short interest, P/E, debt/equity, 5-year revenue growth, and next
+            earnings date — the numbers that matter for a swing decision, not a full equity-research report.
           </p>
           <button className="scan-btn fund-upsell-btn" onClick={user ? onUpgrade : onSignIn}>
             {user ? 'Upgrade to Premium' : 'Sign In'}
@@ -261,7 +301,18 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
       <div className="fund-panel">
         <form className="fund-search-row" onSubmit={runLookup}>
           <div className="fund-search-field">
-            <svg className="fund-search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg
+              className="fund-search-icon"
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.3-4.3" />
             </svg>

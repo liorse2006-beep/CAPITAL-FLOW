@@ -1,9 +1,9 @@
-import React from 'react'
-import AlertBell from './AlertBell'
+import React from 'react';
+import AlertBell from './AlertBell';
 
-function TierBadgeOrUpgrade({ isElite, isPremium, user, onUpgrade, onSignIn }) {
+function TierBadgeOrUpgrade({ isElite, isPremium, isTrial, user, onUpgrade, onSignIn }) {
   if (isElite) {
-    return <span className="topbar-premium-badge tier-elite">ELITE EDITION</span>
+    return <span className="topbar-premium-badge tier-elite">ELITE EDITION</span>;
   }
   if (isPremium) {
     return (
@@ -13,20 +13,23 @@ function TierBadgeOrUpgrade({ isElite, isPremium, user, onUpgrade, onSignIn }) {
           Upgrade to Elite
         </button>
       </>
-    )
+    );
+  }
+  if (isTrial) {
+    return <span className="topbar-premium-badge tier-trial">FREE TRIAL</span>;
   }
   const rocket = (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
       <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
     </svg>
-  )
+  );
   if (user) {
     return (
       <button className="topbar-upgrade-btn" onClick={onUpgrade}>
         {rocket}
         Upgrade Subscription
       </button>
-    )
+    );
   }
   return (
     <>
@@ -38,14 +41,14 @@ function TierBadgeOrUpgrade({ isElite, isPremium, user, onUpgrade, onSignIn }) {
         Sign In
       </button>
     </>
-  )
+  );
 }
 
 export default function Topbar({
   user,
   isElite,
   isPremium,
-  getToken,
+  isTrial,
   logout,
   page,
   results,
@@ -84,6 +87,7 @@ export default function Topbar({
           <TierBadgeOrUpgrade
             isElite={isElite}
             isPremium={isPremium}
+            isTrial={isTrial}
             user={user}
             onUpgrade={onUpgrade}
             onSignIn={onSignIn}
@@ -91,7 +95,10 @@ export default function Topbar({
           {user && user.is_admin && (
             <button
               className="topbar-admin-btn"
-              onClick={() => window.open('/admin?jwt=' + getToken(), '_blank')}
+              // The admin page reads the short-lived token from localStorage
+              // and sends it in an Authorization header. Never put a JWT in
+              // the URL, browser history, or referrer chain.
+              onClick={() => window.open('/admin', '_blank', 'noopener,noreferrer')}
               title="Admin Panel"
             >
               Admin
@@ -130,7 +137,10 @@ export default function Topbar({
         <button className={'nav-tab ' + (page === 'ma' ? 'active' : '')} onClick={() => setPage('ma')}>
           MA Scanner
         </button>
-        <button className={'nav-tab ' + (page === 'fundamentals' ? 'active' : '')} onClick={() => setPage('fundamentals')}>
+        <button
+          className={'nav-tab ' + (page === 'fundamentals' ? 'active' : '')}
+          onClick={() => setPage('fundamentals')}
+        >
           Fundamentals
         </button>
         <button className={'nav-tab ' + (page === 'watchlist' ? 'active' : '')} onClick={() => setPage('watchlist')}>
@@ -138,5 +148,5 @@ export default function Topbar({
         </button>
       </nav>
     </>
-  )
+  );
 }

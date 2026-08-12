@@ -2,7 +2,7 @@
 // server/services/scanQuota.js `quotaFor()`) and boils it down to what each
 // scan page actually needs to render: is this category exhausted, and what
 // short label explains why.
-export function categoryQuota(scanMeta, category) {
+export function categoryQuota(scanMeta, _category) {
   if (!scanMeta) return { exhausted: false, label: '' };
 
   if (scanMeta.tier === 'elite') {

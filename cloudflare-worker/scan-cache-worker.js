@@ -60,10 +60,7 @@ const QUOTA_PATH = '/api/scan-quota';
 // may read the response; anyone else's page cannot, even if it somehow got a
 // copy of a user's token, because the browser withholds the response body
 // from a disallowed origin regardless.
-const ALLOWED_ORIGINS = new Set([
-  'https://capitalflow.vip',
-  'https://www.capitalflow.vip',
-]);
+const ALLOWED_ORIGINS = new Set(['https://capitalflow.vip', 'https://www.capitalflow.vip']);
 
 function corsHeaders(origin) {
   if (!ALLOWED_ORIGINS.has(origin)) return {};
@@ -76,28 +73,28 @@ function corsHeaders(origin) {
 }
 
 async function verifyJwtHS256(token, secret) {
+  if (!secret) return null;
   const parts = token.split('.');
   if (parts.length !== 3) return null;
   const [headerB64, payloadB64, sigB64] = parts;
 
-  let payload;
   try {
-    payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
+    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
+    if (!payload || typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now()) return null;
+
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+    const sig = Uint8Array.from(atob(sigB64.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+    const valid = await crypto.subtle.verify('HMAC', key, sig, new TextEncoder().encode(`${headerB64}.${payloadB64}`));
+    return valid ? payload : null;
   } catch {
     return null;
   }
-  if (!payload || typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now()) return null;
-
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['verify']
-  );
-  const sig = Uint8Array.from(atob(sigB64.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
-  const valid = await crypto.subtle.verify('HMAC', key, sig, new TextEncoder().encode(`${headerB64}.${payloadB64}`));
-  return valid ? payload : null;
 }
 
 // Strips the per-user quota fields out of a /api/scan response before it's
@@ -127,6 +124,13 @@ export function hasQuotaRemaining(quota) {
 export default {
   async fetch(request, env, ctx) {
     const cors = corsHeaders(request.headers.get('Origin') || '');
+
+    if (!env.JWT_SECRET || !env.ORIGIN) {
+      return new Response(JSON.stringify({ error: 'Worker is not configured' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json', ...cors },
+      });
+    }
 
     if (request.method === 'OPTIONS') {
       // CORS preflight — the browser sends this before the real GET because

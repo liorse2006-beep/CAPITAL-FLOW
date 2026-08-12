@@ -19,10 +19,7 @@ test('withHardTimeout resolves normally when the wrapped promise finishes in tim
 
 test('withHardTimeout rejects a promise that never settles, instead of hanging forever', async () => {
   const neverResolves = new Promise(() => {}); // simulates a stalled network call
-  await assert.rejects(
-    withHardTimeout(neverResolves, 50, 'stalled scan'),
-    /stalled scan exceeded 50ms hard timeout/
-  );
+  await assert.rejects(withHardTimeout(neverResolves, 50, 'stalled scan'), /stalled scan exceeded 50ms hard timeout/);
 });
 
 test('withHardTimeout propagates the original rejection when the promise fails before the timeout', async () => {

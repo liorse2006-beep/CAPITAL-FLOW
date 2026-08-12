@@ -40,10 +40,7 @@ async function makeUser(email, tier, isPremium) {
 // A free account created 8 days ago — its 7-day trial has elapsed, so it no
 // longer gets the trial's unlimited Fundamentals access.
 async function makePastTrialFreeUser(email) {
-  const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .replace('T', ' ')
-    .slice(0, 19);
+  const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
   const result = await db
     .prepare("INSERT INTO users (email, is_verified, tier, is_premium, created_at) VALUES (?, 1, 'free', 0, ?)")
     .run(email, eightDaysAgo);
@@ -87,10 +84,20 @@ test('GET /api/fundamentals allows a free-tier user still inside their 7-day tri
   const port = server.address().port;
   t.mock.method(quoteCache, 'getQuotes', async () => {
     const m = new Map();
-    m.set('MSFT', { symbol: 'MSFT', shortName: 'Microsoft Corp.', regularMarketPrice: 420.1, regularMarketChangePercent: 0.5, marketCap: 3.1e12 });
+    m.set('MSFT', {
+      symbol: 'MSFT',
+      shortName: 'Microsoft Corp.',
+      regularMarketPrice: 420.1,
+      regularMarketChangePercent: 0.5,
+      marketCap: 3.1e12,
+    });
     return m;
   });
-  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => ({ peRatio: 35.4, debtToEquity: 0.9, revenueGrowth5Y: 12.1 }));
+  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => ({
+    peRatio: 35.4,
+    debtToEquity: 0.9,
+    revenueGrowth5Y: 12.1,
+  }));
   t.mock.method(yahoo, 'quoteSummary', async () => ({ defaultKeyStatistics: {}, calendarEvents: {} }));
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/fundamentals?symbol=MSFT`, { headers });
@@ -133,7 +140,11 @@ test('GET /api/fundamentals returns a real result for a Premium user looking up 
     });
     return m;
   });
-  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => ({ peRatio: 31.2, debtToEquity: 1.45, revenueGrowth5Y: 8.9 }));
+  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => ({
+    peRatio: 31.2,
+    debtToEquity: 1.45,
+    revenueGrowth5Y: 8.9,
+  }));
   t.mock.method(yahoo, 'quoteSummary', async () => ({
     calendarEvents: { earnings: { earningsDate: ['2026-11-05T00:00:00.000Z'] } },
   }));

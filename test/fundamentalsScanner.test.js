@@ -40,7 +40,10 @@ function quotesMapFor(entries) {
 
 function keyStats(overrides) {
   return Object.assign(
-    { defaultKeyStatistics: { floatShares: 2e7, shortPercentOfFloat: 0.08 }, calendarEvents: { earnings: { earningsDate: [] } } },
+    {
+      defaultKeyStatistics: { floatShares: 2e7, shortPercentOfFloat: 0.08 },
+      calendarEvents: { earnings: { earningsDate: [] } },
+    },
     overrides
   );
 }
@@ -59,7 +62,11 @@ test('scanFundamentals has no market-cap floor — a small-cap ticker the custom
 
 test('scanFundamentals reads float and short interest from quoteSummary (defaultKeyStatistics), not the plain quote object', async (t) => {
   t.mock.method(quoteCache, 'getQuotes', async () => quotesMapFor([['AAPL', 3e12]]));
-  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => ({ peRatio: 31.2, debtToEquity: 1.45, revenueGrowth5Y: 8.9 }));
+  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => ({
+    peRatio: 31.2,
+    debtToEquity: 1.45,
+    revenueGrowth5Y: 8.9,
+  }));
   t.mock.method(yahoo, 'quoteSummary', async () =>
     keyStats({
       defaultKeyStatistics: { floatShares: 1.44e10, shortPercentOfFloat: 0.01 },
@@ -76,7 +83,11 @@ test('scanFundamentals reads float and short interest from quoteSummary (default
   assert.strictEqual(r.debtToEquity, 1.45);
   assert.strictEqual(r.revenueGrowth5Y, 8.9);
   assert.strictEqual(r.nextEarningsDate, '2026-11-05');
-  assert.deepStrictEqual(Object.values(r.unverified), [false, false, false, false, false, false], 'every group loaded successfully');
+  assert.deepStrictEqual(
+    Object.values(r.unverified),
+    [false, false, false, false, false, false],
+    'every group loaded successfully'
+  );
 });
 
 test('scanFundamentals never fabricates a value Finnhub/Yahoo did not report', async (t) => {

@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 // ── Connection ─────────────────────────────────────────────────────────────
-// If TURSO_DB_URL is set, connect to Turso cloud (production / Koyeb).
+// If TURSO_DB_URL is set, connect to Turso cloud (production / Render).
 // Otherwise fall back to a local file (dev) or in-memory (tests via
 // TURSO_DB_URL=file::memory:  set by testEnv.js).
 function makeUrl() {
@@ -75,6 +75,11 @@ const db = { prepare, exec };
 
 // ── Schema migrations (run at startup) ────────────────────────────────────
 async function initDb() {
+  // Multiple local cluster workers can initialize the same SQLite file at
+  // once. Wait on the file lock instead of failing the worker immediately;
+  // Turso production connections do not need this, but it makes the local
+  // file-mode cluster path behave like the shared production database.
+  await client.execute('PRAGMA busy_timeout = 5000');
   await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -329,7 +334,9 @@ async function initDb() {
 
   // One-time data migration: carry over ma_scan_count → free_scan_count
   try {
-    await client.execute(`UPDATE users SET free_scan_count = ma_scan_count WHERE ma_scan_count > 0 AND free_scan_count = 0`);
+    await client.execute(
+      `UPDATE users SET free_scan_count = ma_scan_count WHERE ma_scan_count > 0 AND free_scan_count = 0`
+    );
   } catch (_) {}
 
   // One-time data migration: set tier from is_premium
@@ -374,14 +381,14 @@ function sleep(ms) {
 // server database rather than raw file locking, so this path is expected
 // to matter mainly for local/file-mode DBs, but retrying costs nothing
 // either way.
-async function initDbWithRetry(maxAttempts = 5) {
+async function initDbWithRetry(maxAttempts = 20) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       return await initDb();
     } catch (err) {
       const transient = err && (err.code === 'SQLITE_BUSY' || err.code === 'SQLITE_LOCKED');
       if (!transient || attempt === maxAttempts) throw err;
-      await sleep(50 * attempt + Math.random() * 50);
+      await sleep(Math.min(1000, 100 * attempt) + Math.random() * 100);
     }
   }
 }

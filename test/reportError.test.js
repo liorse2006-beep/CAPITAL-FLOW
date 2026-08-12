@@ -3,7 +3,7 @@
 // uncaught process crashes (see server/sentry.js's attachErrorHandler,
 // which only ever saw the latter before this existed).
 require('./helpers/testEnv');
-const { test, mock } = require('node:test');
+const { test } = require('node:test');
 const assert = require('node:assert');
 
 const { reportError } = require('../server/utils/reportError');

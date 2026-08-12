@@ -9,7 +9,9 @@ const express = require('express');
 
 const db = require('../server/db');
 
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 const { validateCoupon, redeemCoupon } = require('../server/services/coupons');
 const couponsRouter = require('../server/routes/coupons');
 
@@ -33,9 +35,11 @@ async function insertCoupon(overrides = {}) {
     expires_at: null,
     ...overrides,
   };
-  await db.prepare(
-    'INSERT INTO coupons (code, discount_percent, applies_to, active, max_uses, uses_count, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(c.code, c.discount_percent, c.applies_to, c.active, c.max_uses, c.uses_count, c.expires_at);
+  await db
+    .prepare(
+      'INSERT INTO coupons (code, discount_percent, applies_to, active, max_uses, uses_count, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    )
+    .run(c.code, c.discount_percent, c.applies_to, c.active, c.max_uses, c.uses_count, c.expires_at);
   return c;
 }
 

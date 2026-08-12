@@ -8,7 +8,9 @@ const express = require('express');
 
 const db = require('../server/db');
 
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 const { issueToken } = require('../server/services/auth');
 const { getWatchlist, addToWatchlist, removeFromWatchlist } = require('../server/services/watchlist');
 const watchlistRouter = require('../server/routes/watchlist');
@@ -71,7 +73,10 @@ test('POST then GET /api/watchlist round-trips a starred ticker for the authenti
   const user = await makeUser('wl-route@test.local');
   const server = await startTestApp();
   const port = server.address().port;
-  const headers = { Authorization: 'Bearer ' + (await issueToken(await db.prepare('SELECT * FROM users WHERE id = ?').get(user))).accessToken };
+  const headers = {
+    Authorization:
+      'Bearer ' + (await issueToken(await db.prepare('SELECT * FROM users WHERE id = ?').get(user))).accessToken,
+  };
   try {
     const postRes = await fetch(`http://127.0.0.1:${port}/api/watchlist/msft`, { method: 'POST', headers });
     assert.strictEqual(postRes.status, 200);
@@ -95,7 +100,10 @@ test('POST /api/watchlist/:symbol rejects an invalid symbol', async () => {
   const user = await makeUser('wl-invalid@test.local');
   const server = await startTestApp();
   const port = server.address().port;
-  const headers = { Authorization: 'Bearer ' + (await issueToken(await db.prepare('SELECT * FROM users WHERE id = ?').get(user))).accessToken };
+  const headers = {
+    Authorization:
+      'Bearer ' + (await issueToken(await db.prepare('SELECT * FROM users WHERE id = ?').get(user))).accessToken,
+  };
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/watchlist/${encodeURIComponent('not a symbol!')}`, {
       method: 'POST',
@@ -114,7 +122,10 @@ test('the watchlist is capped at 50 tickers', async () => {
   }
   const server = await startTestApp();
   const port = server.address().port;
-  const headers = { Authorization: 'Bearer ' + (await issueToken(await db.prepare('SELECT * FROM users WHERE id = ?').get(user))).accessToken };
+  const headers = {
+    Authorization:
+      'Bearer ' + (await issueToken(await db.prepare('SELECT * FROM users WHERE id = ?').get(user))).accessToken,
+  };
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/watchlist/OVERFLOW`, { method: 'POST', headers });
     assert.strictEqual(res.status, 400);

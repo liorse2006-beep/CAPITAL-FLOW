@@ -6,6 +6,7 @@ import useScanQuota from './hooks/useScanQuota';
 import usePushSubscription from './hooks/usePushSubscription';
 import { parseVolInput } from './utils/format';
 import { categoryQuota } from './utils/quota';
+import { hasEliteAccess, hasPremiumFeatureAccess } from './utils/access';
 import { useAuth } from './context/AuthContext';
 import { track } from './analytics';
 import PushPermissionPrompt from './components/shared/PushPermissionPrompt';
@@ -36,14 +37,14 @@ const LandingPage = lazy(() => import('./pages/LandingPage'));
 
 /* ── Main App ── */
 function App() {
-  const { user, logout, getToken, authError, clearAuthError, pendingGoogleToken, acceptPilotTerms, refreshUser } = useAuth();
+  const { user, logout, getToken, authError, clearAuthError, pendingGoogleToken, acceptPilotTerms, refreshUser } =
+    useAuth();
   const storageScope = user ? String(user.id) : 'guest';
   function scopedStorageKey(name) {
     return name + ':' + storageScope;
   }
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  const [theme, setTheme] = useState('dark');
   const navigate = useNavigate();
   const location = useLocation();
   // Derived from the URL rather than its own state — keeps every existing
@@ -66,7 +67,6 @@ function App() {
   const [progress, setProgress] = useState(null);
   const [results, setResults] = useState(null);
   const [liveResults, setLiveResults] = useState([]);
-  const [currentTicker, setCurrentTicker] = useState('');
   const [selectedSectors, setSelectedSectors] = useState([]);
   const [scanMode, setScanMode] = useState(null);
   var MAX_FREE_SECTORS = 2;
@@ -77,7 +77,7 @@ function App() {
      in the render — called only after they're set, same pattern the rest of
      this component already relies on for closures like toggleSector. */
   function sectorLimit() {
-    return isElite ? Infinity : isPremium ? MAX_PREMIUM_SECTORS : MAX_FREE_SECTORS;
+    return eliteAccess ? Infinity : isPremium ? MAX_PREMIUM_SECTORS : MAX_FREE_SECTORS;
   }
   function toggleSector(s) {
     setSelectedSectors(function (prev) {
@@ -112,8 +112,8 @@ function App() {
   const [sortDir, setSortDir] = useState('desc');
   const [minRatio, setMinRatio] = useState('1.5');
   const [minCap, setMinCap] = useState('1');
-  const [search, setSearch] = useState('');
-  const [sectorFilter, setSectorFilter] = useState('All');
+  const [search] = useState('');
+  const [sectorFilter] = useState('All');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [error, setError] = useState(null);
@@ -124,17 +124,11 @@ function App() {
   const [chartSymbol, setChartSym] = useState('');
   const [chartName, setChartName] = useState('');
 
-  function openChart(sym, name) {
-    setChartSym(sym);
-    setChartName(name || sym);
-    setChartOpen(true);
-  }
   function closeChart() {
     setChartOpen(false);
   }
 
   /* ── SSE — real-time background scan updates ── */
-  const [sseConnected, setSseConnected] = useState(false);
   const [liveAlert, setLiveAlert] = useState(null);
 
   // EventSource cannot send Authorization headers. Exchange the normal bearer
@@ -144,7 +138,7 @@ function App() {
   useEffect(() => {
     let cancelled = false;
     let refreshTimer;
-    if (!isPremium) {
+    if (!eliteAccess) {
       return undefined;
     }
     const fetchTicket = () => {
@@ -164,13 +158,13 @@ function App() {
       cancelled = true;
       clearTimeout(refreshTimer);
     };
-  }, [isPremium]);
+  }, [eliteAccess]);
   useSSE(
     sseTicket ? '/api/stream?ticket=' + encodeURIComponent(sseTicket) : null,
     {
-      connected: () => setSseConnected(true),
+      connected: () => {},
       ping: () => {},
-      'auth-error': () => setSseConnected(false),
+      'auth-error': () => {},
       'scan-update': (d) => {
         if (d.results) {
           window.__bgScanResults = d.results;
@@ -187,7 +181,7 @@ function App() {
         clearAlertLevelLocal(d.symbol);
       },
     },
-    isPremium
+    eliteAccess
   );
 
   /* ── Notification state ── */
@@ -244,7 +238,9 @@ function App() {
     setAlertHistory([]);
     localStorage.removeItem(scopedStorageKey('vs-alert-history'));
     if (user) {
-      fetch('/api/notifications', { method: 'DELETE', headers: { Authorization: 'Bearer ' + getToken() } }).catch(function () {});
+      fetch('/api/notifications', { method: 'DELETE', headers: { Authorization: 'Bearer ' + getToken() } }).catch(
+        function () {}
+      );
     }
   }
 
@@ -318,11 +314,10 @@ function App() {
   );
 
   /* New filter state */
-  const [minChange, setMinChange] = useState('');
-  const [maxChange, setMaxChange] = useState('');
-  const [exchangeFilter, setExchangeFilter] = useState('All');
+  const [minChange] = useState('');
+  const [maxChange] = useState('');
+  const [exchangeFilter] = useState('All');
   const [minVol, setMinVol] = useState('');
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
   /* ── Subscription tier — authoritative source is user.tier from the DB.
         Never read from localStorage; the server enforces this independently. ── */
@@ -349,10 +344,8 @@ function App() {
   // in-trial), available immediately from /me; the scanMeta fallback covers a
   // cached /me response that predates that field. `canNotify` is kept as an
   // alias since it's threaded through many call sites already.
-  var eliteAccess =
-    isElite ||
-    !!(user && user.elite_access) ||
-    (userTier === 'free' && !!(scanMeta && scanMeta.free && scanMeta.free.trialActive));
+  var eliteAccess = hasEliteAccess(user, scanMeta);
+  var premiumFeatureAccess = hasPremiumFeatureAccess(user, scanMeta);
   var canNotify = eliteAccess;
 
   /* ── Trial-ended popup — auto-shown once per site visit the first time a
@@ -380,7 +373,7 @@ function App() {
   /* ── Scan Presets ── */
   const [presets, setPresets] = useState(function () {
     try {
-      return JSON.parse(localStorage.getItem('vs-presets')) || [];
+      return JSON.parse(localStorage.getItem(scopedStorageKey('vs-presets'))) || [];
     } catch (e) {
       return [];
     }
@@ -400,7 +393,7 @@ function App() {
     };
     var updated = [].concat(presets, [preset]);
     setPresets(updated);
-    localStorage.setItem('vs-presets', JSON.stringify(updated));
+    localStorage.setItem(scopedStorageKey('vs-presets'), JSON.stringify(updated));
     setPresetName('');
     setShowPresetPanel(false);
   }
@@ -418,7 +411,7 @@ function App() {
       return i !== idx;
     });
     setPresets(updated);
-    localStorage.setItem('vs-presets', JSON.stringify(updated));
+    localStorage.setItem(scopedStorageKey('vs-presets'), JSON.stringify(updated));
   }
 
   /* ── Relative Volume Alert Levels — backed by the server so thresholds
@@ -426,12 +419,43 @@ function App() {
      localStorage is kept only as an instant-paint cache. ── */
   const [alertLevels, setAlertLevels] = useState(function () {
     try {
-      return JSON.parse(localStorage.getItem('vs-alert-levels')) || {};
+      return JSON.parse(localStorage.getItem(scopedStorageKey('vs-alert-levels'))) || {};
     } catch (e) {
       return {};
     }
   });
   const alertFired = useRef({});
+
+  // Auth state can change without unmounting App (login, logout, or account
+  // switching). Rehydrate every browser cache when that happens so one
+  // account's presets, thresholds, or unread alerts never flash in another
+  // account's session.
+  useEffect(
+    function () {
+      try {
+        setPresets(JSON.parse(localStorage.getItem(scopedStorageKey('vs-presets'))) || []);
+      } catch (e) {
+        setPresets([]);
+      }
+      try {
+        setAlertLevels(JSON.parse(localStorage.getItem(scopedStorageKey('vs-alert-levels'))) || {});
+      } catch (e) {
+        setAlertLevels({});
+      }
+      try {
+        setAlertHistory(JSON.parse(localStorage.getItem(scopedStorageKey('vs-alert-history'))) || []);
+      } catch (e) {
+        setAlertHistory([]);
+      }
+      try {
+        setUnreadCount(parseInt(localStorage.getItem(scopedStorageKey('vs-alert-unread')) || '0', 10));
+      } catch (e) {
+        setUnreadCount(0);
+      }
+      alertFired.current = {};
+    },
+    [storageScope]
+  );
 
   useEffect(
     function () {
@@ -442,7 +466,7 @@ function App() {
         })
         .then(function (d) {
           setAlertLevels(d || {});
-          localStorage.setItem('vs-alert-levels', JSON.stringify(d || {}));
+          localStorage.setItem(scopedStorageKey('vs-alert-levels'), JSON.stringify(d || {}));
         })
         .catch(function () {});
     },
@@ -457,7 +481,7 @@ function App() {
     var updated = Object.assign({}, alertLevels);
     updated[symbol] = alertData;
     setAlertLevels(updated);
-    localStorage.setItem('vs-alert-levels', JSON.stringify(updated));
+    localStorage.setItem(scopedStorageKey('vs-alert-levels'), JSON.stringify(updated));
     if (canNotify) {
       fetch('/api/watchlist-alerts/' + symbol, {
         method: 'POST',
@@ -485,7 +509,7 @@ function App() {
       if (!(symbol in prev)) return prev;
       var updated = Object.assign({}, prev);
       delete updated[symbol];
-      localStorage.setItem('vs-alert-levels', JSON.stringify(updated));
+      localStorage.setItem(scopedStorageKey('vs-alert-levels'), JSON.stringify(updated));
       return updated;
     });
     delete alertFired.current[symbol];
@@ -521,10 +545,19 @@ function App() {
     }
     var parts = [
       r.symbol + ' just showed up on my scan.',
-      'Price $' + r.price.toFixed(2) + ' (' + (r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '% today), volume running at ' + r.volumeRatio.toFixed(2) + 'x its average.',
+      'Price $' +
+        r.price.toFixed(2) +
+        ' (' +
+        (r.change >= 0 ? '+' : '') +
+        r.change.toFixed(2) +
+        '% today), volume running at ' +
+        r.volumeRatio.toFixed(2) +
+        'x its average.',
     ];
     if (r.sector && r.sector !== 'N/A') parts.push('Sector: ' + r.sector + '.');
-    parts.push('In plain English, what does this combination usually mean, and what should I actually pay attention to here?');
+    parts.push(
+      'In plain English, what does this combination usually mean, and what should I actually pay attention to here?'
+    );
     setCapiExternalPrompt(parts.join(' '));
   }
 
@@ -609,7 +642,9 @@ function App() {
     }
     setWatchlistLoading(true);
     setWatchlistError(null);
-    fetch('/api/watchlist-quotes?symbols=' + watchlist.join(','), { headers: { Authorization: 'Bearer ' + getToken() } })
+    fetch('/api/watchlist-quotes?symbols=' + watchlist.join(','), {
+      headers: { Authorization: 'Bearer ' + getToken() },
+    })
       .then(function (r) {
         if (!r.ok)
           return r.json().then(function (d) {
@@ -714,7 +749,12 @@ function App() {
   // Always mirrors the latest `user` value so the post-checkout polling loop
   // can detect when the webhook has landed without a stale closure.
   const userRef = useRef(user);
-  useEffect(function () { userRef.current = user; }, [user]);
+  useEffect(
+    function () {
+      userRef.current = user;
+    },
+    [user]
+  );
   useEffect(
     function () {
       var status = new URLSearchParams(location.search).get('status');
@@ -738,7 +778,9 @@ function App() {
       var delays = [1000, 3000, 8000, 20000, 45000];
       (async function poll() {
         for (var i = 0; i < delays.length; i++) {
-          await new Promise(function (r) { setTimeout(r, delays[i]); });
+          await new Promise(function (r) {
+            setTimeout(r, delays[i]);
+          });
           if (cancelled) return;
           await refreshUser();
           if (cancelled) return;
@@ -746,7 +788,9 @@ function App() {
           if (u && pendingTier && u.tier === pendingTier) return;
         }
       })();
-      return function () { cancelled = true; };
+      return function () {
+        cancelled = true;
+      };
     },
     [location.search]
   );
@@ -794,22 +838,25 @@ function App() {
     [pendingGoogleToken]
   );
 
-  useEffect(function () {
-    if (!user) return; // don't auto-show cached results to guests
-    fetch('/api/last-results', { headers: { Authorization: 'Bearer ' + getToken() } })
-      .then(function (r) {
-        if (!r.ok) return null;
-        return r.json();
-      })
-      .then(function (d) {
-        if (d && d.results && d.results.length) {
-          setResults(d.results);
-          setScanTime(d.scanTime);
-          setRestoredFromLastScan(true);
-        }
-      })
-      .catch(function () {});
-  }, [user]);
+  useEffect(
+    function () {
+      if (!user) return; // don't auto-show cached results to guests
+      fetch('/api/last-results', { headers: { Authorization: 'Bearer ' + getToken() } })
+        .then(function (r) {
+          if (!r.ok) return null;
+          return r.json();
+        })
+        .then(function (d) {
+          if (d && d.results && d.results.length) {
+            setResults(d.results);
+            setScanTime(d.scanTime);
+            setRestoredFromLastScan(true);
+          }
+        })
+        .catch(function () {});
+    },
+    [user]
+  );
 
   useEffect(
     function () {
@@ -888,7 +935,7 @@ function App() {
 
             var levels = {};
             try {
-              levels = JSON.parse(localStorage.getItem('vs-alert-levels')) || {};
+              levels = JSON.parse(localStorage.getItem(scopedStorageKey('vs-alert-levels'))) || {};
             } catch (e) {}
             d.results.forEach(function (stock) {
               var alertData = levels[stock.symbol];
@@ -956,9 +1003,11 @@ function App() {
     setShowAlertPanel(opening);
     if (opening) {
       setUnreadCount(0);
-      localStorage.setItem('vs-alert-unread', '0');
+      localStorage.setItem(scopedStorageKey('vs-alert-unread'), '0');
       if (user) {
-        fetch('/api/notifications/read', { method: 'POST', headers: { Authorization: 'Bearer ' + getToken() } }).catch(function () {});
+        fetch('/api/notifications/read', { method: 'POST', headers: { Authorization: 'Bearer ' + getToken() } }).catch(
+          function () {}
+        );
       }
       if (!notificationsEnabled) requestNotificationPermissionIfNeeded();
     }
@@ -990,7 +1039,6 @@ function App() {
       setRestoredFromLastScan(false);
       setProgress({ processed: 0, total: 1, found: 0 });
       setLiveResults([]);
-      setCurrentTicker('');
 
       poll.current = setInterval(function () {
         fetch('/api/progress', { headers: { Authorization: 'Bearer ' + getToken() } })
@@ -1009,9 +1057,8 @@ function App() {
       // Edge-cached via the Cloudflare Worker when VITE_SCAN_WORKER_URL is set
       // (see cloudflare-worker/scan-cache-worker.js); falls back to the app's
       // own origin otherwise, so local dev is unaffected.
-      var scanUrl =
-        (import.meta.env.VITE_SCAN_WORKER_URL || '') +
-        '/api/scan?minVolumeRatio=' + minRatio + '&minMarketCap=' + cap;
+      var scanWorkerBase = (import.meta.env.VITE_SCAN_WORKER_URL || '').replace(/\/+$/, '');
+      var scanUrl = scanWorkerBase + '/api/scan?minVolumeRatio=' + minRatio + '&minMarketCap=' + cap;
       if (minPrice) scanUrl += '&minPrice=' + minPrice;
       if (maxPrice) scanUrl += '&maxPrice=' + maxPrice;
       if (minVol) scanUrl += '&minVol=' + encodeURIComponent(minVol);
@@ -1115,31 +1162,6 @@ function App() {
     return sortDir === 'asc' ? av - bv : bv - av;
   });
 
-  const allSectors = results
-    ? []
-        .concat(
-          new Set(
-            results
-              .map(function (r) {
-                return r.sector;
-              })
-              .filter(Boolean)
-              .filter(function (s) {
-                return s !== 'N/A';
-              })
-          )
-        )
-        .sort()
-    : [];
-  /* Deduplicate sectors since spread on Set doesn't work in all Babel envs */
-  var sectorSet = {};
-  if (results) {
-    results.forEach(function (r) {
-      if (r.sector && r.sector !== 'N/A') sectorSet[r.sector] = true;
-    });
-  }
-  var uniqueSectors = Object.keys(sectorSet).sort();
-
   // The public marketing page shown to logged-out visitors at "/" — Capi
   // (below) is an in-app tool with nothing to do until someone has an
   // account, so it stays hidden here instead of floating over the page's
@@ -1160,7 +1182,6 @@ function App() {
 
       <PushPermissionPrompt user={user} canNotify={eliteAccess} />
       <InstallPrompt />
-
 
       {showUpgradeModal && <UpgradeModal userTier={userTier} onClose={() => setShowUpgradeModal(false)} />}
       {showTrialEndedModal && (
@@ -1229,211 +1250,201 @@ function App() {
           <LandingPage onGetStarted={() => navigate('/scanner')} />
         </Suspense>
       ) : (
-      <div className="app">
-        <Topbar
-          user={user}
-          isElite={isElite}
-          isPremium={isPremium}
-          getToken={getToken}
-          logout={logout}
-          page={page}
-          results={results}
-          scanning={scanning}
-          scanMeta={scanMeta}
-          onUpgrade={() => setShowUpgradeModal(true)}
-          onSignIn={() => setShowAuthModal(true)}
-          notificationsEnabled={notificationsEnabled}
-          showAlertPanel={showAlertPanel}
-          onBellClick={handleBellClick}
-          unreadCount={unreadCount}
-          alertHistory={alertHistory}
-          onClearAll={clearAllAlerts}
-          onClosePanel={() => setShowAlertPanel(false)}
-          onRemoveAlert={removeAlertFromHistory}
-          onOpenNotification={openScheduledNotification}
-          onToggleNotifications={toggleNotifications}
-          setPage={setPage}
-        />
+        <div className="app">
+          <Topbar
+            user={user}
+            isElite={isElite}
+            isPremium={isPremium}
+            isTrial={eliteAccess && !isElite}
+            logout={logout}
+            page={page}
+            results={results}
+            scanning={scanning}
+            scanMeta={scanMeta}
+            onUpgrade={() => setShowUpgradeModal(true)}
+            onSignIn={() => setShowAuthModal(true)}
+            notificationsEnabled={notificationsEnabled}
+            showAlertPanel={showAlertPanel}
+            onBellClick={handleBellClick}
+            unreadCount={unreadCount}
+            alertHistory={alertHistory}
+            onClearAll={clearAllAlerts}
+            onClosePanel={() => setShowAlertPanel(false)}
+            onRemoveAlert={removeAlertFromHistory}
+            onOpenNotification={openScheduledNotification}
+            onToggleNotifications={toggleNotifications}
+            setPage={setPage}
+          />
 
-        <Routes>
-          <Route path="/" element={<Navigate to="/scanner" replace />} />
+          <Routes>
+            <Route path="/" element={<Navigate to="/scanner" replace />} />
 
-          <Route
-            path="/ma"
-            element={
-              <Suspense fallback={<div className="page-loading">Loading…</div>}>
-                <MAScannerPage
-                  onOpenChart={openChart}
-                  onSignIn={() => setShowAuthModal(true)}
-                  onUpgrade={() => setShowUpgradeModal(true)}
-                  onTrialEnded={onTrialEnded}
+            <Route
+              path="/ma"
+              element={
+                <Suspense fallback={<div className="page-loading">Loading…</div>}>
+                  <MAScannerPage
+                    onSignIn={() => setShowAuthModal(true)}
+                    onUpgrade={() => setShowUpgradeModal(true)}
+                    onTrialEnded={onTrialEnded}
+                    isInWatchlist={isInWatchlist}
+                    toggleWatchlistTicker={toggleWatchlistTicker}
+                    alertLevels={alertLevels}
+                    promptCreateAlert={promptCreateAlert}
+                  />
+                </Suspense>
+              }
+            />
+
+            <Route
+              path="/flow"
+              element={
+                <Suspense fallback={<div className="page-loading">Loading…</div>}>
+                  <MoneyFlow
+                    setShowUpgradeModal={setShowUpgradeModal}
+                    onSignIn={() => setShowAuthModal(true)}
+                    onTrialEnded={onTrialEnded}
+                    alertLevels={alertLevels}
+                    promptCreateAlert={promptCreateAlert}
+                  />
+                </Suspense>
+              }
+            />
+
+            <Route
+              path="/fundamentals"
+              element={
+                <Suspense fallback={<div className="page-loading">Loading…</div>}>
+                  <FundamentalsPage
+                    onUpgrade={() => setShowUpgradeModal(true)}
+                    onSignIn={() => setShowAuthModal(true)}
+                  />
+                </Suspense>
+              }
+            />
+
+            <Route
+              path="/watchlist"
+              element={
+                <WatchlistPage
+                  watchlist={watchlist}
+                  watchlistData={watchlistData}
+                  watchlistLoading={watchlistLoading}
+                  watchlistError={watchlistError}
+                  refreshWatchlist={refreshWatchlist}
+                  toggleWatchlistTicker={toggleWatchlistTicker}
+                  setWatchlistError={setWatchlistError}
+                  canNotify={canNotify}
+                  user={user}
+                  pushSupported={pushSupported}
+                  pushEnabled={pushEnabled}
+                  pushBusy={pushBusy}
+                  pushError={pushError}
+                  enablePush={enablePush}
+                  disablePush={disablePush}
+                  setShowUpgradeModal={setShowUpgradeModal}
+                  alertLevels={alertLevels}
+                  promptCreateAlert={promptCreateAlert}
+                  onRequireAuth={() => setShowAuthModal(true)}
+                />
+              }
+            />
+
+            <Route
+              path="/scanner"
+              element={
+                <ScannerPage
+                  scanning={scanning}
+                  progress={progress}
+                  liveResults={liveResults}
+                  error={error}
+                  setError={setError}
+                  startScan={startScan}
+                  isPremium={premiumFeatureAccess}
+                  isElite={eliteAccess}
+                  setShowUpgradeModal={setShowUpgradeModal}
+                  results={results}
+                  setResults={setResults}
+                  setScanTime={setScanTime}
+                  scanMode={scanMode}
+                  setScanMode={setScanMode}
+                  selectedSectors={selectedSectors}
+                  setSelectedSectors={setSelectedSectors}
+                  toggleSector={toggleSector}
+                  minRatio={minRatio}
+                  setMinRatio={setMinRatio}
+                  minCap={minCap}
+                  setMinCap={setMinCap}
+                  minVol={minVol}
+                  setMinVol={setMinVol}
+                  showPresetPanel={showPresetPanel}
+                  setShowPresetPanel={setShowPresetPanel}
+                  presetName={presetName}
+                  setPresetName={setPresetName}
+                  savePreset={savePreset}
+                  presets={presets}
+                  loadPreset={loadPreset}
+                  deletePreset={deletePreset}
+                  marketClosed={marketClosed}
+                  scanTime={scanTime}
+                  fromCache={fromCache}
+                  cacheAge={cacheAge}
+                  restoredFromLastScan={restoredFromLastScan}
+                  sorted={sorted}
+                  visibleCount={visibleCount}
+                  setVisibleCount={setVisibleCount}
+                  sortField={sortField}
+                  sortDir={sortDir}
+                  handleSort={handleSort}
+                  handleSortDoubleClick={handleSortDoubleClick}
+                  alertLevels={alertLevels}
+                  promptCreateAlert={promptCreateAlert}
+                  explainWithCapi={explainWithCapi}
                   isInWatchlist={isInWatchlist}
                   toggleWatchlistTicker={toggleWatchlistTicker}
-                  alertLevels={alertLevels}
-                  promptCreateAlert={promptCreateAlert}
-                />
-              </Suspense>
-            }
-          />
-
-          <Route
-            path="/flow"
-            element={
-              <Suspense fallback={<div className="page-loading">Loading…</div>}>
-                <MoneyFlow
-                  theme={theme}
-                  setShowUpgradeModal={setShowUpgradeModal}
-                  onSignIn={() => setShowAuthModal(true)}
-                  onTrialEnded={onTrialEnded}
-                  alertLevels={alertLevels}
-                  promptCreateAlert={promptCreateAlert}
-                />
-              </Suspense>
-            }
-          />
-
-          <Route
-            path="/fundamentals"
-            element={
-              <Suspense fallback={<div className="page-loading">Loading…</div>}>
-                <FundamentalsPage
+                  scanMeta={scanMeta}
+                  maxFreeSectors={MAX_FREE_SECTORS}
+                  maxPremiumSectors={MAX_PREMIUM_SECTORS}
+                  sectorLimit={sectorLimit}
+                  user={user}
                   onUpgrade={() => setShowUpgradeModal(true)}
                   onSignIn={() => setShowAuthModal(true)}
                 />
-              </Suspense>
-            }
-          />
+              }
+            />
 
-          <Route
-            path="/watchlist"
-            element={
-              <WatchlistPage
-                watchlist={watchlist}
-                watchlistData={watchlistData}
-                watchlistLoading={watchlistLoading}
-                watchlistError={watchlistError}
-                refreshWatchlist={refreshWatchlist}
-                toggleWatchlistTicker={toggleWatchlistTicker}
-                setWatchlistError={setWatchlistError}
-                isElite={isElite}
-                canNotify={canNotify}
-                user={user}
-                pushSupported={pushSupported}
-                pushEnabled={pushEnabled}
-                pushBusy={pushBusy}
-                pushError={pushError}
-                enablePush={enablePush}
-                disablePush={disablePush}
-                setShowUpgradeModal={setShowUpgradeModal}
-                getToken={getToken}
-                onAccountDeleted={() => {
-                  logout();
-                  showToast('Your account has been permanently deleted.');
-                  navigate('/');
-                }}
-                alertLevels={alertLevels}
-                promptCreateAlert={promptCreateAlert}
-                onRequireAuth={() => setShowAuthModal(true)}
-              />
-            }
-          />
+            <Route
+              path="/policy"
+              element={
+                <Suspense fallback={<div className="page-loading">Loading…</div>}>
+                  <PolicyPage />
+                </Suspense>
+              }
+            />
 
-          <Route
-            path="/scanner"
-            element={
-              <ScannerPage
-                scanning={scanning}
-                progress={progress}
-                liveResults={liveResults}
-                error={error}
-                setError={setError}
-                startScan={startScan}
-                isPremium={isPremium}
-                isElite={isElite}
-                setShowUpgradeModal={setShowUpgradeModal}
-                results={results}
-                setResults={setResults}
-                setScanTime={setScanTime}
-                scanMode={scanMode}
-                setScanMode={setScanMode}
-                selectedSectors={selectedSectors}
-                setSelectedSectors={setSelectedSectors}
-                toggleSector={toggleSector}
-                minRatio={minRatio}
-                setMinRatio={setMinRatio}
-                minCap={minCap}
-                setMinCap={setMinCap}
-                minVol={minVol}
-                setMinVol={setMinVol}
-                showPresetPanel={showPresetPanel}
-                setShowPresetPanel={setShowPresetPanel}
-                presetName={presetName}
-                setPresetName={setPresetName}
-                savePreset={savePreset}
-                presets={presets}
-                loadPreset={loadPreset}
-                deletePreset={deletePreset}
-                marketClosed={marketClosed}
-                scanTime={scanTime}
-                fromCache={fromCache}
-                cacheAge={cacheAge}
-                restoredFromLastScan={restoredFromLastScan}
-                sorted={sorted}
-                visibleCount={visibleCount}
-                setVisibleCount={setVisibleCount}
-                sortField={sortField}
-                sortDir={sortDir}
-                handleSort={handleSort}
-                handleSortDoubleClick={handleSortDoubleClick}
-                alertLevels={alertLevels}
-                promptCreateAlert={promptCreateAlert}
-                explainWithCapi={explainWithCapi}
-                isInWatchlist={isInWatchlist}
-                toggleWatchlistTicker={toggleWatchlistTicker}
-                openChart={openChart}
-                scanMeta={scanMeta}
-                maxFreeSectors={MAX_FREE_SECTORS}
-                maxPremiumSectors={MAX_PREMIUM_SECTORS}
-                sectorLimit={sectorLimit}
-                user={user}
-                onUpgrade={() => setShowUpgradeModal(true)}
-                onSignIn={() => setShowAuthModal(true)}
-              />
-            }
-          />
+            <Route
+              path="/accessibility"
+              element={
+                <Suspense fallback={<div className="page-loading">Loading…</div>}>
+                  <AccessibilityStatementPage />
+                </Suspense>
+              }
+            />
 
-          <Route
-            path="/policy"
-            element={
-              <Suspense fallback={<div className="page-loading">Loading…</div>}>
-                <PolicyPage />
-              </Suspense>
-            }
-          />
+            <Route path="*" element={<Navigate to="/scanner" replace />} />
+          </Routes>
 
-          <Route
-            path="/accessibility"
-            element={
-              <Suspense fallback={<div className="page-loading">Loading…</div>}>
-                <AccessibilityStatementPage />
-              </Suspense>
-            }
-          />
-
-          <Route path="*" element={<Navigate to="/scanner" replace />} />
-        </Routes>
-
-        <footer className="site-footer">
-          <div className="site-footer-col">
-            <button className="site-footer-link" onClick={() => setPage('policy')}>
-              Privacy Policy
-            </button>
-            <p className="site-footer-disclaimer">
-              Info & Education Only. Not intended as investment advice. Market data may be delayed or estimated.
-            </p>
-          </div>
-        </footer>
-      </div>
+          <footer className="site-footer">
+            <div className="site-footer-col">
+              <button className="site-footer-link" onClick={() => setPage('policy')}>
+                Privacy Policy
+              </button>
+              <p className="site-footer-disclaimer">
+                Info & Education Only. Not intended as investment advice. Market data may be delayed or estimated.
+              </p>
+            </div>
+          </footer>
+        </div>
       )}
 
       {chartOpen && (

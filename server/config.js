@@ -73,7 +73,6 @@ module.exports = {
   SESSION_SECRET: requireSecret('SESSION_SECRET'),
   ADMIN_TOKEN: env('ADMIN_TOKEN'),
   ADMIN_EMAIL: env('ADMIN_EMAIL'),
-  OPENROUTER_API_KEY: env('OPENROUTER_API_KEY'),
   SENTRY_DSN: env('SENTRY_DSN'),
   // Whop (checkout) — opt-in, same pattern as Sentry: features that depend
   // on these simply no-op until they're set.
@@ -87,7 +86,7 @@ module.exports = {
   // plan, which is what makes the offer genuinely exclusive rather than a
   // copy-only claim. Leave unset to hide the offer entirely.
   WHOP_ELITE_UPGRADE_PLAN_ID: env('WHOP_ELITE_UPGRADE_PLAN_ID'),
-  // Turso cloud SQLite — set for production (Koyeb). Omit for local dev (file-based).
+  // Turso cloud SQLite — set for production (Render). Omit for local dev (file-based).
   TURSO_DB_URL: env('TURSO_DB_URL'),
   TURSO_AUTH_TOKEN: env('TURSO_AUTH_TOKEN'),
   PILOT_INVITE_CODE: env('PILOT_INVITE_CODE'),
@@ -110,7 +109,7 @@ if (
 ) {
   console.error(
     '\n[FATAL] GOOGLE_CLIENT_ID/SECRET are set but GOOGLE_CALLBACK_URL is not — Google login would silently ' +
-      'redirect users to http://localhost:3001 in production. Set GOOGLE_CALLBACK_URL to this server\'s real ' +
+      "redirect users to http://localhost:3001 in production. Set GOOGLE_CALLBACK_URL to this server's real " +
       'public callback URL (e.g. https://your-domain.com/api/auth/google/callback) before starting.\n'
   );
   process.exit(1);

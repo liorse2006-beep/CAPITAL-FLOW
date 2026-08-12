@@ -29,7 +29,9 @@ test('an older day still counts toward the all-time total but not the 7-day wind
   const base = await getVisitStats();
   // A visit stamped 30 days ago — outside the 7-day window, inside all-time.
   await db
-    .prepare("INSERT INTO site_visits (day, count) VALUES (date('now','-30 days'), 5) ON CONFLICT(day) DO UPDATE SET count = count + 5")
+    .prepare(
+      "INSERT INTO site_visits (day, count) VALUES (date('now','-30 days'), 5) ON CONFLICT(day) DO UPDATE SET count = count + 5"
+    )
     .run();
 
   const after = await getVisitStats();

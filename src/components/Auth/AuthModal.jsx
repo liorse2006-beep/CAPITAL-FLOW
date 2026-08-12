@@ -64,7 +64,10 @@ function Turnstile({ onVerify, onExpire }) {
     widgetId.current = window.turnstile.render(containerRef.current, {
       sitekey: TURNSTILE_SITE_KEY,
       callback: (token) => onVerify(token),
-      'expired-callback': () => { onExpire(); widgetId.current = null; },
+      'expired-callback': () => {
+        onExpire();
+        widgetId.current = null;
+      },
       theme: 'dark',
     });
   }, [onVerify, onExpire]);
@@ -76,7 +79,10 @@ function Turnstile({ onVerify, onExpire }) {
     }
     if (document.getElementById('cf-turnstile-script')) {
       const interval = setInterval(() => {
-        if (window.turnstile) { clearInterval(interval); render(); }
+        if (window.turnstile) {
+          clearInterval(interval);
+          render();
+        }
       }, 100);
       return () => clearInterval(interval);
     }
@@ -243,10 +249,6 @@ export default function AuthModal({ onClose }) {
     }
   }
 
-  function goToGoogle() {
-    setScreen('google_consent');
-  }
-
   function confirmGoogle() {
     sessionStorage.setItem('google_auth_pending', '1');
     window.location.href = '/api/auth/google';
@@ -356,10 +358,7 @@ export default function AuthModal({ onClose }) {
 
               {screen === 'signup' && (
                 <div className="auth-captcha-wrap">
-                  <Turnstile
-                    onVerify={(token) => setCaptchaToken(token)}
-                    onExpire={() => setCaptchaToken('')}
-                  />
+                  <Turnstile onVerify={(token) => setCaptchaToken(token)} onExpire={() => setCaptchaToken('')} />
                 </div>
               )}
 

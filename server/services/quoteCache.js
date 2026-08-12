@@ -20,8 +20,8 @@ const { createCircuitBreaker } = require('../utils/circuitBreaker');
 // same timeout/retry cost simultaneously.
 const yahooBreaker = createCircuitBreaker('yahoo-quote', { failureThreshold: 5, cooldownMs: 20000 });
 
-const BATCH_SIZE = 100;           // symbols per HTTP call (Yahoo handles 200+ but 100 is safe)
-const CACHE_TTL_MS = 3 * 60 * 1000;  // 3 minutes
+const BATCH_SIZE = 100; // symbols per HTTP call (Yahoo handles 200+ but 100 is safe)
+const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
 const INTER_BATCH_DELAY_MS = 150;
 const MAX_RETRIES = 2;
 // Maximum age for stale fallback entries. Beyond this limit we refuse to serve
@@ -47,9 +47,7 @@ async function fetchBatch(symbols) {
       // validateResult:false — if any symbol has an unexpected field Yahoo returns,
       // the library normally throws and we'd lose the entire batch of 100. With
       // this option it skips schema validation and returns whatever data Yahoo sent.
-      const results = await yahooBreaker.execute(() =>
-        yahooFinance.quote(symbols, {}, { validateResult: false })
-      );
+      const results = await yahooBreaker.execute(() => yahooFinance.quote(symbols, {}, { validateResult: false }));
       const arr = Array.isArray(results) ? results : results ? [results] : [];
       const now = Date.now();
       arr.forEach((q) => {
@@ -74,13 +72,17 @@ async function fetchBatch(symbols) {
       const stale = symbols
         .map((s) => {
           const e = cache.get(s);
-          return e && (now - e.fetchedAt) < MAX_STALE_AGE_MS ? e.data : null;
+          return e && now - e.fetchedAt < MAX_STALE_AGE_MS ? e.data : null;
         })
         .filter(Boolean);
       if (stale.length > 0) {
-        console.warn(`[QuoteCache] Yahoo failed — serving ${stale.length}/${symbols.length} recent stale entries (< ${MAX_STALE_AGE_MS / 60000} min old): ${msg}`);
+        console.warn(
+          `[QuoteCache] Yahoo failed — serving ${stale.length}/${symbols.length} recent stale entries (< ${MAX_STALE_AGE_MS / 60000} min old): ${msg}`
+        );
       } else {
-        console.error(`[QuoteCache] Batch failed, no usable stale fallback (${symbols[0]}…${symbols[symbols.length - 1]}): ${msg}`);
+        console.error(
+          `[QuoteCache] Batch failed, no usable stale fallback (${symbols[0]}…${symbols[symbols.length - 1]}): ${msg}`
+        );
       }
       return stale;
     }
@@ -88,7 +90,10 @@ async function fetchBatch(symbols) {
   // Loop exhausted without returning — same age-limited stale fallback
   const now2 = Date.now();
   return symbols
-    .map((s) => { const e = cache.get(s); return e && (now2 - e.fetchedAt) < MAX_STALE_AGE_MS ? e.data : null; })
+    .map((s) => {
+      const e = cache.get(s);
+      return e && now2 - e.fetchedAt < MAX_STALE_AGE_MS ? e.data : null;
+    })
     .filter(Boolean);
 }
 

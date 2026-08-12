@@ -1,0 +1,9 @@
+name = "capital-flow-scan-cache"
+main = "scan-cache-worker.js"
+compatibility_date = "2026-08-12"
+
+# Set the real Render origin here; keep the public Worker URL in the Vite build
+# environment after the Worker is deployed.
+# JWT_SECRET must be stored as a Worker secret, never committed here.
+[vars]
+ORIGIN = "https://capital-flow-3v59.onrender.com"

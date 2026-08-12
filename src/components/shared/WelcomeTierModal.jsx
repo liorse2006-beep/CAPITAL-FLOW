@@ -1,50 +1,48 @@
-import React, { useEffect, useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
-import useModalA11y from '../../hooks/useModalA11y'
-import { tierFeatureChecklist } from '../../constants/tierFeatures'
-import { useAuth } from '../../context/AuthContext'
-import EmbeddedCheckout from './EmbeddedCheckout'
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import useModalA11y from '../../hooks/useModalA11y';
+import { tierFeatureChecklist } from '../../constants/tierFeatures';
+import { useAuth } from '../../context/AuthContext';
+import EmbeddedCheckout from './EmbeddedCheckout';
 
 // How long the "confirming with Whop" indicator stays up before we quietly
 // stop showing it — the badge/copy already reflect the tier the user just
 // bought regardless, so an indicator that never resolves would just look
 // broken instead of adding real information past this point.
-var CONFIRM_TIMEOUT_MS = 12000
+var CONFIRM_TIMEOUT_MS = 12000;
 
 var COPY = {
   premium: {
     label: 'PREMIUM',
     badgeClass: 'tier-premium',
     headline: 'Welcome to Premium',
-    body:
-      "Thanks for backing what we're building — we don't take that lightly. Every tool below is live on your account right now.",
+    body: "Thanks for backing what we're building — we don't take that lightly. Every tool below is live on your account right now.",
   },
   elite: {
     label: 'ELITE',
     badgeClass: 'tier-elite',
     headline: 'Welcome to Elite',
-    body:
-      "Thank you for going all in with us — that means a lot. Every tool in Capital Flow is yours now, nothing held back.",
+    body: 'Thank you for going all in with us — that means a lot. Every tool in Capital Flow is yours now, nothing held back.',
   },
-}
+};
 
 export default function WelcomeTierModal({ tier, confirmed, onClose }) {
-  const panelRef = useModalA11y(onClose)
-  const { getToken } = useAuth()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const [showConfirming, setShowConfirming] = useState(!confirmed)
-  const [upgrading, setUpgrading] = useState(false)
-  const [upgradeError, setUpgradeError] = useState('')
-  const [checkoutSessionId, setCheckoutSessionId] = useState(null)
-  const [checkoutPlanId, setCheckoutPlanId] = useState(null)
+  const panelRef = useModalA11y(onClose);
+  const { getToken } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [showConfirming, setShowConfirming] = useState(!confirmed);
+  const [upgrading, setUpgrading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState('');
+  const [checkoutSessionId, setCheckoutSessionId] = useState(null);
+  const [checkoutPlanId, setCheckoutPlanId] = useState(null);
 
   // The exact same tier-was-requested handoff UpgradeModal uses — stashed
   // before mounting the embed so that if this converts, the user lands back
   // on the (real) Elite welcome screen instead of nothing.
   function upgradeToElite() {
-    setUpgradeError('')
-    setUpgrading(true)
+    setUpgradeError('');
+    setUpgrading(true);
     fetch('/api/checkout/transaction', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
@@ -52,60 +50,57 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
     })
       .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
-        if (!ok) throw new Error(data.error || 'Could not start checkout')
-        if (!data.sessionId) throw new Error('Checkout session was not created — please try again.')
-        localStorage.setItem('vs_pending_tier', 'elite')
-        setCheckoutSessionId(data.sessionId)
-        setCheckoutPlanId(data.planId)
+        if (!ok) throw new Error(data.error || 'Could not start checkout');
+        if (!data.sessionId) throw new Error('Checkout session was not created — please try again.');
+        localStorage.setItem('vs_pending_tier', 'elite');
+        setCheckoutSessionId(data.sessionId);
+        setCheckoutPlanId(data.planId);
       })
       .catch((err) => {
-        setUpgradeError(err.message || 'Something went wrong — please try again.')
+        setUpgradeError(err.message || 'Something went wrong — please try again.');
       })
-      .finally(() => setUpgrading(false))
+      .finally(() => setUpgrading(false));
   }
 
   function handleComplete() {
     // Same ?status=success handling App.jsx already has for the old
     // hosted-redirect flow — shows the real (now Elite) welcome screen once
     // the webhook confirms, without ever leaving this page.
-    navigate(location.pathname + '?status=success', { replace: false })
+    navigate(location.pathname + '?status=success', { replace: false });
   }
 
   function handlePaymentError(error) {
-    setUpgradeError((error && error.message) || 'Payment failed — please try again.')
-    setCheckoutSessionId(null)
-    localStorage.removeItem('vs_pending_tier')
+    setUpgradeError((error && error.message) || 'Payment failed — please try again.');
+    setCheckoutSessionId(null);
+    localStorage.removeItem('vs_pending_tier');
   }
 
   useEffect(
     function () {
-      if (confirmed) {
-        setShowConfirming(false)
-        return
-      }
+      if (confirmed) return;
       var t = setTimeout(function () {
-        setShowConfirming(false)
-      }, CONFIRM_TIMEOUT_MS)
+        setShowConfirming(false);
+      }, CONFIRM_TIMEOUT_MS);
       return function () {
-        clearTimeout(t)
-      }
+        clearTimeout(t);
+      };
     },
     [confirmed]
-  )
+  );
 
-  var copy = COPY[tier]
-  if (!copy) return null
+  var copy = COPY[tier];
+  if (!copy) return null;
   // Every tier's screen lists the SAME full paid-feature set — Elite checks
   // off all of it (nothing to exclude), Premium checks off its own three and
   // groups the rest into a separate "also included with Elite" section
   // instead of marking them with a rejection-coded × right in the same list.
-  var checklist = tierFeatureChecklist(tier)
+  var checklist = tierFeatureChecklist(tier);
   var included = checklist.filter(function (f) {
-    return f.included
-  })
+    return f.included;
+  });
   var excluded = checklist.filter(function (f) {
-    return !f.included
-  })
+    return !f.included;
+  });
 
   if (checkoutSessionId) {
     return (
@@ -125,8 +120,8 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
           <button
             className="checkout-embed-back"
             onClick={() => {
-              setCheckoutSessionId(null)
-              localStorage.removeItem('vs_pending_tier')
+              setCheckoutSessionId(null);
+              localStorage.removeItem('vs_pending_tier');
             }}
           >
             ‹ Back
@@ -134,10 +129,15 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
           <h2 className="upgrade-title" style={{ textAlign: 'center', marginBottom: 16 }}>
             Elite checkout
           </h2>
-          <EmbeddedCheckout sessionId={checkoutSessionId} planId={checkoutPlanId} onComplete={handleComplete} onError={handlePaymentError} />
+          <EmbeddedCheckout
+            sessionId={checkoutSessionId}
+            planId={checkoutPlanId}
+            onComplete={handleComplete}
+            onError={handlePaymentError}
+          />
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -157,7 +157,7 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
 
         <div className="welcome-tier-badge-wrap">
           <span className={'welcome-tier-badge ' + copy.badgeClass}>{copy.label}</span>
-          {showConfirming && (
+          {!confirmed && showConfirming && (
             <span className="welcome-tier-confirming">
               <span className="welcome-tier-spinner" />
               Confirming with Whop…
@@ -171,7 +171,16 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
         <ul className="welcome-tier-features">
           {included.map((f) => (
             <li key={f.label}>
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                width="15"
+                height="15"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <polyline points="20 6 9 17 4 12" />
               </svg>
               {f.label}
@@ -198,11 +207,15 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
         {tier === 'premium' && (
           <div className="welcome-upsell">
             <span className="welcome-upsell-badge">One-time offer</span>
-            <button className="upgrade-cta welcome-tier-cta welcome-upsell-cta" onClick={upgradeToElite} disabled={upgrading}>
+            <button
+              className="upgrade-cta welcome-tier-cta welcome-upsell-cta"
+              onClick={upgradeToElite}
+              disabled={upgrading}
+            >
               {upgrading ? 'Loading…' : 'Upgrade to Elite — 50% off'}
             </button>
             <p className="welcome-upsell-sub">
-              $14.95 instead of $29.90 — once you leave this screen, this offer disappears.
+              $14.95 instead of $29.90 — a one-time 50% upgrade offer shown only after Premium purchase.
             </p>
             {upgradeError && <p className="welcome-upsell-error">{upgradeError}</p>}
           </div>
@@ -216,5 +229,5 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
         </button>
       </div>
     </div>
-  )
+  );
 }

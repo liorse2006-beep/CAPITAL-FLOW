@@ -117,7 +117,9 @@ test('a scheduled scan persists an in-app notification, so it is visible even wi
   await runScheduledScans();
 
   const notif = await db
-    .prepare('SELECT id, symbol, title, body, scan_type, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+    .prepare(
+      'SELECT id, symbol, title, body, scan_type, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1'
+    )
     .get(userId);
   assert.ok(notif, 'a scheduled scan must leave a notification in the in-app bell');
   // No single symbol on the notification itself — it's a digest of however
@@ -148,17 +150,23 @@ function nowHHMM() {
     hour12: false,
   }).formatToParts(new Date());
   const map = {};
-  parts.forEach((p) => { map[p.type] = p.value; });
+  parts.forEach((p) => {
+    map[p.type] = p.value;
+  });
   return map.hour + ':' + map.minute;
 }
 
 test('a one-time schedule for today fires, and deactivates itself so it can never fire again', async (t) => {
-  const u = await db.prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)').run('sched-onetime-fire@test.local');
+  const u = await db
+    .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
+    .run('sched-onetime-fire@test.local');
   const userId = u.lastInsertRowid;
   const { israelToday } = require('../server/services/scheduledScanRunner');
 
   await db
-    .prepare("INSERT INTO scheduled_scans (user_id, scan_type, scan_time, scan_date, active) VALUES (?, 'capitalFlow', ?, ?, 1)")
+    .prepare(
+      "INSERT INTO scheduled_scans (user_id, scan_type, scan_time, scan_date, active) VALUES (?, 'capitalFlow', ?, ?, 1)"
+    )
     .run(userId, nowHHMM(), israelToday());
 
   t.mock.method(scanner, 'scanTickers', async () => ({
@@ -183,12 +191,16 @@ test('a one-time schedule for today fires, and deactivates itself so it can neve
 });
 
 test('a one-time schedule dated tomorrow does not fire today even at the matching time', async (t) => {
-  const u = await db.prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)').run('sched-onetime-future@test.local');
+  const u = await db
+    .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
+    .run('sched-onetime-future@test.local');
   const userId = u.lastInsertRowid;
 
   const tomorrow = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   await db
-    .prepare("INSERT INTO scheduled_scans (user_id, scan_type, scan_time, scan_date, active) VALUES (?, 'capitalFlow', ?, ?, 1)")
+    .prepare(
+      "INSERT INTO scheduled_scans (user_id, scan_type, scan_time, scan_date, active) VALUES (?, 'capitalFlow', ?, ?, 1)"
+    )
     .run(userId, nowHHMM(), tomorrow);
 
   t.mock.method(scanner, 'scanTickers', async () => ({ results: [], errors: [], processed: 500 }));

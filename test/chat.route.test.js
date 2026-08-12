@@ -12,7 +12,9 @@ delete require.cache[require.resolve('../server/config')];
 delete require.cache[require.resolve('../server/services/chatbot')];
 
 const db = require('../server/db');
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 
 const { issueToken } = require('../server/services/auth');
 const chatRouter = require('../server/routes/chat');
@@ -36,10 +38,7 @@ async function makeUser(email, tier = 'elite') {
 // A free account created 8 days ago — its 7-day trial has elapsed, so it no
 // longer has Elite access.
 async function makePastTrialFreeUser(email) {
-  const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .replace('T', ' ')
-    .slice(0, 19);
+  const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
   const result = await db
     .prepare("INSERT INTO users (email, is_verified, tier, is_premium, created_at) VALUES (?, 1, 'free', 0, ?)")
     .run(email, eightDaysAgo);
@@ -77,7 +76,10 @@ test('premium and past-trial free are rejected with NOT_ELITE on every chat rout
   const port = server.address().port;
   try {
     for (const user of [premium, pastTrial]) {
-      const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)).accessToken };
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + (await issueToken(user)).accessToken,
+      };
       const get = await fetch(`http://127.0.0.1:${port}/api/chat/history`, { headers });
       assert.strictEqual(get.status, 403);
       assert.strictEqual((await get.json()).code, 'NOT_ELITE');
@@ -102,7 +104,10 @@ test('a free account still inside its 7-day trial gets full Capi access', async 
   const server = await startTestApp();
   const port = server.address().port;
   try {
-    const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(freshFree)).accessToken };
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + (await issueToken(freshFree)).accessToken,
+    };
     // GET history doesn't call Gemini — a clean 200 proves the gate let them in.
     const get = await fetch(`http://127.0.0.1:${port}/api/chat/history`, { headers });
     assert.strictEqual(get.status, 200);
@@ -127,7 +132,10 @@ test('POST /api/chat/message persists both the user message and the reply, GET r
   const user = await makeUser('chat-route@test.local');
   const server = await startTestApp();
   const port = server.address().port;
-  const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)).accessToken };
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: 'Bearer ' + (await issueToken(user)).accessToken,
+  };
   try {
     const postRes = await fetch(`http://127.0.0.1:${port}/api/chat/message`, {
       method: 'POST',
@@ -154,7 +162,10 @@ test('POST /api/chat/message rejects an empty message', async () => {
   const user = await makeUser('chat-empty@test.local');
   const server = await startTestApp();
   const port = server.address().port;
-  const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)).accessToken };
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: 'Bearer ' + (await issueToken(user)).accessToken,
+  };
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/chat/message`, {
       method: 'POST',
@@ -167,23 +178,42 @@ test('POST /api/chat/message rejects an empty message', async () => {
   }
 });
 
-test('DELETE /api/chat/history clears only the requesting user\'s messages', async () => {
+test("DELETE /api/chat/history clears only the requesting user's messages", async () => {
   mockGemini('ok', 'v1_y');
 
   const alice = await makeUser('chat-alice@test.local');
   const bob = await makeUser('chat-bob@test.local');
   const server = await startTestApp();
   const port = server.address().port;
-  const aliceHeaders = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(alice)).accessToken };
-  const bobHeaders = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(bob)).accessToken };
+  const aliceHeaders = {
+    'Content-Type': 'application/json',
+    Authorization: 'Bearer ' + (await issueToken(alice)).accessToken,
+  };
+  const bobHeaders = {
+    'Content-Type': 'application/json',
+    Authorization: 'Bearer ' + (await issueToken(bob)).accessToken,
+  };
   try {
-    await fetch(`http://127.0.0.1:${port}/api/chat/message`, { method: 'POST', headers: aliceHeaders, body: JSON.stringify({ message: 'hi' }) });
-    await fetch(`http://127.0.0.1:${port}/api/chat/message`, { method: 'POST', headers: bobHeaders, body: JSON.stringify({ message: 'hi' }) });
+    await fetch(`http://127.0.0.1:${port}/api/chat/message`, {
+      method: 'POST',
+      headers: aliceHeaders,
+      body: JSON.stringify({ message: 'hi' }),
+    });
+    await fetch(`http://127.0.0.1:${port}/api/chat/message`, {
+      method: 'POST',
+      headers: bobHeaders,
+      body: JSON.stringify({ message: 'hi' }),
+    });
 
-    const delRes = await fetch(`http://127.0.0.1:${port}/api/chat/history`, { method: 'DELETE', headers: aliceHeaders });
+    const delRes = await fetch(`http://127.0.0.1:${port}/api/chat/history`, {
+      method: 'DELETE',
+      headers: aliceHeaders,
+    });
     assert.strictEqual(delRes.status, 200);
 
-    const aliceHistory = await (await fetch(`http://127.0.0.1:${port}/api/chat/history`, { headers: aliceHeaders })).json();
+    const aliceHistory = await (
+      await fetch(`http://127.0.0.1:${port}/api/chat/history`, { headers: aliceHeaders })
+    ).json();
     const bobHistory = await (await fetch(`http://127.0.0.1:${port}/api/chat/history`, { headers: bobHeaders })).json();
     assert.strictEqual(aliceHistory.length, 0);
     assert.strictEqual(bobHistory.length, 2, "bob's history must survive alice clearing hers");

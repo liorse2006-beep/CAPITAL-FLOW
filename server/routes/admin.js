@@ -68,11 +68,13 @@ async function logAction(actor, action, targetUserId, detail) {
 }
 
 // ── Admin API: user list ───────────────────────────────────────────────────
-router.get('/admin/api/users', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
-  const users = await db
-    .prepare(
-      `SELECT id, email, google_email, is_verified, is_premium, is_blocked, is_pilot, tier,
+router.get(
+  '/admin/api/users',
+  asyncRoute(async (req, res) => {
+    if (!(await checkToken(req, res))) return;
+    const users = await db
+      .prepare(
+        `SELECT id, email, google_email, is_verified, is_premium, is_blocked, is_pilot, tier,
               pilot_terms_accepted_at, free_scan_count, created_at, last_login_at, notification_time,
               free_scan_used_capital_flow, free_scan_used_ma_scanner, free_scan_used_sector_moving,
               premium_scan_count, premium_scan_window_start,
@@ -80,265 +82,320 @@ router.get('/admin/api/users', asyncRoute(async (req, res) => {
               (SELECT COUNT(*) FROM watchlist_alerts    WHERE user_id = users.id AND type = 'price') AS price_alert_count,
               (SELECT COUNT(*) FROM push_subscriptions  WHERE user_id = users.id) AS push_count
        FROM users ORDER BY id DESC`
-    )
-    .all();
-  res.json(users);
-}));
+      )
+      .all();
+    res.json(users);
+  })
+);
 
 // ── Admin API: force sign-out ──────────────────────────────────────────────
-router.post('/admin/api/users/:id/logout', asyncRoute(async (req, res) => {
-  const actor = await checkToken(req, res);
-  if (!actor) return;
-  // Deletes every row in user_sessions for this account — every device's
-  // access token is checked against this table on its very next request
-  // (see authMiddleware.resolveToken), so this takes effect immediately,
-  // not just once each device's token happens to hit its own 1h expiry.
-  await revokeAllSessions(req.params.id);
-  logAction(actor, 'force_logout', req.params.id);
-  res.json({ ok: true });
-}));
+router.post(
+  '/admin/api/users/:id/logout',
+  asyncRoute(async (req, res) => {
+    const actor = await checkToken(req, res);
+    if (!actor) return;
+    // Deletes every row in user_sessions for this account — every device's
+    // access token is checked against this table on its very next request
+    // (see authMiddleware.resolveToken), so this takes effect immediately,
+    // not just once each device's token happens to hit its own 1h expiry.
+    await revokeAllSessions(req.params.id);
+    logAction(actor, 'force_logout', req.params.id);
+    res.json({ ok: true });
+  })
+);
 
 const VALID_TIERS = new Set(['free', 'premium', 'elite']);
 
 // ── Admin API: set subscription tier ───────────────────────────────────────
-router.post('/admin/api/users/:id/tier', asyncRoute(async (req, res) => {
-  const actor = await checkToken(req, res);
-  if (!actor) return;
-  const { tier } = req.body;
-  if (!VALID_TIERS.has(tier)) return res.status(400).json({ error: 'tier must be free, premium, or elite' });
-  await db.prepare('UPDATE users SET tier = ?, is_premium = ? WHERE id = ?').run(
-    tier,
-    tier !== 'free' ? 1 : 0,
-    req.params.id
-  );
-  logAction(actor, 'set_tier', req.params.id, tier);
-  res.json({ ok: true, tier });
-}));
+router.post(
+  '/admin/api/users/:id/tier',
+  asyncRoute(async (req, res) => {
+    const actor = await checkToken(req, res);
+    if (!actor) return;
+    const { tier } = req.body;
+    if (!VALID_TIERS.has(tier)) return res.status(400).json({ error: 'tier must be free, premium, or elite' });
+    await db
+      .prepare('UPDATE users SET tier = ?, is_premium = ? WHERE id = ?')
+      .run(tier, tier !== 'free' ? 1 : 0, req.params.id);
+    logAction(actor, 'set_tier', req.params.id, tier);
+    res.json({ ok: true, tier });
+  })
+);
 
 // ── Admin API: block / unblock ────────────────────────────────────────────
-router.post('/admin/api/users/:id/block', asyncRoute(async (req, res) => {
-  const actor = await checkToken(req, res);
-  if (!actor) return;
-  const { value } = req.body; // 1 or 0
-  await db.prepare('UPDATE users SET is_blocked = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
-  // is_blocked doesn't delete the user's sessions, so a blocked account's
-  // cached resolveToken() result (see authMiddleware.js) would otherwise
-  // keep working until it ages out on its own.
-  if (value) invalidateUserSessions(Number(req.params.id));
-  logAction(actor, value ? 'block_user' : 'unblock_user', req.params.id);
-  res.json({ ok: true });
-}));
+router.post(
+  '/admin/api/users/:id/block',
+  asyncRoute(async (req, res) => {
+    const actor = await checkToken(req, res);
+    if (!actor) return;
+    const { value } = req.body; // 1 or 0
+    await db.prepare('UPDATE users SET is_blocked = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
+    // is_blocked doesn't delete the user's sessions, so a blocked account's
+    // cached resolveToken() result (see authMiddleware.js) would otherwise
+    // keep working until it ages out on its own.
+    if (value) invalidateUserSessions(Number(req.params.id));
+    logAction(actor, value ? 'block_user' : 'unblock_user', req.params.id);
+    res.json({ ok: true });
+  })
+);
 
 // ── Admin API: delete user ─────────────────────────────────────────────────
-router.delete('/admin/api/users/:id', asyncRoute(async (req, res) => {
-  const actor = await checkToken(req, res);
-  if (!actor) return;
-  const target = await db.prepare('SELECT email FROM users WHERE id = ?').get(req.params.id);
-  await db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
-  logAction(actor, 'delete_user', req.params.id, target?.email);
-  res.json({ ok: true });
-}));
+router.delete(
+  '/admin/api/users/:id',
+  asyncRoute(async (req, res) => {
+    const actor = await checkToken(req, res);
+    if (!actor) return;
+    const target = await db.prepare('SELECT email FROM users WHERE id = ?').get(req.params.id);
+    await db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+    logAction(actor, 'delete_user', req.params.id, target?.email);
+    res.json({ ok: true });
+  })
+);
 
 // ── Admin API: grant / revoke pilot status on an existing user ─────────────
-router.post('/admin/api/users/:id/pilot', asyncRoute(async (req, res) => {
-  const actor = await checkToken(req, res);
-  if (!actor) return;
-  const { value } = req.body; // 1 or 0
-  await db.prepare('UPDATE users SET is_pilot = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
-  logAction(actor, value ? 'grant_pilot' : 'revoke_pilot', req.params.id);
-  res.json({ ok: true });
-}));
+router.post(
+  '/admin/api/users/:id/pilot',
+  asyncRoute(async (req, res) => {
+    const actor = await checkToken(req, res);
+    if (!actor) return;
+    const { value } = req.body; // 1 or 0
+    await db.prepare('UPDATE users SET is_pilot = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
+    logAction(actor, value ? 'grant_pilot' : 'revoke_pilot', req.params.id);
+    res.json({ ok: true });
+  })
+);
 
 // ── Admin API: feedback submissions ────────────────────────────────────────
-router.get('/admin/api/feedback', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
-  const rows = await db
-    .prepare(
-      `SELECT feedback.id, feedback.email, feedback.message, feedback.page, feedback.created_at,
+router.get(
+  '/admin/api/feedback',
+  asyncRoute(async (req, res) => {
+    if (!(await checkToken(req, res))) return;
+    const rows = await db
+      .prepare(
+        `SELECT feedback.id, feedback.email, feedback.message, feedback.page, feedback.created_at,
               users.email AS account_email
        FROM feedback
        LEFT JOIN users ON users.id = feedback.user_id
        ORDER BY feedback.id DESC
        LIMIT 200`
-    )
-    .all();
-  res.json(rows);
-}));
+      )
+      .all();
+    res.json(rows);
+  })
+);
 
-router.delete('/admin/api/feedback/:id', asyncRoute(async (req, res) => {
-  const actor = await checkToken(req, res);
-  if (!actor) return;
-  await db.prepare('DELETE FROM feedback WHERE id = ?').run(req.params.id);
-  logAction(actor, 'delete_feedback', null, 'feedback #' + req.params.id);
-  res.json({ ok: true });
-}));
+router.delete(
+  '/admin/api/feedback/:id',
+  asyncRoute(async (req, res) => {
+    const actor = await checkToken(req, res);
+    if (!actor) return;
+    await db.prepare('DELETE FROM feedback WHERE id = ?').run(req.params.id);
+    logAction(actor, 'delete_feedback', null, 'feedback #' + req.params.id);
+    res.json({ ok: true });
+  })
+);
 
 // ── Admin API: audit log ────────────────────────────────────────────────────
-router.get('/admin/api/audit-log', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
-  const rows = await db
-    .prepare(
-      `SELECT admin_audit_log.*, users.email AS target_email
+router.get(
+  '/admin/api/audit-log',
+  asyncRoute(async (req, res) => {
+    if (!(await checkToken(req, res))) return;
+    const rows = await db
+      .prepare(
+        `SELECT admin_audit_log.*, users.email AS target_email
        FROM admin_audit_log
        LEFT JOIN users ON users.id = admin_audit_log.target_user_id
        ORDER BY admin_audit_log.id DESC
        LIMIT 200`
-    )
-    .all();
-  res.json(rows);
-}));
+      )
+      .all();
+    res.json(rows);
+  })
+);
 
-router.post('/admin/api/users/:id/push-test', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
-  const userId = Number(req.params.id);
-  const { title = 'Capital Flow — Test', body = 'Push notifications are working! 🎉' } = req.body || {};
-  try {
-    const { sendPushToUser, configured } = require('../services/webPush');
-    if (!configured) return res.status(503).json({ error: 'VAPID keys not configured' });
-    const result = await sendPushToUser(userId, { title, body, tag: 'admin-test', data: { url: '/' } });
-    // Surface the real delivery outcome so the admin can PROVE a push reached
-    // the push service (delivered = a 2xx from FCM/Mozilla → the device gets
-    // it even with the app closed), not just that the request didn't error.
-    res.json({ ok: true, ...result });
-  } catch (err) {
-    reportError(err, '[admin push-test]');
-    res.status(500).json({ error: 'Server error' });
-  }
-}));
+router.post(
+  '/admin/api/users/:id/push-test',
+  asyncRoute(async (req, res) => {
+    if (!(await checkToken(req, res))) return;
+    const userId = Number(req.params.id);
+    const { title = 'Capital Flow — Test', body = 'Push notifications are working! 🎉' } = req.body || {};
+    try {
+      const { sendPushToUser, configured } = require('../services/webPush');
+      if (!configured) return res.status(503).json({ error: 'VAPID keys not configured' });
+      const result = await sendPushToUser(userId, { title, body, tag: 'admin-test', data: { url: '/' } });
+      // Surface the real delivery outcome so the admin can PROVE a push reached
+      // the push service (delivered = a 2xx from FCM/Mozilla → the device gets
+      // it even with the app closed), not just that the request didn't error.
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      reportError(err, '[admin push-test]');
+      res.status(500).json({ error: 'Server error' });
+    }
+  })
+);
 
 // ── Admin API: last successful DB backup ────────────────────────────────────
-router.get('/admin/api/backup-status', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
-  const row = await db.prepare("SELECT value FROM app_meta WHERE key = 'last_backup_at'").get();
-  res.json({ lastBackupAt: row ? Number(row.value) : null });
-}));
+router.get(
+  '/admin/api/backup-status',
+  asyncRoute(async (req, res) => {
+    if (!(await checkToken(req, res))) return;
+    const row = await db.prepare("SELECT value FROM app_meta WHERE key = 'last_backup_at'").get();
+    res.json({ lastBackupAt: row ? Number(row.value) : null });
+  })
+);
 
 // Runs the same backup email the daily scheduler runs, on demand — lets the
 // admin panel tell "not configured" apart from "actually failing to send"
 // instead of just waiting up to 24h to find out, and gives a real error
 // message (bad Gmail app password, etc.) instead of a silent no-op.
-router.post('/admin/api/backup/run-now', asyncRoute(async (req, res) => {
-  const actor = await checkToken(req, res);
-  if (!actor) return;
-  const { GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_EMAIL } = require('../config');
-  if (!GMAIL_USER || !GMAIL_APP_PASSWORD || !ADMIN_EMAIL) {
-    return res.status(400).json({ error: 'Backup email is not configured (GMAIL_USER / GMAIL_APP_PASSWORD / ADMIN_EMAIL).' });
-  }
-  try {
-    await require('../services/dbBackup').runBackupTick();
-    logAction(actor, 'manual_backup', null, null);
-    res.json({ ok: true });
-  } catch (err) {
-    reportError(err, '[admin backup-now]');
-    res.status(500).json({ error: err.message || 'Backup failed' });
-  }
-}));
+router.post(
+  '/admin/api/backup/run-now',
+  asyncRoute(async (req, res) => {
+    const actor = await checkToken(req, res);
+    if (!actor) return;
+    const { GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_EMAIL } = require('../config');
+    if (!GMAIL_USER || !GMAIL_APP_PASSWORD || !ADMIN_EMAIL) {
+      return res
+        .status(400)
+        .json({ error: 'Backup email is not configured (GMAIL_USER / GMAIL_APP_PASSWORD / ADMIN_EMAIL).' });
+    }
+    try {
+      await require('../services/dbBackup').runBackupTick();
+      logAction(actor, 'manual_backup', null, null);
+      res.json({ ok: true });
+    } catch (err) {
+      reportError(err, '[admin backup-now]');
+      res.status(500).json({ error: err.message || 'Backup failed' });
+    }
+  })
+);
 
 // ── Admin API: site-visit counts (sessions that opened the site) ────────────
-router.get('/admin/api/visits', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
-  const { getVisitStats } = require('../services/siteVisits');
-  res.json(await getVisitStats());
-}));
+router.get(
+  '/admin/api/visits',
+  asyncRoute(async (req, res) => {
+    if (!(await checkToken(req, res))) return;
+    const { getVisitStats } = require('../services/siteVisits');
+    res.json(await getVisitStats());
+  })
+);
 
 // ── Admin API: coupons ──────────────────────────────────────────────────────
 // The only way to create a coupon used to be a raw DB insert — this is the
 // actual admin-facing management surface for the coupon system wired up in
 // server/routes/checkout.js (validated + attached at checkout time) and
 // server/routes/webhooks.js (redeemed once payment actually succeeds).
-router.get('/admin/api/coupons', asyncRoute(async (req, res) => {
-  if (!(await checkToken(req, res))) return;
-  const rows = await db.prepare('SELECT * FROM coupons ORDER BY id DESC').all();
-  res.json(rows);
-}));
+router.get(
+  '/admin/api/coupons',
+  asyncRoute(async (req, res) => {
+    if (!(await checkToken(req, res))) return;
+    const rows = await db.prepare('SELECT * FROM coupons ORDER BY id DESC').all();
+    res.json(rows);
+  })
+);
 
 const VALID_APPLIES_TO = new Set(['both', 'premium', 'elite']);
 
-router.post('/admin/api/coupons', asyncRoute(async (req, res) => {
-  const actor = await checkToken(req, res);
-  if (!actor) return;
-  const { code, discountPercent, appliesTo, maxUses, expiresAt } = req.body || {};
-  const normalizedCode = String(code || '').trim().toUpperCase();
-  const pct = Number(discountPercent);
-  if (!normalizedCode) return res.status(400).json({ error: 'Code is required' });
-  if (!Number.isInteger(pct) || pct < 1 || pct > 100) {
-    return res.status(400).json({ error: 'Discount percent must be a whole number from 1-100' });
-  }
-  const applies = VALID_APPLIES_TO.has(appliesTo) ? appliesTo : 'both';
-  const max = maxUses === '' || maxUses == null ? null : Number(maxUses);
-  if (max != null && (!Number.isInteger(max) || max < 1)) {
-    return res.status(400).json({ error: 'Max uses must be a positive whole number, or left blank for unlimited' });
-  }
-  let expires = null;
-  if (expiresAt) {
-    const ms = new Date(expiresAt).getTime();
-    if (Number.isNaN(ms)) return res.status(400).json({ error: 'Invalid expiry date' });
-    expires = Math.floor(ms / 1000);
-  }
-  try {
-    await db
-      .prepare('INSERT INTO coupons (code, discount_percent, applies_to, max_uses, expires_at) VALUES (?, ?, ?, ?, ?)')
-      .run(normalizedCode, pct, applies, max, expires);
-  } catch (err) {
-    return res.status(409).json({ error: 'A coupon with that code already exists' });
-  }
-  logAction(actor, 'coupon_create', null, normalizedCode);
-  res.json({ ok: true });
-}));
+router.post(
+  '/admin/api/coupons',
+  asyncRoute(async (req, res) => {
+    const actor = await checkToken(req, res);
+    if (!actor) return;
+    const { code, discountPercent, appliesTo, maxUses, expiresAt } = req.body || {};
+    const normalizedCode = String(code || '')
+      .trim()
+      .toUpperCase();
+    const pct = Number(discountPercent);
+    if (!normalizedCode) return res.status(400).json({ error: 'Code is required' });
+    if (!Number.isInteger(pct) || pct < 1 || pct > 100) {
+      return res.status(400).json({ error: 'Discount percent must be a whole number from 1-100' });
+    }
+    const applies = VALID_APPLIES_TO.has(appliesTo) ? appliesTo : 'both';
+    const max = maxUses === '' || maxUses == null ? null : Number(maxUses);
+    if (max != null && (!Number.isInteger(max) || max < 1)) {
+      return res.status(400).json({ error: 'Max uses must be a positive whole number, or left blank for unlimited' });
+    }
+    let expires = null;
+    if (expiresAt) {
+      const ms = new Date(expiresAt).getTime();
+      if (Number.isNaN(ms)) return res.status(400).json({ error: 'Invalid expiry date' });
+      expires = Math.floor(ms / 1000);
+    }
+    try {
+      await db
+        .prepare(
+          'INSERT INTO coupons (code, discount_percent, applies_to, max_uses, expires_at) VALUES (?, ?, ?, ?, ?)'
+        )
+        .run(normalizedCode, pct, applies, max, expires);
+    } catch (err) {
+      return res.status(409).json({ error: 'A coupon with that code already exists' });
+    }
+    logAction(actor, 'coupon_create', null, normalizedCode);
+    res.json({ ok: true });
+  })
+);
 
-router.post('/admin/api/coupons/:id/active', asyncRoute(async (req, res) => {
-  const actor = await checkToken(req, res);
-  if (!actor) return;
-  const { value } = req.body; // 1 or 0
-  const coupon = await db.prepare('SELECT code FROM coupons WHERE id = ?').get(req.params.id);
-  await db.prepare('UPDATE coupons SET active = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
-  logAction(actor, value ? 'coupon_enable' : 'coupon_disable', null, coupon && coupon.code);
-  res.json({ ok: true });
-}));
+router.post(
+  '/admin/api/coupons/:id/active',
+  asyncRoute(async (req, res) => {
+    const actor = await checkToken(req, res);
+    if (!actor) return;
+    const { value } = req.body; // 1 or 0
+    const coupon = await db.prepare('SELECT code FROM coupons WHERE id = ?').get(req.params.id);
+    await db.prepare('UPDATE coupons SET active = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
+    logAction(actor, value ? 'coupon_enable' : 'coupon_disable', null, coupon && coupon.code);
+    res.json({ ok: true });
+  })
+);
 
-router.delete('/admin/api/coupons/:id', asyncRoute(async (req, res) => {
-  const actor = await checkToken(req, res);
-  if (!actor) return;
-  const coupon = await db.prepare('SELECT code FROM coupons WHERE id = ?').get(req.params.id);
-  await db.prepare('DELETE FROM coupons WHERE id = ?').run(req.params.id);
-  logAction(actor, 'coupon_delete', null, coupon && coupon.code);
-  res.json({ ok: true });
-}));
+router.delete(
+  '/admin/api/coupons/:id',
+  asyncRoute(async (req, res) => {
+    const actor = await checkToken(req, res);
+    if (!actor) return;
+    const coupon = await db.prepare('SELECT code FROM coupons WHERE id = ?').get(req.params.id);
+    await db.prepare('DELETE FROM coupons WHERE id = ?').run(req.params.id);
+    logAction(actor, 'coupon_delete', null, coupon && coupon.code);
+    res.json({ ok: true });
+  })
+);
 
 // ── Admin UI ───────────────────────────────────────────────────────────────
-router.get('/admin', asyncRoute(async (req, res) => {
-  // The page shell is public — no server-side auth here.
-  // Every data API call (/admin/api/*) still enforces checkToken.
-  // Auth headers are built in the browser from localStorage (always fresh).
-  // Credentials are read from request headers by the page script. Never copy
-  // a static admin secret into this HTML response or accept it in the URL.
+router.get(
+  '/admin',
+  asyncRoute(async (req, res) => {
+    // The page shell is public — no server-side auth here.
+    // Every data API call (/admin/api/*) still enforces checkToken.
+    // Auth headers are built in the browser from localStorage (always fresh).
+    // Credentials are read from request headers by the page script. Never copy
+    // a static admin secret into this HTML response or accept it in the URL.
 
-  // Per-request nonce for the inline <script> and <style>. This lets the admin
-  // page run under a real Content-Security-Policy: script-src carries the nonce
-  // and NOT 'unsafe-inline', so an injected <script> (even if escaping ever
-  // failed) cannot execute. All former inline on* handlers were moved into the
-  // nonce'd script via event delegation. Inline style="" attributes remain, so
-  // style-src keeps 'unsafe-inline' — style injection is a far lower risk and
-  // every user-controlled value is already escaped with escapeHtml().
-  const nonce = crypto.randomBytes(16).toString('base64');
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store'); // never cache — prevents stale JWT in HTML
-  res.setHeader(
-    'Content-Security-Policy',
-    [
-      "default-src 'self'",
-      `script-src 'self' 'nonce-${nonce}'`,
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data:",
-      "connect-src 'self'",
-      "font-src 'self'",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "frame-ancestors 'none'",
-      "form-action 'self'",
-    ].join('; ')
-  );
-  res.send(`<!DOCTYPE html>
+    // Per-request nonce for the inline <script> and <style>. This lets the admin
+    // page run under a real Content-Security-Policy: script-src carries the nonce
+    // and NOT 'unsafe-inline', so an injected <script> (even if escaping ever
+    // failed) cannot execute. All former inline on* handlers were moved into the
+    // nonce'd script via event delegation. Inline style="" attributes remain, so
+    // style-src keeps 'unsafe-inline' — style injection is a far lower risk and
+    // every user-controlled value is already escaped with escapeHtml().
+    const nonce = crypto.randomBytes(16).toString('base64');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store'); // never cache — prevents stale JWT in HTML
+    res.setHeader(
+      'Content-Security-Policy',
+      [
+        "default-src 'self'",
+        `script-src 'self' 'nonce-${nonce}'`,
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data:",
+        "connect-src 'self'",
+        "font-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "frame-ancestors 'none'",
+        "form-action 'self'",
+      ].join('; ')
+    );
+    res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1030,6 +1087,7 @@ setInterval(loadCoupons, 60000);
 </script>
 </body>
 </html>`);
-}));
+  })
+);
 
 module.exports = router;

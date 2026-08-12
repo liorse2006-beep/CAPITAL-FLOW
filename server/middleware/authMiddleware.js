@@ -139,10 +139,9 @@ async function resolveToken(token) {
     // MAX_ACTIVE_SESSIONS cap (see auth.createSession). A short-lived access
     // token that outlives its session this way is rejected immediately
     // rather than waiting out its own natural 1h expiry.
-    const session = await db.prepare('SELECT id FROM user_sessions WHERE id = ? AND user_id = ?').get(
-      payload.sid,
-      payload.id
-    );
+    const session = await db
+      .prepare('SELECT id FROM user_sessions WHERE id = ? AND user_id = ?')
+      .get(payload.sid, payload.id);
     if (!session) {
       dropCachedToken(token);
       return null;
@@ -249,9 +248,8 @@ async function requirePremiumOrTrial(req, res, next) {
 }
 
 /**
- * Require Elite specifically — everything notification-related (push,
- * scheduled digest, watchlist alert thresholds) is Elite-only; Premium gets
- * unlimited-feeling scanning but not notifications.
+ * Require Elite specifically. Use requireEliteOrTrial for features exposed
+ * during the seven-day free trial.
  */
 async function requireElite(req, res, next) {
   const header = req.headers.authorization;
@@ -268,12 +266,9 @@ async function requireElite(req, res, next) {
 }
 
 /**
- * Require Elite, OR a free-tier account still inside its 7-day trial
- * window — used only for the notification features explicitly opened up
- * during the free trial: push subscribe/unsubscribe and watchlist alert
- * thresholds. NOT for every Elite feature — the daily scheduled-scan
- * digest (push notification-time, server/routes/scheduledScans.js) stays
- * strictly Elite-only via requireElite above.
+ * Require Elite, OR a free-tier account still inside its 7-day trial window.
+ * This is the shared gate for the complete Elite experience during Trial:
+ * Capi, push, alerts, scheduled scans and their supporting endpoints.
  */
 async function requireEliteOrTrial(req, res, next) {
   const header = req.headers.authorization;
@@ -291,7 +286,7 @@ async function requireEliteOrTrial(req, res, next) {
 }
 
 /**
- * Same as requirePremium but reads the token from ?token= query param.
+ * Same as requireEliteOrTrial but reads the signed ticket from ?ticket=.
  * Used for SSE (EventSource cannot set Authorization headers).
  */
 async function requirePremiumSSE(req, res, next) {
@@ -322,14 +317,16 @@ async function requirePremiumSSE(req, res, next) {
     res.write('event: auth-error\ndata: {"code":"NOT_AUTHENTICATED"}\n\n');
     return res.end();
   }
-  const effectiveUser = user.is_pilot || (!!ADMIN_EMAIL && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase())
-    ? { ...user, tier: 'elite', is_premium: 1 }
-    : { ...user, is_premium: user.tier !== 'free' ? 1 : 0 };
-  if (!effectiveUser.is_premium) {
+  const effectiveUser =
+    user.is_pilot || (!!ADMIN_EMAIL && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase())
+      ? { ...user, tier: 'elite', is_premium: 1 }
+      : { ...user, is_premium: user.tier !== 'free' ? 1 : 0 };
+  const trialActive = effectiveUser.tier === 'free' && freeTrialActive(effectiveUser);
+  if (effectiveUser.tier !== 'elite' && !trialActive) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.flushHeaders();
-    res.write('event: auth-error\ndata: {"code":"NOT_PREMIUM"}\n\n');
+    res.write('event: auth-error\ndata: {"code":"NOT_ELITE"}\n\n');
     return res.end();
   }
   req.user = effectiveUser;

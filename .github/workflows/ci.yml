@@ -33,6 +33,15 @@ jobs:
       - name: Run frontend test suite
         run: npx vitest run
 
+      - name: Run Cloudflare Worker tests
+        run: npm run test:worker
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
       - name: Build frontend
         run: npm run build
 

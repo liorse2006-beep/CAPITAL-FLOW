@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { WhopCheckoutEmbed, WhopExpressCheckoutButton } from '@whop/checkout/react'
+import React, { useState } from 'react';
+import { WhopCheckoutEmbed, WhopExpressCheckoutButton } from '@whop/checkout/react';
 
 // Renders Whop's real payment form inline, in an iframe scoped to just the
 // checkout fields — never a full-page redirect or a new tab/window. Whop's
@@ -16,9 +16,9 @@ import { WhopCheckoutEmbed, WhopExpressCheckoutButton } from '@whop/checkout/rea
 // checkout session the server already created) since the express button
 // takes a plan, not a session id.
 export default function EmbeddedCheckout({ sessionId, planId, promoCode, onComplete, onError }) {
-  const [expressMethod, setExpressMethod] = useState(null) // 'apple-pay' | 'google-pay' | 'whop-pay' | 'none' | null
+  const [expressMethod, setExpressMethod] = useState(null); // 'apple-pay' | 'google-pay' | 'whop-pay' | 'none' | null
 
-  const showExpress = planId && expressMethod && expressMethod !== 'none'
+  const showExpress = planId && expressMethod && expressMethod !== 'none';
 
   return (
     <div className="embedded-checkout">
@@ -60,5 +60,5 @@ export default function EmbeddedCheckout({ sessionId, planId, promoCode, onCompl
         Powered by <span className="embedded-checkout-whop-mark">Whop</span>
       </div>
     </div>
-  )
+  );
 }

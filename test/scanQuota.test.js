@@ -10,10 +10,18 @@ const express = require('express');
 
 const db = require('../server/db');
 
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 const { issueToken } = require('../server/services/auth');
 const { requireScanQuota } = require('../server/middleware/authMiddleware');
-const { canScan, reserveScan, quotaFor, PREMIUM_DAILY_LIMIT, FREE_TRIAL_DAYS } = require('../server/services/scanQuota');
+const {
+  canScan,
+  reserveScan,
+  quotaFor,
+  PREMIUM_DAILY_LIMIT,
+  FREE_TRIAL_DAYS,
+} = require('../server/services/scanQuota');
 
 async function makeUser(email, { tier = 'free', isPilot = false, createdAt } = {}) {
   const result = await db
@@ -136,10 +144,9 @@ test('premium tier: a shared pool of 5 scans across every category, blocked on t
 
 test('premium tier: the pool resets once the 24h window has elapsed', async () => {
   const user = await makeUser('premium-b@test.local', { tier: 'premium' });
-  await db.prepare('UPDATE users SET premium_scan_count = 5, premium_scan_window_start = ? WHERE id = ?').run(
-    Math.floor(Date.now() / 1000) - 25 * 60 * 60,
-    user.id
-  ); // 25h ago — window expired
+  await db
+    .prepare('UPDATE users SET premium_scan_count = 5, premium_scan_window_start = ? WHERE id = ?')
+    .run(Math.floor(Date.now() / 1000) - 25 * 60 * 60, user.id); // 25h ago — window expired
   const stale = await reload(user.id);
 
   assert.strictEqual(canScan(stale, 'capitalFlow'), true, 'an expired window must not block scanning');
@@ -182,7 +189,11 @@ test('premium tier: concurrent reserveScan calls can never together exceed the d
     })
   );
   const granted = results.filter(Boolean).length;
-  assert.strictEqual(granted, PREMIUM_DAILY_LIMIT, `exactly ${PREMIUM_DAILY_LIMIT} of ${attempts} concurrent reservations must succeed`);
+  assert.strictEqual(
+    granted,
+    PREMIUM_DAILY_LIMIT,
+    `exactly ${PREMIUM_DAILY_LIMIT} of ${attempts} concurrent reservations must succeed`
+  );
 
   const finalUser = await reload(user.id);
   assert.strictEqual(finalUser.premium_scan_count, PREMIUM_DAILY_LIMIT, 'the stored count must match, not overshoot');

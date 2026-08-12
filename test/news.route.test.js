@@ -8,7 +8,9 @@ const express = require('express');
 
 const db = require('../server/db');
 
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 const { issueToken } = require('../server/services/auth');
 const newsRouter = require('../server/routes/news');
 const { newsCache } = require('../server/services/newsService');

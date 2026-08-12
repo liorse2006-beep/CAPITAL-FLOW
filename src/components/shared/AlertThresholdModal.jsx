@@ -5,7 +5,16 @@ const PRESETS = [2, 3, 5];
 
 function VolumeIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <line x1="4" y1="20" x2="4" y2="14" />
       <line x1="10" y1="20" x2="10" y2="9" />
       <line x1="16" y1="20" x2="16" y2="5" />
@@ -16,7 +25,16 @@ function VolumeIcon() {
 
 function PriceIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <line x1="12" y1="1" x2="12" y2="23" />
       <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
     </svg>
@@ -96,7 +114,9 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
         aria-modal="true"
         aria-label={'Alert for ' + symbol}
       >
-        <button className="upgrade-close" onClick={onClose} aria-label="Close">×</button>
+        <button className="upgrade-close" onClick={onClose} aria-label="Close">
+          ×
+        </button>
 
         <div className="alert-modal-header">
           <span className="alert-modal-dot" />
@@ -108,12 +128,16 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
             <p className="alert-modal-desc">איזה סוג התראה תרצה להגדיר?</p>
             <div className="alert-type-grid">
               <button type="button" className="alert-type-card" onClick={() => chooseType('volume')}>
-                <span className="alert-type-icon"><VolumeIcon /></span>
+                <span className="alert-type-icon">
+                  <VolumeIcon />
+                </span>
                 <span className="alert-type-name">נפח</span>
                 <span className="alert-type-desc">חריגת RVOL מהממוצע</span>
               </button>
               <button type="button" className="alert-type-card" onClick={() => chooseType('price')}>
-                <span className="alert-type-icon"><PriceIcon /></span>
+                <span className="alert-type-icon">
+                  <PriceIcon />
+                </span>
                 <span className="alert-type-name">מחיר</span>
                 <span className="alert-type-desc">חציית מחיר יעד</span>
               </button>
@@ -128,7 +152,8 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
             {step === 'volume' ? (
               <>
                 <p className="alert-modal-desc">
-                  שלח לי התראה כאשר הנפח של <strong style={{ color: 'var(--text-0)' }}>{symbol}</strong> יחצה את הסף שאקבע.
+                  שלח לי התראה כאשר הנפח של <strong style={{ color: 'var(--text-0)' }}>{symbol}</strong> יחצה את הסף
+                  שאקבע.
                 </p>
 
                 <div className="alert-readout">
@@ -150,7 +175,9 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
                   ))}
                 </div>
 
-                <label className="alert-modal-sublabel" htmlFor="alert-threshold-input">או הכנס ידנית</label>
+                <label className="alert-modal-sublabel" htmlFor="alert-threshold-input">
+                  או הכנס ידנית
+                </label>
                 <div className="alert-input-wrap">
                   <input
                     id="alert-threshold-input"
@@ -169,7 +196,8 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
             ) : (
               <>
                 <p className="alert-modal-desc">
-                  שלח לי התראה כאשר המחיר של <strong style={{ color: 'var(--text-0)' }}>{symbol}</strong> יחצה את המחיר שאקבע.
+                  שלח לי התראה כאשר המחיר של <strong style={{ color: 'var(--text-0)' }}>{symbol}</strong> יחצה את המחיר
+                  שאקבע.
                 </p>
 
                 <div className="alert-readout">
@@ -181,7 +209,9 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
                   <p className="alert-modal-current-price">{'מחיר נוכחי: $' + currentPrice.toFixed(2)}</p>
                 )}
 
-                <label className="alert-modal-sublabel" htmlFor="alert-price-input">מחיר יעד</label>
+                <label className="alert-modal-sublabel" htmlFor="alert-price-input">
+                  מחיר יעד
+                </label>
                 <div className="alert-input-wrap">
                   <input
                     id="alert-price-input"

@@ -127,10 +127,16 @@ export default function CookieConsent() {
         </p>
         <div className="cc-footer">
           <div className="cc-left">
-            <button className="cc-decline" onClick={handleDecline}>Decline</button>
-            <a className="cc-policy" href="/policy">Privacy Policy</a>
+            <button className="cc-decline" onClick={handleDecline}>
+              Decline
+            </button>
+            <a className="cc-policy" href="/policy">
+              Privacy Policy
+            </a>
           </div>
-          <button className="cc-accept" onClick={handleAccept}>Accept All</button>
+          <button className="cc-accept" onClick={handleAccept}>
+            Accept All
+          </button>
         </div>
       </div>
     </>

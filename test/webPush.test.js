@@ -21,7 +21,9 @@ delete require.cache[require.resolve('../server/services/webPush')];
 const db = require('../server/db');
 const webPush = require('../server/services/webPush');
 
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 
 async function makeUser(email) {
   const result = await db.prepare('INSERT INTO users (email, is_verified, is_premium) VALUES (?, 1, 1)').run(email);

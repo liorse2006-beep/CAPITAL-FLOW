@@ -16,7 +16,9 @@ const express = require('express');
 const nodemailer = require('nodemailer');
 
 const db = require('../server/db');
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 
 const { checkHealth } = require('../server/services/healthMonitor');
 
@@ -38,7 +40,10 @@ test('does not alert on a single transient failure (stays under the threshold)',
   t.mock.method(nodemailer, 'createTransport', () => ({ sendMail }));
 
   healthStatus = 503;
-  await new Promise((resolve) => { checkHealth(); setTimeout(resolve, 50); });
+  await new Promise((resolve) => {
+    checkHealth();
+    setTimeout(resolve, 50);
+  });
 
   assert.strictEqual(sendMail.mock.callCount(), 0, 'one failure alone must not trigger an alert');
 });
@@ -50,23 +55,38 @@ test('alerts exactly once after 3 consecutive failures, then sends a recovery em
   healthStatus = 503;
   // 2nd and 3rd consecutive failure (continuing the count from the previous
   // test, which already logged one) — cumulative threshold is 3.
-  await new Promise((resolve) => { checkHealth(); setTimeout(resolve, 50); });
-  await new Promise((resolve) => { checkHealth(); setTimeout(resolve, 50); });
+  await new Promise((resolve) => {
+    checkHealth();
+    setTimeout(resolve, 50);
+  });
+  await new Promise((resolve) => {
+    checkHealth();
+    setTimeout(resolve, 50);
+  });
 
   assert.strictEqual(sendMail.mock.callCount(), 1, 'must alert exactly once on crossing the threshold');
   assert.match(sendMail.mock.calls[0].arguments[0].subject, /SERVER DOWN/);
 
   // A further failure past the threshold must NOT re-alert (already alerted).
-  await new Promise((resolve) => { checkHealth(); setTimeout(resolve, 50); });
+  await new Promise((resolve) => {
+    checkHealth();
+    setTimeout(resolve, 50);
+  });
   assert.strictEqual(sendMail.mock.callCount(), 1, 'must not re-alert while already in the alerted state');
 
   // Recovery.
   healthStatus = 200;
-  await new Promise((resolve) => { checkHealth(); setTimeout(resolve, 50); });
+  await new Promise((resolve) => {
+    checkHealth();
+    setTimeout(resolve, 50);
+  });
   assert.strictEqual(sendMail.mock.callCount(), 2, 'must send exactly one recovery email once healthy again');
   assert.match(sendMail.mock.calls[1].arguments[0].subject, /recovered/i);
 
   // A subsequent healthy check must not send anything further.
-  await new Promise((resolve) => { checkHealth(); setTimeout(resolve, 50); });
+  await new Promise((resolve) => {
+    checkHealth();
+    setTimeout(resolve, 50);
+  });
   assert.strictEqual(sendMail.mock.callCount(), 2, 'a plain healthy check after recovery must stay silent');
 });

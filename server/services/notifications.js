@@ -19,7 +19,9 @@ async function addNotification(userId, { symbol, title, body, scanType, results 
   const resultsJson =
     Array.isArray(results) && results.length > 0 ? JSON.stringify(results.slice(0, MAX_RESULTS_STORED)) : null;
   const res = await db
-    .prepare('INSERT INTO notifications (user_id, symbol, title, body, scan_type, results_json) VALUES (?, ?, ?, ?, ?, ?)')
+    .prepare(
+      'INSERT INTO notifications (user_id, symbol, title, body, scan_type, results_json) VALUES (?, ?, ?, ?, ?, ?)'
+    )
     .run(userId, symbol || null, title, body, scanType || null, resultsJson);
   await db
     .prepare(
@@ -33,7 +35,9 @@ async function addNotification(userId, { symbol, title, body, scanType, results 
 
 async function getNotifications(userId, limit) {
   return db
-    .prepare('SELECT id, symbol, title, body, scan_type, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?')
+    .prepare(
+      'SELECT id, symbol, title, body, scan_type, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?'
+    )
     .all(userId, limit || 100);
 }
 
@@ -43,7 +47,9 @@ async function getNotifications(userId, limit) {
  * exist or belongs to someone else. */
 async function getNotificationDetail(userId, id) {
   const row = await db
-    .prepare('SELECT id, symbol, title, body, scan_type, results_json, created_at FROM notifications WHERE user_id = ? AND id = ?')
+    .prepare(
+      'SELECT id, symbol, title, body, scan_type, results_json, created_at FROM notifications WHERE user_id = ? AND id = ?'
+    )
     .get(userId, id);
   if (!row) return undefined;
   await db.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND id = ?').run(userId, id);

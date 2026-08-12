@@ -36,7 +36,9 @@ function createTransport() {
 function sendAlert(subject, body) {
   const transport = createTransport();
   if (!transport || !ADMIN_EMAIL) {
-    console.warn('[health-monitor] Email not configured — set GMAIL_USER + GMAIL_APP_PASSWORD + ADMIN_EMAIL to receive downtime alerts');
+    console.warn(
+      '[health-monitor] Email not configured — set GMAIL_USER + GMAIL_APP_PASSWORD + ADMIN_EMAIL to receive downtime alerts'
+    );
     return;
   }
   transport

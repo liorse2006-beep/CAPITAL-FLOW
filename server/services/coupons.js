@@ -47,7 +47,9 @@ async function validateCoupon(rawCode, tier) {
 async function redeemCoupon(rawCode) {
   const code = normalizeCode(rawCode);
   const result = await db
-    .prepare('UPDATE coupons SET uses_count = uses_count + 1 WHERE code = ? AND (max_uses IS NULL OR uses_count < max_uses)')
+    .prepare(
+      'UPDATE coupons SET uses_count = uses_count + 1 WHERE code = ? AND (max_uses IS NULL OR uses_count < max_uses)'
+    )
     .run(code);
   return result.changes > 0;
 }

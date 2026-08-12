@@ -18,7 +18,7 @@ export const TIER_ROWS = [
   { label: 'Daily scheduled scan', free: false, premium: false, elite: true },
   { label: 'Custom watchlist alerts', free: false, premium: false, elite: true },
   { label: 'Price', free: 'Free', premium: '$14.90', elite: '$29.90', isPrice: true },
-]
+];
 
 // Every paid-tier feature (i.e. not free-for-everyone, like News), tagged
 // with whether the given tier actually includes it. Used on the welcome
@@ -28,8 +28,8 @@ export const TIER_ROWS = [
 // 'elite' naturally comes back all-included with no extra branching needed.
 export function tierFeatureChecklist(tierKey) {
   return TIER_ROWS.filter(function (row) {
-    return !row.isPrice && row.label !== 'Scans' && row.label !== 'Fundamentals lookups' && !row.free
+    return !row.isPrice && row.label !== 'Scans' && row.label !== 'Fundamentals lookups' && !row.free;
   }).map(function (row) {
-    return { label: row.label, included: row[tierKey] === true }
-  })
+    return { label: row.label, included: row[tierKey] === true };
+  });
 }

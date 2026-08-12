@@ -63,8 +63,16 @@ test('calculateRVOL uses the correct trading-day-progress fraction across DST fo
   const winterEtMinutes = getETMinutes(WINTER_1330Z); // pre-market, 8:30am EST
   const summerEtMinutes = getETMinutes(SUMMER_1330Z); // market open, 9:30am EDT
 
-  assert.strictEqual(calculateRVOL(1000, 1_000_000, winterEtMinutes, WINTER_1330Z), null, 'before the open, cumPct is 0 → null');
-  assert.strictEqual(calculateRVOL(1000, 1_000_000, summerEtMinutes, SUMMER_1330Z), null, 'exactly at the open, cumPct is 0 → null');
+  assert.strictEqual(
+    calculateRVOL(1000, 1_000_000, winterEtMinutes, WINTER_1330Z),
+    null,
+    'before the open, cumPct is 0 → null'
+  );
+  assert.strictEqual(
+    calculateRVOL(1000, 1_000_000, summerEtMinutes, SUMMER_1330Z),
+    null,
+    'exactly at the open, cumPct is 0 → null'
+  );
 
   // An hour into the summer (EDT) session — well past the open, must produce
   // a real ratio, proving the EDT-side local-time math also flows through.

@@ -8,9 +8,11 @@ import { SECTOR_ETFS } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
 import useScanQuota from '../../hooks/useScanQuota';
 
-export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn, onTrialEnded, alertLevels, promptCreateAlert }) {
+export default function MoneyFlow({ setShowUpgradeModal, onSignIn, onTrialEnded, alertLevels, promptCreateAlert }) {
   const { user, getToken } = useAuth();
-  const isPremium = !!(user && user.is_premium);
+  // Trial users receive the same scan/filter surface as Elite. The server
+  // still enforces the real tier and quota independently.
+  const isPremium = !!(user && (user.is_premium || user.elite_access));
   const { scanMeta, setScanMeta, refreshQuota } = useScanQuota();
 
   const [flowData, setFlowData] = useState(null);
@@ -342,7 +344,10 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn, onTria
                           ),
                           React.createElement(
                             'td',
-                            { style: { display: 'flex', gap: 5, alignItems: 'center' }, onClick: (e) => e.stopPropagation() },
+                            {
+                              style: { display: 'flex', gap: 5, alignItems: 'center' },
+                              onClick: (e) => e.stopPropagation(),
+                            },
                             React.createElement(
                               'a',
                               {
@@ -355,7 +360,16 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn, onTria
                               },
                               React.createElement(
                                 'svg',
-                                { viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+                                {
+                                  viewBox: '0 0 24 24',
+                                  width: 14,
+                                  height: 14,
+                                  fill: 'none',
+                                  stroke: 'currentColor',
+                                  strokeWidth: 2,
+                                  strokeLinecap: 'round',
+                                  strokeLinejoin: 'round',
+                                },
                                 React.createElement('path', { d: 'M3 3v18h18' }),
                                 React.createElement('path', { d: 'M18.7 8l-5.1 5.1-4-4L3 15.6' })
                               )
@@ -372,7 +386,16 @@ export default function MoneyFlow({ theme, setShowUpgradeModal, onSignIn, onTria
                               },
                               React.createElement(
                                 'svg',
-                                { viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+                                {
+                                  viewBox: '0 0 24 24',
+                                  width: 14,
+                                  height: 14,
+                                  fill: 'none',
+                                  stroke: 'currentColor',
+                                  strokeWidth: 2,
+                                  strokeLinecap: 'round',
+                                  strokeLinejoin: 'round',
+                                },
                                 React.createElement('path', { d: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9' }),
                                 React.createElement('path', { d: 'M13.73 21a2 2 0 0 1-3.46 0' })
                               )

@@ -39,6 +39,18 @@ curl -sI https://capitalflow.vip/assets/  # look for a `cf-cache-status` header
 A `cf-cache-status: HIT` on a static asset confirms Cloudflare is serving it
 from the edge.
 
+## Optional authenticated scan-cache Worker
+
+The repository also contains `cloudflare-worker/scan-cache-worker.js`. This is
+separate from putting the main domain behind Cloudflare: it uses its own
+`workers.dev` URL and handles only Capital Flow's authenticated `/api/scan`
+requests. Deploy it from `cloudflare-worker/`, store the Render app's exact
+`JWT_SECRET` with `wrangler secret put JWT_SECRET`, set `ORIGIN` to the Render
+service URL, and pass the resulting Worker URL as `VITE_SCAN_WORKER_URL` during
+the frontend build. Do not claim the edge-capacity improvement until a real
+production scan confirms one cache miss, one cache hit, quota exhaustion, and
+an expired/blocked session response.
+
 ## Optional, secondary: move the Render region
 
 Render cannot change a service's region in place — you would create a new service

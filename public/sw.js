@@ -22,11 +22,17 @@ self.addEventListener('activate', function (event) {
       .then(function (names) {
         return Promise.all(
           names
-            .filter(function (n) { return n !== CACHE_NAME; })
-            .map(function (n) { return caches.delete(n); })
+            .filter(function (n) {
+              return n !== CACHE_NAME;
+            })
+            .map(function (n) {
+              return caches.delete(n);
+            })
         );
       })
-      .then(function () { return clients.claim(); })
+      .then(function () {
+        return clients.claim();
+      })
   );
 });
 
@@ -67,9 +73,7 @@ self.addEventListener('push', function (event) {
     renotify: true,
     requireInteraction: false,
     vibrate: [100, 50, 100],
-    actions: [
-      { action: 'open', title: 'Open App' },
-    ],
+    actions: [{ action: 'open', title: 'Open App' }],
     data: {
       url: (data.data && data.data.url) || '/',
     },

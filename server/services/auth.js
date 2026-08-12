@@ -13,7 +13,9 @@ const { JWT_SECRET, ADMIN_EMAIL } = require('../config');
 // account. Every route that reads an email from the request must run it
 // through this before using it in a query.
 function normalizeEmail(email) {
-  return String(email || '').trim().toLowerCase();
+  return String(email || '')
+    .trim()
+    .toLowerCase();
 }
 
 function hashPassword(password) {
@@ -59,11 +61,9 @@ function hashRefreshToken(token) {
 }
 
 function generateToken(user, sessionId) {
-  return jwt.sign(
-    { id: user.id, email: user.email, is_premium: user.is_premium, sid: sessionId },
-    JWT_SECRET,
-    { expiresIn: ACCESS_TOKEN_TTL }
-  );
+  return jwt.sign({ id: user.id, email: user.email, is_premium: user.is_premium, sid: sessionId }, JWT_SECRET, {
+    expiresIn: ACCESS_TOKEN_TTL,
+  });
 }
 
 /**
@@ -130,10 +130,9 @@ async function refreshAccessToken(refreshToken) {
   if (!session) return null;
   const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id);
   if (!user || user.is_blocked) return null;
-  await db.prepare('UPDATE user_sessions SET last_used_at = ? WHERE id = ?').run(
-    Math.floor(Date.now() / 1000),
-    session.id
-  );
+  await db
+    .prepare('UPDATE user_sessions SET last_used_at = ? WHERE id = ?')
+    .run(Math.floor(Date.now() / 1000), session.id);
   const accessToken = generateToken(withEffectivePremium(user), session.id);
   return { accessToken, user };
 }
@@ -172,12 +171,10 @@ function generateOTP() {
 
 async function saveOTP(email, code, type) {
   const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60; // 15 minutes
-  await db.prepare(
-    `DELETE FROM otp_codes WHERE email = ? AND type = ?`
-  ).run(email, type);
-  await db.prepare(
-    `INSERT INTO otp_codes (email, code, type, expires_at) VALUES (?, ?, ?, ?)`
-  ).run(email, code, type, expiresAt);
+  await db.prepare(`DELETE FROM otp_codes WHERE email = ? AND type = ?`).run(email, type);
+  await db
+    .prepare(`INSERT INTO otp_codes (email, code, type, expires_at) VALUES (?, ?, ?, ?)`)
+    .run(email, code, type, expiresAt);
 }
 
 async function verifyOTP(email, code, type) {

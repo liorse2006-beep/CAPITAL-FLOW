@@ -11,7 +11,9 @@ delete require.cache[require.resolve('../server/config')];
 delete require.cache[require.resolve('../server/services/chatbot')];
 
 const db = require('../server/db');
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 
 const { askCapi } = require('../server/services/chatbot');
 const { addMessage } = require('../server/services/chatMessages');

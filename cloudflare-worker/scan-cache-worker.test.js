@@ -6,7 +6,7 @@
 // suites; run directly with `node --test cloudflare-worker/*.test.js`.
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { hasQuotaRemaining } from './scan-cache-worker.js';
+import worker, { hasQuotaRemaining } from './scan-cache-worker.js';
 
 test('elite is always allowed, regardless of premium/free fields', () => {
   assert.strictEqual(hasQuotaRemaining({ tier: 'elite', premium: null, free: null }), true);
@@ -33,4 +33,20 @@ test('a missing or malformed quota response fails closed, never open', () => {
   // A tier that claims to be premium but is missing its own premium block
   // (a malformed/tampered response) must not be read as "unlimited".
   assert.strictEqual(hasQuotaRemaining({ tier: 'premium', premium: null }), false);
+});
+
+test('the Worker fails closed when its required deployment variables are missing', async () => {
+  const response = await worker.fetch(new Request('https://worker.example/api/scan'), {}, {});
+  assert.strictEqual(response.status, 503);
+  assert.deepStrictEqual(await response.json(), { error: 'Worker is not configured' });
+});
+
+test('malformed JWT input is rejected without throwing', async () => {
+  const response = await worker.fetch(
+    new Request('https://worker.example/api/scan', { headers: { Authorization: 'Bearer not-a-jwt' } }),
+    { JWT_SECRET: 'test-secret', ORIGIN: 'https://origin.example' },
+    {}
+  );
+  assert.strictEqual(response.status, 401);
+  assert.deepStrictEqual(await response.json(), { error: 'Unauthorized' });
 });

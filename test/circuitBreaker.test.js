@@ -15,7 +15,9 @@ test('stays closed and returns the wrapped result while calls succeed', async ()
 
 test('opens after reaching the failure threshold and rejects without calling the function', async () => {
   const breaker = createCircuitBreaker('test', { failureThreshold: 2, cooldownMs: 1000 });
-  const failing = async () => { throw new Error('boom'); };
+  const failing = async () => {
+    throw new Error('boom');
+  };
 
   await assert.rejects(() => breaker.execute(failing));
   assert.strictEqual(breaker.getState(), 'closed'); // 1st failure, still under threshold
@@ -24,7 +26,11 @@ test('opens after reaching the failure threshold and rejects without calling the
 
   let called = false;
   await assert.rejects(
-    () => breaker.execute(async () => { called = true; return 'should not run'; }),
+    () =>
+      breaker.execute(async () => {
+        called = true;
+        return 'should not run';
+      }),
     (err) => err.circuitOpen === true
   );
   assert.strictEqual(called, false);
@@ -32,7 +38,11 @@ test('opens after reaching the failure threshold and rejects without calling the
 
 test('moves to half-open after the cooldown and fully closes on a successful probe', async () => {
   const breaker = createCircuitBreaker('test', { failureThreshold: 1, cooldownMs: 20 });
-  await assert.rejects(() => breaker.execute(async () => { throw new Error('boom'); }));
+  await assert.rejects(() =>
+    breaker.execute(async () => {
+      throw new Error('boom');
+    })
+  );
   assert.strictEqual(breaker.getState(), 'open');
 
   await new Promise((r) => setTimeout(r, 30));
@@ -45,19 +55,35 @@ test('moves to half-open after the cooldown and fully closes on a successful pro
 
 test('a failed probe during half-open re-opens immediately', async () => {
   const breaker = createCircuitBreaker('test', { failureThreshold: 1, cooldownMs: 20 });
-  await assert.rejects(() => breaker.execute(async () => { throw new Error('boom'); }));
+  await assert.rejects(() =>
+    breaker.execute(async () => {
+      throw new Error('boom');
+    })
+  );
   await new Promise((r) => setTimeout(r, 30));
   assert.strictEqual(breaker.getState(), 'half_open');
 
-  await assert.rejects(() => breaker.execute(async () => { throw new Error('still down'); }));
+  await assert.rejects(() =>
+    breaker.execute(async () => {
+      throw new Error('still down');
+    })
+  );
   assert.strictEqual(breaker.getState(), 'open');
 });
 
 test('a success resets the consecutive-failure count', async () => {
   const breaker = createCircuitBreaker('test', { failureThreshold: 2, cooldownMs: 1000 });
-  await assert.rejects(() => breaker.execute(async () => { throw new Error('boom'); }));
+  await assert.rejects(() =>
+    breaker.execute(async () => {
+      throw new Error('boom');
+    })
+  );
   await breaker.execute(async () => 'ok');
-  await assert.rejects(() => breaker.execute(async () => { throw new Error('boom'); }));
+  await assert.rejects(() =>
+    breaker.execute(async () => {
+      throw new Error('boom');
+    })
+  );
   // Two failures total, but not consecutive — should still be closed.
   assert.strictEqual(breaker.getState(), 'closed');
 });

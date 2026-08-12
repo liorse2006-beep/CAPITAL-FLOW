@@ -9,7 +9,9 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 
 const db = require('../server/db');
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 
 const { issueToken, createSession, refreshAccessToken, revokeSession } = require('../server/services/auth');
 const { resolveToken } = require('../server/middleware/authMiddleware');
@@ -134,7 +136,9 @@ test('POST /api/auth/logout revokes this device only, and clears the refresh coo
   const { accessToken: tokenA, refreshToken: refreshA } = await issueToken(
     await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)
   );
-  const { refreshToken: refreshB } = await issueToken(await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id));
+  const { refreshToken: refreshB } = await issueToken(
+    await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)
+  );
 
   const server = await startTestApp();
   const port = server.address().port;
@@ -158,10 +162,12 @@ test('a fresh login sets an httpOnly vs_refresh cookie scoped to /api/auth', asy
   const server = await startTestApp();
   const port = server.address().port;
   try {
-    await db.prepare('INSERT INTO users (email, password_hash, is_verified) VALUES (?, ?, 1)').run(
-      'login-cookie@test.local',
-      await require('../server/services/auth').hashPassword('correct horse battery staple')
-    );
+    await db
+      .prepare('INSERT INTO users (email, password_hash, is_verified) VALUES (?, ?, 1)')
+      .run(
+        'login-cookie@test.local',
+        await require('../server/services/auth').hashPassword('correct horse battery staple')
+      );
     const res = await fetch(`http://localhost:${port}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

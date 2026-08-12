@@ -118,7 +118,9 @@ async function handleWhopEvent(event) {
       if (buyer && metadata.couponCode) {
         const redeemed = await redeemCoupon(metadata.couponCode);
         if (!redeemed) {
-          console.warn(`[webhooks/whop] coupon "${metadata.couponCode}" was not redeemed (missing or at its usage limit) for user ${metadata.userId}`);
+          console.warn(
+            `[webhooks/whop] coupon "${metadata.couponCode}" was not redeemed (missing or at its usage limit) for user ${metadata.userId}`
+          );
         }
       }
     } else {

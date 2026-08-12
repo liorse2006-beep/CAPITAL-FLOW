@@ -9,7 +9,9 @@ const assert = require('node:assert');
 
 const db = require('../server/db');
 
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 const { issueToken, MAX_ACTIVE_SESSIONS } = require('../server/services/auth');
 const { resolveToken } = require('../server/middleware/authMiddleware');
 

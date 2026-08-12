@@ -2,10 +2,7 @@ name: Keep-alive ping
 
 on:
   schedule:
-    # Every 10 minutes — keeps the Render free instance from sleeping.
-    # GitHub Actions cron is best-effort and can run a few minutes late; a
-    # 10-min interval leaves real margin under Render's 15-min idle timeout
-    # even when a run is delayed, unlike the previous 14-min interval.
+    # Every 10 minutes — a lightweight uptime check for the paid Render service.
     - cron: '*/10 * * * *'
   workflow_dispatch:
 
@@ -14,9 +11,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping health endpoint
-        run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.RENDER_URL }}/health" --max-time 30)
-          echo "Health check status: $STATUS"
-          if [ "$STATUS" != "200" ]; then
-            echo "Warning: health check returned $STATUS"
-          fi
+        run: curl --fail --silent --show-error "${{ secrets.RENDER_URL }}/health" --max-time 30

@@ -18,10 +18,12 @@ if (configured) {
 }
 
 async function saveSubscription(userId, sub) {
-  await db.prepare(
-    `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)
+  await db
+    .prepare(
+      `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)
      ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth`
-  ).run(userId, sub.endpoint, sub.keys.p256dh, sub.keys.auth);
+    )
+    .run(userId, sub.endpoint, sub.keys.p256dh, sub.keys.auth);
 }
 
 async function removeSubscription(endpoint, userId) {

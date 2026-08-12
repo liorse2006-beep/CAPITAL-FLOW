@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
-import App from './App'
-import { AuthProvider } from './context/AuthContext'
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import App from './App';
+import { AuthProvider } from './context/AuthContext';
 
 // App.jsx owns URL-driven page routing (page derived from location.pathname,
 // setPage() navigates) — this was converted from plain state to
@@ -17,7 +17,7 @@ function renderAt(path) {
         <App />
       </MemoryRouter>
     </AuthProvider>
-  )
+  );
 }
 
 // jsdom doesn't implement matchMedia — useInstallPrompt (behind InstallPrompt,
@@ -26,37 +26,37 @@ function renderAt(path) {
 window.matchMedia =
   window.matchMedia ||
   function () {
-    return { matches: false, addListener: () => {}, removeListener: () => {} }
-  }
+    return { matches: false, addListener: () => {}, removeListener: () => {} };
+  };
 
 afterEach(() => {
-  vi.restoreAllMocks()
-})
+  vi.restoreAllMocks();
+});
 
 describe('App routing', () => {
   it('renders the public landing page at the root path for a logged-out visitor', async () => {
     // "/" is the marketing page for guests (see App.jsx's isGuestLanding) —
     // only an authenticated user lands on the scanner at "/". LandingPage is
     // lazy-loaded, so its first render in this file resolves asynchronously.
-    renderAt('/')
-    expect(await screen.findByText('CAPITAL FLOW · DEMO SCAN')).toBeInTheDocument()
-  })
+    renderAt('/');
+    expect(await screen.findByText('CAPITAL FLOW · DEMO SCAN')).toBeInTheDocument();
+  });
 
   it('renders the watchlist page at /watchlist', () => {
-    renderAt('/watchlist')
+    renderAt('/watchlist');
     // WatchlistPage's empty state for a logged-out visitor
-    expect(screen.getAllByText(/watchlist/i).length).toBeGreaterThan(0)
-  })
+    expect(screen.getAllByText(/watchlist/i).length).toBeGreaterThan(0);
+  });
 
   it('redirects an unknown path back to the scanner page', () => {
-    renderAt('/this-route-does-not-exist')
-    expect(screen.getByText('Full Scan')).toBeInTheDocument()
-  })
+    renderAt('/this-route-does-not-exist');
+    expect(screen.getByText('Full Scan')).toBeInTheDocument();
+  });
 
   it('highlights the active tab in the topbar to match the current route', () => {
-    const { container } = renderAt('/watchlist')
-    const watchlistTab = container.querySelector('.nav-tabs .nav-tab:nth-child(5)')
-    expect(watchlistTab.textContent).toMatch(/Watchlist/)
-    expect(watchlistTab.className).toMatch(/active/)
-  })
-})
+    const { container } = renderAt('/watchlist');
+    const watchlistTab = container.querySelector('.nav-tabs .nav-tab:nth-child(5)');
+    expect(watchlistTab.textContent).toMatch(/Watchlist/);
+    expect(watchlistTab.className).toMatch(/active/);
+  });
+});

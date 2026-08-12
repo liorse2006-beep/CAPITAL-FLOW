@@ -88,6 +88,21 @@ async function connectSse(base, ticket, attempt = 1) {
   return result;
 }
 
+async function waitForBothWorkers(base, timeoutMs = 20000) {
+  const deadline = Date.now() + timeoutMs;
+  const pids = new Set();
+  while (Date.now() < deadline) {
+    const res = await fetch(base + '/api/stream/_test-worker-pid').catch(() => null);
+    if (res && res.ok) {
+      const body = await res.json();
+      if (body.pid) pids.add(body.pid);
+      if (pids.size >= 2) return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error(`cluster did not expose both worker processes in ${timeoutMs}ms (saw ${[...pids]})`);
+}
+
 async function connectSseOnce(base, ticket) {
   const controller = new AbortController();
   const res = await fetch(`${base}/api/stream?ticket=${ticket}`, { signal: controller.signal });
@@ -180,15 +195,20 @@ async function runScenario(port) {
 
   try {
     await waitForHealth(base, 20000);
+    await waitForBothWorkers(base);
 
     const seedRes = await retryFetch(base, '/api/stream/_test-seed-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'cluster-it-user@test.local' }),
     });
-    const { userId, accessToken } = await seedRes.json();
+    const { userId } = await seedRes.json();
 
-    const ticketRes = await retryFetch(base, '/api/stream-ticket', { headers: { Authorization: 'Bearer ' + accessToken } });
+    const ticketRes = await retryFetch(base, '/api/stream/_test-issue-ticket', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    });
     const { ticket } = await ticketRes.json();
 
     const clients = await Promise.all(Array.from({ length: CONNECTION_COUNT }, () => connectSse(base, ticket)));
@@ -216,7 +236,11 @@ async function runScenario(port) {
     clients.forEach((c) => c.close());
 
     for (const r of results) {
-      assert.strictEqual(r.event, 'test-alert', `client on pid ${r.pid} got event "${r.event}" instead of the broadcast`);
+      assert.strictEqual(
+        r.event,
+        'test-alert',
+        `client on pid ${r.pid} got event "${r.event}" instead of the broadcast`
+      );
       assert.strictEqual(r.data.msg, 'hello from the cluster', `client on pid ${r.pid} got the wrong payload`);
     }
 
@@ -234,12 +258,14 @@ test('a broadcast reaches SSE clients on every cluster worker, not just whicheve
   let lastErr;
   for (let i = 0; i < ATTEMPTS; i++) {
     try {
-      const result = await runScenario(4321 + i);
+      await runScenario(4321 + i);
       return; // success — proven for this run
     } catch (err) {
       lastErr = err;
     }
   }
   console.error('--- last attempt cluster child process output ---\n' + (lastErr.childOutput || ''));
-  throw new Error(`cross-worker broadcast delivery could not be verified after ${ATTEMPTS} attempts: ${lastErr.message}`);
+  throw new Error(
+    `cross-worker broadcast delivery could not be verified after ${ATTEMPTS} attempts: ${lastErr.message}`
+  );
 });

@@ -17,15 +17,19 @@ router.post('/feedback', publicWriteLimiter, async (req, res) => {
     const header = req.headers.authorization;
     const user = header && header.startsWith('Bearer ') ? await resolveToken(header.slice(7)) : null;
 
-    const email = user ? user.email : String(req.body.email || '').trim().slice(0, 254) || null;
-    const page = String(req.body.page || '').trim().slice(0, 120) || null;
+    const email = user
+      ? user.email
+      : String(req.body.email || '')
+          .trim()
+          .slice(0, 254) || null;
+    const page =
+      String(req.body.page || '')
+        .trim()
+        .slice(0, 120) || null;
 
-    await db.prepare('INSERT INTO feedback (user_id, email, message, page) VALUES (?, ?, ?, ?)').run(
-      user ? user.id : null,
-      email,
-      message,
-      page
-    );
+    await db
+      .prepare('INSERT INTO feedback (user_id, email, message, page) VALUES (?, ?, ?, ?)')
+      .run(user ? user.id : null, email, message, page);
 
     res.json({ ok: true });
   } catch (err) {

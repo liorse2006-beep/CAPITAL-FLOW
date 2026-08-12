@@ -8,7 +8,9 @@ const assert = require('node:assert');
 
 const db = require('../server/db');
 
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 const {
   getWatchlistAlerts,
   setAlert,
@@ -57,7 +59,11 @@ test('removeAlert only removes the specified user + symbol', async () => {
   await removeAlert(dana, 'NVDA');
 
   assert.deepStrictEqual(await getWatchlistAlerts(dana), {});
-  assert.deepStrictEqual(await getWatchlistAlerts(erin), { NVDA: { type: 'volume', minRatio: 2 } }, "erin's alert must survive dana's removal");
+  assert.deepStrictEqual(
+    await getWatchlistAlerts(erin),
+    { NVDA: { type: 'volume', minRatio: 2 } },
+    "erin's alert must survive dana's removal"
+  );
 });
 
 test('clearAlerts only clears the specified user', async () => {

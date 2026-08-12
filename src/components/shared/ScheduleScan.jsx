@@ -30,8 +30,7 @@ export default function ScheduleScan({ scanType, user, onUpgrade, onSignIn }) {
   // Scheduled scans are a full Elite feature, included in the 7-day free
   // trial — user.elite_access is true for Elite AND in-trial free accounts.
   const hasAccess = !!(user && (user.tier === 'elite' || user.elite_access));
-  const { mySchedules, loading, error, addSchedule, toggleSchedule, removeSchedule } =
-    useScheduledScans(scanType);
+  const { mySchedules, loading, error, addSchedule, toggleSchedule, removeSchedule } = useScheduledScans(scanType);
 
   const [open, setOpen] = useState(false);
   const [timeInput, setTimeInput] = useState('09:30');
@@ -57,7 +56,17 @@ export default function ScheduleScan({ scanType, user, onUpgrade, onSignIn }) {
         title="Schedule automatic scan"
         aria-label="Schedule automatic scan"
       >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
           <circle cx="12" cy="12" r="10" />
           <polyline points="12 6 12 12 16 14" />
         </svg>
@@ -78,13 +87,25 @@ export default function ScheduleScan({ scanType, user, onUpgrade, onSignIn }) {
           >
             <div className="schedule-scan-header">
               <div className="schedule-scan-title-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
                 <span>Schedule {SCAN_LABELS[scanType]}</span>
               </div>
-              <button className="schedule-scan-close" onClick={() => setOpen(false)} aria-label="Close">✕</button>
+              <button className="schedule-scan-close" onClick={() => setOpen(false)} aria-label="Close">
+                ✕
+              </button>
             </div>
 
             {!hasAccess ? (
@@ -92,14 +113,16 @@ export default function ScheduleScan({ scanType, user, onUpgrade, onSignIn }) {
                 <div className="schedule-scan-upsell-icon">⏰</div>
                 <p className="schedule-scan-upsell-title">Automated Scans</p>
                 <p className="schedule-scan-upsell-desc">
-                  Schedule {SCAN_LABELS[scanType]} to run automatically at your chosen time — even
-                  when the app is closed. You&apos;ll get a push notification the moment results are
-                  ready.
+                  Schedule {SCAN_LABELS[scanType]} to run automatically at your chosen time — even when the app is
+                  closed. You&apos;ll get a push notification the moment results are ready.
                 </p>
                 <p className="schedule-scan-upsell-tag">Elite feature</p>
                 <button
                   className="upgrade-cta"
-                  onClick={() => { setOpen(false); onUpgrade?.(); }}
+                  onClick={() => {
+                    setOpen(false);
+                    onUpgrade?.();
+                  }}
                 >
                   Upgrade to Elite
                 </button>
@@ -152,11 +175,7 @@ export default function ScheduleScan({ scanType, user, onUpgrade, onSignIn }) {
                       onChange={(e) => setTimeInput(e.target.value)}
                       required
                     />
-                    <button
-                      type="submit"
-                      className="schedule-scan-add-btn"
-                      disabled={adding || loading}
-                    >
+                    <button type="submit" className="schedule-scan-add-btn" disabled={adding || loading}>
                       {adding ? 'Adding…' : '+ Add'}
                     </button>
                   </div>
@@ -175,7 +194,9 @@ export default function ScheduleScan({ scanType, user, onUpgrade, onSignIn }) {
                           <span className="schedule-scan-item-time">
                             {s.scan_date ? `${fmtDate(s.scan_date)}, ${s.scan_time}` : s.scan_time}
                           </span>
-                          <span className="schedule-scan-item-repeat">{s.scan_date ? 'One-time' : 'Repeats daily'}</span>
+                          <span className="schedule-scan-item-repeat">
+                            {s.scan_date ? 'One-time' : 'Repeats daily'}
+                          </span>
                           {s.last_run_at && (
                             <span className="schedule-scan-item-last">
                               Last ran {fmtTime(s.last_run_at)}
@@ -206,9 +227,7 @@ export default function ScheduleScan({ scanType, user, onUpgrade, onSignIn }) {
                   )}
                 </div>
 
-                <p className="schedule-scan-footer">
-                  Push notifications required. Max 3 active schedules.
-                </p>
+                <p className="schedule-scan-footer">Push notifications required. Max 3 active schedules.</p>
               </>
             )}
           </div>

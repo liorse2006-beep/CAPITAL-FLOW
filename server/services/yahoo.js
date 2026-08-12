@@ -24,12 +24,15 @@ function withTimeout(moduleOptions) {
 }
 
 const originalQuote = yahooFinance.quote.bind(yahooFinance);
-yahooFinance.quote = (query, queryOptions, moduleOptions) => originalQuote(query, queryOptions, withTimeout(moduleOptions));
+yahooFinance.quote = (query, queryOptions, moduleOptions) =>
+  originalQuote(query, queryOptions, withTimeout(moduleOptions));
 
 const originalChart = yahooFinance.chart.bind(yahooFinance);
-yahooFinance.chart = (symbol, queryOptions, moduleOptions) => originalChart(symbol, queryOptions, withTimeout(moduleOptions));
+yahooFinance.chart = (symbol, queryOptions, moduleOptions) =>
+  originalChart(symbol, queryOptions, withTimeout(moduleOptions));
 
 const originalQuoteSummary = yahooFinance.quoteSummary.bind(yahooFinance);
-yahooFinance.quoteSummary = (symbol, queryOptions, moduleOptions) => originalQuoteSummary(symbol, queryOptions, withTimeout(moduleOptions));
+yahooFinance.quoteSummary = (symbol, queryOptions, moduleOptions) =>
+  originalQuoteSummary(symbol, queryOptions, withTimeout(moduleOptions));
 
 module.exports = yahooFinance;

@@ -11,9 +11,16 @@ const express = require('express');
 
 const db = require('../server/db');
 
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 const { issueToken } = require('../server/services/auth');
-const { requireElite, requireEliteOrTrial } = require('../server/middleware/authMiddleware');
+const {
+  requireElite,
+  requireEliteOrTrial,
+  requirePremiumSSE,
+  issueSseTicket,
+} = require('../server/middleware/authMiddleware');
 const { FREE_TRIAL_DAYS } = require('../server/services/scanQuota');
 
 async function makeUser(email, tier, { createdAt } = {}) {
@@ -34,6 +41,7 @@ function startTestApp() {
   const app = express();
   app.get('/probe', requireElite, (req, res) => res.json({ ok: true, tier: req.user.tier }));
   app.get('/probe-trial', requireEliteOrTrial, (req, res) => res.json({ ok: true, tier: req.user.tier }));
+  app.get('/probe-sse', requirePremiumSSE, (req, res) => res.json({ ok: true, tier: req.user.tier }));
   return new Promise((resolve) => {
     const server = app.listen(0, () => resolve(server));
   });
@@ -146,6 +154,19 @@ test('requireEliteOrTrial allows elite through as normal', async () => {
   try {
     const res = await fetch(`http://127.0.0.1:${port}/probe-trial`, { headers: { Authorization: 'Bearer ' + token } });
     assert.strictEqual(res.status, 200);
+  } finally {
+    server.close();
+  }
+});
+
+test('SSE authentication gives a free trial the same Elite access as normal HTTP routes', async () => {
+  const user = await makeUser('trial-sse-fresh@test.local', 'free');
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/probe-sse?ticket=${encodeURIComponent(issueSseTicket(user.id))}`);
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(await res.json(), { ok: true, tier: 'free' });
   } finally {
     server.close();
   }

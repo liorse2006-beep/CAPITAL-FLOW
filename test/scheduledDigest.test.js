@@ -17,7 +17,9 @@ delete require.cache[require.resolve('../server/services/scheduledDigest')];
 
 const db = require('../server/db');
 
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 
 const { israelNow, buildDigestPayload, runDigestTick } = require('../server/services/scheduledDigest');
 const { backgroundCache } = require('../server/services/backgroundScan');

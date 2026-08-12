@@ -1,10 +1,10 @@
-import React from 'react'
+import React from 'react';
 
 // Blocks the app until a pilot tester accepts the confidentiality terms,
 // then shows a small traceable watermark for the rest of the session —
 // useful if a screenshot of the (still-confidential) product ever leaks.
 export default function PilotGate({ user, onAccept, onSignOut }) {
-  if (!user || !user.is_pilot) return null
+  if (!user || !user.is_pilot) return null;
 
   if (!user.pilot_terms_accepted_at) {
     return (
@@ -12,9 +12,9 @@ export default function PilotGate({ user, onAccept, onSignOut }) {
         <div className="upgrade-modal" style={{ maxWidth: 460 }}>
           <h2 className="upgrade-title">Pilot Program — Confidential</h2>
           <p className="upgrade-desc" style={{ textAlign: 'left', lineHeight: 1.6 }}>
-            You&apos;ve been given early access to Capital Flow as part of a limited pilot. This access is personal
-            to your account — please don&apos;t share your login, and treat the product, its design, and its data
-            as confidential. Your feedback is exactly what we&apos;re here for — thank you for trying it out.
+            You&apos;ve been given early access to Capital Flow as part of a limited pilot. This access is personal to
+            your account — please don&apos;t share your login, and treat the product, its design, and its data as
+            confidential. Your feedback is exactly what we&apos;re here for — thank you for trying it out.
           </p>
           <button className="upgrade-cta" onClick={onAccept}>
             I Agree — Continue
@@ -23,8 +23,8 @@ export default function PilotGate({ user, onAccept, onSignOut }) {
             <a
               href="#"
               onClick={(e) => {
-                e.preventDefault()
-                onSignOut()
+                e.preventDefault();
+                onSignOut();
               }}
             >
               Sign out instead
@@ -32,7 +32,7 @@ export default function PilotGate({ user, onAccept, onSignOut }) {
           </p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -56,5 +56,5 @@ export default function PilotGate({ user, onAccept, onSignOut }) {
     >
       {'PILOT · CONFIDENTIAL · ' + user.email}
     </div>
-  )
+  );
 }

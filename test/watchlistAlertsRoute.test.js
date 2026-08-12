@@ -10,14 +10,18 @@ const express = require('express');
 
 const db = require('../server/db');
 
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 const { issueToken } = require('../server/services/auth');
 const { getWatchlistAlerts } = require('../server/services/watchlistAlerts');
 const quoteCache = require('../server/services/quoteCache');
 const watchlistAlertsRouter = require('../server/routes/watchlistAlerts');
 
 async function makeEliteUser(email) {
-  const result = await db.prepare('INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, \'elite\', 1)').run(email);
+  const result = await db
+    .prepare("INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, 'elite', 1)")
+    .run(email);
   return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
 }
 
@@ -53,7 +57,11 @@ test('price alert uses the live-fetched quote for starting_side, ignoring a wron
     });
     assert.strictEqual(res.status, 200);
     const body = await res.json();
-    assert.strictEqual(body.startingSide, 'above', 'must be computed from the live quote (100 > 50), not the client value (10 < 50)');
+    assert.strictEqual(
+      body.startingSide,
+      'above',
+      'must be computed from the live quote (100 > 50), not the client value (10 < 50)'
+    );
 
     const alerts = await getWatchlistAlerts(user.id);
     assert.strictEqual(alerts.AAPL.startingSide, 'above');
@@ -79,7 +87,11 @@ test('price alert falls back to the client referencePrice when the live quote fe
     });
     assert.strictEqual(res.status, 200, 'a live-fetch failure must not block setting the alert');
     const body = await res.json();
-    assert.strictEqual(body.startingSide, 'below', 'must fall back to the client value (10 < 50) when live data is unavailable');
+    assert.strictEqual(
+      body.startingSide,
+      'below',
+      'must fall back to the client value (10 < 50) when live data is unavailable'
+    );
   } finally {
     server.close();
   }
@@ -100,7 +112,11 @@ test('price alert falls back when the live quote has no usable price for the sym
     });
     assert.strictEqual(res.status, 200);
     const body = await res.json();
-    assert.strictEqual(body.startingSide, 'above', 'falls back to the client value (60 > 50) when the symbol has no live quote');
+    assert.strictEqual(
+      body.startingSide,
+      'above',
+      'falls back to the client value (60 > 50) when the symbol has no live quote'
+    );
   } finally {
     server.close();
   }

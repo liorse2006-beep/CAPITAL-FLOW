@@ -31,7 +31,7 @@ try {
 const OnboardingQuiz = lazy(() => import('./pages/OnboardingQuiz'));
 
 // Same animated ticker-tape loader used during scans, reused here for the
-// (rare, but real on Render's free tier) case where the initial /api/auth/me
+// (rare, but possible during a transient cold start) case where the initial /api/auth/me
 // check is slow because the server was asleep. Imported eagerly, not lazily
 // — ScannerPage already imports it statically, so it's in the main bundle
 // regardless; a dynamic import() here would just add an ineffective split.
@@ -159,10 +159,16 @@ function Root() {
     return (
       <div className="startup-error-screen">
         <div className="startup-error-card">
-          <div className="logo-mark" aria-hidden="true"><div className="logo-bar" /><div className="logo-bar" /><div className="logo-bar" /></div>
+          <div className="logo-mark" aria-hidden="true">
+            <div className="logo-bar" />
+            <div className="logo-bar" />
+            <div className="logo-bar" />
+          </div>
           <h1>We couldn&apos;t reach Capital Flow</h1>
           <p>The server may be waking up or temporarily unavailable. Your session is still saved.</p>
-          <button className="upgrade-cta" onClick={() => window.location.reload()}>Try again</button>
+          <button className="upgrade-cta" onClick={() => window.location.reload()}>
+            Try again
+          </button>
         </div>
       </div>
     );

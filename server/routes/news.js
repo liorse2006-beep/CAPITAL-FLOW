@@ -41,9 +41,12 @@ router.get('/news/:symbol/resolve', requireAuth, scanLimiter, async function (re
   if (typeof targetUrl !== 'string' || !targetUrl) return res.status(400).json({ error: 'Missing url' });
 
   var cached = newsCache.get(symbol);
-  var known = cached && Array.isArray(cached.articles) && cached.articles.some(function (a) {
-    return a.url === targetUrl;
-  });
+  var known =
+    cached &&
+    Array.isArray(cached.articles) &&
+    cached.articles.some(function (a) {
+      return a.url === targetUrl;
+    });
   if (!known) return res.status(400).json({ error: 'Unknown article URL' });
 
   return res.json({ url: await resolveFinalUrl(targetUrl) });

@@ -37,14 +37,17 @@ export default function AccessibilityStatementPage() {
         <Part number={1} title="Our Commitment to Accessibility">
           <p className="policy-paragraph">
             At Capital Flow, we place great importance on providing an equal and accessible service to all users,
-            including people with disabilities. We act in accordance with the Equal Rights for Persons with
-            Disabilities Regulations (Service Accessibility Adjustments), and the Israeli Standard IS 5568, based on
-            WCAG 2.0 Level AA guidelines, to the extent applicable and relevant to the nature of the site.
+            including people with disabilities. We act in accordance with the Equal Rights for Persons with Disabilities
+            Regulations (Service Accessibility Adjustments), and the Israeli Standard IS 5568, based on WCAG 2.0 Level
+            AA guidelines, to the extent applicable and relevant to the nature of the site.
           </p>
         </Part>
 
         <Part number={2} title="Accessibility Features on the Site">
-          <p className="policy-paragraph">In addition to the floating accessibility menu (the icon in the bottom-left corner of the screen), the site includes:</p>
+          <p className="policy-paragraph">
+            In addition to the floating accessibility menu (the icon in the bottom-left corner of the screen), the site
+            includes:
+          </p>
           <ul className="policy-list">
             {MEASURES.map((m, i) => (
               <li key={i}>{m}</li>
@@ -62,9 +65,8 @@ export default function AccessibilityStatementPage() {
 
         <Part number={4} title="Contact Us About Accessibility">
           <p className="policy-paragraph">
-            If you encounter an accessibility issue on the site, or have a suggestion for improvement, we&apos;d be
-            glad to hear from you by email at
-            {' '}
+            If you encounter an accessibility issue on the site, or have a suggestion for improvement, we&apos;d be glad
+            to hear from you by email at{' '}
             <a className="policy-inline-link" href="mailto:liormenaiot@gmail.com">
               liormenaiot@gmail.com
             </a>

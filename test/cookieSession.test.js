@@ -54,7 +54,11 @@ test('session data set on one request is readable on a later request carrying th
 
     const readRes = await fetch(`http://127.0.0.1:${port}/read`, { headers: { Cookie: cookie } });
     const body = await readRes.json();
-    assert.strictEqual(body.passportUser, 42, 'session value must survive across separate requests via the cookie alone');
+    assert.strictEqual(
+      body.passportUser,
+      42,
+      'session value must survive across separate requests via the cookie alone'
+    );
   } finally {
     server.close();
   }
@@ -67,7 +71,11 @@ test('no server-side session store is involved — a request with no cookie sees
     await fetch(`http://127.0.0.1:${port}/set`); // establishes a session for "someone"
     const readRes = await fetch(`http://127.0.0.1:${port}/read`); // no cookie sent
     const body = await readRes.json();
-    assert.strictEqual(body.passportUser, null, 'without the cookie, nothing server-side remembers the session — proves there is no shared/in-memory store to go stale across processes');
+    assert.strictEqual(
+      body.passportUser,
+      null,
+      'without the cookie, nothing server-side remembers the session — proves there is no shared/in-memory store to go stale across processes'
+    );
   } finally {
     server.close();
   }

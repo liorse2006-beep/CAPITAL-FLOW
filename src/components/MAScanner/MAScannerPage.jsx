@@ -31,16 +31,7 @@ const MARKET_OPTIONS = [
   { key: 'sectors', label: 'By Sector', meta: '5/sec', color: '#F59E0B' },
 ];
 
-function fmtCap(v) {
-  if (!v) return '—';
-  if (v >= 1e12) return '$' + (v / 1e12).toFixed(1) + 'T';
-  if (v >= 1e9) return '$' + (v / 1e9).toFixed(1) + 'B';
-  if (v >= 1e6) return '$' + (v / 1e6).toFixed(0) + 'M';
-  return '—';
-}
-
 export default function MAScannerPage({
-  onOpenChart,
   onSignIn,
   onUpgrade,
   onTrialEnded,
@@ -50,7 +41,9 @@ export default function MAScannerPage({
   promptCreateAlert,
 }) {
   const { getToken, user } = useAuth();
-  const isPremium = !!(user && user.is_premium);
+  // Trial users receive the same scanner surface as Elite for the duration
+  // of the seven-day trial; the backend remains authoritative for quota.
+  const isPremium = !!(user && (user.is_premium || user.elite_access));
 
   const [ma, setMa] = useState(20);
   const [distance, setDistance] = useState(2);
@@ -191,10 +184,10 @@ export default function MAScannerPage({
   // means the scan's own historical data didn't show a cross within its
   // lookback window, and that is shown as-is rather than as "0" or blank.
   function crossLabel(daysSinceCross) {
-    if (daysSinceCross == null) return 'No recent cross'
-    if (daysSinceCross === 0) return 'Just now'
-    var unit = timeframe === '1wk' ? 'wk' : 'd'
-    return daysSinceCross + unit + ' ago'
+    if (daysSinceCross == null) return 'No recent cross';
+    if (daysSinceCross === 0) return 'Just now';
+    var unit = timeframe === '1wk' ? 'wk' : 'd';
+    return daysSinceCross + unit + ' ago';
   }
 
   const chartBtn = (symbol) =>
@@ -211,7 +204,16 @@ export default function MAScannerPage({
       },
       React.createElement(
         'svg',
-        { viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+        {
+          viewBox: '0 0 24 24',
+          width: 14,
+          height: 14,
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: 2,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+        },
         React.createElement('path', { d: 'M3 3v18h18' }),
         React.createElement('path', { d: 'M18.7 8l-5.1 5.1-4-4L3 15.6' })
       )
@@ -231,7 +233,16 @@ export default function MAScannerPage({
       },
       React.createElement(
         'svg',
-        { viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+        {
+          viewBox: '0 0 24 24',
+          width: 14,
+          height: 14,
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: 2,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+        },
         React.createElement('path', { d: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9' }),
         React.createElement('path', { d: 'M13.73 21a2 2 0 0 1-3.46 0' })
       )
@@ -484,11 +495,7 @@ export default function MAScannerPage({
               'Clear all'
             )
         ),
-        React.createElement(
-          'p',
-          { className: 'sector-grid-subtitle' },
-          'The 5 largest tickers from each sector'
-        ),
+        React.createElement('p', { className: 'sector-grid-subtitle' }, 'The 5 largest tickers from each sector'),
         React.createElement(
           'div',
           { className: 'sector-grid' },
@@ -537,7 +544,7 @@ export default function MAScannerPage({
             { className: 'ma-limit-sub' },
             scanMeta && scanMeta.tier === 'premium'
               ? "You've used all 5 scans for today — resets in 24h. Upgrade to Elite for unlimited scans and real-time alerts."
-              : "Your free week is over. Upgrade to Premium for unlimited-feeling scanning, or Elite for scans plus real-time alerts."
+              : 'Your free week is over. Upgrade to Premium for unlimited-feeling scanning, or Elite for scans plus real-time alerts.'
           )
         )
       ),
@@ -569,11 +576,7 @@ export default function MAScannerPage({
         React.createElement(
           'div',
           { className: 'error-bar-actions' },
-          React.createElement(
-            'button',
-            { className: 'error-retry-btn', onClick: startScan },
-            'Retry'
-          ),
+          React.createElement('button', { className: 'error-retry-btn', onClick: startScan }, 'Retry'),
           React.createElement('button', { className: 'error-dismiss-btn', onClick: () => setError(null) }, 'Dismiss')
         )
       ),
@@ -660,7 +663,13 @@ export default function MAScannerPage({
                       ),
                       React.createElement(
                         'span',
-                        { style: { fontFamily: 'var(--mono)', fontSize: 11, color: r.daysSinceCross != null ? 'var(--text-1)' : 'var(--text-3)' } },
+                        {
+                          style: {
+                            fontFamily: 'var(--mono)',
+                            fontSize: 11,
+                            color: r.daysSinceCross != null ? 'var(--text-1)' : 'var(--text-3)',
+                          },
+                        },
                         crossLabel(r.daysSinceCross)
                       )
                     ),
@@ -752,7 +761,13 @@ export default function MAScannerPage({
                         ),
                         React.createElement(
                           'td',
-                          { style: { fontFamily: 'var(--mono)', fontSize: 11.5, color: r.daysSinceCross != null ? 'var(--text-1)' : 'var(--text-3)' } },
+                          {
+                            style: {
+                              fontFamily: 'var(--mono)',
+                              fontSize: 11.5,
+                              color: r.daysSinceCross != null ? 'var(--text-1)' : 'var(--text-3)',
+                            },
+                          },
                           crossLabel(r.daysSinceCross)
                         ),
                         React.createElement(

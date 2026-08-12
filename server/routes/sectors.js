@@ -63,7 +63,10 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
       etfs.map(async (symbol) => {
         try {
           const quote = quoteMap.get(symbol) || {};
-          const chart = await yahooFinance.chart(symbol, { period1: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000), interval: '1d' });
+          const chart = await yahooFinance.chart(symbol, {
+            period1: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000),
+            interval: '1d',
+          });
           const quotes = chart && chart.quotes ? chart.quotes : [];
           const recent = quotes
             .filter(function (d) {

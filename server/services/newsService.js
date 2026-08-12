@@ -67,7 +67,9 @@ async function fetchFromMassive(symbol) {
       // article — real provider data, preferred over an AI-guessed label.
       var insight =
         Array.isArray(a.insights) && a.insights.length > 0
-          ? a.insights.find(function (ins) { return ins.ticker === symbol; }) || a.insights[0]
+          ? a.insights.find(function (ins) {
+              return ins.ticker === symbol;
+            }) || a.insights[0]
           : null;
       return {
         headline: a.title || '',

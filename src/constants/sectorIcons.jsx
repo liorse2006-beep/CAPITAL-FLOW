@@ -1,4 +1,4 @@
-import React from 'react'
+import React from 'react';
 
 // Pure presentational SVG icon per sector — split out of ScannerPage since
 // this data (not logic) made that file hard to scan for the actual behavior.
@@ -11,7 +11,7 @@ const iconProps = {
   strokeWidth: '1.5',
   strokeLinecap: 'round',
   strokeLinejoin: 'round',
-}
+};
 
 export const SECTOR_ICONS = {
   Technology: (
@@ -85,4 +85,4 @@ export const SECTOR_ICONS = {
       <path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3" />
     </svg>
   ),
-}
+};

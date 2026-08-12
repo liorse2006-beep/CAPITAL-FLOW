@@ -97,20 +97,22 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
     let entry = inFlightScans.get(cacheKey);
     if (!entry) {
       entry = { subscribers: new Set() };
-      entry.promise = maScannerService.scanMA(tickersToScan, {
-        ma,
-        distance,
-        interval,
-        // Broadcast progress to every subscriber's own progress slot, not
-        // just the request that happened to start the scan — /ma-progress
-        // is polled per-user, so a joining subscriber still sees live
-        // progress instead of a frozen 0% until the shared scan finishes.
-        onProgress: (p) => {
-          entry.subscribers.forEach((uid) => {
-            if (scanProgress.get(uid)) scanProgress.set(uid, { ...p, running: true });
-          });
-        },
-      }).finally(() => inFlightScans.delete(cacheKey));
+      entry.promise = maScannerService
+        .scanMA(tickersToScan, {
+          ma,
+          distance,
+          interval,
+          // Broadcast progress to every subscriber's own progress slot, not
+          // just the request that happened to start the scan — /ma-progress
+          // is polled per-user, so a joining subscriber still sees live
+          // progress instead of a frozen 0% until the shared scan finishes.
+          onProgress: (p) => {
+            entry.subscribers.forEach((uid) => {
+              if (scanProgress.get(uid)) scanProgress.set(uid, { ...p, running: true });
+            });
+          },
+        })
+        .finally(() => inFlightScans.delete(cacheKey));
       inFlightScans.set(cacheKey, entry);
     }
     entry.subscribers.add(userId);

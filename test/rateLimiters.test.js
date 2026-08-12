@@ -123,7 +123,9 @@ function startGetTestApp(limiter) {
 async function hitWithTicket(port, n, ticket) {
   const codes = [];
   for (let i = 0; i < n; i++) {
-    const url = ticket ? `http://127.0.0.1:${port}/probe?ticket=${encodeURIComponent(ticket)}` : `http://127.0.0.1:${port}/probe`;
+    const url = ticket
+      ? `http://127.0.0.1:${port}/probe?ticket=${encodeURIComponent(ticket)}`
+      : `http://127.0.0.1:${port}/probe`;
     const res = await fetch(url);
     codes.push(res.status);
   }
@@ -149,7 +151,7 @@ test('sseStreamLimiter gives each ticket-holding account its own budget, even fr
     const aCodes = await hitWithTicket(port, 60, ticketA);
     assert.ok(
       aCodes.every((c) => c === 200),
-      "user A should get all 60 of their own connection attempts through"
+      'user A should get all 60 of their own connection attempts through'
     );
 
     const bCodes = await hitWithTicket(port, 60, ticketB);

@@ -30,7 +30,7 @@ function formatAlertTime(iso) {
 
 /* Notification bell + alert-history dropdown — desktop-notification alerts
    for local ticker/threshold matches (browser Notification API), separate
-   from the Elite-only server-driven push pipeline in usePushSubscription. */
+   from the server-driven push pipeline in usePushSubscription. */
 function AlertBell(props) {
   var notificationsEnabled = props.notificationsEnabled;
   var showAlertPanel = props.showAlertPanel;

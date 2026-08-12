@@ -1,31 +1,31 @@
-import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
-var STORAGE_KEY = 'vs_a11y_settings'
-var FONT_STEPS = [1, 1.1, 1.25, 1.4] // multiplier applied via zoom — 100% / 110% / 125% / 140%
-var DEFAULT_SETTINGS = { fontStep: 0, highContrast: false, highlightLinks: false, theme: 'dark' }
+var STORAGE_KEY = 'vs_a11y_settings';
+var FONT_STEPS = [1, 1.1, 1.25, 1.4]; // multiplier applied via zoom — 100% / 110% / 125% / 140%
+var DEFAULT_SETTINGS = { fontStep: 0, highContrast: false, highlightLinks: false, theme: 'dark' };
 
 function loadSettings() {
   try {
-    var raw = JSON.parse(localStorage.getItem(STORAGE_KEY))
-    if (!raw) return DEFAULT_SETTINGS
+    var raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (!raw) return DEFAULT_SETTINGS;
     return {
       fontStep: FONT_STEPS[raw.fontStep] ? raw.fontStep : 0,
       highContrast: !!raw.highContrast,
       highlightLinks: !!raw.highlightLinks,
       theme: raw.theme === 'light' ? 'light' : 'dark',
-    }
+    };
   } catch (e) {
-    return DEFAULT_SETTINGS
+    return DEFAULT_SETTINGS;
   }
 }
 
 function applySettings(s) {
-  var root = document.documentElement
-  root.style.zoom = FONT_STEPS[s.fontStep] || 1
-  root.classList.toggle('a11y-high-contrast', s.highContrast)
-  root.classList.toggle('a11y-highlight-links', s.highlightLinks)
-  root.setAttribute('data-theme', s.theme)
+  var root = document.documentElement;
+  root.style.zoom = FONT_STEPS[s.fontStep] || 1;
+  root.classList.toggle('a11y-high-contrast', s.highContrast);
+  root.classList.toggle('a11y-highlight-links', s.highlightLinks);
+  root.setAttribute('data-theme', s.theme);
 }
 
 /* Floating accessibility toolbar — real, functioning controls (not
@@ -37,33 +37,33 @@ function applySettings(s) {
    owner of the `data-theme` attribute — nothing else in the app should set
    it, or it'll fight this widget's saved preference. */
 export default function AccessibilityWidget() {
-  const [open, setOpen] = useState(false)
-  const [settings, setSettings] = useState(loadSettings)
+  const [open, setOpen] = useState(false);
+  const [settings, setSettings] = useState(loadSettings);
 
   useEffect(() => {
-    applySettings(settings)
+    applySettings(settings);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     } catch (e) {}
-  }, [settings])
+  }, [settings]);
 
   function increaseFont() {
-    setSettings((s) => ({ ...s, fontStep: Math.min(s.fontStep + 1, FONT_STEPS.length - 1) }))
+    setSettings((s) => ({ ...s, fontStep: Math.min(s.fontStep + 1, FONT_STEPS.length - 1) }));
   }
   function decreaseFont() {
-    setSettings((s) => ({ ...s, fontStep: Math.max(s.fontStep - 1, 0) }))
+    setSettings((s) => ({ ...s, fontStep: Math.max(s.fontStep - 1, 0) }));
   }
   function toggleContrast() {
-    setSettings((s) => ({ ...s, highContrast: !s.highContrast }))
+    setSettings((s) => ({ ...s, highContrast: !s.highContrast }));
   }
   function toggleLinks() {
-    setSettings((s) => ({ ...s, highlightLinks: !s.highlightLinks }))
+    setSettings((s) => ({ ...s, highlightLinks: !s.highlightLinks }));
   }
   function setTheme(theme) {
-    setSettings((s) => ({ ...s, theme: theme }))
+    setSettings((s) => ({ ...s, theme: theme }));
   }
   function resetSettings() {
-    setSettings(DEFAULT_SETTINGS)
+    setSettings(DEFAULT_SETTINGS);
   }
 
   return (
@@ -80,7 +80,12 @@ export default function AccessibilityWidget() {
           <div className="a11y-row">
             <span className="a11y-row-label">Text Size</span>
             <div className="a11y-btn-group">
-              <button className="a11y-btn" onClick={decreaseFont} disabled={settings.fontStep === 0} aria-label="Decrease text size">
+              <button
+                className="a11y-btn"
+                onClick={decreaseFont}
+                disabled={settings.fontStep === 0}
+                aria-label="Decrease text size"
+              >
                 A-
               </button>
               <button
@@ -156,5 +161,5 @@ export default function AccessibilityWidget() {
         <span aria-hidden="true">&#9855;</span>
       </button>
     </div>
-  )
+  );
 }

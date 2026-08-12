@@ -16,10 +16,7 @@ function renderWithProviders(ui) {
 describe('FeedbackButton', () => {
   beforeEach(() => {
     localStorage.clear();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
-    );
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) }));
   });
 
   afterEach(() => {
@@ -56,10 +53,7 @@ describe('FeedbackButton', () => {
     await user.click(screen.getByRole('button', { name: /^send$/i }));
 
     await waitFor(() => expect(screen.getByText('Thanks!')).toBeInTheDocument());
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/feedback',
-      expect.objectContaining({ method: 'POST' })
-    );
+    expect(fetch).toHaveBeenCalledWith('/api/feedback', expect.objectContaining({ method: 'POST' }));
     // AuthProvider now fires its own /api/auth/refresh call on mount (the
     // silent-session-refresh flow), so the feedback POST is no longer
     // reliably the first fetch call — find it by URL instead of by index.

@@ -11,8 +11,8 @@ Live at [capitalflow.vip](https://capitalflow.vip).
 - **Database:** Turso (libSQL/SQLite) in production, a local SQLite file in dev
 - **Auth:** Google OAuth + email/password (JWT), `express-session` for the OAuth handshake
 - **Payments:** Whop (hosted checkout)
-- **Data providers:** Finnhub (quotes/fundamentals), Yahoo Finance (sparklines), Massive / MarketAux / NewsData.io (news, fallback chain), Google AI Studio (Gemini, news catalyst tagging), OpenRouter (Capi chat)
-- **Deployment:** Render (web service), auto-deploys on push to `main`
+- **Data providers:** Finnhub (quotes/fundamentals), Yahoo Finance (sparklines), Massive / MarketAux / NewsData.io (news, fallback chain), Google AI Studio (Gemini, news catalyst tagging and Capi)
+- **Deployment:** Render (web service), optional Cloudflare Worker edge cache, auto-deploys on push to `main`
 
 ## Local setup
 
@@ -33,7 +33,7 @@ Full list with setup instructions for each provider lives in [.env.example](.env
 - **Core:** `PORT`, `JWT_SECRET`, `SESSION_SECRET`
 - **Market data:** `FINNHUB_API_KEY` (+ optional `FINNHUB_API_KEY_POOL_1..4` for rotation)
 - **News:** `MASSIVE_API_KEY`, `MARKETAUX_API_KEY`, `NEWSDATA_API_KEY`
-- **AI (Capi):** `GOOGLE_AI_STUDIO_KEY`, `OPENROUTER_API_KEY`
+- **AI (Capi + news):** `GOOGLE_AI_STUDIO_KEY`
 - **Email:** `RESEND_API_KEY`/`RESEND_FROM_EMAIL` (transactional), `GMAIL_USER`/`GMAIL_APP_PASSWORD` (daily DB backup only)
 - **Auth:** `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_CALLBACK_URL`, `TURNSTILE_SECRET`/`VITE_TURNSTILE_SITE_KEY`
 - **Push:** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`
@@ -41,6 +41,7 @@ Full list with setup instructions for each provider lives in [.env.example](.env
 - **Payments:** `WHOP_API_KEY`, `WHOP_WEBHOOK_SECRET`, `WHOP_PREMIUM_PLAN_ID`, `WHOP_ELITE_PLAN_ID`
 - **Database:** `TURSO_DB_URL`/`TURSO_AUTH_TOKEN`
 - **Optional monitoring:** `VITE_SENTRY_DSN`/`SENTRY_DSN`, `VITE_POSTHOG_KEY`/`VITE_POSTHOG_HOST`
+- **Optional scaling:** `VITE_SCAN_WORKER_URL`, `CLUSTER_WORKERS`
 
 ## Project structure
 
@@ -69,4 +70,4 @@ npm run test:all      # both
 
 ## Deployment
 
-Render auto-deploys on every push to `main`. Set the same environment variables from `.env.example` in the Render dashboard. Running on a paid Starter instance (not the free tier) — no idle spin-down, the background scanner and scheduled jobs run continuously.
+Render auto-deploys on every push to `main`, but only after the test, lint, format, audit and build gates pass. Set the same environment variables from `.env.example` in the Render dashboard. Running on a paid Starter instance (not the free tier) — no idle spin-down, the background scanner and scheduled jobs run continuously. Deploy the optional Cloudflare Worker separately and set `VITE_SCAN_WORKER_URL` at build time before relying on edge-cached scan capacity.

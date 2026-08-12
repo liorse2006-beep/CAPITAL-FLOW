@@ -99,7 +99,9 @@ async function runBackupTick() {
   // admin panel's staleness badge reflects reality instead of resetting on
   // every attempt regardless of success.
   await db
-    .prepare("INSERT INTO app_meta (key, value) VALUES ('last_backup_at', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .prepare(
+      "INSERT INTO app_meta (key, value) VALUES ('last_backup_at', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+    )
     .run(String(Math.floor(Date.now() / 1000)));
 }
 

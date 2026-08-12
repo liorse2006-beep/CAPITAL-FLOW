@@ -27,8 +27,20 @@ test('parses a well-formed JSON array response into a 1-indexed map', async () =
     ok: true,
     json: async () => ({
       output_text: JSON.stringify([
-        { index: 1, summary: 'Revenue rose 12% YoY. The company beat estimates.', sentiment: 'positive', impact: 'This may support short-term buying interest.', catalyst: 'earnings' },
-        { index: 2, summary: 'The company is facing a lawsuit.', sentiment: 'negative', impact: 'This could add short-term volatility.', catalyst: 'regulatory_legal' },
+        {
+          index: 1,
+          summary: 'Revenue rose 12% YoY. The company beat estimates.',
+          sentiment: 'positive',
+          impact: 'This may support short-term buying interest.',
+          catalyst: 'earnings',
+        },
+        {
+          index: 2,
+          summary: 'The company is facing a lawsuit.',
+          sentiment: 'negative',
+          impact: 'This could add short-term volatility.',
+          catalyst: 'regulatory_legal',
+        },
       ]),
     }),
   });
@@ -45,7 +57,9 @@ test('a catalyst value outside the closed taxonomy is dropped rather than truste
   global.fetch = async () => ({
     ok: true,
     json: async () => ({
-      output_text: JSON.stringify([{ index: 1, summary: 'Fine.', sentiment: 'neutral', impact: 'x', catalyst: 'moon-landing' }]),
+      output_text: JSON.stringify([
+        { index: 1, summary: 'Fine.', sentiment: 'neutral', impact: 'x', catalyst: 'moon-landing' },
+      ]),
     }),
   });
 
@@ -57,7 +71,8 @@ test('extracts the JSON array even when the model wraps it in prose', async () =
   global.fetch = async () => ({
     ok: true,
     json: async () => ({
-      output_text: 'Sure, here you go:\n[{"index": 1, "summary": "Ok.", "sentiment": "neutral", "impact": "May have limited effect."}]\nHope that helps!',
+      output_text:
+        'Sure, here you go:\n[{"index": 1, "summary": "Ok.", "sentiment": "neutral", "impact": "May have limited effect."}]\nHope that helps!',
     }),
   });
 

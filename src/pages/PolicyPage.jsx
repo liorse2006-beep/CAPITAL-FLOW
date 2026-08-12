@@ -16,11 +16,11 @@ const DATA_COLLECTED = [
   },
   {
     title: 'Push notifications',
-    body: 'If you enable push notifications (an Elite-only feature), we store a technical subscription identifier tied to your browser or device so we can deliver alerts to it. You can revoke this at any time from the Watchlist page.',
+    body: 'If you enable push notifications (available to Elite and during the free trial), we store a technical subscription identifier tied to your browser or device so we can deliver alerts to it. You can revoke this at any time from the Watchlist page.',
   },
   {
     title: 'Technical and analytics data (optional)',
-    body: "If usage analytics is enabled, we collect general events such as page visits, scans run, or upgrade prompts viewed, to help us understand and improve the product. If error monitoring is enabled, we record technical details about browser errors (the page URL and error message) to help us fix bugs. Both services are off by default and only activate if explicitly configured on our servers.",
+    body: 'If usage analytics is enabled, we collect general events such as page visits, scans run, or upgrade prompts viewed, to help us understand and improve the product. If error monitoring is enabled, we record technical details about browser errors (the page URL and error message) to help us fix bugs. Both services are off by default and only activate if explicitly configured on our servers.',
   },
 ];
 
@@ -36,7 +36,7 @@ const THIRD_PARTY_PROVIDERS = [
   "Cloudflare Turnstile (to verify you're not a bot during sign-in)",
   'Resend (to deliver essential account emails such as verification codes and password resets)',
   'Whop (our payment processor for checkout and billing; we never see or store your full card details)',
-  "Google AI Studio (Gemini) (powers Capi, our in-app assistant, and AI-generated news summaries — if you message Capi, that message is sent to this provider to generate a response)",
+  'Google AI Studio (Gemini) (powers Capi, our in-app assistant, and AI-generated news summaries — if you message Capi, that message is sent to this provider to generate a response)',
   'Gmail (our operator receives a weekly, encrypted-in-transit database backup and any downtime alerts by email to this address — this is an internal operational backup, not a marketing or third-party analytics use)',
   'Analytics and error-monitoring providers (only where explicitly enabled)',
 ];
@@ -68,39 +68,38 @@ export default function PolicyPage() {
       <div className="policy-card">
         <p className="policy-paragraph policy-updated">Last updated: July 21, 2026</p>
         <p className="policy-paragraph">
-          Welcome to Capital Flow. This document contains both our Terms of Service and Privacy Policy. By
-          accessing or using Capital Flow, you agree to the terms described below.
+          Welcome to Capital Flow. This document contains both our Terms of Service and Privacy Policy. By accessing or
+          using Capital Flow, you agree to the terms described below.
         </p>
 
         <Part number={1} title="Terms of Use & Disclaimers">
           <Section title="Not Investment Advice">
             <p className="policy-paragraph">
-              Capital Flow is a market-scanning and information tool only. It displays market data — such as
-              trading volume, prices, and moving averages — for informational purposes only. Nothing on this
-              site constitutes investment advice, a recommendation to buy or sell any security, or financial
-              advice of any kind. We are not licensed investment advisors and do not act as one. Market data
-              shown may be delayed, estimated, or subject to provider errors, and should not be relied on as
-              your sole source of information. Every investment decision, including its financial outcome,
-              whether profit or loss, is the sole responsibility of the user. We recommend consulting a licensed
-              financial advisor before making investment decisions.
+              Capital Flow is a market-scanning and information tool only. It displays market data — such as trading
+              volume, prices, and moving averages — for informational purposes only. Nothing on this site constitutes
+              investment advice, a recommendation to buy or sell any security, or financial advice of any kind. We are
+              not licensed investment advisors and do not act as one. Market data shown may be delayed, estimated, or
+              subject to provider errors, and should not be relied on as your sole source of information. Every
+              investment decision, including its financial outcome, whether profit or loss, is the sole responsibility
+              of the user. We recommend consulting a licensed financial advisor before making investment decisions.
             </p>
           </Section>
 
           <Section title="Disclaimer of Warranties and Limitation of Liability">
             <p className="policy-paragraph">
-              The service is provided &quot;as is&quot; and &quot;as available&quot;, without warranties of any kind, express or
-              implied. We do not guarantee uninterrupted access, error-free operation, or the accuracy,
-              completeness, or timeliness of any market data displayed. To the fullest extent permitted by law,
-              Capital Flow and its operators are not liable for any direct, indirect, incidental, or consequential
-              damages — including trading losses — arising from your use of, or inability to use, the service.
+              The service is provided &quot;as is&quot; and &quot;as available&quot;, without warranties of any kind,
+              express or implied. We do not guarantee uninterrupted access, error-free operation, or the accuracy,
+              completeness, or timeliness of any market data displayed. To the fullest extent permitted by law, Capital
+              Flow and its operators are not liable for any direct, indirect, incidental, or consequential damages —
+              including trading losses — arising from your use of, or inability to use, the service.
             </p>
           </Section>
 
           <Section title="Refund Policy">
             <p className="policy-paragraph">
               Refunds are issued only in the case of a technical malfunction in the product&apos;s functionality, which
-              our team attempted to fix and was unable to resolve within 14 days of being reported. Outside of
-              this case, payments made are non-refundable.
+              our team attempted to fix and was unable to resolve within 14 days of being reported. Outside of this
+              case, payments made are non-refundable.
             </p>
           </Section>
         </Part>
@@ -111,8 +110,8 @@ export default function PolicyPage() {
             personal data to third parties for marketing, advertising, or any other commercial purposes.
           </p>
           <p className="policy-paragraph">
-            You are not legally required to provide us with any personal data. Providing your information is
-            done voluntarily and with your explicit consent for the purposes specified in this policy.
+            You are not legally required to provide us with any personal data. Providing your information is done
+            voluntarily and with your explicit consent for the purposes specified in this policy.
           </p>
 
           <Section title="Information We Collect">
@@ -126,8 +125,8 @@ export default function PolicyPage() {
           <Section title="How Long We Retain Your Data">
             <p className="policy-paragraph">
               We retain your data for as long as your account remains active. When you delete your account, all
-              associated data — account details, Watchlist, alerts, and push subscriptions — is permanently
-              deleted from our servers immediately.
+              associated data — account details, Watchlist, alerts, and push subscriptions — is permanently deleted from
+              our servers immediately.
             </p>
           </Section>
 
@@ -141,8 +140,8 @@ export default function PolicyPage() {
 
           <Section title="Cookies">
             <p className="policy-paragraph">
-              We use cookies to operate and improve the service. We do not sell or share your personal data with
-              third parties for advertising purposes. You can manage your cookie preferences at any time by{' '}
+              We use cookies to operate and improve the service. We do not sell or share your personal data with third
+              parties for advertising purposes. You can manage your cookie preferences at any time by{' '}
               <button
                 type="button"
                 className="policy-inline-link"
@@ -159,8 +158,8 @@ export default function PolicyPage() {
 
           <Section title="Essential Third-Party Service Providers & Global Data Processing">
             <p className="policy-paragraph">
-              To operate Capital Flow, we rely on a small number of trusted third-party service providers solely
-              for technical operation and infrastructure:
+              To operate Capital Flow, we rely on a small number of trusted third-party service providers solely for
+              technical operation and infrastructure:
             </p>
             <ul className="policy-list">
               {THIRD_PARTY_PROVIDERS.map((p, i) => (
@@ -168,19 +167,19 @@ export default function PolicyPage() {
               ))}
             </ul>
             <p className="policy-paragraph">
-              These providers act strictly as essential infrastructure processors to deliver our services to you.
-              They process data under their respective privacy policies only to the extent necessary to operate
-              the service. By using Capital Flow, you acknowledge that your data may be processed and stored on
-              secure servers operated by these trusted providers outside of your country of residence (including
-              in the United States and Europe).
+              These providers act strictly as essential infrastructure processors to deliver our services to you. They
+              process data under their respective privacy policies only to the extent necessary to operate the service.
+              By using Capital Flow, you acknowledge that your data may be processed and stored on secure servers
+              operated by these trusted providers outside of your country of residence (including in the United States
+              and Europe).
             </p>
           </Section>
 
           <Section title="Data Security">
             <p className="policy-paragraph">
               We apply reasonable technical and organizational measures to protect your data, including encrypted
-              connections (HTTPS) and access controls on our servers. No method of electronic storage or
-              transmission is completely secure, and we cannot guarantee absolute security.
+              connections (HTTPS) and access controls on our servers. No method of electronic storage or transmission is
+              completely secure, and we cannot guarantee absolute security.
             </p>
           </Section>
         </Part>
@@ -189,9 +188,9 @@ export default function PolicyPage() {
           <Section title="Changes to This Policy">
             <p className="policy-paragraph">
               We may update this document from time to time to reflect changes in our practices or for legal,
-              operational, or regulatory reasons. Material changes will be reflected by an updated revision date
-              at the top of this page. Continued use of the service after changes take effect constitutes
-              acceptance of the revised policy.
+              operational, or regulatory reasons. Material changes will be reflected by an updated revision date at the
+              top of this page. Continued use of the service after changes take effect constitutes acceptance of the
+              revised policy.
             </p>
           </Section>
 

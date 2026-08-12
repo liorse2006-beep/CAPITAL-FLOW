@@ -18,7 +18,12 @@ const {
   verifyOTP,
   verifyToken,
 } = require('../services/auth');
-const { sendOTPEmail, sendPasswordResetEmail, sendWelcomeEmail, sendNewSignupAdminAlert } = require('../services/email');
+const {
+  sendOTPEmail,
+  sendPasswordResetEmail,
+  sendWelcomeEmail,
+  sendNewSignupAdminAlert,
+} = require('../services/email');
 const { requireAuth } = require('../middleware/authMiddleware');
 const { eliteAccess } = require('../services/scanQuota');
 const { authLimiter, otpLimiter, sessionLimiter } = require('../middleware/rateLimiters');
@@ -117,11 +122,9 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
           if (!user) {
             user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
             if (user) {
-              await db.prepare('UPDATE users SET google_id = ?, google_email = ?, is_verified = 1 WHERE id = ?').run(
-                profile.id,
-                email,
-                user.id
-              );
+              await db
+                .prepare('UPDATE users SET google_id = ?, google_email = ?, is_verified = 1 WHERE id = ?')
+                .run(profile.id, email, user.id);
               user = await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
             } else {
               const isPilot = (await pilotAllowlist.isAllowed(email)) ? 1 : 0;
@@ -166,16 +169,15 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
         console.warn('[google/callback] no user returned, info:', info);
         return res.redirect(`${FRONTEND_URL || 'http://localhost:5173'}/?auth_error=google_failed`);
       }
-      console.log('[google/callback] success, user id:', user.id, 'email:', user.email);
+      console.log('[google/callback] success, user id:', user.id);
       const { accessToken, refreshToken } = await issueToken(user);
       setRefreshCookie(res, refreshToken);
       // If FRONTEND_URL is explicitly set use it; otherwise auto-detect from the
       // request host so production works without needing the env var configured.
-      const dest = process.env.FRONTEND_URL ||
-        (process.env.NODE_ENV === 'production'
-          ? `https://${req.get('host')}`
-          : 'http://localhost:5173');
-      console.log('[google/callback] redirecting to:', dest + '/#google_pending=<JWT>');
+      const dest =
+        process.env.FRONTEND_URL ||
+        (process.env.NODE_ENV === 'production' ? `https://${req.get('host')}` : 'http://localhost:5173');
+      console.log('[google/callback] redirecting to configured frontend');
       // A URL fragment (#...), not a query string (?...) — the browser never
       // sends the fragment to any server (this one included, on the very
       // next request) and strips it from the Referer header on any outbound
@@ -219,7 +221,9 @@ router.post('/signup', authLimiter, async (req, res) => {
       const isPilotByAllowlist = (await pilotAllowlist.isAllowed(email)) ? 1 : 0;
       const isPilot = isPilotByInvite || isPilotByAllowlist;
       const tier = isPilot ? 'elite' : 'free';
-      await db.prepare('INSERT INTO users (email, password_hash, is_pilot, tier) VALUES (?, ?, ?, ?)').run(email, hash, isPilot, tier);
+      await db
+        .prepare('INSERT INTO users (email, password_hash, is_pilot, tier) VALUES (?, ?, ?, ?)')
+        .run(email, hash, isPilot, tier);
     }
 
     const code = generateOTP();
@@ -246,7 +250,8 @@ router.post('/verify-otp', otpLimiter, async (req, res) => {
     // Fetch before the UPDATE so we can tell a brand-new signup (never
     // verified before) apart from an already-verified account re-running
     // this endpoint — the admin alert should fire once, not on every call.
-    const wasAlreadyVerified = (await db.prepare('SELECT is_verified FROM users WHERE email = ?').get(email))?.is_verified;
+    const wasAlreadyVerified = (await db.prepare('SELECT is_verified FROM users WHERE email = ?').get(email))
+      ?.is_verified;
 
     await db.prepare('UPDATE users SET is_verified = 1 WHERE email = ?').run(email);
     const user = withEffectivePremium(await db.prepare('SELECT * FROM users WHERE email = ?').get(email));
@@ -433,7 +438,7 @@ router.post('/logout', sessionLimiter, requireAuth, async (req, res) => {
 
 /* ── Get current user ── */
 router.get('/me', requireAuth, (req, res) => {
-  const { session_version, ...safeUser } = req.user; // internal-only, never sent to the client
+  const { session_version: _sessionVersion, ...safeUser } = req.user; // internal-only, never sent to the client
   const user = {
     ...safeUser,
     // SQLite stores these as 0/1 integers — coerce to real booleans so the
@@ -510,10 +515,9 @@ router.post('/apply-invite', authLimiter, requireAuth, async (req, res) => {
 router.post('/accept-pilot-terms', requireAuth, async (req, res) => {
   try {
     if (!req.user.is_pilot) return res.status(400).json({ error: 'Not a pilot account' });
-    await db.prepare('UPDATE users SET pilot_terms_accepted_at = ? WHERE id = ?').run(
-      Math.floor(Date.now() / 1000),
-      req.user.id
-    );
+    await db
+      .prepare('UPDATE users SET pilot_terms_accepted_at = ? WHERE id = ?')
+      .run(Math.floor(Date.now() / 1000), req.user.id);
     res.json({ ok: true });
   } catch (err) {
     reportError(err, '[accept-pilot-terms]');

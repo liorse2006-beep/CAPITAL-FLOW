@@ -20,7 +20,9 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 // data" was already advertised there before this existed) — also opened up,
 // unlimited, to free accounts during their 7-day trial (requirePremiumOrTrial).
 router.get('/fundamentals', requirePremiumOrTrial, scanLimiter, async (req, res) => {
-  const symbol = String(req.query.symbol || '').toUpperCase().trim();
+  const symbol = String(req.query.symbol || '')
+    .toUpperCase()
+    .trim();
   if (!SYMBOL_RE.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
 
   const cached = resultCache.get(symbol);
@@ -31,7 +33,9 @@ router.get('/fundamentals', requirePremiumOrTrial, scanLimiter, async (req, res)
   try {
     const { results } = await scanFundamentals([symbol]);
     if (!results.length) {
-      return res.status(404).json({ error: 'No data found for ' + symbol + ' (delisted, too small, or an unknown ticker)' });
+      return res
+        .status(404)
+        .json({ error: 'No data found for ' + symbol + ' (delisted, too small, or an unknown ticker)' });
     }
 
     const scanTime = new Date().toISOString();

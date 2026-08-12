@@ -87,7 +87,7 @@ async function summarizeArticles(symbol, articles) {
     '\n\n' +
     articles
       .map(function (a, i) {
-        return (i + 1) + '. Headline: ' + a.headline + '\nDescription: ' + (a.description || '(none provided)');
+        return i + 1 + '. Headline: ' + a.headline + '\nDescription: ' + (a.description || '(none provided)');
       })
       .join('\n\n');
 

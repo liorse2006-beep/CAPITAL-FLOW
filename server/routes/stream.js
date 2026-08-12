@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { requirePremium, requirePremiumSSE, issueSseTicket } = require('../middleware/authMiddleware');
+const { requireEliteOrTrial, requirePremiumSSE, issueSseTicket } = require('../middleware/authMiddleware');
 const { sseStreamLimiter } = require('../middleware/rateLimiters');
 const clusterBus = require('../services/clusterBus');
 
@@ -50,7 +50,7 @@ function deliverToUser(userId, event, data) {
 // EventSource cannot attach an Authorization header. This endpoint exchanges
 // the normal bearer token for a short-lived opaque stream ticket. The ticket
 // is safe to place in a URL because it expires quickly and carries no claims.
-router.get('/stream-ticket', requirePremium, (req, res) => {
+router.get('/stream-ticket', requireEliteOrTrial, (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.json({ ticket: issueSseTicket(req.user.id), expiresIn: 600 });
 });
@@ -125,6 +125,23 @@ if (process.env.NODE_ENV === 'test') {
     const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
     const { accessToken } = await issueToken(user);
     res.json({ userId: user.id, accessToken });
+  });
+
+  // The cluster integration test uses a direct signed ticket after seeding.
+  // The real /stream-ticket route is covered separately; keeping this test
+  // helper session-free avoids making the local SQLite file stand in for the
+  // remote Turso consistency model while the test is exercising SSE relay.
+  router.post('/stream/_test-issue-ticket', require('express').json(), async (req, res) => {
+    const userId = Number(req.body && req.body.userId);
+    if (!Number.isInteger(userId)) return res.status(400).json({ error: 'userId is required' });
+    const db = require('../db');
+    const user = await db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+    if (!user) return res.status(404).json({ error: 'user not found' });
+    res.json({ ticket: issueSseTicket(user.id) });
+  });
+
+  router.get('/stream/_test-worker-pid', (req, res) => {
+    res.json({ pid: process.pid });
   });
 }
 

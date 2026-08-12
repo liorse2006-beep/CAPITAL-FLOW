@@ -9,7 +9,9 @@ const express = require('express');
 
 const db = require('../server/db');
 
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 
 const { issueToken } = require('../server/services/auth');
 const scheduledScansRouter = require('../server/routes/scheduledScans');
@@ -43,7 +45,9 @@ function israelToday() {
     day: '2-digit',
   }).formatToParts(new Date());
   const map = {};
-  parts.forEach((p) => { map[p.type] = p.value; });
+  parts.forEach((p) => {
+    map[p.type] = p.value;
+  });
   return `${map.year}-${map.month}-${map.day}`;
 }
 

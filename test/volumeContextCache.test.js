@@ -10,7 +10,9 @@ const { test, before } = require('node:test');
 const assert = require('node:assert');
 
 const db = require('../server/db');
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 
 const yahoo = require('../server/services/yahoo');
 const { getHistoricalVolumeContext } = require('../server/services/volumeContext');

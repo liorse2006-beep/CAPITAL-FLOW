@@ -21,9 +21,14 @@ const email = require('../server/services/email');
 const webhooksRouter = require('../server/routes/webhooks');
 const checkoutRouter = require('../server/routes/checkout');
 
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 
-function sign(rawBody, { id = 'wh_test_id', ts = String(Math.floor(Date.now() / 1000)), secret = 'test-webhook-secret' } = {}) {
+function sign(
+  rawBody,
+  { id = 'wh_test_id', ts = String(Math.floor(Date.now() / 1000)), secret = 'test-webhook-secret' } = {}
+) {
   const sig = crypto.createHmac('sha256', secret).update(`${id}.${ts}.${rawBody}`).digest('base64');
   return { 'webhook-id': id, 'webhook-timestamp': ts, 'webhook-signature': `v1,${sig}` };
 }
@@ -82,7 +87,11 @@ test('verifyWebhookSignature rejects a non-numeric timestamp', () => {
 
 test('verifyWebhookSignature rejects a malformed signature header', () => {
   assert.strictEqual(
-    whop.verifyWebhookSignature('{}', { 'webhook-id': 'x', 'webhook-timestamp': '1', 'webhook-signature': 'not-valid' }),
+    whop.verifyWebhookSignature('{}', {
+      'webhook-id': 'x',
+      'webhook-timestamp': '1',
+      'webhook-signature': 'not-valid',
+    }),
     false
   );
 });
@@ -91,12 +100,9 @@ test('verifyWebhookSignature rejects a malformed signature header', () => {
 
 test('webhook upgrades the user tier on payment_succeeded and redeems the coupon', async () => {
   const user = await makeUser('webhook-upgrade@test.local', 'free');
-  await db.prepare('INSERT INTO coupons (code, discount_percent, applies_to, uses_count) VALUES (?, ?, ?, ?)').run(
-    'WEBHOOK1',
-    20,
-    'both',
-    0
-  );
+  await db
+    .prepare('INSERT INTO coupons (code, discount_percent, applies_to, uses_count) VALUES (?, ?, ?, ?)')
+    .run('WEBHOOK1', 20, 'both', 0);
 
   const payload = JSON.stringify({
     type: 'payment_succeeded',
@@ -165,12 +171,9 @@ test('payment_succeeded emails the admin and logs a self_service_upgrade audit e
 
 test('webhook redelivery with the same webhook-id does not double-redeem the coupon', async () => {
   const user = await makeUser('webhook-redelivery@test.local', 'free');
-  await db.prepare('INSERT INTO coupons (code, discount_percent, applies_to, uses_count) VALUES (?, ?, ?, ?)').run(
-    'WEBHOOK2',
-    20,
-    'both',
-    0
-  );
+  await db
+    .prepare('INSERT INTO coupons (code, discount_percent, applies_to, uses_count) VALUES (?, ?, ?, ?)')
+    .run('WEBHOOK2', 20, 'both', 0);
 
   const payload = JSON.stringify({
     type: 'payment_succeeded',
@@ -218,7 +221,9 @@ test('a webhook event claimed but never completed (process killed mid-deploy) is
   });
   const headers = sign(payload, { id: 'wh_stuck_claim_1' });
 
-  await db.prepare('INSERT INTO processed_webhook_events (event_id, completed_at) VALUES (?, NULL)').run('wh_stuck_claim_1');
+  await db
+    .prepare('INSERT INTO processed_webhook_events (event_id, completed_at) VALUES (?, NULL)')
+    .run('wh_stuck_claim_1');
 
   const server = await startWebhookApp();
   const port = server.address().port;
@@ -235,7 +240,9 @@ test('a webhook event claimed but never completed (process killed mid-deploy) is
     const updated = await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id);
     assert.strictEqual(updated.tier, 'elite', 'the upgrade the stuck claim was carrying must actually land');
 
-    const row = await db.prepare('SELECT completed_at FROM processed_webhook_events WHERE event_id = ?').get('wh_stuck_claim_1');
+    const row = await db
+      .prepare('SELECT completed_at FROM processed_webhook_events WHERE event_id = ?')
+      .get('wh_stuck_claim_1');
     assert.ok(row.completed_at, 'completed_at must now be set, so a genuine future duplicate IS skipped');
 
     // A true duplicate delivery after completion must now be skipped.
@@ -259,7 +266,9 @@ test('two concurrent retries of the same stuck (never-completed) claim only run 
   });
   const headers = sign(payload, { id: 'wh_stuck_race_1' });
 
-  await db.prepare('INSERT INTO processed_webhook_events (event_id, completed_at) VALUES (?, NULL)').run('wh_stuck_race_1');
+  await db
+    .prepare('INSERT INTO processed_webhook_events (event_id, completed_at) VALUES (?, NULL)')
+    .run('wh_stuck_race_1');
 
   const server = await startWebhookApp();
   const port = server.address().port;
@@ -273,7 +282,11 @@ test('two concurrent retries of the same stuck (never-completed) claim only run 
     const [r1, r2] = await Promise.all([send(), send()]);
     const [b1, b2] = await Promise.all([r1.json(), r2.json()]);
     const duplicateFlags = [b1.duplicate === true, b2.duplicate === true];
-    assert.deepStrictEqual(duplicateFlags.sort(), [false, true], 'exactly one concurrent retry must win the claim, the other must see duplicate');
+    assert.deepStrictEqual(
+      duplicateFlags.sort(),
+      [false, true],
+      'exactly one concurrent retry must win the claim, the other must see duplicate'
+    );
   } finally {
     server.close();
   }
@@ -286,12 +299,9 @@ test('two truly concurrent deliveries of the same webhook-id only redeem the cou
   // (not sequentially, like the test above) actually exercises that race —
   // exactly one must claim the event and redeem the coupon.
   const user = await makeUser('webhook-concurrent@test.local', 'free');
-  await db.prepare('INSERT INTO coupons (code, discount_percent, applies_to, uses_count) VALUES (?, ?, ?, ?)').run(
-    'WEBHOOKRACE',
-    20,
-    'both',
-    0
-  );
+  await db
+    .prepare('INSERT INTO coupons (code, discount_percent, applies_to, uses_count) VALUES (?, ?, ?, ?)')
+    .run('WEBHOOKRACE', 20, 'both', 0);
 
   const payload = JSON.stringify({
     type: 'payment_succeeded',
@@ -314,7 +324,11 @@ test('two truly concurrent deliveries of the same webhook-id only redeem the cou
     assert.strictEqual(second.status, 200);
     const bodies = await Promise.all([first.json(), second.json()]);
     const duplicateCount = bodies.filter((b) => b.duplicate).length;
-    assert.strictEqual(duplicateCount, 1, 'exactly one of the two concurrent deliveries must be told it was a duplicate');
+    assert.strictEqual(
+      duplicateCount,
+      1,
+      'exactly one of the two concurrent deliveries must be told it was a duplicate'
+    );
 
     const coupon = await db.prepare('SELECT uses_count FROM coupons WHERE code = ?').get('WEBHOOKRACE');
     assert.strictEqual(coupon.uses_count, 1, 'the coupon must be redeemed exactly once, not twice');
@@ -516,11 +530,9 @@ test('checkout/transaction attaches a valid coupon to the Whop session metadata 
   // reach Whop's session metadata (so the webhook can redeem it once paid)
   // and come back in the response (so the frontend can pass it to the
   // embed's promoCode prop).
-  await db.prepare('INSERT INTO coupons (code, discount_percent, applies_to) VALUES (?, ?, ?)').run(
-    'ATTACHTEST',
-    25,
-    'both'
-  );
+  await db
+    .prepare('INSERT INTO coupons (code, discount_percent, applies_to) VALUES (?, ?, ?)')
+    .run('ATTACHTEST', 25, 'both');
   const captured = [];
   t.mock.method(whop, 'createCheckoutSession', async (args) => {
     captured.push(args);
@@ -540,7 +552,11 @@ test('checkout/transaction attaches a valid coupon to the Whop session metadata 
     const body = await res.json();
     assert.strictEqual(body.couponCode, 'ATTACHTEST');
     assert.strictEqual(body.discountPercent, 25);
-    assert.strictEqual(captured[0].metadata.couponCode, 'ATTACHTEST', 'the session sent to Whop must carry the coupon code');
+    assert.strictEqual(
+      captured[0].metadata.couponCode,
+      'ATTACHTEST',
+      'the session sent to Whop must carry the coupon code'
+    );
   } finally {
     server.close();
   }
@@ -567,7 +583,11 @@ test('checkout/transaction debounces a rapid double-submit into a single Whop se
 
     const [first, second] = await Promise.all([submit(), submit()]);
     const statuses = [first.status, second.status].sort();
-    assert.deepStrictEqual(statuses, [200, 429], 'one request must succeed, the immediate double-submit must be debounced');
+    assert.deepStrictEqual(
+      statuses,
+      [200, 429],
+      'one request must succeed, the immediate double-submit must be debounced'
+    );
     assert.strictEqual(captured.length, 1, 'only one Whop checkout session must actually be created');
   } finally {
     server.close();
@@ -588,7 +608,10 @@ test('eliteUpgrade is rejected for an account that is not currently Premium', as
     for (const user of [free, elite]) {
       const res = await fetch(`http://127.0.0.1:${port}/api/checkout/transaction`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)).accessToken },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + (await issueToken(user)).accessToken,
+        },
         body: JSON.stringify({ tier: 'eliteUpgrade' }),
       });
       assert.strictEqual(res.status, 403, `tier=${user.tier} must be rejected`);
@@ -623,10 +646,18 @@ test('eliteUpgrade creates a checkout session on the upgrade plan, granting elit
     assert.strictEqual(body.planId, 'plan_elite_upgrade_test');
 
     assert.strictEqual(captured.length, 1);
-    assert.strictEqual(captured[0].planId, 'plan_elite_upgrade_test', 'must charge the discounted plan, not the normal Elite plan');
+    assert.strictEqual(
+      captured[0].planId,
+      'plan_elite_upgrade_test',
+      'must charge the discounted plan, not the normal Elite plan'
+    );
     assert.strictEqual(captured[0].metadata.tier, 'elite', 'must still grant the real elite tier once paid');
     assert.strictEqual(captured[0].metadata.userId, String(user.id));
-    assert.strictEqual(captured[0].allowPromoCodes, true, 'Whop must own promo-code validation and discount calculation');
+    assert.strictEqual(
+      captured[0].allowPromoCodes,
+      true,
+      'Whop must own promo-code validation and discount calculation'
+    );
   } finally {
     server.close();
   }

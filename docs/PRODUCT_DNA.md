@@ -2,7 +2,7 @@
 
 > **Snapshot, not living truth.** Written 2026-08-04 as a one-time product/business
 > reference for whoever (human or AI) picks up work on this project next. It captures
-> *what the product is and why*, not implementation detail (see [README.md](../README.md)
+> _what the product is and why_, not implementation detail (see [README.md](../README.md)
 > for tech stack, project structure, env vars) and not anything that changes on its own
 > schedule (exact prices, vendor account status, current metrics) — those live in the
 > code and the actual dashboards, not in a markdown file that will silently go stale.
@@ -17,9 +17,9 @@ trader that information before it's obvious to everyone else.
 
 ## The problem it solves
 
-Retail traders normally notice a stock *after* it's already moved — a headline, a trending
+Retail traders normally notice a stock _after_ it's already moved — a headline, a trending
 ticker, a friend's tip. By the time they see it, the early move is over. Unusual volume
-is one of the few signals that shows up *before* the price catches up, but scanning the
+is one of the few signals that shows up _before_ the price catches up, but scanning the
 whole market for it by hand is impractical. Capital Flow automates that scan and
 surfaces the handful of tickers actually worth a trader's attention, continuously,
 without them having to watch the market all day.
@@ -48,12 +48,13 @@ re-armed manually, available from the Watchlist, the main scanner, and the MA Sc
 alike so a user never has to leave whatever screen they're on to set one.
 
 **Capi** — an AI assistant (Elite feature) that explains what a scan result means, in
-plain language, with memory of the conversation. Deliberately scoped to *explaining*
+plain language, with memory of the conversation. Deliberately scoped to _explaining_
 data the app already shows, never to giving investment advice or account-specific
 answers it isn't actually wired up to know.
 
-**Notifications** — push notifications and a daily scheduled-scan digest (both Elite
-features) so a trader doesn't have to have the app open to know something moved.
+**Notifications** — push notifications and a daily scheduled-scan digest (Elite features,
+also available during the seven-day Free trial) so a trader doesn't have to have the app
+open to know something moved.
 
 **Admin panel** — a single operator's control surface: user list, tier/pilot management,
 audit log, backup status/trigger, push test, activity stats. Built for one person running
@@ -67,7 +68,7 @@ asking them to pay for it.**
 - **Free** — the complete Elite experience for a 7-day trial from signup, then the
   account is locked until it upgrades. This is deliberate: the free tier isn't a
   permanently-crippled demo, it's a full trial with a clock on it.
-- **Premium** — unlimited-*feeling* scanning (a generous shared daily pool across every
+- **Premium** — unlimited-_feeling_ scanning (a generous shared daily pool across every
   scan type) plus the core analysis features (advanced filters, charts, float/short
   data), but no notifications, no Capi, no scheduled scans.
 - **Elite** — everything, unlimited, forever: unlimited scans, push notifications,
@@ -85,7 +86,8 @@ recovery, real backups with a tested restore path, actual downtime alerting), an
 correctness (payment/coupon races, price-alert accuracy, DST-safe market-hours math).
 Every finding from that pass has a corresponding fix and a regression test in the repo.
 Monitoring (Sentry, PostHog) and uptime (paid Render instance, no more cold-starts) are
-live and verified working, not just configured. The product is in a genuinely
+implemented/configured, but their live dashboards and external account settings must be
+verified in the deployment environment. The product is in a genuinely
 launch-ready state as of this date — "as of this date" being the operative phrase, since
 that's exactly the kind of fact this file can't promise stays true forever.
 
@@ -100,7 +102,7 @@ problem, not preemptively.
 
 Don't add anything here that a script could compute from the live code or a dashboard
 instead — that's exactly the class of content that quietly rots and then misleads the
-next reader. When the *product itself* meaningfully changes (a new core feature, a tier
+next reader. When the _product itself_ meaningfully changes (a new core feature, a tier
 restructuring, a pivot in who this is for), update the relevant section above. When only
 a number changes (a price, a vendor's plan, a metric), don't — point at where that
 number actually lives instead.

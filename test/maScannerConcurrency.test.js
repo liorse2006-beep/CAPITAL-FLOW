@@ -41,7 +41,15 @@ function deferred() {
   return { promise, resolve };
 }
 
-const ROW = { symbol: 'AAPL', name: 'Apple Inc.', price: 190, maValue: 188, maDistance: 1.06, direction: 'above', daysSinceCross: 2 };
+const ROW = {
+  symbol: 'AAPL',
+  name: 'Apple Inc.',
+  price: 190,
+  maValue: 188,
+  maDistance: 1.06,
+  direction: 'above',
+  daysSinceCross: 2,
+};
 
 // server/routes/maScanner.js's resultCache/inFlightScans/scanProgress are
 // module-level singletons — they persist for the lifetime of this process,
@@ -114,7 +122,10 @@ test('a different param combination does NOT join an unrelated in-flight scan', 
     assert.strictEqual(aRes.status, 200);
     assert.strictEqual(bRes.status, 200);
     assert.strictEqual(mocked.mock.callCount(), 2, 'different params must run their own scans, not share');
-    assert.deepStrictEqual(calls.sort((a, b) => a - b), [9, 150]);
+    assert.deepStrictEqual(
+      calls.sort((a, b) => a - b),
+      [9, 150]
+    );
   } finally {
     server.close();
   }

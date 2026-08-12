@@ -76,9 +76,7 @@ async function main() {
       if (columns.length === 0) continue;
       const placeholders = columns.map(() => '?').join(', ');
       const values = columns.map((c) => row[c]);
-      await db
-        .prepare(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`)
-        .run(...values);
+      await db.prepare(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`).run(...values);
     }
     console.log(`  ✓ Restored ${table}: ${rows.length} row(s)`);
   }

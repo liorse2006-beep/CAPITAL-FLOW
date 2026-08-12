@@ -7,7 +7,7 @@
 // Reproduced live (typed digits, clicked Verify, zero network request fired)
 // before the fix, then confirmed the fix by rebuilding and repeating the
 // same click-through against a real running server.
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AuthModal from './AuthModal';

@@ -20,14 +20,18 @@ const assert = require('node:assert');
 const express = require('express');
 
 const db = require('../server/db');
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 
 const yahoo = require('../server/services/yahoo');
 const { issueToken } = require('../server/services/auth');
 const sectorsRouter = require('../server/routes/sectors');
 
 async function makeEliteUser(email) {
-  const result = await db.prepare("INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, 'elite', 1)").run(email);
+  const result = await db
+    .prepare("INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, 'elite', 1)")
+    .run(email);
   return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
 }
 

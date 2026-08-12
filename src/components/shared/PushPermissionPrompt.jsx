@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import usePushSubscription from '../../hooks/usePushSubscription';
 
 export default function PushPermissionPrompt({ user, canNotify }) {
@@ -10,12 +10,14 @@ export default function PushPermissionPrompt({ user, canNotify }) {
   // the raw tier check if the parent didn't pass canNotify (e.g. in tests).
   const hasAccess = canNotify != null ? !!canNotify : !!(user && (user.tier === 'elite' || user.elite_access));
   const storageKey = user ? 'vs_push_prompted_' + user.id : null;
-  const [alreadyPrompted, setAlreadyPrompted] = useState(true);
-
-  useEffect(() => {
-    if (!storageKey) return;
-    setAlreadyPrompted(!!localStorage.getItem(storageKey));
-  }, [storageKey]);
+  const [alreadyPrompted] = useState(() => {
+    if (!storageKey) return true;
+    try {
+      return !!localStorage.getItem(storageKey);
+    } catch (e) {
+      return false;
+    }
+  });
 
   const canShow =
     hasAccess &&
@@ -33,31 +35,37 @@ export default function PushPermissionPrompt({ user, canNotify }) {
   }
 
   function handleEnable() {
-    enablePush().catch(() => {}).finally(markPrompted);
+    enablePush()
+      .catch(() => {})
+      .finally(markPrompted);
   }
 
   return (
-    <div className="upgrade-overlay" onClick={markPrompted} role="dialog" aria-modal="true" aria-label="Enable push notifications">
+    <div
+      className="upgrade-overlay"
+      onClick={markPrompted}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Enable push notifications"
+    >
       <div className="push-prompt-modal" onClick={(e) => e.stopPropagation()}>
         <div className="push-prompt-glow" aria-hidden="true" />
 
         <div className="push-prompt-icon-wrap">
           <div className="push-prompt-icon-ring">
-            <span className="push-prompt-bell" role="img" aria-label="bell">🔔</span>
+            <span className="push-prompt-bell" role="img" aria-label="bell">
+              🔔
+            </span>
           </div>
         </div>
 
         <h2 className="push-prompt-headline">Never miss a move</h2>
         <p className="push-prompt-subtext">
-          Get notified the instant a stock crosses your threshold —{' '}
-          <strong>even with the app closed.</strong> Scheduled scans send you results automatically.
+          Get notified the instant a stock crosses your threshold — <strong>even with the app closed.</strong> Scheduled
+          scans send you results automatically.
         </p>
 
-        <button
-          className="push-prompt-enable-btn"
-          onClick={handleEnable}
-          disabled={pushBusy}
-        >
+        <button className="push-prompt-enable-btn" onClick={handleEnable} disabled={pushBusy}>
           {pushBusy ? 'Enabling…' : '🔔  Enable Notifications'}
         </button>
 

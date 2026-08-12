@@ -10,7 +10,9 @@ const express = require('express');
 
 const db = require('../server/db');
 
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 const { issueToken } = require('../server/services/auth');
 const authRouter = require('../server/routes/auth');
 
@@ -32,29 +34,21 @@ test('DELETE /api/auth/account removes the user and every associated row', async
   const user = await makeUser('delete-me@test.local');
   const token = (await issueToken(user)).accessToken;
 
-  await db.prepare('INSERT INTO watchlist_alerts (user_id, symbol, min_ratio) VALUES (?, ?, ?)').run(user.id, 'AAPL', 3);
-  await db.prepare('INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)').run(
-    user.id,
-    'https://push.example/' + user.id,
-    'p256dh-key',
-    'auth-key'
-  );
-  await db.prepare('INSERT INTO feedback (user_id, email, message) VALUES (?, ?, ?)').run(
-    user.id,
-    user.email,
-    'test feedback'
-  );
-  await db.prepare('INSERT INTO otp_codes (email, code, type, expires_at) VALUES (?, ?, ?, ?)').run(
-    user.email,
-    '123456',
-    'verify_email',
-    Math.floor(Date.now() / 1000) + 900
-  );
-  await db.prepare('INSERT INTO scheduled_scans (user_id, scan_type, scan_time) VALUES (?, ?, ?)').run(
-    user.id,
-    'capitalFlow',
-    '09:00'
-  );
+  await db
+    .prepare('INSERT INTO watchlist_alerts (user_id, symbol, min_ratio) VALUES (?, ?, ?)')
+    .run(user.id, 'AAPL', 3);
+  await db
+    .prepare('INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)')
+    .run(user.id, 'https://push.example/' + user.id, 'p256dh-key', 'auth-key');
+  await db
+    .prepare('INSERT INTO feedback (user_id, email, message) VALUES (?, ?, ?)')
+    .run(user.id, user.email, 'test feedback');
+  await db
+    .prepare('INSERT INTO otp_codes (email, code, type, expires_at) VALUES (?, ?, ?, ?)')
+    .run(user.email, '123456', 'verify_email', Math.floor(Date.now() / 1000) + 900);
+  await db
+    .prepare('INSERT INTO scheduled_scans (user_id, scan_type, scan_time) VALUES (?, ?, ?)')
+    .run(user.id, 'capitalFlow', '09:00');
 
   const server = await startTestApp();
   const port = server.address().port;
@@ -67,20 +61,11 @@ test('DELETE /api/auth/account removes the user and every associated row', async
     assert.strictEqual((await res.json()).ok, true);
 
     assert.strictEqual(await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id), undefined);
-    assert.strictEqual(
-      await db.prepare('SELECT * FROM watchlist_alerts WHERE user_id = ?').get(user.id),
-      undefined
-    );
-    assert.strictEqual(
-      await db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').get(user.id),
-      undefined
-    );
+    assert.strictEqual(await db.prepare('SELECT * FROM watchlist_alerts WHERE user_id = ?').get(user.id), undefined);
+    assert.strictEqual(await db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').get(user.id), undefined);
     assert.strictEqual(await db.prepare('SELECT * FROM feedback WHERE user_id = ?').get(user.id), undefined);
     assert.strictEqual(await db.prepare('SELECT * FROM otp_codes WHERE email = ?').get(user.email), undefined);
-    assert.strictEqual(
-      await db.prepare('SELECT * FROM scheduled_scans WHERE user_id = ?').get(user.id),
-      undefined
-    );
+    assert.strictEqual(await db.prepare('SELECT * FROM scheduled_scans WHERE user_id = ?').get(user.id), undefined);
   } finally {
     server.close();
   }

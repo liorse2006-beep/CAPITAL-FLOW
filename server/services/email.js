@@ -10,6 +10,21 @@ const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 // is a normal remote image with no attachment UI at all.
 const LOGO_URL = FRONTEND_URL + '/logo-gold.jpeg';
 
+function maskedEmail(email) {
+  const value = String(email || '');
+  const at = value.indexOf('@');
+  if (at <= 1) return '[redacted]';
+  return value[0] + '***' + value.slice(at);
+}
+
+function requireDevEmailFallback(label, email, detail) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Transactional email is not configured in production');
+  }
+  const suffix = detail ? `: ${detail}` : '';
+  console.info(`[EMAIL DEV] ${label} for ${maskedEmail(email)}${suffix}`);
+}
+
 // The Resend SDK does NOT throw on an API-level failure (bad recipient,
 // unverified domain, over quota, etc) — it resolves with { data, error }.
 // Every caller here was previously just `await`ing the call and treating
@@ -27,7 +42,7 @@ async function send(payload) {
 
 async function sendOTPEmail(email, code) {
   if (!resend) {
-    console.log(`[EMAIL DEV] OTP for ${email}: ${code}`);
+    requireDevEmailFallback('OTP', email, code);
     return;
   }
   await send({
@@ -50,7 +65,7 @@ async function sendOTPEmail(email, code) {
 
 async function sendPasswordResetEmail(email, code) {
   if (!resend) {
-    console.log(`[EMAIL DEV] Reset OTP for ${email}: ${code}`);
+    requireDevEmailFallback('Reset OTP', email, code);
     return;
   }
   await send({
@@ -73,7 +88,7 @@ async function sendPasswordResetEmail(email, code) {
 
 async function sendWelcomeEmail(email) {
   if (!resend) {
-    console.log(`[EMAIL DEV] Welcome email for ${email}`);
+    requireDevEmailFallback('Welcome email', email);
     return;
   }
   await send({
@@ -112,7 +127,7 @@ async function sendWelcomeEmail(email) {
 // finds out about signups in real time instead of only via the /admin panel.
 async function sendNewSignupAdminAlert(email, method) {
   if (!resend || !ADMIN_EMAIL) {
-    console.log(`[EMAIL DEV] New signup alert: ${email} via ${method}`);
+    requireDevEmailFallback('New signup alert', email, method);
     return;
   }
   await send({
@@ -129,7 +144,7 @@ async function sendNewSignupAdminAlert(email, method) {
 // tier change made outside the admin panel itself gets surfaced by email.
 async function sendAdminUpgradeAlert(email, tier) {
   if (!resend || !ADMIN_EMAIL) {
-    console.log(`[EMAIL DEV] Upgrade alert: ${email} → ${tier}`);
+    requireDevEmailFallback('Upgrade alert', email, tier);
     return;
   }
   await send({

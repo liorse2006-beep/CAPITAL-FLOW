@@ -209,10 +209,13 @@ function shuffled(arr) {
 }
 
 export default function ScanLoader({ label, matches, statusMessages }) {
-  var deckRef = useRef(shuffled(TICKER_POOL));
+  var [deck] = useState(function () {
+    return shuffled(TICKER_POOL);
+  });
+  var deckRef = useRef(deck);
   var deckIdxRef = useRef(0);
   var [visible, setVisible] = useState(function () {
-    return deckRef.current.slice(0, 24);
+    return deck.slice(0, 24);
   });
   var [statusIdx, setStatusIdx] = useState(0);
   var [pulse, setPulse] = useState(false);

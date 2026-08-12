@@ -14,7 +14,7 @@ const { resolveSseTicket } = require('./authMiddleware');
 // present) gives every signed-in customer their own budget; a request with
 // no/invalid token still falls back to the IP key, so guests and abuse
 // attempts are still covered.
-function userOrIpKey(req, res) {
+function userOrIpKey(req, _res) {
   const header = req.headers.authorization;
   if (header && header.startsWith('Bearer ')) {
     try {
@@ -42,7 +42,7 @@ function userOrIpKey(req, res) {
 // Resolving the ticket to its real userId here gives each account its own
 // budget instead, the same fix userOrIpKey already applies everywhere a
 // bearer token is available.
-function ticketOrIpKey(req, res) {
+function ticketOrIpKey(req, _res) {
   const userId = resolveSseTicket(req.query.ticket);
   if (userId) return 'user:' + userId;
   return ipKeyGenerator(req.ip);

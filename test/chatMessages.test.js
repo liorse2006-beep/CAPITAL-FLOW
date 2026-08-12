@@ -8,7 +8,9 @@ const { test, before } = require('node:test');
 const assert = require('node:assert');
 
 const db = require('../server/db');
-before(async () => { await db.ready; });
+before(async () => {
+  await db.ready;
+});
 
 const { getHistory, addMessage, clearHistory } = require('../server/services/chatMessages');
 
@@ -24,7 +26,10 @@ test('getHistory returns messages in chronological order', async () => {
   await addMessage(userId, 'user', 'third');
 
   const history = await getHistory(userId);
-  assert.deepStrictEqual(history.map((m) => m.content), ['first', 'second', 'third']);
+  assert.deepStrictEqual(
+    history.map((m) => m.content),
+    ['first', 'second', 'third']
+  );
 });
 
 test('a conversation longer than the history cap keeps the most recent messages, not the oldest', async () => {
@@ -40,7 +45,7 @@ test('a conversation longer than the history cap keeps the most recent messages,
   assert.notStrictEqual(history[0].content, 'msg-0', 'the oldest messages must be the ones dropped, not the newest');
 });
 
-test('clearHistory only removes the specified user\'s messages', async () => {
+test("clearHistory only removes the specified user's messages", async () => {
   const alice = await makeUser('history-clear-alice@test.local');
   const bob = await makeUser('history-clear-bob@test.local');
   await addMessage(alice, 'user', 'hi');

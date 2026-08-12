@@ -29,7 +29,8 @@ function directionToFloat(dir) {
 const scannerVertex = '#version 300 es\nin vec2 position;\nvoid main() { gl_Position = vec4(position, 0.0, 1.0); }';
 
 const scannerFragment = [
-  '#version 300 es', 'precision highp float;',
+  '#version 300 es',
+  'precision highp float;',
   'uniform vec2 iResolution; uniform float iTime;',
   'uniform float uSpeed; uniform float uSweepSpeed; uniform float uSweepWidth; uniform float uSweepFalloff;',
   'uniform float uScale; uniform float uFrequency; uniform float uRipple; uniform float uBandDensity;',
@@ -105,18 +106,44 @@ const scannerFragment = [
 function mountScanner(container, opts, cleanupFns) {
   const o = Object.assign(
     {
-      color1: '#5227FF', color2: '#FF9FFC', color3: '#FFFFFF',
-      speed: 0.5, sweepSpeed: 0.25, sweepWidth: 1.6, sweepFalloff: 6,
-      scale: 1.5, frequency: 2, ripple: 0.22, bandDensity: 11, lineSharpness: 5.5,
-      glow: 0.22, scanDirection: 'vertical', colorSpread: 0.7, brightness: 1.0,
-      contrast: 1.15, softness: 1.4, vignette: 0.45, scanline: true, grain: true,
-      grainIntensity: 0.05, opacity: 1.0, mouseInteraction: true, mouseRadius: 0.5, mouseStrength: 0.5,
+      color1: '#5227FF',
+      color2: '#FF9FFC',
+      color3: '#FFFFFF',
+      speed: 0.5,
+      sweepSpeed: 0.25,
+      sweepWidth: 1.6,
+      sweepFalloff: 6,
+      scale: 1.5,
+      frequency: 2,
+      ripple: 0.22,
+      bandDensity: 11,
+      lineSharpness: 5.5,
+      glow: 0.22,
+      scanDirection: 'vertical',
+      colorSpread: 0.7,
+      brightness: 1.0,
+      contrast: 1.15,
+      softness: 1.4,
+      vignette: 0.45,
+      scanline: true,
+      grain: true,
+      grainIntensity: 0.05,
+      opacity: 1.0,
+      mouseInteraction: true,
+      mouseRadius: 0.5,
+      mouseStrength: 0.5,
     },
     opts || {}
   );
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const renderer = new Renderer({ webgl: 2, alpha: true, premultipliedAlpha: true, antialias: false, dpr: Math.min(window.devicePixelRatio || 1, 2) });
+  const renderer = new Renderer({
+    webgl: 2,
+    alpha: true,
+    premultipliedAlpha: true,
+    antialias: false,
+    dpr: Math.min(window.devicePixelRatio || 1, 2),
+  });
   const gl = renderer.gl;
   gl.clearColor(0, 0, 0, 0);
   const canvas = gl.canvas;
@@ -127,19 +154,36 @@ function mountScanner(container, opts, cleanupFns) {
 
   const geometry = new Triangle(gl);
   const program = new Program(gl, {
-    vertex: scannerVertex, fragment: scannerFragment,
+    vertex: scannerVertex,
+    fragment: scannerFragment,
     uniforms: {
-      iTime: { value: 0 }, iResolution: { value: new Float32Array([1, 1]) },
-      uSpeed: { value: o.speed }, uSweepSpeed: { value: o.sweepSpeed }, uSweepWidth: { value: o.sweepWidth },
-      uSweepFalloff: { value: o.sweepFalloff }, uScale: { value: o.scale }, uFrequency: { value: o.frequency },
-      uRipple: { value: o.ripple }, uBandDensity: { value: o.bandDensity }, uLineSharpness: { value: o.lineSharpness },
-      uGlow: { value: o.glow }, uColorSpread: { value: o.colorSpread }, uBrightness: { value: o.brightness },
-      uContrast: { value: o.contrast }, uSoftness: { value: o.softness }, uVignette: { value: o.vignette },
-      uOpacity: { value: o.opacity }, uScanline: { value: o.scanline ? 1 : 0 },
-      uGrain: { value: o.grain ? 1 : 0 }, uGrainIntensity: { value: o.grainIntensity },
+      iTime: { value: 0 },
+      iResolution: { value: new Float32Array([1, 1]) },
+      uSpeed: { value: o.speed },
+      uSweepSpeed: { value: o.sweepSpeed },
+      uSweepWidth: { value: o.sweepWidth },
+      uSweepFalloff: { value: o.sweepFalloff },
+      uScale: { value: o.scale },
+      uFrequency: { value: o.frequency },
+      uRipple: { value: o.ripple },
+      uBandDensity: { value: o.bandDensity },
+      uLineSharpness: { value: o.lineSharpness },
+      uGlow: { value: o.glow },
+      uColorSpread: { value: o.colorSpread },
+      uBrightness: { value: o.brightness },
+      uContrast: { value: o.contrast },
+      uSoftness: { value: o.softness },
+      uVignette: { value: o.vignette },
+      uOpacity: { value: o.opacity },
+      uScanline: { value: o.scanline ? 1 : 0 },
+      uGrain: { value: o.grain ? 1 : 0 },
+      uGrainIntensity: { value: o.grainIntensity },
       uDirection: { value: directionToFloat(o.scanDirection) },
-      uMouse: { value: new Float32Array([0.5, 0.5]) }, uMouseEnabled: { value: o.mouseInteraction ? 1 : 0 },
-      uMouseRadius: { value: o.mouseRadius }, uMouseStrength: { value: o.mouseStrength }, uMouseActive: { value: 0 },
+      uMouse: { value: new Float32Array([0.5, 0.5]) },
+      uMouseEnabled: { value: o.mouseInteraction ? 1 : 0 },
+      uMouseRadius: { value: o.mouseRadius },
+      uMouseStrength: { value: o.mouseStrength },
+      uMouseActive: { value: 0 },
       uColor1: { value: new Float32Array(hexToRgb(o.color1)) },
       uColor2: { value: new Float32Array(hexToRgb(o.color2)) },
       uColor3: { value: new Float32Array(hexToRgb(o.color3)) },
@@ -264,11 +308,15 @@ function setupProofTableSort(root, cleanupFns) {
         const bv = parseFloat(b.getAttribute('data-' + key));
         return nextDir === 'desc' ? bv - av : av - bv;
       });
-      rows.forEach((r) => { r.style.opacity = '0'; });
+      rows.forEach((r) => {
+        r.style.opacity = '0';
+      });
       setTimeout(() => {
         rows.forEach((r) => body.appendChild(r));
         requestAnimationFrame(() => {
-          rows.forEach((r) => { r.style.opacity = '1'; });
+          rows.forEach((r) => {
+            r.style.opacity = '1';
+          });
         });
       }, 160);
     }
@@ -312,23 +360,37 @@ function setupTiltCards(root, cleanupFns) {
   function cfApply(el) {
     const s = cfState(el);
     el.style.transform =
-      'translate3d(0,' + s.stackY.toFixed(1) + 'px,0) rotate(' + s.rotation.toFixed(2) + 'deg) ' +
-      'scale(' + (s.stackScale * s.hoverScale).toFixed(3) + ') ' +
-      'perspective(1000px) rotateX(' + s.rx.toFixed(2) + 'deg) rotateY(' + s.ry.toFixed(2) + 'deg)';
+      'translate3d(0,' +
+      s.stackY.toFixed(1) +
+      'px,0) rotate(' +
+      s.rotation.toFixed(2) +
+      'deg) ' +
+      'scale(' +
+      (s.stackScale * s.hoverScale).toFixed(3) +
+      ') ' +
+      'perspective(1000px) rotateX(' +
+      s.rx.toFixed(2) +
+      'deg) rotateY(' +
+      s.ry.toFixed(2) +
+      'deg)';
   }
   function makeSpring(initial) {
     let pos = initial;
     let vel = 0;
     let target = initial;
     return {
-      set(t) { target = t; },
+      set(t) {
+        target = t;
+      },
       step(dt) {
         const accel = (-SPRING.stiffness * (pos - target) - SPRING.damping * vel) / SPRING.mass;
         vel += accel * dt;
         pos += vel * dt;
         return pos;
       },
-      settled() { return Math.abs(pos - target) < 0.001 && Math.abs(vel) < 0.001; },
+      settled() {
+        return Math.abs(pos - target) < 0.001 && Math.abs(vel) < 0.001;
+      },
     };
   }
 
@@ -345,8 +407,16 @@ function setupTiltCards(root, cleanupFns) {
       entry.ry.set((offsetX / (r.width / 2)) * ROTATE_AMPLITUDE);
       wakeTilt();
     }
-    function onEnter() { entry.scale.set(SCALE_ON_HOVER); wakeTilt(); }
-    function onLeave() { entry.rx.set(0); entry.ry.set(0); entry.scale.set(1); wakeTilt(); }
+    function onEnter() {
+      entry.scale.set(SCALE_ON_HOVER);
+      wakeTilt();
+    }
+    function onLeave() {
+      entry.rx.set(0);
+      entry.ry.set(0);
+      entry.scale.set(1);
+      wakeTilt();
+    }
     card.addEventListener('mousemove', onMove);
     card.addEventListener('mouseenter', onEnter);
     card.addEventListener('mouseleave', onLeave);
@@ -372,7 +442,9 @@ function setupTiltCards(root, cleanupFns) {
       const sc = c.scale.step(dt);
       if (!c.rx.settled() || !c.ry.settled() || !c.scale.settled()) stillMoving = true;
       const s = cfState(c.el);
-      s.rx = rx; s.ry = ry; s.hoverScale = sc;
+      s.rx = rx;
+      s.ry = ry;
+      s.hoverScale = sc;
       cfApply(c.el);
     });
     tiltRaf = stillMoving ? requestAnimationFrame(tiltLoop) : 0;
@@ -397,7 +469,19 @@ function gbDirection(pos) {
 }
 
 function mountGradualBlur(parentEl, opts) {
-  const o = Object.assign({ position: 'bottom', strength: 2, height: '6rem', divCount: 5, exponential: false, curve: 'linear', opacity: 1, zIndex: 2 }, opts || {});
+  const o = Object.assign(
+    {
+      position: 'bottom',
+      strength: 2,
+      height: '6rem',
+      divCount: 5,
+      exponential: false,
+      curve: 'linear',
+      opacity: 1,
+      zIndex: 2,
+    },
+    opts || {}
+  );
   if (getComputedStyle(parentEl).position === 'static') parentEl.style.position = 'relative';
 
   const container = document.createElement('div');
@@ -406,11 +490,17 @@ function mountGradualBlur(parentEl, opts) {
   container.style.position = 'absolute';
   container.style.zIndex = String(o.zIndex);
   if (vertical) {
-    container.style.height = o.height; container.style.width = '100%';
-    container.style.left = '0'; container.style.right = '0'; container.style[o.position] = '0';
+    container.style.height = o.height;
+    container.style.width = '100%';
+    container.style.left = '0';
+    container.style.right = '0';
+    container.style[o.position] = '0';
   } else {
-    container.style.width = o.height; container.style.height = '100%';
-    container.style.top = '0'; container.style.bottom = '0'; container.style[o.position] = '0';
+    container.style.width = o.height;
+    container.style.height = '100%';
+    container.style.top = '0';
+    container.style.bottom = '0';
+    container.style[o.position] = '0';
   }
 
   const inner = document.createElement('div');
@@ -421,7 +511,9 @@ function mountGradualBlur(parentEl, opts) {
 
   for (let i = 1; i <= o.divCount; i++) {
     const progress = curveFn(i / o.divCount);
-    const blurValue = o.exponential ? Math.pow(2, progress * 4) * 0.0625 * o.strength : 0.0625 * (progress * o.divCount + 1) * o.strength;
+    const blurValue = o.exponential
+      ? Math.pow(2, progress * 4) * 0.0625 * o.strength
+      : 0.0625 * (progress * o.divCount + 1) * o.strength;
     const p1 = Math.round((increment * i - increment) * 10) / 10;
     const p2 = Math.round(increment * i * 10) / 10;
     const p3 = Math.round((increment * i + increment) * 10) / 10;
@@ -448,12 +540,24 @@ function mountGradualBlur(parentEl, opts) {
 function setupGradualBlur(root, cleanupFns) {
   const mounted = [];
   root.querySelectorAll('.cf-stack-card:not(.cf-compact)').forEach((card) => {
-    mounted.push(mountGradualBlur(card, { position: 'bottom', height: '6rem', strength: 2, divCount: 5, curve: 'bezier', exponential: true, opacity: 1 }));
+    mounted.push(
+      mountGradualBlur(card, {
+        position: 'bottom',
+        height: '6rem',
+        strength: 2,
+        divCount: 5,
+        curve: 'bezier',
+        exponential: true,
+        opacity: 1,
+      })
+    );
   });
   cleanupFns.push(() => mounted.forEach((el) => el.parentNode && el.parentNode.removeChild(el)));
 }
 
-function ebRandom(x) { return (Math.sin(x * 12.9898) * 43758.5453) % 1; }
+function ebRandom(x) {
+  return (Math.sin(x * 12.9898) * 43758.5453) % 1;
+}
 function ebNoise2D(x, y) {
   const i = Math.floor(x);
   const j = Math.floor(y);
@@ -475,7 +579,8 @@ function ebOctavedNoise(x, octaves, lacunarity, gain, baseAmplitude, baseFrequen
     let oa = amplitude;
     if (i === 0) oa *= baseFlatness;
     y += oa * ebNoise2D(frequency * x + seed * 100, time * frequency * 0.3);
-    frequency *= lacunarity; amplitude *= gain;
+    frequency *= lacunarity;
+    amplitude *= gain;
   }
   return y;
 }
@@ -491,19 +596,40 @@ function ebRoundedRectPoint(t, left, top, width, height, radius) {
   const distance = t * totalPerimeter;
   let accumulated = 0;
   let p;
-  if (distance <= accumulated + straightWidth) { p = (distance - accumulated) / straightWidth; return { x: left + radius + p * straightWidth, y: top }; }
+  if (distance <= accumulated + straightWidth) {
+    p = (distance - accumulated) / straightWidth;
+    return { x: left + radius + p * straightWidth, y: top };
+  }
   accumulated += straightWidth;
-  if (distance <= accumulated + cornerArc) { p = (distance - accumulated) / cornerArc; return ebCornerPoint(left + width - radius, top + radius, radius, -Math.PI / 2, Math.PI / 2, p); }
+  if (distance <= accumulated + cornerArc) {
+    p = (distance - accumulated) / cornerArc;
+    return ebCornerPoint(left + width - radius, top + radius, radius, -Math.PI / 2, Math.PI / 2, p);
+  }
   accumulated += cornerArc;
-  if (distance <= accumulated + straightHeight) { p = (distance - accumulated) / straightHeight; return { x: left + width, y: top + radius + p * straightHeight }; }
+  if (distance <= accumulated + straightHeight) {
+    p = (distance - accumulated) / straightHeight;
+    return { x: left + width, y: top + radius + p * straightHeight };
+  }
   accumulated += straightHeight;
-  if (distance <= accumulated + cornerArc) { p = (distance - accumulated) / cornerArc; return ebCornerPoint(left + width - radius, top + height - radius, radius, 0, Math.PI / 2, p); }
+  if (distance <= accumulated + cornerArc) {
+    p = (distance - accumulated) / cornerArc;
+    return ebCornerPoint(left + width - radius, top + height - radius, radius, 0, Math.PI / 2, p);
+  }
   accumulated += cornerArc;
-  if (distance <= accumulated + straightWidth) { p = (distance - accumulated) / straightWidth; return { x: left + width - radius - p * straightWidth, y: top + height }; }
+  if (distance <= accumulated + straightWidth) {
+    p = (distance - accumulated) / straightWidth;
+    return { x: left + width - radius - p * straightWidth, y: top + height };
+  }
   accumulated += straightWidth;
-  if (distance <= accumulated + cornerArc) { p = (distance - accumulated) / cornerArc; return ebCornerPoint(left + radius, top + height - radius, radius, Math.PI / 2, Math.PI / 2, p); }
+  if (distance <= accumulated + cornerArc) {
+    p = (distance - accumulated) / cornerArc;
+    return ebCornerPoint(left + radius, top + height - radius, radius, Math.PI / 2, Math.PI / 2, p);
+  }
   accumulated += cornerArc;
-  if (distance <= accumulated + straightHeight) { p = (distance - accumulated) / straightHeight; return { x: left, y: top + height - radius - p * straightHeight }; }
+  if (distance <= accumulated + straightHeight) {
+    p = (distance - accumulated) / straightHeight;
+    return { x: left, y: top + height - radius - p * straightHeight };
+  }
   accumulated += straightHeight;
   p = (distance - accumulated) / cornerArc;
   return ebCornerPoint(left + radius, top + radius, radius, Math.PI, Math.PI / 2, p);
@@ -527,10 +653,15 @@ function mountElectricBorder(el, opts, ebInstances) {
 
   const layers = document.createElement('div');
   layers.className = 'eb-layers';
-  const glow1 = document.createElement('div'); glow1.className = 'eb-glow-1';
-  const glow2 = document.createElement('div'); glow2.className = 'eb-glow-2';
-  const bgGlow = document.createElement('div'); bgGlow.className = 'eb-background-glow';
-  layers.appendChild(glow1); layers.appendChild(glow2); layers.appendChild(bgGlow);
+  const glow1 = document.createElement('div');
+  glow1.className = 'eb-glow-1';
+  const glow2 = document.createElement('div');
+  glow2.className = 'eb-glow-2';
+  const bgGlow = document.createElement('div');
+  bgGlow.className = 'eb-background-glow';
+  layers.appendChild(glow1);
+  layers.appendChild(glow2);
+  layers.appendChild(bgGlow);
 
   el.appendChild(layers);
   el.appendChild(canvasContainer);
@@ -554,8 +685,10 @@ function mountElectricBorder(el, opts, ebInstances) {
     width = rect.width + borderOffset * 2;
     height = rect.height + borderOffset * 2;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = width * dpr; canvas.height = height * dpr;
-    canvas.style.width = width + 'px'; canvas.style.height = height + 'px';
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
   }
   updateSize();
 
@@ -570,7 +703,8 @@ function mountElectricBorder(el, opts, ebInstances) {
     ctx.scale(dpr, dpr);
     ctx.strokeStyle = o.color;
     ctx.lineWidth = o.thickness;
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
     const left = borderOffset;
     const top = borderOffset;
@@ -590,7 +724,8 @@ function mountElectricBorder(el, opts, ebInstances) {
       const yN = ebOctavedNoise(progress * 8, octaves, lacunarity, gain, amplitude, frequency, time, 1, baseFlatness);
       const dx = pt.x + xN * displacement;
       const dy = pt.y + yN * displacement;
-      if (i === 0) ctx.moveTo(dx, dy); else ctx.lineTo(dx, dy);
+      if (i === 0) ctx.moveTo(dx, dy);
+      else ctx.lineTo(dx, dy);
     }
     ctx.closePath();
     ctx.stroke();
@@ -649,7 +784,14 @@ function mountScrollFloat(el, opts, cleanupFns) {
 
   if (reducedMotion) return;
 
-  gsap.set(wordEls, { willChange: 'opacity, transform', opacity: 0, yPercent: 120, scaleY: 1.6, scaleX: 0.85, transformOrigin: '50% 100%' });
+  gsap.set(wordEls, {
+    willChange: 'opacity, transform',
+    opacity: 0,
+    yPercent: 120,
+    scaleY: 1.6,
+    scaleX: 0.85,
+    transformOrigin: '50% 100%',
+  });
 
   // Plays once, triggered by IntersectionObserver rather than scrubbed to
   // scroll position via gsap's ScrollTrigger. A continuous scrub tween only
@@ -664,7 +806,15 @@ function mountScrollFloat(el, opts, cleanupFns) {
     (entries) => {
       if (played || !entries[0].isIntersecting) return;
       played = true;
-      gsap.to(wordEls, { duration: o.duration, ease: o.ease, opacity: 1, yPercent: 0, scaleY: 1, scaleX: 1, stagger: o.stagger });
+      gsap.to(wordEls, {
+        duration: o.duration,
+        ease: o.ease,
+        opacity: 1,
+        yPercent: 0,
+        scaleY: 1,
+        scaleX: 1,
+        stagger: o.stagger,
+      });
       io.disconnect();
     },
     { threshold: 0.2, rootMargin: '0px 0px -10% 0px' }
@@ -695,7 +845,13 @@ function setupElectricBorders(root, cleanupFns) {
   const ebInstances = [];
   const mounted = [];
   root.querySelectorAll('.cf-feat, .cf-faq-item, .cf-proof').forEach((el) => {
-    mounted.push(mountElectricBorder(el, { color: '#ffd17d', speed: 1.5, chaos: 0.01, thickness: 2, borderRadius: 16 }, ebInstances));
+    mounted.push(
+      mountElectricBorder(
+        el,
+        { color: '#ffd17d', speed: 1.5, chaos: 0.01, thickness: 2, borderRadius: 16 },
+        ebInstances
+      )
+    );
   });
 
   let rafId = 0;
@@ -731,7 +887,10 @@ function setupElectricBorders(root, cleanupFns) {
 // entrance is expressed as one from/to state change instead of a per-frame
 // simulation.
 function mountEchoText(el, opts, cleanupFns) {
-  const o = Object.assign({ echoes: 12, offset: 36, direction: 'right', blur: 3, tint: '#fcda7d', duration: 900, color: '#e2a545' }, opts || {});
+  const o = Object.assign(
+    { echoes: 12, offset: 36, direction: 'right', blur: 3, tint: '#fcda7d', duration: 900, color: '#e2a545' },
+    opts || {}
+  );
   const text = el.textContent;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const echoCount = reducedMotion ? 0 : Math.min(Math.max(Math.round(o.echoes), 0), 24);
@@ -773,7 +932,13 @@ function mountEchoText(el, opts, cleanupFns) {
 
   if (reducedMotion || echoCount === 0) return;
 
-  const DIRS = { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, diagonal: { x: 0.72, y: 0.72 } };
+  const DIRS = {
+    right: { x: 1, y: 0 },
+    left: { x: -1, y: 0 },
+    up: { x: 0, y: -1 },
+    down: { x: 0, y: 1 },
+    diagonal: { x: 0.72, y: 0.72 },
+  };
   const vector = DIRS[o.direction] || DIRS.right;
 
   const echoes = [];
@@ -781,10 +946,12 @@ function mountEchoText(el, opts, cleanupFns) {
     const echo = document.createElement('span');
     echo.className = 'echo-text__echo';
     echo.setAttribute('aria-hidden', 'true');
-    echo.style.color = o.tint ? ('color-mix(in srgb, ' + o.tint + ' ' + Math.min(72, 18 + i * 5) + '%, ' + o.color + ')') : o.color;
+    echo.style.color = o.tint
+      ? 'color-mix(in srgb, ' + o.tint + ' ' + Math.min(72, 18 + i * 5) + '%, ' + o.color + ')'
+      : o.color;
     echo.textContent = text;
     const depth = i / echoCount;
-    echo.style.filter = o.blur > 0 ? ('blur(' + (o.blur * depth).toFixed(2) + 'px)') : 'none';
+    echo.style.filter = o.blur > 0 ? 'blur(' + (o.blur * depth).toFixed(2) + 'px)' : 'none';
     // Starting (spread) pose, painted before any transition is attached —
     // this is the very first frame the visitor sees, matching what the
     // old entrance looked like at t=0.
@@ -804,8 +971,9 @@ function mountEchoText(el, opts, cleanupFns) {
   // get stuck at its starting (fully spread, invisible) pose forever.
   void el.offsetHeight;
   {
-    echoes.forEach((echo, idx) => {
-      echo.style.transition = 'transform ' + o.duration + 'ms cubic-bezier(0.16,1,0.3,1), opacity ' + o.duration + 'ms ease-out';
+    echoes.forEach((echo) => {
+      echo.style.transition =
+        'transform ' + o.duration + 'ms cubic-bezier(0.16,1,0.3,1), opacity ' + o.duration + 'ms ease-out';
       echo.style.transform = 'translate3d(0,0,0)';
       // Fades all the way to 0, not just decayed toward it (the old target
       // was Math.pow(o.fade, echoCount - idx), which never actually reaches
@@ -836,7 +1004,8 @@ function setupHeroEntrance(root, cleanupFns) {
 
   if (!reduceMotion) {
     const bgTween = gsap.to(bgEl, {
-      opacity: 0.3, ease: 'none',
+      opacity: 0.3,
+      ease: 'none',
       scrollTrigger: { trigger: root.querySelector('.cf-hero'), start: 'top top', end: 'bottom top', scrub: true },
     });
     cleanupFns.push(() => {
@@ -872,7 +1041,12 @@ function setupHeroEntrance(root, cleanupFns) {
   // that ends up being.
   void root.offsetHeight;
   targets.forEach((t) => {
-    t.el.style.transition = 'opacity 0.7s ' + t.delay + 'ms cubic-bezier(0.16,1,0.3,1), transform 0.7s ' + t.delay + 'ms cubic-bezier(0.16,1,0.3,1)';
+    t.el.style.transition =
+      'opacity 0.7s ' +
+      t.delay +
+      'ms cubic-bezier(0.16,1,0.3,1), transform 0.7s ' +
+      t.delay +
+      'ms cubic-bezier(0.16,1,0.3,1)';
     t.el.style.opacity = '1';
     t.el.style.transform = 'translate3d(0,0,0)';
   });
@@ -1034,27 +1208,59 @@ export function initLandingEffects(rootEl, onGetStarted) {
   runSafely('mountEchoText', () => {
     const heroEcho = rootEl.querySelector('#cfHeroEcho');
     if (heroEcho) {
-      mountEchoText(heroEcho, { echoes: 12, offset: 20, direction: 'right', blur: 3, tint: '#fcda7d', duration: 900, color: '#e2a545' }, cleanupFns);
+      mountEchoText(
+        heroEcho,
+        { echoes: 12, offset: 20, direction: 'right', blur: 3, tint: '#fcda7d', duration: 900, color: '#e2a545' },
+        cleanupFns
+      );
     }
   });
 
   runSafely('mountScanner', () => {
     const bgEl = rootEl.querySelector('.cf-bg');
     if (bgEl) {
-      mountScanner(bgEl, {
-        color1: '#ff9400', color2: '#ffe29f', color3: '#ffffff',
-        speed: 0.5, sweepSpeed: 0.25, sweepWidth: 1.6, sweepFalloff: 6,
-        scale: 1.5, frequency: 2, ripple: 0.22, bandDensity: 11, lineSharpness: 5.5,
-        glow: 0.22, scanDirection: 'vertical', colorSpread: 0.7, brightness: 1.0,
-        contrast: 1.15, softness: 1.4, vignette: 0.45, scanline: true, grain: true,
-        grainIntensity: 0.05, opacity: 1.0, mouseInteraction: true, mouseRadius: 0.5, mouseStrength: 0.5,
-      }, cleanupFns);
+      mountScanner(
+        bgEl,
+        {
+          color1: '#ff9400',
+          color2: '#ffe29f',
+          color3: '#ffffff',
+          speed: 0.5,
+          sweepSpeed: 0.25,
+          sweepWidth: 1.6,
+          sweepFalloff: 6,
+          scale: 1.5,
+          frequency: 2,
+          ripple: 0.22,
+          bandDensity: 11,
+          lineSharpness: 5.5,
+          glow: 0.22,
+          scanDirection: 'vertical',
+          colorSpread: 0.7,
+          brightness: 1.0,
+          contrast: 1.15,
+          softness: 1.4,
+          vignette: 0.45,
+          scanline: true,
+          grain: true,
+          grainIntensity: 0.05,
+          opacity: 1.0,
+          mouseInteraction: true,
+          mouseRadius: 0.5,
+          mouseStrength: 0.5,
+        },
+        cleanupFns
+      );
     }
   });
 
   return function cleanup() {
     cleanupFns.forEach((fn) => {
-      try { fn(); } catch (e) { /* best-effort teardown */ }
+      try {
+        fn();
+      } catch (e) {
+        /* best-effort teardown */
+      }
     });
   };
 }

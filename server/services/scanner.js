@@ -9,17 +9,17 @@ const { getETMinutes, calculateRVOL } = require('./rvol');
 // never changes. Caching these cuts Phase-2 API calls by ~75% on repeated
 // scans without sacrificing accuracy: the only live call per match is the
 // Finnhub quote (price, change%) which stays on a 60-second TTL.
-const METRIC_TTL_MS = 24 * 60 * 60 * 1000;       // 24 h — Finnhub metric
-const SPARK_TTL_MS  = 24 * 60 * 60 * 1000;        // 24 h — sparkline closes
-const SECTOR_TTL_MS = 7  * 24 * 60 * 60 * 1000;  //  7 d — sector string
+const METRIC_TTL_MS = 24 * 60 * 60 * 1000; // 24 h — Finnhub metric
+const SPARK_TTL_MS = 24 * 60 * 60 * 1000; // 24 h — sparkline closes
+const SECTOR_TTL_MS = 7 * 24 * 60 * 60 * 1000; //  7 d — sector string
 
-const metricCache = new Map();  // symbol → { data, fetchedAt }
-const sparkCache  = new Map();  // symbol → { data, fetchedAt }
-const sectorCache = new Map();  // symbol → { data, fetchedAt }
+const metricCache = new Map(); // symbol → { data, fetchedAt }
+const sparkCache = new Map(); // symbol → { data, fetchedAt }
+const sectorCache = new Map(); // symbol → { data, fetchedAt }
 
 function slowGet(cache, symbol, ttl) {
   const e = cache.get(symbol);
-  return e && (Date.now() - e.fetchedAt < ttl) ? e.data : null;
+  return e && Date.now() - e.fetchedAt < ttl ? e.data : null;
 }
 function slowSet(cache, symbol, data) {
   cache.set(symbol, { data, fetchedAt: Date.now() });
@@ -152,34 +152,44 @@ async function scanTickers(tickers, options) {
 
         // Slow data — resolve from cache or fetch once per day
         var cachedMetric = slowGet(metricCache, r.symbol, METRIC_TTL_MS);
-        var metricPromise = cachedMetric !== null
-          ? Promise.resolve(cachedMetric)
-          : fetchFinnhubMetric(r.symbol).then(function (m) {
-              if (m) slowSet(metricCache, r.symbol, m);
-              return m;
-            });
+        var metricPromise =
+          cachedMetric !== null
+            ? Promise.resolve(cachedMetric)
+            : fetchFinnhubMetric(r.symbol).then(function (m) {
+                if (m) slowSet(metricCache, r.symbol, m);
+                return m;
+              });
 
         var cachedSpark = slowGet(sparkCache, r.symbol, SPARK_TTL_MS);
-        var sparkPromise = cachedSpark !== null
-          ? Promise.resolve(cachedSpark)
-          : yahooFinance.chart(r.symbol, {
-              period1: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000),
-              interval: '1d',
-            }).then(function (chart) {
-              var closes = (chart && chart.quotes ? chart.quotes : [])
-                .filter(function (d) { return d.close != null; })
-                .sort(function (a, b) { return new Date(a.date) - new Date(b.date); })
-                .slice(-7)
-                .map(function (d) { return d.close; });
-              slowSet(sparkCache, r.symbol, closes);
-              return closes;
-            });
+        var sparkPromise =
+          cachedSpark !== null
+            ? Promise.resolve(cachedSpark)
+            : yahooFinance
+                .chart(r.symbol, {
+                  period1: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000),
+                  interval: '1d',
+                })
+                .then(function (chart) {
+                  var closes = (chart && chart.quotes ? chart.quotes : [])
+                    .filter(function (d) {
+                      return d.close != null;
+                    })
+                    .sort(function (a, b) {
+                      return new Date(a.date) - new Date(b.date);
+                    })
+                    .slice(-7)
+                    .map(function (d) {
+                      return d.close;
+                    });
+                  slowSet(sparkCache, r.symbol, closes);
+                  return closes;
+                });
 
         var resolved = await Promise.all([fQuotePromise, metricPromise, sparkPromise, enrichSector(r.symbol)]);
-        var fQuote  = resolved[0];
+        var fQuote = resolved[0];
         var fMetric = resolved[1];
         var sparkline = resolved[2];
-        var sector  = resolved[3];
+        var sector = resolved[3];
 
         if (fQuote && fQuote.price > 0) {
           // Cross-validate Finnhub price against the Yahoo baseline. A >25%
@@ -188,14 +198,12 @@ async function scanTickers(tickers, options) {
           // anomaly. Non-price fields (dayHigh/Low/prevClose) are still applied
           // because they are less likely to be wildly wrong.
           const yahooBasePrice = r.price;
-          const priceDivergence = yahooBasePrice > 0
-            ? Math.abs(fQuote.price - yahooBasePrice) / yahooBasePrice
-            : 0;
+          const priceDivergence = yahooBasePrice > 0 ? Math.abs(fQuote.price - yahooBasePrice) / yahooBasePrice : 0;
           if (priceDivergence > 0.25) {
             console.warn(
               `[Scanner] Price divergence rejected for ${r.symbol}: ` +
-              `Yahoo=${yahooBasePrice.toFixed(2)} Finnhub=${fQuote.price.toFixed(2)} ` +
-              `(${(priceDivergence * 100).toFixed(1)}% diff)`
+                `Yahoo=${yahooBasePrice.toFixed(2)} Finnhub=${fQuote.price.toFixed(2)} ` +
+                `(${(priceDivergence * 100).toFixed(1)}% diff)`
             );
           } else {
             r.price = fQuote.price;
@@ -253,7 +261,9 @@ async function scanTickers(tickers, options) {
     return true;
   });
 
-  results.sort(function (a, b) { return b.volumeRatio - a.volumeRatio; });
+  results.sort(function (a, b) {
+    return b.volumeRatio - a.volumeRatio;
+  });
 
   return { results: results, errors: errors, processed: tickers.length };
 }

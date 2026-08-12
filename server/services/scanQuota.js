@@ -56,7 +56,7 @@ function eliteAccess(user) {
 /** Can this user run one more scan in `category` right now? Read-only check
  * — used for the frontend's up-front UI state, NOT for enforcement (see
  * reserveScan for the atomic version that actually gates a request). */
-function canScan(user, category) {
+function canScan(user, _category) {
   if (user.tier === 'elite') return true;
   if (user.tier === 'premium') {
     if (windowExpired(user)) return true; // window will reset on spend
@@ -81,7 +81,7 @@ const PREMIUM_WINDOW_SEC = PREMIUM_WINDOW_MS / 1000;
  * always true (no bookkeeping); Free is gated purely by trial-window age,
  * also with no bookkeeping needed.
  */
-async function reserveScan(user, category) {
+async function reserveScan(user, _category) {
   if (user.tier === 'elite') return true;
   if (user.tier === 'free') return freeTrialActive(user);
 
@@ -104,13 +104,25 @@ async function reserveScan(user, category) {
            OR premium_scan_count < ?
          )`
     )
-    .run(nowSec, PREMIUM_WINDOW_SEC, nowSec, PREMIUM_WINDOW_SEC, nowSec, user.id, nowSec, PREMIUM_WINDOW_SEC, PREMIUM_DAILY_LIMIT);
+    .run(
+      nowSec,
+      PREMIUM_WINDOW_SEC,
+      nowSec,
+      PREMIUM_WINDOW_SEC,
+      nowSec,
+      user.id,
+      nowSec,
+      PREMIUM_WINDOW_SEC,
+      PREMIUM_DAILY_LIMIT
+    );
 
   if (!result.changes) return false;
 
   // Re-read so the response (quotaFor) reflects exactly what the atomic
   // write actually did, not a client-side guess at which CASE branch fired.
-  const fresh = await db.prepare('SELECT premium_scan_count, premium_scan_window_start FROM users WHERE id = ?').get(user.id);
+  const fresh = await db
+    .prepare('SELECT premium_scan_count, premium_scan_window_start FROM users WHERE id = ?')
+    .get(user.id);
   if (fresh) {
     user.premium_scan_count = fresh.premium_scan_count;
     user.premium_scan_window_start = fresh.premium_scan_window_start;

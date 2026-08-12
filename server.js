@@ -19,6 +19,11 @@ if (!Number.isFinite(workerCount) || workerCount <= 1) {
   const os = require('os');
 
   if (cluster.isPrimary) {
+    // Windows defaults to SCHED_NONE, which can keep a burst of long-lived
+    // SSE connections on one worker. Round-robin makes connection ownership
+    // predictable across supported platforms and gives the cluster relay a
+    // real chance to serve clients held by different workers.
+    cluster.schedulingPolicy = cluster.SCHED_RR;
     const cpuCount = os.cpus().length;
     const actual = Math.min(workerCount, cpuCount);
     if (actual < workerCount) {
