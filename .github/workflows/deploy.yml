@@ -16,7 +16,14 @@ jobs:
           node-version: '24'
           cache: 'npm'
 
-      - run: npm ci
+      - name: Install dependencies
+        run: |
+          for attempt in 1 2 3 4 5; do
+            npm ci && exit 0
+            echo "npm ci failed; retrying in $((attempt * 10))s (attempt $attempt/5)"
+            sleep $((attempt * 10))
+          done
+          exit 1
       - run: node --test --test-concurrency=1 test/*.test.js
         env:
           JWT_SECRET: ci-jwt-secret-123456789012345678901234567890

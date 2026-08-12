@@ -29,7 +29,15 @@ ENV VITE_SENTRY_DSN=${VITE_SENTRY_DSN} \
     VITE_SCAN_WORKER_URL=${VITE_SCAN_WORKER_URL}
 
 COPY package.json package-lock.json ./
-RUN npm ci
+# Native tooling downloads (notably ffmpeg-static) can briefly return a
+# transient 5xx from the upstream release host. Retry the complete install so
+# a temporary registry/release outage does not block an otherwise valid deploy.
+RUN for attempt in 1 2 3 4 5; do \
+      npm ci && exit 0; \
+      echo "npm ci failed; retrying in $((attempt * 10))s (attempt $attempt/5)"; \
+      sleep $((attempt * 10)); \
+    done; \
+    exit 1
 
 COPY . .
 RUN npm run build
