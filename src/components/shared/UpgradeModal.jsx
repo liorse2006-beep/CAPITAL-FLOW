@@ -18,6 +18,7 @@ const TIER_LABEL = { premium: 'Premium', elite: 'Elite' };
 
 const PRICE_ROW = TIER_ROWS.find((row) => row.isPrice);
 const SCANS_ROW = TIER_ROWS.find((row) => row.label === 'Scans');
+const FUNDAMENTALS_ROW = TIER_ROWS.find((row) => row.label === 'Fundamentals lookups');
 
 // One card per tier — everything a card needs to render itself, so the JSX
 // below is just a .map() instead of three near-identical blocks that drift
@@ -184,6 +185,7 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
                 )}
 
                 <div className="pricing-card-scans">{SCANS_ROW[t.key]}</div>
+                <div className="pricing-card-scans pricing-card-fundamentals">Fundamentals: {FUNDAMENTALS_ROW[t.key]}</div>
 
                 <ul className="pricing-card-features">
                   {checklist.map((f) => (

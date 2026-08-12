@@ -3994,6 +3994,14 @@ html.a11y-highlight-links a {
   color: var(--text-1);
   font-family: var(--mono);
 }
+/* Stacks directly under .pricing-card-scans as a second, visually lighter
+   row of the same box — one glance at "quota-shaped" facts (Scans,
+   Fundamentals), not two competing boxes. */
+.pricing-card-fundamentals {
+  margin-top: 6px;
+  font-weight: 600;
+  color: var(--text-2);
+}
 .pricing-card-features {
   flex: 1;
   display: flex;

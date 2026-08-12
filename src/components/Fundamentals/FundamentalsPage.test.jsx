@@ -173,3 +173,35 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     )
   })
 })
+
+describe('FundamentalsPage — free-tier access mirrors the server\'s trial gate', () => {
+  function renderAsUser(meUser) {
+    localStorage.setItem('vs_token', 'fake-token')
+    vi.spyOn(global, 'fetch').mockImplementation((url) => {
+      if (String(url).includes('/api/auth/me')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ user: meUser }) })
+      }
+      if (String(url).includes('/api/auth/refresh')) {
+        return Promise.resolve({ ok: false })
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+    })
+    return render(
+      <AuthProvider>
+        <FundamentalsPage onUpgrade={vi.fn()} onSignIn={vi.fn()} />
+      </AuthProvider>
+    )
+  }
+
+  it('shows the real search UI for a free account still inside its 7-day trial (elite_access true)', async () => {
+    renderAsUser({ id: 2, email: 'trial@test.local', tier: 'free', is_premium: false, elite_access: true })
+    expect(await screen.findByPlaceholderText(/Enter a ticker/)).toBeInTheDocument()
+    expect(screen.queryByText(/swing decision/i)).not.toBeInTheDocument()
+  })
+
+  it('still shows the upsell for a free account whose trial has ended (elite_access false)', async () => {
+    renderAsUser({ id: 3, email: 'expired@test.local', tier: 'free', is_premium: false, elite_access: false })
+    expect(await screen.findByText(/swing decision/i)).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText(/Enter a ticker/)).not.toBeInTheDocument()
+  })
+})

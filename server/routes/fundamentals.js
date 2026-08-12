@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { requirePremium } = require('../middleware/authMiddleware');
+const { requirePremiumOrTrial } = require('../middleware/authMiddleware');
 const { scanLimiter } = require('../middleware/rateLimiters');
 const { scanFundamentals } = require('../services/fundamentalsScanner');
 const { reportError } = require('../utils/reportError');
@@ -17,8 +17,9 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 // feature; it got replaced with this because the customer wants to pull up
 // one company they're already looking at, not browse a table of hundreds.
 // Premium/Elite feature (see tierFeatures.js — "Float & short interest
-// data" was already advertised there before this existed).
-router.get('/fundamentals', requirePremium, scanLimiter, async (req, res) => {
+// data" was already advertised there before this existed) — also opened up,
+// unlimited, to free accounts during their 7-day trial (requirePremiumOrTrial).
+router.get('/fundamentals', requirePremiumOrTrial, scanLimiter, async (req, res) => {
   const symbol = String(req.query.symbol || '').toUpperCase().trim();
   if (!SYMBOL_RE.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
 

@@ -150,7 +150,12 @@ function saveRecentTicker(userId, symbol) {
 
 export default function FundamentalsPage({ onUpgrade, onSignIn }) {
   const { getToken, user } = useAuth();
-  const isPremium = !!(user && user.is_premium);
+  // Premium/Elite always; a free account also gets full (unlimited) access
+  // for its 7-day trial — user.elite_access is the same server-computed
+  // flag every other trial-widened feature reads (see server/routes/auth.js
+  // and requirePremiumOrTrial), so this can't drift out of sync with the
+  // backend's own gate on GET /api/fundamentals.
+  const hasAccess = !!(user && (user.is_premium || user.elite_access));
 
   const [symbolInput, setSymbolInput] = useState('');
   // Starts with nothing selected — every toggle is off until the customer
@@ -180,7 +185,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
       onSignIn();
       return;
     }
-    if (!isPremium) {
+    if (!hasAccess) {
       onUpgrade();
       return;
     }
@@ -229,7 +234,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
     lookupSymbol(symbol);
   }
 
-  if (!isPremium) {
+  if (!hasAccess) {
     return (
       <div className="page-content">
         <div className="fund-upsell">

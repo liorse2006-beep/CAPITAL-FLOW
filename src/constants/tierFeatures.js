@@ -4,8 +4,13 @@
 // Feature rows in display order — Price is last, right above the CTA row.
 export const TIER_ROWS = [
   { label: 'Scans', free: 'Unlimited for 7 days', premium: '5 / 24h', elite: 'Unlimited' },
+  // Same shape as Scans above (a time-boxed "unlimited," not a plain
+  // yes/no) — Free gets full, uncapped Fundamentals access for its 7-day
+  // trial (requirePremiumOrTrial on the server), then loses it entirely;
+  // Premium and Elite have always had it uncapped (scanLimiter only guards
+  // against abuse, it's not a real daily count like Premium's Scans cap).
+  { label: 'Fundamentals lookups', free: 'Unlimited for 7 days', premium: 'Unlimited', elite: 'Unlimited' },
   { label: 'Advanced filters & presets', free: false, premium: true, elite: true },
-  { label: 'Float & short interest data', free: false, premium: true, elite: true },
   { label: 'Ticker notes & charts', free: false, premium: true, elite: true },
   { label: 'AI-summarized news', free: true, premium: true, elite: true },
   { label: 'Capi — your AI market mentor', free: false, premium: false, elite: true },
@@ -23,7 +28,7 @@ export const TIER_ROWS = [
 // 'elite' naturally comes back all-included with no extra branching needed.
 export function tierFeatureChecklist(tierKey) {
   return TIER_ROWS.filter(function (row) {
-    return !row.isPrice && row.label !== 'Scans' && !row.free
+    return !row.isPrice && row.label !== 'Scans' && row.label !== 'Fundamentals lookups' && !row.free
   }).map(function (row) {
     return { label: row.label, included: row[tierKey] === true }
   })

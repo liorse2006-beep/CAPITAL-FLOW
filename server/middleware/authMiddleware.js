@@ -228,6 +228,27 @@ async function requirePremium(req, res, next) {
 }
 
 /**
+ * Same as requirePremium, but a free-tier account still inside its 7-day
+ * trial window is let through too — used for Fundamentals, which the free
+ * trial explicitly includes at full (unlimited) access, not just the
+ * scan-count features gated by scanQuota's own free-trial handling.
+ */
+async function requirePremiumOrTrial(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized', code: 'NOT_AUTHENTICATED' });
+  }
+  const user = await resolveToken(header.slice(7));
+  if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
+  const allowed = user.is_premium || (user.tier === 'free' && freeTrialActive(user));
+  if (!allowed) {
+    return res.status(403).json({ error: 'Premium subscription required', code: 'NOT_PREMIUM' });
+  }
+  req.user = user;
+  next();
+}
+
+/**
  * Require Elite specifically — everything notification-related (push,
  * scheduled digest, watchlist alert thresholds) is Elite-only; Premium gets
  * unlimited-feeling scanning but not notifications.
@@ -355,6 +376,7 @@ function requireScanQuota(category) {
 module.exports = {
   requireAuth,
   requirePremium,
+  requirePremiumOrTrial,
   requireElite,
   requireEliteOrTrial,
   requirePremiumSSE,

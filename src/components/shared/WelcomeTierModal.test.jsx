@@ -45,7 +45,10 @@ describe('WelcomeTierModal', () => {
       (li) => li.textContent
     )
     const excluded = [...container.querySelectorAll('.welcome-tier-features-excluded li')].map((li) => li.textContent)
-    expect(included).toEqual(['Advanced filters & presets', 'Float & short interest data', 'Ticker notes & charts'])
+    // "Fundamentals lookups" is excluded from this checklist the same way
+    // "Scans" is — both are time-boxed "unlimited," not a plain yes/no, so
+    // they don't fit a checkmark list (see tierFeatures.js).
+    expect(included).toEqual(['Advanced filters & presets', 'Ticker notes & charts'])
     expect(excluded).toEqual([
       'Capi — your AI market mentor',
       'Push notifications',
@@ -63,7 +66,7 @@ describe('WelcomeTierModal', () => {
     expect(screen.getByText('Push notifications')).toBeInTheDocument()
     expect(container.querySelector('.welcome-tier-features-excluded')).toBeNull()
     expect(screen.queryByText('Also included with Elite')).not.toBeInTheDocument()
-    expect(container.querySelectorAll('.welcome-tier-features li').length).toBe(7)
+    expect(container.querySelectorAll('.welcome-tier-features li').length).toBe(6)
   })
 
   it('shows a "confirming" indicator when not yet confirmed, and hides it once confirmed', () => {
