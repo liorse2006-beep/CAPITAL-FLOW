@@ -40,11 +40,40 @@
 //   3. Settings → Variables → add ORIGIN = "https://<your-render-url>"
 //      (the Render origin, NOT capitalflow.vip, to avoid the Worker calling
 //      back through itself).
-//   4. Triggers → Routes → add capitalflow.vip/api/scan (and www. if used).
+//   4. Called via its own workers.dev URL (e.g.
+//      https://capitalflow.<subdomain>.workers.dev/api/scan), not a
+//      capitalflow.vip route — capitalflow.vip's DNS is managed outside
+//      Cloudflare, so adding a same-domain route would require migrating the
+//      whole domain's nameservers, a much bigger and riskier change than
+//      this Worker needs. The frontend points its scan fetch at this
+//      workers.dev URL via the VITE_SCAN_WORKER_URL build env var (see
+//      src/App.jsx); update ALLOWED_ORIGINS below if the app's origin ever
+//      changes.
 //   5. Leave every other path alone — this Worker only touches /api/scan.
 
 const CACHE_TTL_SECONDS = 60; // matches how often a shared scan is worth recomputing under load
 const QUOTA_PATH = '/api/scan-quota';
+
+// This Worker is called cross-origin (from capitalflow.vip's own JS, via its
+// workers.dev URL) rather than through a same-domain route — see the "safer
+// alternative" note in the deploy comment above. Only the app's own origins
+// may read the response; anyone else's page cannot, even if it somehow got a
+// copy of a user's token, because the browser withholds the response body
+// from a disallowed origin regardless.
+const ALLOWED_ORIGINS = new Set([
+  'https://capitalflow.vip',
+  'https://www.capitalflow.vip',
+]);
+
+function corsHeaders(origin) {
+  if (!ALLOWED_ORIGINS.has(origin)) return {};
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    Vary: 'Origin',
+  };
+}
 
 async function verifyJwtHS256(token, secret) {
   const parts = token.split('.');
@@ -97,7 +126,15 @@ export function hasQuotaRemaining(quota) {
 
 export default {
   async fetch(request, env, ctx) {
-    if (request.method !== 'GET') return fetch(request); // pass through non-GET untouched
+    const cors = corsHeaders(request.headers.get('Origin') || '');
+
+    if (request.method === 'OPTIONS') {
+      // CORS preflight — the browser sends this before the real GET because
+      // the request carries an Authorization header cross-origin. No auth
+      // check belongs here; it's not the real request.
+      return new Response(null, { status: 204, headers: cors });
+    }
+    if (request.method !== 'GET') return fetch(request); // pass through anything else untouched
 
     const auth = request.headers.get('Authorization') || '';
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
@@ -106,7 +143,7 @@ export default {
       // No structurally valid token — never even reaches the cache or origin.
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...cors },
       });
     }
 
@@ -125,7 +162,16 @@ export default {
       // caller's own token, exactly as if this Worker weren't here.
       const originUrl = env.ORIGIN + url.pathname + url.search;
       const originResp = await fetch(originUrl, { headers: { Authorization: auth } });
-      if (!originResp.ok) return originResp; // 401/403/429/500 — pass origin's own answer straight through, uncached
+      if (!originResp.ok) {
+        // 401/403/429/500 — pass origin's own answer straight through,
+        // uncached, but re-wrapped so the CORS headers still apply (a
+        // fetch() response from another origin doesn't carry them).
+        const errBody = await originResp.text();
+        return new Response(errBody, {
+          status: originResp.status,
+          headers: { 'Content-Type': originResp.headers.get('Content-Type') || 'application/json', ...cors },
+        });
+      }
 
       const fullJson = await originResp.json();
       sharedJson = stripPersonalFields(fullJson);
@@ -139,7 +185,7 @@ export default {
       );
       // This request itself already has real, live quota data from the
       // origin call it just made — no need for the extra hop below.
-      return new Response(JSON.stringify(fullJson), { headers: { 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify(fullJson), { headers: { 'Content-Type': 'application/json', ...cors } });
     }
 
     // Cache hit — the heavy scan never ran for this request. Still fetch the
@@ -155,12 +201,12 @@ export default {
       // left must be rejected here too, not just on a cache MISS.
       return new Response(JSON.stringify({ error: 'Scan limit reached', code: 'SCAN_LIMIT', ...(quota || {}) }), {
         status: 403,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...cors },
       });
     }
 
     return new Response(JSON.stringify({ ...sharedJson, ...quota, fromCache: true }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...cors },
     });
   },
 };

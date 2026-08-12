@@ -1006,7 +1006,12 @@ function App() {
       }, 600);
 
       var cap = parseFloat(minCap) * 1e9;
-      var scanUrl = '/api/scan?minVolumeRatio=' + minRatio + '&minMarketCap=' + cap;
+      // Edge-cached via the Cloudflare Worker when VITE_SCAN_WORKER_URL is set
+      // (see cloudflare-worker/scan-cache-worker.js); falls back to the app's
+      // own origin otherwise, so local dev is unaffected.
+      var scanUrl =
+        (import.meta.env.VITE_SCAN_WORKER_URL || '') +
+        '/api/scan?minVolumeRatio=' + minRatio + '&minMarketCap=' + cap;
       if (minPrice) scanUrl += '&minPrice=' + minPrice;
       if (maxPrice) scanUrl += '&maxPrice=' + maxPrice;
       if (minVol) scanUrl += '&minVol=' + encodeURIComponent(minVol);
