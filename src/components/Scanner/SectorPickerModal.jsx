@@ -53,7 +53,7 @@ export default function SectorPickerModal({
                 <div className="sector-card-glow" />
                 <div className="sector-card-icon">{SECTOR_ICONS[s] || null}</div>
                 <div className="sector-card-name">{s}</div>
-                <div className="sector-card-count">5 tickers</div>
+                <div className="sector-card-count">Scans top 5 holdings</div>
                 {active && <div className="sector-card-check">✓</div>}
               </button>
             )
