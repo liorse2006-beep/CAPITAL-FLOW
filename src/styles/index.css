@@ -1370,17 +1370,6 @@ body {
   display: flex;
   align-items: center;
 }
-.sector-card-count {
-  font-size: 9px;
-  font-weight: 500;
-  color: var(--text-3);
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-  font-family: var(--mono);
-}
-.sector-card.active .sector-card-count {
-  color: var(--accent);
-}
 .sector-hint {
   font-size: 11px;
   color: var(--text-3);
@@ -1444,10 +1433,19 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 18px;
+  margin-bottom: 4px;
 }
 .sector-modal-header .upgrade-title {
   margin: 0;
+}
+.sector-modal-subhead {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  font-family: var(--mono);
+  margin-bottom: 18px;
 }
 .sector-modal-grid {
   display: grid;
@@ -1487,12 +1485,12 @@ body {
    rule's position in this file — two classes on the same element beat one
    on specificity, where source order alone would otherwise be a coin flip. */
 .upgrade-cta.sector-modal-done {
-  width: 100%;
+  width: auto;
   justify-content: center;
-  padding: 14px;
+  padding: 10px 36px;
   border-radius: 100px;
   background: linear-gradient(135deg, var(--accent-vivid) 0%, var(--accent-vivid-2) 100%);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;

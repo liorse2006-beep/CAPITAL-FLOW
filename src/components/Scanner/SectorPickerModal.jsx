@@ -39,6 +39,7 @@ export default function SectorPickerModal({
             </button>
           )}
         </div>
+        <div className="sector-modal-subhead">Scans top 5 holdings per sector</div>
 
         <div className="sector-modal-grid">
           {allSectors.map((s, i) => {
@@ -53,7 +54,6 @@ export default function SectorPickerModal({
                 <div className="sector-card-glow" />
                 <div className="sector-card-icon">{SECTOR_ICONS[s] || null}</div>
                 <div className="sector-card-name">{s}</div>
-                <div className="sector-card-count">Scans top 5 holdings</div>
                 {active && <div className="sector-card-check">✓</div>}
               </button>
             )
