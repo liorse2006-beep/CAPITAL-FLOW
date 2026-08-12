@@ -6,7 +6,7 @@ require('./helpers/testEnv');
 const { test } = require('node:test');
 const assert = require('node:assert');
 
-const { reportError } = require('../server/utils/reportError');
+const { reportError, safeErrorSummary } = require('../server/utils/reportError');
 const { Sentry } = require('../server/sentry');
 
 test('reportError logs to the console AND forwards the error to Sentry.captureException', (t) => {
@@ -28,4 +28,18 @@ test('reportError never throws even if Sentry.captureException itself throws', (
   });
 
   assert.doesNotThrow(() => reportError(new Error('boom'), '[whatever]'));
+});
+
+test('reportError redacts credential-shaped values from the log summary', (t) => {
+  const consoleSpy = t.mock.method(console, 'error', () => {});
+  t.mock.method(Sentry, 'captureException', () => {});
+
+  reportError(new Error('Authorization: Bearer super-secret-token api_key=live-key'), '[sensitive-route]');
+
+  const summary = consoleSpy.mock.calls[0].arguments[1];
+  assert.strictEqual(summary.name, 'Error');
+  assert.match(summary.message, /Authorization=\[redacted\]/);
+  assert.match(summary.message, /api_key=\[redacted\]/);
+  assert.doesNotMatch(summary.message, /super-secret-token|live-key/);
+  assert.deepStrictEqual(safeErrorSummary(null), '');
 });

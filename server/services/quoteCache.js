@@ -12,6 +12,7 @@
 
 const yahooFinance = require('./yahoo');
 const { createCircuitBreaker } = require('../utils/circuitBreaker');
+const { redact } = require('../utils/reportError');
 
 // Opens after 5 consecutive batch failures (real network/5xx failures —
 // the 429 branch below already retries those without going through the
@@ -56,6 +57,7 @@ async function fetchBatch(symbols) {
       return arr;
     } catch (err) {
       const msg = (err && err.message) || '';
+      const safeMsg = redact(msg);
       const is429 = msg.includes('429') || msg.includes('Too Many') || msg.includes('rate limit');
       if (is429 && attempt < MAX_RETRIES) {
         const delay = 3000 * Math.pow(2, attempt); // 3 s → 6 s
@@ -77,11 +79,11 @@ async function fetchBatch(symbols) {
         .filter(Boolean);
       if (stale.length > 0) {
         console.warn(
-          `[QuoteCache] Yahoo failed — serving ${stale.length}/${symbols.length} recent stale entries (< ${MAX_STALE_AGE_MS / 60000} min old): ${msg}`
+          `[QuoteCache] Yahoo failed — serving ${stale.length}/${symbols.length} recent stale entries (< ${MAX_STALE_AGE_MS / 60000} min old): ${safeMsg}`
         );
       } else {
         console.error(
-          `[QuoteCache] Batch failed, no usable stale fallback (${symbols[0]}…${symbols[symbols.length - 1]}): ${msg}`
+          `[QuoteCache] Batch failed, no usable stale fallback (${symbols[0]}…${symbols[symbols.length - 1]}): ${safeMsg}`
         );
       }
       return stale;

@@ -1,6 +1,7 @@
 const { createClient } = require('@libsql/client');
 const path = require('path');
 const fs = require('fs');
+const { safeErrorSummary } = require('../utils/reportError');
 
 // ── Connection ─────────────────────────────────────────────────────────────
 // If TURSO_DB_URL is set, connect to Turso cloud (production / Render).
@@ -401,7 +402,7 @@ async function initDbWithRetry(maxAttempts = 20) {
 // consumer is in an async context (route handlers, service functions) the
 // natural startup order is fine in practice.
 const ready = initDbWithRetry().catch((err) => {
-  console.error('[db] Fatal: schema init failed:', err);
+  console.error('[db] Fatal: schema init failed:', safeErrorSummary(err));
   process.exit(1);
 });
 

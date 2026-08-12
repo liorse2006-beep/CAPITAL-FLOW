@@ -5,6 +5,14 @@ const { redeemCoupon } = require('../services/coupons');
 const email = require('../services/email');
 const { reportError } = require('../utils/reportError');
 
+function safeMetadataSummary(metadata) {
+  return {
+    tier: metadata?.tier || 'unknown',
+    hasUserId: Boolean(metadata?.userId),
+    hasCouponCode: Boolean(metadata?.couponCode),
+  };
+}
+
 // Mounted with express.raw() (see server/index.js) — req.body is a Buffer
 // here, not parsed JSON, because signature verification must run over the
 // exact bytes Whop sent.
@@ -93,7 +101,10 @@ async function handleWhopEvent(event) {
         // real paying customer got nothing and a console.warn alone means
         // no human ever finds out. Escalate the same way a self-service
         // upgrade does, so it's visible in both the inbox and the panel.
-        console.warn('[webhooks/whop] payment_succeeded for a user that no longer exists', metadata);
+        console.warn(
+          '[webhooks/whop] payment_succeeded for a user that no longer exists',
+          safeMetadataSummary(metadata)
+        );
         email
           .sendAdminUpgradeAlert(
             `(deleted user id ${metadata.userId})`,
@@ -119,12 +130,13 @@ async function handleWhopEvent(event) {
         const redeemed = await redeemCoupon(metadata.couponCode);
         if (!redeemed) {
           console.warn(
-            `[webhooks/whop] coupon "${metadata.couponCode}" was not redeemed (missing or at its usage limit) for user ${metadata.userId}`
+            '[webhooks/whop] coupon was not redeemed (missing or at its usage limit)',
+            safeMetadataSummary(metadata)
           );
         }
       }
     } else {
-      console.warn('[webhooks/whop] payment_succeeded with unrecognized metadata', metadata);
+      console.warn('[webhooks/whop] payment_succeeded with unrecognized metadata', safeMetadataSummary(metadata));
     }
   }
 
@@ -147,18 +159,18 @@ async function handleWhopEvent(event) {
       // Premium payment keeps the Elite they still paid for.
       if (user && user.tier === metadata.tier) {
         await db.prepare(`UPDATE users SET tier = 'free', is_premium = 0 WHERE id = ?`).run(user.id);
-        console.log(`[webhooks/whop] ${event.type}: user ${user.id} downgraded from ${metadata.tier} to free`);
+        console.log(`[webhooks/whop] ${event.type}: tier downgraded to free`, { tier: metadata.tier });
         // Best-effort audit trail — visible in the admin panel's activity log.
         db.prepare('INSERT INTO admin_audit_log (actor, action, target_user_id, detail) VALUES (?, ?, ?, ?)')
           .run('whop-webhook', 'refund_downgrade', user.id, metadata.tier)
           .catch(() => {});
       } else if (user) {
         console.log(
-          `[webhooks/whop] ${event.type}: user ${user.id} refunded a ${metadata.tier} payment but holds ${user.tier} — no change`
+          `[webhooks/whop] ${event.type}: refunded ${metadata.tier} payment but account holds ${user.tier} — no change`
         );
       }
     } else {
-      console.warn('[webhooks/whop] refund event with unrecognized metadata', metadata);
+      console.warn('[webhooks/whop] refund event with unrecognized metadata', safeMetadataSummary(metadata));
     }
   }
 }

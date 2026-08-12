@@ -160,16 +160,16 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], prompt: 'select_account' }));
 
   router.get('/google/callback', function (req, res, next) {
-    passport.authenticate('google', { session: false }, async function (err, user, info) {
+    passport.authenticate('google', { session: false }, async function (err, user, _info) {
       if (err) {
         reportError(err, '[google/callback] passport error');
         return res.redirect(`${FRONTEND_URL || 'http://localhost:5173'}/?auth_error=google_failed`);
       }
       if (!user) {
-        console.warn('[google/callback] no user returned, info:', info);
+        console.warn('[google/callback] provider did not return an authenticated user');
         return res.redirect(`${FRONTEND_URL || 'http://localhost:5173'}/?auth_error=google_failed`);
       }
-      console.log('[google/callback] success, user id:', user.id);
+      console.log('[google/callback] authentication succeeded');
       const { accessToken, refreshToken } = await issueToken(user);
       setRefreshCookie(res, refreshToken);
       // If FRONTEND_URL is explicitly set use it; otherwise auto-detect from the

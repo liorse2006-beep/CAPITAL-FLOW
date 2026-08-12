@@ -17,6 +17,7 @@ const { startScheduledBackup } = require('./services/dbBackup');
 const { startHealthMonitor } = require('./services/healthMonitor');
 const { scanLimiter, apiLimiter, adminLimiter } = require('./middleware/rateLimiters');
 const { isSingletonWorker } = require('./services/clusterBus');
+const { safeErrorSummary } = require('./utils/reportError');
 
 const app = express();
 
@@ -274,7 +275,7 @@ attachErrorHandler(app);
 // at all, instead of leaving a half-broken process running forever with
 // nothing to prompt a restart.
 function crashCleanly(label, err) {
-  console.error(`[${label}]`, err);
+  console.error(`[${label}]`, safeErrorSummary(err));
   const { Sentry } = require('./sentry');
   Sentry.captureException(err);
   Sentry.flush(2000)

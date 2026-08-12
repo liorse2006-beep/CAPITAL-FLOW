@@ -149,7 +149,7 @@ async function notifyScheduledUser(sched, results) {
       results,
     });
   } catch (notifErr) {
-    reportError(notifErr, `[ScheduledScans] Persisting notification failed for user ${sched.user_id}`);
+    reportError(notifErr, '[ScheduledScans] Persisting notification failed');
   }
 
   try {
@@ -166,12 +166,10 @@ async function notifyScheduledUser(sched, results) {
       },
     });
   } catch (pushErr) {
-    reportError(pushErr, `[ScheduledScans] Push failed for user ${sched.user_id}`);
+    reportError(pushErr, '[ScheduledScans] Push failed');
   }
 
-  console.log(
-    `[ScheduledScans] scan_id=${sched.id} type=${sched.scan_type} results=${results.length} → push sent to user ${sched.user_id}`
-  );
+  console.log(`[ScheduledScans] scan_id=${sched.id} type=${sched.scan_type} results=${results.length} → push sent`);
 }
 
 async function runScheduledScans() {

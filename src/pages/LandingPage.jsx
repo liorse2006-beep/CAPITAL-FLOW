@@ -20,5 +20,7 @@ export default function LandingPage({ onGetStarted }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <div className="cf-landing-page" ref={rootRef} dangerouslySetInnerHTML={{ __html: bodyHtml }} />;
+  return (
+    <div className="cf-landing-page" dir="rtl" lang="he" ref={rootRef} dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+  );
 }

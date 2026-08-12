@@ -70,4 +70,4 @@ npm run test:all      # both
 
 ## Deployment
 
-Render auto-deploys on every push to `main`, but only after the test, lint, format, audit and build gates pass. Set the same environment variables from `.env.example` in the Render dashboard. Running on a paid Starter instance (not the free tier) — no idle spin-down, the background scanner and scheduled jobs run continuously. Deploy the optional Cloudflare Worker separately and set `VITE_SCAN_WORKER_URL` at build time before relying on edge-cached scan capacity.
+Render auto-deploys on every push to `main`, but only after the test, lint, format, audit and build gates pass. Set the same environment variables from `.env.example` in the Render dashboard. Running on a paid Starter instance (not the free tier) — no idle spin-down, the background scanner and scheduled jobs run continuously. The production Cloudflare Worker is deployed at `https://capitalflow.liormenaiot.workers.dev`; keep `VITE_SCAN_WORKER_URL` set to that URL in production builds. Deploy the Worker separately only when creating another environment.
