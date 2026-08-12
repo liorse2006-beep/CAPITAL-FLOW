@@ -66,7 +66,16 @@ module.exports = {
   RESEND_FROM_EMAIL: env('RESEND_FROM_EMAIL', 'Capital Flow <onboarding@resend.dev>'),
   GOOGLE_CLIENT_ID: env('GOOGLE_CLIENT_ID'),
   GOOGLE_CLIENT_SECRET: env('GOOGLE_CLIENT_SECRET'),
-  GOOGLE_CALLBACK_URL: env('GOOGLE_CALLBACK_URL', 'http://localhost:3001/api/auth/google/callback'),
+  // The production domain is fixed for this deployment. Keeping the safe
+  // public callback as the production default prevents a Render boot loop
+  // when OAuth credentials exist but the optional dashboard variable was
+  // omitted; local development keeps its localhost default.
+  GOOGLE_CALLBACK_URL: env(
+    'GOOGLE_CALLBACK_URL',
+    process.env.NODE_ENV === 'production'
+      ? 'https://capitalflow.vip/api/auth/google/callback'
+      : 'http://localhost:3001/api/auth/google/callback'
+  ),
   HCAPTCHA_SECRET: env('HCAPTCHA_SECRET'),
   TURNSTILE_SECRET: env('TURNSTILE_SECRET'),
   FRONTEND_URL: env('FRONTEND_URL', 'http://localhost:5173'),
@@ -105,7 +114,7 @@ if (
   process.env.NODE_ENV === 'production' &&
   module.exports.GOOGLE_CLIENT_ID &&
   module.exports.GOOGLE_CLIENT_SECRET &&
-  !process.env.GOOGLE_CALLBACK_URL
+  !module.exports.GOOGLE_CALLBACK_URL
 ) {
   console.error(
     '\n[FATAL] GOOGLE_CLIENT_ID/SECRET are set but GOOGLE_CALLBACK_URL is not — Google login would silently ' +

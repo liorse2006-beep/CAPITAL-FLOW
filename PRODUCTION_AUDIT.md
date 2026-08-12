@@ -27,6 +27,8 @@ Follow-up closures in this pass:
 
 - Watchlist guests now see the sign-in requirement before opening the add flow.
 - The notification bell and adjacent topbar action buttons use coordinated 44px touch targets.
+- Production Google OAuth now defaults to the canonical public callback when the
+  Render variable is omitted, while an explicitly blank callback still fails closed.
 
 ---
 
