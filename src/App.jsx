@@ -723,8 +723,8 @@ function App() {
     [authError]
   );
 
-  // Whop's hosted checkout redirects back here after EVERY checkout
-  // attempt — success or cancelled/failed alike — appending its own
+  // Whop's checkout returns here after EVERY checkout attempt — success or
+  // cancelled/failed alike — appending its own
   // ?status=success|error (see server/routes/checkout.js's redirectUrl,
   // which deliberately doesn't bake in an assumed outcome). Only a real
   // "success" status shows anything; anything else is treated as "nothing

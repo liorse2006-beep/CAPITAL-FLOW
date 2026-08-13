@@ -9,13 +9,13 @@ import { AuthProvider } from '../../context/AuthContext';
 // Whop's servers, not something jsdom can/should exercise.
 vi.mock('@whop/checkout/react', () => ({
   WhopCheckoutEmbed: (props) => (
-    <div data-testid="whop-checkout-embed" data-session-id={props.sessionId}>
+    <div data-testid="whop-checkout-embed" data-session-id={props.sessionId} data-return-url={props.returnUrl}>
       <button onClick={() => props.onComplete('plan_x', 'receipt_x', {})}>Simulate payment complete</button>
     </div>
   ),
   WhopExpressCheckoutButton: (props) => {
     if (props.onExpressMethodResolved) props.onExpressMethodResolved({ rendered: 'none' });
-    return <div data-testid="whop-express-button" data-plan-id={props.planId} />;
+    return <div data-testid="whop-express-button" data-plan-id={props.planId} data-return-url={props.returnUrl} />;
   },
 }));
 

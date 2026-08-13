@@ -11,7 +11,7 @@ import { AuthProvider } from '../../context/AuthContext';
 // onComplete handling) without depending on Whop's actual embed internals.
 vi.mock('@whop/checkout/react', () => ({
   WhopCheckoutEmbed: (props) => (
-    <div data-testid="whop-checkout-embed" data-session-id={props.sessionId}>
+    <div data-testid="whop-checkout-embed" data-session-id={props.sessionId} data-return-url={props.returnUrl}>
       <button onClick={() => props.onComplete('plan_x', 'receipt_x', {})}>Simulate payment complete</button>
     </div>
   ),
@@ -20,7 +20,7 @@ vi.mock('@whop/checkout/react', () => ({
   // nothing, exactly as it would on a browser with no wallet configured.
   WhopExpressCheckoutButton: (props) => {
     if (props.onExpressMethodResolved) props.onExpressMethodResolved({ rendered: 'none' });
-    return <div data-testid="whop-express-button" data-plan-id={props.planId} />;
+    return <div data-testid="whop-express-button" data-plan-id={props.planId} data-return-url={props.returnUrl} />;
   },
 }));
 
@@ -79,6 +79,7 @@ describe('UpgradeModal', () => {
     );
     const embed = await screen.findByTestId('whop-checkout-embed');
     expect(embed).toHaveAttribute('data-session-id', 'ch_test123');
+    expect(embed).toHaveAttribute('data-return-url', `${window.location.origin}/`);
     // Never navigated away — this is the whole point of the embed.
     expect(window.location.href).not.toContain('whop.com');
   });
@@ -101,6 +102,7 @@ describe('UpgradeModal', () => {
     // form, which was the whole complaint.
     const express = await screen.findByTestId('whop-express-button');
     expect(express).toHaveAttribute('data-plan-id', 'plan_test');
+    expect(express).toHaveAttribute('data-return-url', `${window.location.origin}/`);
   });
 
   it('stashes the requested tier before mounting the embed, so the welcome screen knows what was bought', async () => {

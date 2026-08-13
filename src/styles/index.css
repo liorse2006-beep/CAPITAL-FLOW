@@ -3939,6 +3939,15 @@ html.a11y-highlight-links a {
 .embedded-express-hidden {
   display: none;
 }
+.embedded-express-loading {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  font-size: 12px;
+  font-family: var(--mono);
+}
 .embedded-express-divider {
   display: flex;
   align-items: center;

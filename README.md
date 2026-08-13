@@ -10,7 +10,7 @@ Live at [capitalflow.vip](https://capitalflow.vip).
 - **Backend:** Node.js + Express 5
 - **Database:** Turso (libSQL/SQLite) in production, a local SQLite file in dev
 - **Auth:** Google OAuth + email/password (JWT), `express-session` for the OAuth handshake
-- **Payments:** Whop (hosted checkout)
+- **Payments:** Whop embedded checkout (cards plus Apple Pay/Google Pay when the buyer's device and wallet are eligible)
 - **Data providers:** Finnhub (quotes/fundamentals), Yahoo Finance (sparklines), Massive / MarketAux / NewsData.io (news, fallback chain), Google AI Studio (Gemini, news catalyst tagging and Capi)
 - **Deployment:** Render (web service), optional Cloudflare Worker edge cache, auto-deploys on push to `main`
 

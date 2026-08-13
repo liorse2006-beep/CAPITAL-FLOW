@@ -17,6 +17,11 @@ import { WhopCheckoutEmbed, WhopExpressCheckoutButton } from '@whop/checkout/rea
 // takes a plan, not a session id.
 export default function EmbeddedCheckout({ sessionId, planId, promoCode, onComplete, onError }) {
   const [expressMethod, setExpressMethod] = useState(null); // 'apple-pay' | 'google-pay' | 'whop-pay' | 'none' | null
+  // External wallet flows can leave the page for authorization (for example,
+  // 3-D Secure or a native wallet sheet). Keep the return target on the same
+  // origin so App.jsx can consume ?status=success|error and finish the normal
+  // webhook/tier refresh flow after the customer comes back.
+  const returnUrl = typeof window === 'undefined' ? '/' : `${window.location.origin}/`;
 
   const showExpress = planId && expressMethod && expressMethod !== 'none';
 
@@ -26,12 +31,14 @@ export default function EmbeddedCheckout({ sessionId, planId, promoCode, onCompl
         <div className={'embedded-express' + (showExpress ? '' : ' embedded-express-hidden')}>
           <WhopExpressCheckoutButton
             planId={planId}
+            returnUrl={returnUrl}
             promoCode={promoCode || undefined}
             theme="dark"
             themeOptions={{ accentColor: '#f59e0b' }}
-            onExpressMethodResolved={(r) => setExpressMethod(r && r.rendered)}
+            onExpressMethodResolved={(r) => setExpressMethod((r && r.rendered) || 'none')}
             onComplete={onComplete}
             onPaymentError={onError}
+            fallback={<div className="embedded-express-loading">Checking wallet options…</div>}
           />
           {showExpress && <div className="embedded-express-divider">or pay with card</div>}
         </div>
@@ -39,6 +46,7 @@ export default function EmbeddedCheckout({ sessionId, planId, promoCode, onCompl
 
       <WhopCheckoutEmbed
         sessionId={sessionId}
+        returnUrl={returnUrl}
         promoCode={promoCode || undefined}
         theme="dark"
         skipRedirect

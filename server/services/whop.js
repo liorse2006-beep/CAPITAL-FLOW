@@ -7,9 +7,10 @@ const API_BASE = 'https://api.whop.com/api/v2';
 const enabled = !!WHOP_API_KEY;
 
 /** Creates a Whop checkout session server-side so we can attach metadata
- * (which user/tier this is for) — the frontend redirects to the returned
- * purchase_url instead of linking a plan directly, which is what makes the
- * user linkage possible (the webhook reads this metadata back). */
+ * (which user/tier this is for) — the frontend mounts the returned session in
+ * Whop's embedded checkout (with purchase_url retained as a fallback), which
+ * is what makes the user linkage possible (the webhook reads this metadata
+ * back). */
 async function createCheckoutSession({ planId, metadata, redirectUrl, allowPromoCodes = true }) {
   if (!enabled) throw new Error('Whop is not configured (WHOP_API_KEY unset)');
 
