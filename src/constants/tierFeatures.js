@@ -3,33 +3,29 @@
 // welcome screen (WelcomeTierModal), so the two can never drift apart.
 // Feature rows in display order — Price is last, right above the CTA row.
 export const TIER_ROWS = [
-  { label: 'Scans', free: 'Unlimited for 7 days', premium: '5 / 24h', elite: 'Unlimited' },
-  // Same shape as Scans above (a time-boxed "unlimited," not a plain
-  // yes/no) — Free gets full, uncapped Fundamentals access for its 7-day
-  // trial (requirePremiumOrTrial on the server), then loses it entirely;
-  // Premium and Elite have always had it uncapped (scanLimiter only guards
-  // against abuse, it's not a real daily count like Premium's Scans cap).
-  { label: 'Fundamentals lookups', free: 'Unlimited for 7 days', premium: 'Unlimited', elite: 'Unlimited' },
-  { label: 'Advanced filters & presets', free: false, premium: true, elite: true },
-  { label: 'Ticker notes & charts', free: false, premium: true, elite: true },
-  { label: 'AI-summarized news', free: true, premium: true, elite: true },
-  { label: 'Capi — your AI market mentor', free: false, premium: false, elite: true },
-  { label: 'Push notifications', free: false, premium: false, elite: true },
-  { label: 'Daily scheduled scan', free: false, premium: false, elite: true },
-  { label: 'Custom watchlist alerts', free: false, premium: false, elite: true },
+  { label: 'Scans', free: 'Unlimited · 7-day trial', premium: '5 / 24h', elite: 'Unlimited' },
+  // Free receives the complete product for seven days. The server gates
+  // Fundamentals with requirePremiumOrTrial and Elite-only features with
+  // requireEliteOrTrial, so the table must show the trial rather than a dash.
+  { label: 'Fundamentals lookups', free: 'Unlimited · 7-day trial', premium: 'Unlimited', elite: 'Unlimited' },
+  { label: 'Advanced filters & presets', free: '7-day trial', premium: 'Included', elite: 'Included' },
+  { label: 'Charts', free: '7-day trial', premium: 'Included', elite: 'Included' },
+  { label: 'AI-summarized news', free: 'Any signed-in user', premium: 'Included', elite: 'Included' },
+  { label: 'Capi — your AI market mentor', free: '7-day trial', premium: false, elite: 'Included' },
+  { label: 'Push notifications', free: '7-day trial', premium: false, elite: 'Included' },
+  { label: 'Daily scheduled scan', free: '7-day trial', premium: false, elite: 'Included' },
+  { label: 'Custom watchlist alerts', free: '7-day trial', premium: false, elite: 'Included' },
   { label: 'Price', free: 'Free', premium: '$14.90', elite: '$29.90', isPrice: true },
 ];
 
-// Every paid-tier feature (i.e. not free-for-everyone, like News), tagged
-// with whether the given tier actually includes it. Used on the welcome
-// screen so a Premium buyer sees the full feature universe — checkmarks for
-// what they just got, and a plain "not included" mark for the Elite-only
-// items they don't have. Since Elite includes everything, running this for
-// 'elite' naturally comes back all-included with no extra branching needed.
+// Every feature other than the two quota rows above, tagged with both its
+// display value and inclusion state. A string means included (possibly for
+// the trial or for all signed-in users); false is the only excluded value.
 export function tierFeatureChecklist(tierKey) {
   return TIER_ROWS.filter(function (row) {
-    return !row.isPrice && row.label !== 'Scans' && row.label !== 'Fundamentals lookups' && !row.free;
+    return !row.isPrice && row.label !== 'Scans' && row.label !== 'Fundamentals lookups';
   }).map(function (row) {
-    return { label: row.label, included: row[tierKey] === true };
+    var value = row[tierKey];
+    return { label: row.label, value: value, included: value !== false };
   });
 }

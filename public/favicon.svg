@@ -1,6 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#0A0A0A"/>
-  <rect x="8" y="14" width="4" height="12" rx="1" fill="#F59E0B"/>
-  <rect x="14" y="6" width="4" height="20" rx="1" fill="#F59E0B"/>
-  <rect x="20" y="18" width="4" height="8" rx="1" fill="#F59E0B"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <!-- Compatibility fallback for old bookmarks/cached documents. Keep it
+       pointed at the same approved Capital Flow mark as the PNG icons. -->
+  <image href="/icon-192.png" width="192" height="192" preserveAspectRatio="xMidYMid slice" />
 </svg>

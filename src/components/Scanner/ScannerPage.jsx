@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
+import NewsModal from '../shared/NewsModal';
 import ElectricBorder from '../shared/ElectricBorder';
 import SectorPickerModal from './SectorPickerModal';
 import useSmoothProgress from '../../hooks/useSmoothProgress';
@@ -183,11 +184,14 @@ export default function ScannerPage({
   maxPremiumSectors,
   sectorLimit,
   user,
+  getToken,
   onUpgrade,
   onSignIn,
+  openChart,
 }) {
   const [currentTime, setCurrentTime] = useState(null);
   const [showSectorModal, setShowSectorModal] = useState(false);
+  const [newsSymbol, setNewsSymbol] = useState(null);
 
   useEffect(() => {
     const updateCurrentTime = () => setCurrentTime(new Date());
@@ -206,6 +210,23 @@ export default function ScannerPage({
   const filtersUnlocked = isPremium || trialActive;
   function goToUpgrade() {
     setShowUpgradeModal(true);
+  }
+
+  function openNews(symbol) {
+    if (!user) {
+      onSignIn();
+      return;
+    }
+    setNewsSymbol(symbol);
+  }
+
+  function handleChart(symbol, name, event) {
+    event.stopPropagation();
+    if (!isPremium || !openChart) {
+      goToUpgrade();
+      return;
+    }
+    openChart(symbol, name);
   }
 
   // The desktop results table's per-row actions (Chart/News/Alert/AI
@@ -890,13 +911,11 @@ export default function ScannerPage({
                             <span className="sector-chip">{r.sector}</span>
                           </td>
                           <td style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                            <a
+                            <button
                               className="chart-open-btn"
-                              href={'https://www.tradingview.com/chart/?symbol=' + r.symbol}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="Open in TradingView"
-                              aria-label="Open in TradingView"
+                              onClick={(e) => handleChart(r.symbol, r.name, e)}
+                              title={isPremium ? 'Open price chart' : 'Unlock price chart'}
+                              aria-label={isPremium ? 'Open price chart' : 'Unlock price chart'}
                             >
                               <svg
                                 viewBox="0 0 24 24"
@@ -911,7 +930,30 @@ export default function ScannerPage({
                                 <path d="M3 3v18h18" />
                                 <path d="M18.7 8l-5.1 5.1-4-4L3 15.6" />
                               </svg>
-                            </a>
+                            </button>
+                            <button
+                              className="news-open-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openNews(r.symbol);
+                              }}
+                              title="Read market news"
+                              aria-label={'Read market news for ' + r.symbol}
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                width="14"
+                                height="14"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M5 3h14v18H5z" />
+                                <path d="M8 7h8M8 11h8M8 15h5" />
+                              </svg>
+                            </button>
                             <button
                               className={'alert-create-btn' + (alertLevels && alertLevels[r.symbol] ? ' active' : '')}
                               onClick={() => promptCreateAlert(r.symbol, r.price)}
@@ -1014,14 +1056,11 @@ export default function ScannerPage({
                             <span className="mobile-card-name">{r.name}</span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <a
+                            <button
                               className="chart-open-btn"
-                              href={'https://www.tradingview.com/chart/?symbol=' + r.symbol}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              title="Open in TradingView"
-                              aria-label="Open in TradingView"
+                              onClick={(e) => handleChart(r.symbol, r.name, e)}
+                              title={isPremium ? 'Open price chart' : 'Unlock price chart'}
+                              aria-label={isPremium ? 'Open price chart' : 'Unlock price chart'}
                             >
                               <svg
                                 viewBox="0 0 24 24"
@@ -1036,7 +1075,30 @@ export default function ScannerPage({
                                 <path d="M3 3v18h18" />
                                 <path d="M18.7 8l-5.1 5.1-4-4L3 15.6" />
                               </svg>
-                            </a>
+                            </button>
+                            <button
+                              className="news-open-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openNews(r.symbol);
+                              }}
+                              title="Read market news"
+                              aria-label={'Read market news for ' + r.symbol}
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                width="12"
+                                height="12"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M5 3h14v18H5z" />
+                                <path d="M8 7h8M8 11h8M8 15h5" />
+                              </svg>
+                            </button>
                             <button
                               className={'alert-create-btn' + (alertLevels && alertLevels[r.symbol] ? ' active' : '')}
                               onClick={(e) => {
@@ -1144,6 +1206,10 @@ export default function ScannerPage({
           maxPremiumSectors={maxPremiumSectors}
           sectorLimit={sectorLimit}
         />
+      )}
+
+      {newsSymbol && (
+        <NewsModal key={newsSymbol} symbol={newsSymbol} getToken={getToken} onClose={() => setNewsSymbol(null)} />
       )}
     </div>
   );

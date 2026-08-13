@@ -43,8 +43,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <link rel="icon" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <!-- Use the approved Capital Flow mark everywhere the browser asks for
+         an app identity. The old favicon.svg was only a temporary bar-chart
+         placeholder and is not the product logo. -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="shortcut icon" type="image/png" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
     <link rel="manifest" href="/manifest.json" />
     <!-- Fonts are self-hosted (see @font-face in src/styles/index.css) — no
          external CDN. Preload the two faces on the critical first-paint path:

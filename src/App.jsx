@@ -44,6 +44,12 @@ function App() {
     return name + ':' + storageScope;
   }
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authInitialScreen, setAuthInitialScreen] = useState('login');
+
+  function openAuthModal(screen) {
+    setAuthInitialScreen(screen === 'signup' ? 'signup' : 'login');
+    setShowAuthModal(true);
+  }
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -123,6 +129,12 @@ function App() {
   const [chartOpen, setChartOpen] = useState(false);
   const [chartSymbol, setChartSym] = useState('');
   const [chartName, setChartName] = useState('');
+
+  function openChart(symbol, name) {
+    setChartSym(symbol);
+    setChartName(name || symbol);
+    setChartOpen(true);
+  }
 
   function closeChart() {
     setChartOpen(false);
@@ -1176,7 +1188,7 @@ function App() {
 
       {showAuthModal && (
         <Suspense fallback={null}>
-          <AuthModal onClose={() => setShowAuthModal(false)} />
+          <AuthModal initialScreen={authInitialScreen} onClose={() => setShowAuthModal(false)} />
         </Suspense>
       )}
 
@@ -1317,7 +1329,8 @@ function App() {
                 <Suspense fallback={<div className="page-loading">Loading…</div>}>
                   <FundamentalsPage
                     onUpgrade={() => setShowUpgradeModal(true)}
-                    onSignIn={() => setShowAuthModal(true)}
+                    onSignIn={() => openAuthModal('login')}
+                    onCreateAccount={() => openAuthModal('signup')}
                   />
                 </Suspense>
               }
@@ -1407,6 +1420,8 @@ function App() {
                   maxPremiumSectors={MAX_PREMIUM_SECTORS}
                   sectorLimit={sectorLimit}
                   user={user}
+                  getToken={getToken}
+                  openChart={openChart}
                   onUpgrade={() => setShowUpgradeModal(true)}
                   onSignIn={() => setShowAuthModal(true)}
                 />

@@ -181,7 +181,8 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
           Compare plans
         </h2>
         <p className="upgrade-desc" style={{ textAlign: 'center', marginBottom: 24 }}>
-          Free gives you unlimited scans for your first 7 days. Pick the plan that fits how you trade.
+          Free gives you the full product for your first 7 days. News remains available to every signed-in account;
+          choose the plan that fits how you trade.
         </p>
 
         <div className="pricing-cards">
@@ -219,7 +220,10 @@ export default function UpgradeModal({ userTier = 'free', onClose }) {
                       ) : (
                         <span className="pricing-card-feature-icon pricing-card-feature-no">–</span>
                       )}
-                      {f.label}
+                      <span className="pricing-card-feature-copy">
+                        <span>{f.label}</span>
+                        {f.value && f.value !== 'Included' && <small>{f.value}</small>}
+                      </span>
                     </li>
                   ))}
                 </ul>

@@ -117,9 +117,10 @@ function decodeJwtEmail(token) {
   }
 }
 
-export default function AuthModal({ onClose }) {
+export default function AuthModal({ onClose, initialScreen = 'login' }) {
   const { login, pendingGoogleToken, confirmGoogleLogin, cancelGoogleLogin } = useAuth();
-  const [screen, setScreen] = useState(pendingGoogleToken ? 'google_confirm' : 'login'); // login | signup | otp | forgot | reset | google_confirm
+  const requestedScreen = initialScreen === 'signup' ? 'signup' : 'login';
+  const [screen, setScreen] = useState(pendingGoogleToken ? 'google_confirm' : requestedScreen); // login | signup | otp | forgot | reset | google_confirm
   const [pendingEmail, setPendingEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);

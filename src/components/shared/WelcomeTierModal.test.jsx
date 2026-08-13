@@ -38,9 +38,6 @@ describe('WelcomeTierModal', () => {
     expect(screen.getByText('PREMIUM')).toBeInTheDocument();
     expect(screen.getByText('Welcome to Premium')).toBeInTheDocument();
 
-    // Universal features (available to Free too) aren't part of the paid checklist at all
-    expect(screen.queryByText('AI-summarized news')).not.toBeInTheDocument();
-
     const included = [
       ...container.querySelectorAll('.welcome-tier-features:not(.welcome-tier-features-excluded) li'),
     ].map((li) => li.textContent);
@@ -48,7 +45,7 @@ describe('WelcomeTierModal', () => {
     // "Fundamentals lookups" is excluded from this checklist the same way
     // "Scans" is — both are time-boxed "unlimited," not a plain yes/no, so
     // they don't fit a checkmark list (see tierFeatures.js).
-    expect(included).toEqual(['Advanced filters & presets', 'Ticker notes & charts']);
+    expect(included).toEqual(['Advanced filters & presets', 'Charts', 'AI-summarized news']);
     expect(excluded).toEqual([
       'Capi — your AI market mentor',
       'Push notifications',
@@ -66,7 +63,7 @@ describe('WelcomeTierModal', () => {
     expect(screen.getByText('Push notifications')).toBeInTheDocument();
     expect(container.querySelector('.welcome-tier-features-excluded')).toBeNull();
     expect(screen.queryByText('Also included with Elite')).not.toBeInTheDocument();
-    expect(container.querySelectorAll('.welcome-tier-features li').length).toBe(6);
+    expect(container.querySelectorAll('.welcome-tier-features li').length).toBe(7);
   });
 
   it('shows a "confirming" indicator when not yet confirmed, and hides it once confirmed', () => {

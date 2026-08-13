@@ -90,9 +90,9 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
 
   var copy = COPY[tier];
   if (!copy) return null;
-  // Every tier's screen lists the SAME full paid-feature set — Elite checks
-  // off all of it (nothing to exclude), Premium checks off its own three and
-  // groups the rest into a separate "also included with Elite" section
+  // Every tier's screen lists the SAME full feature set — Elite checks off
+  // all of it (nothing to exclude), Premium checks off its Elite-only items
+  // and groups the rest into a separate "also included with Elite" section
   // instead of marking them with a rejection-coded × right in the same list.
   var checklist = tierFeatureChecklist(tier);
   var included = checklist.filter(function (f) {
@@ -183,7 +183,10 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
               >
                 <polyline points="20 6 9 17 4 12" />
               </svg>
-              {f.label}
+              <span>
+                {f.label}
+                {f.value && f.value !== 'Included' && <small className="welcome-tier-feature-detail">{f.value}</small>}
+              </span>
             </li>
           ))}
         </ul>
@@ -197,7 +200,12 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
               {excluded.map((f) => (
                 <li key={f.label}>
                   <span className="welcome-tier-dot" />
-                  {f.label}
+                  <span>
+                    {f.label}
+                    {f.value && f.value !== 'Included' && (
+                      <small className="welcome-tier-feature-detail">{f.value}</small>
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>

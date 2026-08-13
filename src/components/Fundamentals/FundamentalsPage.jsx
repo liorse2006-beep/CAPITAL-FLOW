@@ -67,6 +67,15 @@ const SELECTABLE_METRICS = [
 ];
 const ALL_METRIC_KEYS = SELECTABLE_METRICS.map((m) => m.key);
 
+const GUEST_PREVIEW_METRICS = [
+  { label: 'Float', value: '1.44B', sub: 'Tradable shares', tone: 'neutral' },
+  { label: 'Short interest', value: '1.0%', sub: 'Of float', tone: 'neutral' },
+  { label: 'P/E ratio', value: '31.20', sub: 'Price / earnings', tone: 'neutral' },
+  { label: 'Debt / equity', value: '1.45', sub: 'Balance-sheet risk', tone: 'neutral' },
+  { label: 'Revenue growth', value: '+8.9%', sub: '5-year average', tone: 'good' },
+  { label: 'Next earnings', value: 'Nov 05', sub: 'Volatility catalyst', tone: 'warn' },
+];
+
 function MetricIcon({ path }) {
   return (
     <svg
@@ -188,7 +197,7 @@ function saveRecentTicker(userId, symbol) {
   return next;
 }
 
-export default function FundamentalsPage({ onUpgrade, onSignIn }) {
+export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount }) {
   const { getToken, user } = useAuth();
   // Premium/Elite always; a free account also gets full (unlimited) access
   // for its 7-day trial — user.elite_access is the same server-computed
@@ -276,19 +285,90 @@ export default function FundamentalsPage({ onUpgrade, onSignIn }) {
 
   if (!hasAccess) {
     return (
-      <div className="page-content">
-        <div className="fund-upsell">
-          <div className="fund-upsell-mark" aria-hidden="true">
-            ƒ
+      <div className="page-content fund-page">
+        <section className="fund-guest-hero" aria-labelledby="fund-guest-title">
+          <div className="fund-guest-copy">
+            <div className="fund-guest-kicker">
+              <img src="/icon-192.png" alt="" width="24" height="24" />
+              <span>Fundamentals desk</span>
+              <span className="fund-guest-live-dot" aria-hidden="true" />
+            </div>
+            <h2 id="fund-guest-title" className="fund-guest-title">
+              Know the business before you trade the ticker.
+            </h2>
+            <p className="fund-guest-sub">
+              Pull up any ticker and read the six numbers that matter for a swing decision — not a full equity-research
+              report, just a clear read on liquidity, valuation, leverage, growth, and the next catalyst.
+            </p>
+            <div className="fund-guest-actions">
+              <button className="scan-btn fund-guest-primary" onClick={user ? onUpgrade : onCreateAccount || onSignIn}>
+                {user ? 'Upgrade to Premium' : 'Create free account'}
+                {!user && <span aria-hidden="true">→</span>}
+              </button>
+              {!user && (
+                <div className="fund-guest-signin">
+                  <span>Already have an account?</span>
+                  <button type="button" onClick={onSignIn}>
+                    Sign In
+                  </button>
+                </div>
+              )}
+            </div>
+            {!user && (
+              <div className="fund-guest-perks">
+                <span>
+                  <span className="fund-guest-check" aria-hidden="true">
+                    ✓
+                  </span>{' '}
+                  Full access for 7 days
+                </span>
+                <span>
+                  <span className="fund-guest-check" aria-hidden="true">
+                    ✓
+                  </span>{' '}
+                  No card required
+                </span>
+              </div>
+            )}
           </div>
-          <h2 className="fund-upsell-title">Fundamentals</h2>
-          <p className="fund-upsell-sub">
-            Pull up any ticker and read its float, short interest, P/E, debt/equity, 5-year revenue growth, and next
-            earnings date — the numbers that matter for a swing decision, not a full equity-research report.
-          </p>
-          <button className="scan-btn fund-upsell-btn" onClick={user ? onUpgrade : onSignIn}>
-            {user ? 'Upgrade to Premium' : 'Sign In'}
-          </button>
+
+          <div className="fund-guest-preview" aria-label="Fundamentals preview">
+            <div className="fund-preview-glow" aria-hidden="true" />
+            <div className="fund-preview-topline">
+              <span className="fund-preview-label">Live read</span>
+              <span className="fund-preview-lock">Create an account to unlock</span>
+            </div>
+            <div className="fund-preview-company">
+              <div className="fund-preview-company-main">
+                <span className="fund-preview-symbol">AAPL</span>
+                <span className="fund-preview-name">Apple Inc.</span>
+              </div>
+              <div className="fund-preview-price">
+                <strong>$190.50</strong>
+                <span>▲ 0.80%</span>
+              </div>
+            </div>
+            <div className="fund-preview-grid">
+              {GUEST_PREVIEW_METRICS.map((metric) => (
+                <div className="fund-preview-tile" key={metric.label}>
+                  <span className="fund-preview-tile-label">{metric.label}</span>
+                  <strong className={'fund-preview-tile-value tone-' + metric.tone}>{metric.value}</strong>
+                  <span className="fund-preview-tile-sub">{metric.sub}</span>
+                </div>
+              ))}
+            </div>
+            <div className="fund-preview-footer">
+              <span className="fund-preview-footer-dot" aria-hidden="true" />
+              Verified market data · refreshed per lookup
+            </div>
+          </div>
+        </section>
+
+        <div className="fund-guest-note">
+          <span className="fund-guest-note-icon" aria-hidden="true">
+            i
+          </span>
+          Fundamentals are for education and research only — not investment advice.
         </div>
       </div>
     );
