@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import bodyHtml from './landing/landing.body.html?raw';
 import { initLandingEffects } from './landing/effects';
+import { track } from '../analytics';
 import './landing/landing.scoped.css';
 
 // Public marketing page shown at "/" for logged-out visitors (see App.jsx:
@@ -16,7 +17,38 @@ export default function LandingPage({ onGetStarted }) {
 
   useEffect(() => {
     const cleanup = initLandingEffects(rootRef.current, onGetStarted);
-    return cleanup;
+    const root = rootRef.current;
+    const previousTitle = document.title;
+    const description = document.querySelector('meta[name="description"]');
+    const previousDescription = description ? description.getAttribute('content') : null;
+
+    document.title = 'Capital Flow — לראות מה זז בשוק';
+    if (description) {
+      description.setAttribute(
+        'content',
+        'Capital Flow סורק נפח חריג, שינויי מגמה וסקטורים חמים ב־S&P 500 וב־NASDAQ 100. מתחילים 7 ימים בחינם, ללא כרטיס אשראי.'
+      );
+    }
+
+    function onMarketingClick(event) {
+      const cta = event.target.closest('[data-cta-location]');
+      if (cta && root.contains(cta)) {
+        track('landing_cta_click', { placement: cta.getAttribute('data-cta-location') });
+        return;
+      }
+      const faq = event.target.closest('.cf-faq-q');
+      if (faq && root.contains(faq)) {
+        track('landing_faq_open', { question: faq.textContent.replace(/\s+/g, ' ').trim() });
+      }
+    }
+
+    root.addEventListener('click', onMarketingClick);
+    return () => {
+      root.removeEventListener('click', onMarketingClick);
+      cleanup();
+      document.title = previousTitle;
+      if (description && previousDescription !== null) description.setAttribute('content', previousDescription);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -1,317 +1,433 @@
 <div class="cf-root">
-  <div class="cf-bg"></div>
+  <div class="cf-bg" aria-hidden="true"></div>
 
-  <nav class="cf-nav" aria-label="ניווט">
+  <nav class="cf-nav" aria-label="ניווט ראשי">
     <div class="cf-nav-in">
-      <a href="#" class="cf-nav-logo" aria-label="Capital Flow"><img src="/home-logo.jpeg" alt="" /></a>
+      <a href="#top" class="cf-nav-logo" aria-label="Capital Flow — לראש הדף">
+        <img src="/home-logo.jpeg" alt="" />
+      </a>
       <div class="cf-nav-links">
-        <a href="#why">למה אנחנו</a>
-        <a href="#tools">מה האתר מכיל</a>
+        <a href="#why">הבעיה</a>
+        <a href="#tools">מה מקבלים</a>
         <a href="#how">איך זה עובד</a>
-        <a href="#faq">שאלות נפוצות</a>
+        <a href="#plans">מחיר</a>
+        <a href="#faq">שאלות</a>
       </div>
-      <button class="cf-btn cf-btn-primary cf-nav-cta">התחל בחינם</button>
+      <button class="cf-btn cf-btn-primary cf-nav-cta" data-cta-location="nav">להתחיל בחינם</button>
     </div>
   </nav>
 
-  <section class="cf-section cf-hero">
-    <div class="cf-container">
-      <div class="cf-hero-grid">
-        <div>
-          <span class="cf-hero-eyebrow"
-            ><span class="cf-dot"></span><span class="cf-label">ווליום מוסדי · בזמן אמת</span></span
-          >
-          <h1>הכסף הגדול זז ראשון.<br /><span class="cf-hero-grad">אתה תראה את זה</span> ראשון.</h1>
-          <p class="cf-hero-lead">
-            Capital Flow סורק את השוק בזמן אמת ומזהה לאן זורם ההון המוסדי — אותו סיגנל שדסקים מקצועיים עוקבים אחריו,
-            מוגש לך במסך אחד נקי.
-          </p>
-          <div class="cf-cta-row">
-            <button class="cf-btn cf-btn-primary">התחל בחינם</button>
-            <span class="cf-micro">ללא כרטיס אשראי</span>
-          </div>
-          <div class="cf-stat-row">
-            <div class="cf-stat">
-              <div class="cf-stat-n">התראות <b>24/7</b></div>
-            </div>
-            <div class="cf-stat">
-              <div class="cf-stat-n"><b>1,100+</b> מניות</div>
-            </div>
-            <div class="cf-stat"><div class="cf-stat-n">כל הסקטורים בשוק</div></div>
-            <div class="cf-stat"><div class="cf-stat-n">שינויי מגמה</div></div>
-            <div class="cf-stat"><div class="cf-stat-n">ניתוח פנדמנטלי</div></div>
-          </div>
-        </div>
-        <div class="cf-proof-wrap">
-          <div class="cf-proof">
-            <div class="cf-proof-head">
-              <span>CAPITAL FLOW · DEMO SCAN</span
-              ><span class="cf-proof-live"><span class="cf-proof-live-dot"></span>LIVE</span>
-            </div>
-            <div class="cf-proof-col-header" id="cfProofHeader">
-              <span></span>
-              <button type="button" data-sort="price">Price<span class="cf-sort-arrow"></span></button>
-              <button type="button" data-sort="change">Change<span class="cf-sort-arrow"></span></button>
-              <button type="button" data-sort="volume" data-sort-dir="desc">
-                Volume<span class="cf-sort-arrow">▾</span>
+  <main>
+    <section class="cf-section cf-hero" id="top">
+      <div class="cf-container">
+        <div class="cf-hero-grid">
+          <div class="cf-hero-copy">
+            <span class="cf-hero-eyebrow">
+              <span class="cf-dot" aria-hidden="true"></span>
+              <span class="cf-label">סריקת שוק חכמה · בזמן המסחר</span>
+            </span>
+            <h1>
+              <span class="cf-hero-line">הסיגנל הראשון</span>
+              <span class="cf-hero-line">הוא לא הכותרת.</span>
+              <span class="cf-hero-grad">זה הנפח.</span>
+            </h1>
+            <p class="cf-hero-lead">
+              Capital Flow סורק את מניות ה־S&amp;P 500 וה־NASDAQ 100, מציף נפח חריג, שינויי מגמה וסקטורים חמים — כדי
+              שתוכל להתחיל מהמידע שמסנן את הרעש.
+            </p>
+            <div class="cf-cta-row">
+              <button class="cf-btn cf-btn-primary cf-btn-large" data-cta-location="hero">
+                להתחיל 7 ימים בחינם <span aria-hidden="true">←</span>
               </button>
+              <span class="cf-micro">ללא כרטיס אשראי · לוקח פחות מדקה</span>
             </div>
-            <div class="cf-proof-body" id="cfProofBody">
-              <div class="cf-proof-row" data-price="187.42" data-change="4.12" data-volume="6.2">
-                <div><span class="cf-proof-sym">NVDA</span><span class="cf-proof-name">NVIDIA Corp</span></div>
-                <span>$187.42</span><span class="cf-up">+4.12%</span><span class="cf-ratio">6.2x</span>
+            <div class="cf-hero-proofline" aria-label="מה כלול בתקופת הניסיון">
+              <span><b>✓</b> גישה מלאה ל־7 ימים</span>
+              <span><b>✓</b> בלי התחייבות</span>
+              <span><b>✓</b> עובד במחשב ובמובייל</span>
+            </div>
+          </div>
+
+          <div class="cf-proof-wrap">
+            <div class="cf-proof cf-live-demo" aria-label="הדגמת סריקת שוק">
+              <div class="cf-proof-head">
+                <span>CAPITAL FLOW · VOLUME SCAN</span>
+                <span class="cf-proof-live"><span class="cf-proof-live-dot" aria-hidden="true"></span>LIVE DATA</span>
               </div>
-              <div class="cf-proof-row" data-price="38.90" data-change="9.71" data-volume="11.4">
-                <div><span class="cf-proof-sym">SMCI</span><span class="cf-proof-name">Super Micro Computer</span></div>
-                <span>$38.90</span><span class="cf-up">+9.71%</span><span class="cf-ratio">11.4x</span>
+              <div class="cf-demo-toolbar">
+                <span class="cf-demo-filter-active">FULL SCAN</span>
+                <span>1,100+ TICKERS</span>
+                <span>MIN RVOL 1.5×</span>
               </div>
-              <div class="cf-proof-row" data-price="241.05" data-change="-1.83" data-volume="3.9">
-                <div><span class="cf-proof-sym">TSLA</span><span class="cf-proof-name">Tesla Inc</span></div>
-                <span>$241.05</span><span class="cf-down">-1.83%</span><span class="cf-ratio">3.9x</span>
+              <div class="cf-proof-col-header" id="cfProofHeader">
+                <span>SYMBOL</span>
+                <button type="button" data-sort="price">PRICE<span class="cf-sort-arrow"></span></button>
+                <button type="button" data-sort="change">CHANGE<span class="cf-sort-arrow"></span></button>
+                <button type="button" data-sort="volume" data-sort-dir="desc">
+                  RVOL<span class="cf-sort-arrow">▾</span>
+                </button>
               </div>
-              <div class="cf-proof-row" data-price="162.18" data-change="2.05" data-volume="4.7">
-                <div>
-                  <span class="cf-proof-sym">AMD</span><span class="cf-proof-name">Advanced Micro Devices</span>
+              <div class="cf-proof-body" id="cfProofBody">
+                <div class="cf-proof-row" data-price="187.42" data-change="4.12" data-volume="6.2">
+                  <div>
+                    <span class="cf-proof-sym">NVDA</span><span class="cf-proof-name">NVIDIA · Technology</span>
+                  </div>
+                  <span>$187.42</span><span class="cf-up">+4.12%</span><span class="cf-ratio">6.2×</span>
                 </div>
-                <span>$162.18</span><span class="cf-up">+2.05%</span><span class="cf-ratio">4.7x</span>
+                <div class="cf-proof-row" data-price="38.90" data-change="9.71" data-volume="11.4">
+                  <div>
+                    <span class="cf-proof-sym">SMCI</span><span class="cf-proof-name">Super Micro · Technology</span>
+                  </div>
+                  <span>$38.90</span><span class="cf-up">+9.71%</span><span class="cf-ratio">11.4×</span>
+                </div>
+                <div class="cf-proof-row" data-price="241.05" data-change="-1.83" data-volume="3.9">
+                  <div><span class="cf-proof-sym">TSLA</span><span class="cf-proof-name">Tesla · Consumer</span></div>
+                  <span>$241.05</span><span class="cf-down">−1.83%</span><span class="cf-ratio">3.9×</span>
+                </div>
+                <div class="cf-proof-row" data-price="162.18" data-change="2.05" data-volume="4.7">
+                  <div>
+                    <span class="cf-proof-sym">AMD</span><span class="cf-proof-name">Advanced Micro · Technology</span>
+                  </div>
+                  <span>$162.18</span><span class="cf-up">+2.05%</span><span class="cf-ratio">4.7×</span>
+                </div>
+              </div>
+              <div class="cf-demo-insight">
+                <span class="cf-insight-pulse" aria-hidden="true"></span>
+                <span><b>מה רואים כאן?</b> נפח גבוה מהממוצע הוא נקודת פתיחה לבדיקה — לא ניחוש.</span>
+              </div>
+              <div class="cf-proof-foot">הנתונים בתצוגה הם להמחשה · הסריקה החיה זמינה מיד לאחר ההרשמה</div>
+            </div>
+            <div class="cf-demo-float cf-demo-float-top" aria-hidden="true"><span>●</span> 29 signals found</div>
+            <div class="cf-demo-float cf-demo-float-bottom" aria-hidden="true">
+              <span>↗</span> Sector flow: Technology
+            </div>
+          </div>
+        </div>
+        <div class="cf-hero-scroll-note">גלול כדי לראות איך זה עובד <span>↓</span></div>
+      </div>
+    </section>
+
+    <div class="cf-trust" id="cfTrust" aria-label="יכולות מרכזיות">
+      <div class="cf-marq" id="cfMarq"></div>
+    </div>
+
+    <section class="cf-section cf-why" id="why">
+      <div class="cf-container">
+        <div class="cf-sec-head">
+          <div class="cf-sec-tag">הבעיה האמיתית</div>
+          <h2>השוק לא חסר מידע.<br /><span>חסר לך מסנן.</span></h2>
+          <p>כשכל מניה יכולה לזוז וכל כותרת נשמעת דחופה, היתרון הוא לא לפתוח עוד מסך — אלא לדעת מאיפה להתחיל.</p>
+        </div>
+        <div class="cf-vs">
+          <div class="cf-vs-card cf-vs-bad">
+            <span class="cf-card-kicker">היום</span>
+            <h3>רודפים אחרי השוק</h3>
+            <ul>
+              <li><span class="cf-vs-ic">×</span> פותחים עשרות טאבים ומאבדים את התמונה</li>
+              <li><span class="cf-vs-ic">×</span> מגלים מניה אחרי שהמהלך כבר בכותרות</li>
+              <li><span class="cf-vs-ic">×</span> מסננים ידנית נתונים שלא נגמרים</li>
+              <li><span class="cf-vs-ic">×</span> מקבלים החלטות מתוך רעש ולחץ</li>
+            </ul>
+          </div>
+          <div class="cf-vs-card cf-vs-good">
+            <span class="cf-card-kicker">עם Capital Flow</span>
+            <h3><span class="cf-vs-tag">✓</span> מתחילים מהסיגנל</h3>
+            <ul>
+              <li><span class="cf-vs-ic">✓</span> סורקים את השוק לפי תנאים ברורים</li>
+              <li><span class="cf-vs-ic">✓</span> רואים נפח חריג ושינויי מגמה במקום אחד</li>
+              <li><span class="cf-vs-ic">✓</span> עוברים מהתראה לבדיקה — בלי לקפוץ למסקנה</li>
+              <li><span class="cf-vs-ic">✓</span> מקבלים מ־Capi הסבר לפני שממשיכים לחקור</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cf-principle-note">
+          <span class="cf-principle-icon">◎</span>
+          <p><b>לא מבטיחים תשואה.</b> נותנים לך תהליך טוב יותר למצוא מה ראוי לבדיקה.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="cf-section cf-proof-section" id="proof">
+      <div class="cf-container">
+        <div class="cf-sec-head">
+          <div class="cf-sec-tag">מה קורה בפועל</div>
+          <h2>מהרגע שאתה נכנס,<br /><span>יש לך כיוון.</span></h2>
+          <p>לא עוד דשבורד עמוס. שלושה מסכים שמחברים בין גילוי, הקשר ופעולה.</p>
+        </div>
+        <div class="cf-signal-grid">
+          <div class="cf-signal-visual" aria-label="תצוגת אות מסחר לדוגמה">
+            <div class="cf-signal-topline">
+              <span><i></i> SCAN COMPLETE</span><b>29 MATCHES</b>
+            </div>
+            <div class="cf-signal-chart">
+              <span class="cf-chart-line cf-chart-line-one"></span>
+              <span class="cf-chart-line cf-chart-line-two"></span>
+              <span class="cf-chart-line cf-chart-line-three"></span>
+              <span class="cf-chart-beam"></span>
+              <span class="cf-chart-label cf-chart-label-a">NVDA</span>
+              <span class="cf-chart-label cf-chart-label-b">AMD</span>
+              <span class="cf-chart-label cf-chart-label-c">SMCI</span>
+            </div>
+            <div class="cf-signal-readout">
+              <span><small>TOP SIGNAL</small><b>SMCI</b></span>
+              <span><small>RVOL</small><b class="is-gold">11.4×</b></span>
+              <span><small>CHANGE</small><b class="is-green">+9.71%</b></span>
+            </div>
+          </div>
+          <div class="cf-signal-copy">
+            <article class="cf-signal-step is-active">
+              <span class="cf-signal-step-num">01</span>
+              <div>
+                <h3>גילוי</h3>
+                <p>הסורק עובר על ה־S&amp;P 500 וה־NASDAQ 100 ומציג רק מה שעבר את הסף שהגדרת.</p>
+              </div>
+            </article>
+            <article class="cf-signal-step">
+              <span class="cf-signal-step-num">02</span>
+              <div>
+                <h3>הקשר</h3>
+                <p>פותחים מניה, גרף, חדשות, נתוני Fundamentals והקשר סקטוריאלי — באותה זרימה.</p>
+              </div>
+            </article>
+            <article class="cf-signal-step">
+              <span class="cf-signal-step-num">03</span>
+              <div>
+                <h3>מעקב</h3>
+                <p>שומרים Watchlist ומגדירים התראה, כך שהמערכת ממשיכה לעבוד גם כשאתה לא מול המסך.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cf-section cf-blk" id="why-tools">
+      <div class="cf-container">
+        <div class="cf-sec-head">
+          <div class="cf-sec-tag">הכלים בפנים</div>
+          <h2>כל מה שצריך כדי לעבור<br /><span>מרעש לרשימת בדיקה.</span></h2>
+        </div>
+        <div class="cf-feat-grid" id="tools">
+          <div class="cf-feat cf-feat-span2 cf-feat-featured">
+            <div class="cf-feat-icon"><span>◌</span></div>
+            <span class="cf-feat-en">VOLUME SCANNER</span>
+            <h3>הנפח החריג קופץ אליך</h3>
+            <p>מגדירים יחס נפח, שווי שוק ומינימום ווליום — ומקבלים רשימה ממוקדת במקום לחפש מניה־מניה.</p>
+            <div class="cf-feature-metric">
+              <b>1.5×</b><span>סף RVOL לדוגמה</span><b>1,100+</b><span>מניות לסריקה</span>
+            </div>
+          </div>
+          <div class="cf-feat">
+            <div class="cf-feat-icon"><span>↗</span></div>
+            <span class="cf-feat-en">MA SCANNER</span>
+            <h3>שינויי מגמה</h3>
+            <p>סורקים לפי ממוצעים נעים ומאתרים מניות שהמחיר שלהן משנה כיוון.</p>
+          </div>
+          <div class="cf-feat">
+            <div class="cf-feat-icon"><span>▦</span></div>
+            <span class="cf-feat-en">HOT SECTORS</span>
+            <h3>מפת חום סקטוריאלית</h3>
+            <p>רואים איפה יש ריכוז תנועה ואילו סקטורים נחלשים או מתחזקים.</p>
+          </div>
+          <div class="cf-feat">
+            <div class="cf-feat-icon"><span>⌁</span></div>
+            <span class="cf-feat-en">FUNDAMENTALS</span>
+            <h3>בודקים מעבר לגרף</h3>
+            <p>נתוני חברה והקשר בסיסי שעוזרים להפוך תוצאה לשאלת מחקר טובה.</p>
+          </div>
+          <div class="cf-feat">
+            <div class="cf-feat-icon"><span>◉</span></div>
+            <span class="cf-feat-en">WATCHLIST + ALERTS</span>
+            <h3>לא מפספסים את ההמשך</h3>
+            <p>שומרים טיקרים, עוקבים אחריהם ומקבלים Push כשהתנאי שהגדרת נחצה.</p>
+          </div>
+          <div class="cf-feat">
+            <div class="cf-feat-icon"><span>✦</span></div>
+            <span class="cf-feat-en">CAPI AI MENTOR</span>
+            <h3>שואלים בשפה פשוטה</h3>
+            <p>מבקשים הסבר לתוצאה ומקבלים עזרה להבין מה לבדוק — בלי ז׳רגון מיותר.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cf-section cf-how-section" id="how">
+      <div class="cf-container">
+        <div class="cf-sec-head">
+          <div class="cf-sec-tag">איך זה עובד</div>
+          <h2>פתיחה. סריקה. החלטה<br /><span>מה לבדוק עכשיו.</span></h2>
+        </div>
+        <div class="cf-steps">
+          <div class="cf-step">
+            <div class="cf-step-num">1</div>
+            <h3>בוחרים יקום</h3>
+            <p>Full Scan, S&amp;P 500, NASDAQ 100 או סקטורים ספציפיים.</p>
+          </div>
+          <div class="cf-step">
+            <div class="cf-step-num">2</div>
+            <h3>מכוונים את המסנן</h3>
+            <p>יחס נפח, שווי שוק ומינימום ווליום — לפי הדרך שבה אתה עובד.</p>
+          </div>
+          <div class="cf-step">
+            <div class="cf-step-num">3</div>
+            <h3>פותחים את הסיגנל</h3>
+            <p>בודקים גרף, חדשות והקשר — ואז שומרים למעקב אם זה ראוי להמשך.</p>
+          </div>
+        </div>
+        <div class="cf-how-callout">
+          <span>⏱</span>
+          <p><b>פחות חיפוש ידני.</b> יותר זמן להבין את מה שמצאת.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="cf-section cf-plans-section" id="plans">
+      <div class="cf-container">
+        <div class="cf-sec-head">
+          <div class="cf-sec-tag">בלי משחקים</div>
+          <h2>תתחיל בחינם.<br /><span>תשלם רק כשזה מרגיש שימושי.</span></h2>
+          <p>
+            7 ימים של גישה מלאה כדי לבדוק את המערכת על תהליך העבודה שלך. לאחר מכן אפשר להישאר בחינם או לפתוח גישה לכלים
+            המתקדמים.
+          </p>
+        </div>
+        <div class="cf-pricing-grid">
+          <article class="cf-plan-card cf-plan-free">
+            <div class="cf-plan-top">
+              <span class="cf-plan-name">Free trial</span><span class="cf-plan-label">לבדוק את השיטה</span>
+            </div>
+            <div class="cf-plan-price"><b>₪0</b><span>ל־7 ימים</span></div>
+            <ul>
+              <li>סריקות מלאות ללא הגבלה בתקופת הניסיון</li>
+              <li>Fundamentals וחדשות מסוכמות</li>
+              <li>גישה לכל מסכי המערכת</li>
+            </ul>
+            <button class="cf-btn cf-btn-outline" data-cta-location="pricing-free">להתחיל בחינם</button>
+            <small>ללא כרטיס אשראי · ללא התחייבות</small>
+          </article>
+          <article class="cf-plan-card cf-plan-premium">
+            <div class="cf-plan-top">
+              <span class="cf-plan-name">Premium</span><span class="cf-plan-label">לסורק ממוקד</span>
+            </div>
+            <div class="cf-plan-price"><b>$14.90</b><span>תשלום חד־פעמי</span></div>
+            <ul>
+              <li>5 סריקות בכל 24 שעות</li>
+              <li>Filters ו־Presets מתקדמים</li>
+              <li>Watchlist, גרפים ו־Ticker notes</li>
+              <li>גישה מלאה ל־Fundamentals</li>
+            </ul>
+            <button class="cf-btn cf-btn-outline" data-cta-location="pricing-premium">לבחור Premium</button>
+            <small>תשלום מאובטח · גישה לכל החיים</small>
+          </article>
+          <article class="cf-plan-card cf-plan-elite">
+            <div class="cf-plan-ribbon">הבחירה המלאה</div>
+            <div class="cf-plan-top">
+              <span class="cf-plan-name">Elite</span><span class="cf-plan-label">למי שלא רוצה לפספס</span>
+            </div>
+            <div class="cf-plan-price"><b>$29.90</b><span>תשלום חד־פעמי</span></div>
+            <ul>
+              <li>סריקות ללא הגבלה</li>
+              <li>התראות Push ו־Watchlist alerts</li>
+              <li>Daily scheduled scan</li>
+              <li>Capi — מנטור ה־AI שלך</li>
+            </ul>
+            <button class="cf-btn cf-btn-primary" data-cta-location="pricing-elite">להתחיל עם Elite</button>
+            <small>Apple Pay · Google Pay · כרטיס אשראי</small>
+          </article>
+        </div>
+        <div class="cf-payment-trust">
+          <span>תשלום מאובטח דרך Whop</span><b>Apple Pay</b><b>Google Pay</b><b>Cards</b><span>אין חיוב אוטומטי</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="cf-section cf-faq-section" id="faq">
+      <div class="cf-container">
+        <div class="cf-sec-head">
+          <div class="cf-sec-tag">שאלות נפוצות</div>
+          <h2>כל מה שצריך לדעת<br /><span>לפני שמתחילים.</span></h2>
+        </div>
+        <div class="cf-faq">
+          <div class="cf-faq-item">
+            <button class="cf-faq-q" aria-expanded="false">
+              <span>מה מקבלים ב־7 הימים החינמיים?</span><span class="cf-faq-q-icon">+</span>
+            </button>
+            <div class="cf-faq-a-wrap">
+              <div class="cf-faq-a-inner">
+                <p class="cf-faq-a">
+                  גישה מלאה לתקופת הניסיון, כולל סריקות, Fundamentals, חדשות, מפת סקטורים והכלים הזמינים במערכת. לא נדרש
+                  כרטיס אשראי כדי להתחיל.
+                </p>
               </div>
             </div>
-            <div class="cf-proof-foot">נתוני דוגמה להמחשה · הסריקה החיה זמינה מיד עם ההרשמה</div>
           </div>
-        </div>
-      </div>
-      <button class="cf-scroll-cta" id="cfScrollCta" aria-label="גלול למטה">
-        <span>SCROLL</span>
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M12 5v14M19 12l-7 7-7-7" />
-        </svg>
-      </button>
-    </div>
-  </section>
-
-  <div class="cf-trust" id="cfTrust" aria-hidden="true"><div class="cf-marq" id="cfMarq"></div></div>
-
-  <section class="cf-section cf-why" id="why">
-    <div class="cf-container">
-      <div class="cf-sec-head">
-        <div class="cf-sec-tag">ההבדל</div>
-        <h2>לזהות תנועה זה לא מזל.<br />זה גישה למידע הנכון.</h2>
-        <p>
-          רוב הסוחרים מגלים את המהלך אחרי שהוא כבר קרה. הכלים שמראים אותו מראש עולים אלפי דולרים בחודש — או שדורשים ממך
-          לבנות את הסריקה לבד.
-        </p>
-      </div>
-      <div class="cf-vs">
-        <div class="cf-vs-card cf-vs-bad">
-          <h3>בלי Capital Flow</h3>
-          <ul>
-            <li><span class="cf-vs-ic">✕</span> מרפרפים בין עשרות טאבים ומסכים</li>
-            <li><span class="cf-vs-ic">✕</span> מגלים את המהלך כשהוא כבר בעיתונות</li>
-            <li><span class="cf-vs-ic">✕</span> מנחשים איפה הכסף הגדול פעיל</li>
-            <li><span class="cf-vs-ic">✕</span> משלמים על טרמינל שדורש קורס להפעיל</li>
-          </ul>
-        </div>
-        <div class="cf-vs-card cf-vs-good">
-          <h3><span class="cf-vs-tag">★</span> עם Capital Flow</h3>
-          <ul>
-            <li><span class="cf-vs-ic">✓</span> כל השוק במסך אחד, בזמן אמת</li>
-            <li><span class="cf-vs-ic">✓</span> מזהים נפח חריג ברגע שהוא נבנה</li>
-            <li><span class="cf-vs-ic">✓</span> רואים בדיוק לאן זורם ההון המוסדי</li>
-            <li><span class="cf-vs-ic">✓</span> מנטור AI מסביר כל תוצאה בשפה פשוטה</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="cf-section cf-blk" id="why-tools">
-    <div class="cf-container">
-      <div class="cf-sec-head">
-        <div class="cf-sec-tag">הארסנל</div>
-        <h2>כל מה שצריך כדי לראות את השוק<br />כמו שדסק מקצועי רואה אותו</h2>
-      </div>
-      <div class="cf-feat-grid" id="tools">
-        <div class="cf-feat cf-feat-span2">
-          <div class="cf-feat-icon">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
-          </div>
-          <span class="cf-feat-en">SMART ALERTS</span>
-          <h3>התראות אוטומטיות</h3>
-          <p>מגדירים פעם אחת, ו-Capital Flow מודיע לכם ברגע שמשהו זז. לא צריך לשבת מול המסך — ההזדמנות מגיעה אליכם.</p>
-        </div>
-        <div class="cf-feat">
-          <div class="cf-feat-icon">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M3 3v18h18" />
-              <path d="M18.7 8l-5.1 5.1-4-4L3 15.6" />
-            </svg>
-          </div>
-          <span class="cf-feat-en">VOLUME SCANNER</span>
-          <h3>סורק הנפחים</h3>
-          <p>מזהה מניות שנסחרות בנפח חריג — איפה שהעניין האמיתי בשוק.</p>
-        </div>
-        <div class="cf-feat">
-          <div class="cf-feat-icon">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M3 17l6-6 4 4 8-8" />
-              <path d="M15 7h6v6" />
-            </svg>
-          </div>
-          <span class="cf-feat-en">MA SCANNER</span>
-          <h3>סורק ממוצעים נעים</h3>
-          <p>סורק לפי ממוצע נע לבחירתך ומאתר מניות שמשנות מגמה.</p>
-        </div>
-        <div class="cf-feat">
-          <div class="cf-feat-icon">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="3" y="3" width="7" height="7" rx="1.5" />
-              <rect x="14" y="3" width="7" height="7" rx="1.5" />
-              <rect x="3" y="14" width="7" height="7" rx="1.5" />
-              <rect x="14" y="14" width="7" height="7" rx="1.5" />
-            </svg>
-          </div>
-          <span class="cf-feat-en">HOT SECTORS</span>
-          <h3>מפת חום סקטוריאלית</h3>
-          <p>רואים במבט אחד לאן זורם הכסף בין הסקטורים.</p>
-        </div>
-        <div class="cf-feat">
-          <div class="cf-feat-icon">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-          </div>
-          <span class="cf-feat-en">AI MENTOR</span>
-          <h3>מנטור ה-AI שלכם</h3>
-          <p>שואלים מה תוצאה אומרת — ומקבלים הסבר ברור, בלי ז'רגון.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="cf-section cf-blk" id="how">
-    <div class="cf-container">
-      <div class="cf-sec-head">
-        <div class="cf-sec-tag">איך זה עובד</div>
-        <h2>שלושה צעדים. בלי עקומת למידה.</h2>
-      </div>
-      <div class="cf-steps">
-        <div class="cf-step">
-          <div class="cf-step-num">1</div>
-          <h3>בוחרים שוק</h3>
-          <p>בוחרים שוק שאותו תרצו לסרוק לפי התנאים שלכם.</p>
-        </div>
-        <div class="cf-step">
-          <div class="cf-step-num">2</div>
-          <h3>סורקים בזמן אמת</h3>
-          <p>Capital Flow מביא תוצאות תוך שניות — נפח, שינוי, והקשר סקטוריאלי.</p>
-        </div>
-        <div class="cf-step">
-          <div class="cf-step-num">3</div>
-          <h3>פועלים בביטחון</h3>
-          <p>רואים מה זז, למה, והחדשות מאחורי זה — הכל במסך אחד.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="cf-section cf-blk" id="faq">
-    <div class="cf-container">
-      <div class="cf-sec-head">
-        <div class="cf-sec-tag">שאלות נפוצות</div>
-        <h2>מה שרציתם לשאול</h2>
-      </div>
-      <div class="cf-faq">
-        <div class="cf-faq-item">
-          <button class="cf-faq-q" aria-expanded="false">
-            <span>זה עוד כלי היפ-קמעונאי?</span><span class="cf-faq-q-icon">+</span>
-          </button>
-          <div class="cf-faq-a-wrap">
-            <div class="cf-faq-a-inner">
-              <p class="cf-faq-a">
-                לא. זה נתוני ווליום מוסדי אמיתי — אותו סיגנל שדסקים מקצועיים עוקבים אחריו — מוצג אוטומטית במקום לדרוש
-                מכם לבנות את הסריקה בעצמכם.
-              </p>
+          <div class="cf-faq-item">
+            <button class="cf-faq-q" aria-expanded="false">
+              <span>האם זה ייעוץ השקעות?</span><span class="cf-faq-q-icon">+</span>
+            </button>
+            <div class="cf-faq-a-wrap">
+              <div class="cf-faq-a-inner">
+                <p class="cf-faq-a">
+                  לא. Capital Flow מציג נתוני שוק וכלי סינון. Capi יכול להסביר תוצאות בשפה פשוטה, אבל המערכת לא אומרת לך
+                  מה לקנות או למכור.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="cf-faq-item">
-          <button class="cf-faq-q" aria-expanded="false">
-            <span>מה הקאץ' ב-7 הימים חינם?</span><span class="cf-faq-q-icon">+</span>
-          </button>
-          <div class="cf-faq-a-wrap">
-            <div class="cf-faq-a-inner">
-              <p class="cf-faq-a">אין. גישה מלאה ברמת אליט, כל סט הפיצ'רים, ל-7 ימים. בלי כרטיס אשראי כדי להתחיל.</p>
+          <div class="cf-faq-item">
+            <button class="cf-faq-q" aria-expanded="false">
+              <span>האם הנתונים באמת בזמן אמת?</span><span class="cf-faq-q-icon">+</span>
+            </button>
+            <div class="cf-faq-a-wrap">
+              <div class="cf-faq-a-inner">
+                <p class="cf-faq-a">
+                  המערכת מרכזת נתוני מחיר, נפח ומדדים מספקי הנתונים שלה לאורך יום המסחר. זמני עדכון וכיסוי יכולים
+                  להשתנות לפי המקור והשוק, ולכן הנתונים מיועדים למחקר ולא להבטחת ביצוע.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="cf-faq-item">
-          <button class="cf-faq-q" aria-expanded="false">
-            <span>זה ייעוץ השקעות?</span><span class="cf-faq-q-icon">+</span>
-          </button>
-          <div class="cf-faq-a-wrap">
-            <div class="cf-faq-a-inner">
-              <p class="cf-faq-a">
-                לא. Capital Flow מציג נתונים ונותן ל-Capi להסביר אותם בשפה פשוטה. הוא לעולם לא אומר לכם מה לקנות או
-                למכור.
-              </p>
+          <div class="cf-faq-item">
+            <button class="cf-faq-q" aria-expanded="false">
+              <span>מה קורה אחרי תקופת הניסיון?</span><span class="cf-faq-q-icon">+</span>
+            </button>
+            <div class="cf-faq-a-wrap">
+              <div class="cf-faq-a-inner">
+                <p class="cf-faq-a">
+                  אפשר להמשיך בתוכנית החינמית, או לבחור Premium / Elite בתשלום חד־פעמי. אין חיוב אוטומטי בסוף הניסיון.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="cf-faq-item">
+            <button class="cf-faq-q" aria-expanded="false">
+              <span>האם אפשר להשתמש גם בטלפון?</span><span class="cf-faq-q-icon">+</span>
+            </button>
+            <div class="cf-faq-a-wrap">
+              <div class="cf-faq-a-inner">
+                <p class="cf-faq-a">
+                  כן. האתר responsive ועובד במחשב ובמובייל. ב־iPhone אפשר להוסיף אותו למסך הבית כדי לאפשר התראות Push,
+                  בהתאם לתמיכת הדפדפן.
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  </section>
-  <section class="cf-section cf-final">
-    <div class="cf-container">
-      <div class="cf-final-card">
-        <h2>התנועה הבאה כבר נבנית עכשיו</h2>
-        <p>איפשהו בשוק, ווליום מוסדי מצטבר בשקט — ממש ברגע זה. השאלה היחידה היא אם תראו אותו בזמן.</p>
-        <button class="cf-btn cf-btn-primary">להתחיל לסרוק בחינם</button>
+    </section>
+
+    <section class="cf-section cf-final" id="start">
+      <div class="cf-container">
+        <div class="cf-final-card">
+          <span class="cf-final-kicker">השוק כבר זז</span>
+          <h2>אל תוסיף עוד מידע.<br /><span>תוסיף לעצמך מסנן.</span></h2>
+          <p>פתח את הסריקה הראשונה שלך, הגדר את התנאים שלך, וראה אם Capital Flow מתאים לדרך שבה אתה עובד.</p>
+          <button class="cf-btn cf-btn-primary cf-btn-large" data-cta-location="final">
+            להתחיל 7 ימים בחינם <span aria-hidden="true">←</span>
+          </button>
+          <small>ללא כרטיס אשראי · מידע למטרות חינוך ומחקר בלבד</small>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
+  </main>
 </div>
