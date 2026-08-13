@@ -53,11 +53,20 @@ Follow-up closures in this pass:
   Worker 7/7, cluster 1/1, production build, Prettier and ESLint (0 errors; existing warnings
   remain). The Node test command now runs serially so shared SQLite fixtures do not create a
   false parallel failure.
+- The embedded checkout wallet path was closed on 2026-08-13. `EmbeddedCheckout` now passes
+  an explicit same-origin `returnUrl` to both `WhopExpressCheckoutButton` and
+  `WhopCheckoutEmbed`; the official Whop Apple Pay domain-association file is committed at
+  `public/.well-known/apple-developer-merchantid-domain-association` and is served from the
+  exact HTTPS path in production. Whop's dashboard now shows `capitalflow.vip` as verified,
+  with both Apple Pay and Google Pay enabled in the payment-method configuration. Targeted
+  frontend tests (18/18), backend tests (282/282), build, lint and format all passed for this
+  change. No real purchase or charge was made.
 - No launch blocker is currently known. The remaining unchecked items are external validation:
-  real/sandbox Whop checkout, live Gemini/email/push delivery, a measured 500-user load test,
-  non-Chromium browser coverage, full keyboard/screen-reader/contrast review, and professional
-  legal/trust review. These were not triggered because they would spend money, consume live
-  provider quota, or require separate infrastructure/accounts.
+  a live/sandbox purchase using a test instrument, live Gemini/email/push delivery, a measured
+  500-user load test, non-Chromium browser coverage, full keyboard/screen-reader/contrast review,
+  and professional legal/trust review. The wallet configuration itself is verified; the final
+  wallet-sheet authorization still depends on the buyer using an eligible Apple device/Safari
+  or a Google Pay-enabled browser/account.
 
 ---
 
