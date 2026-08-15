@@ -150,6 +150,16 @@ export default function TrialEndedModal({ onClose, onUpgrade }) {
           </div>
         </div>
 
+        <div className="trial-ended-lifetime" aria-label="One-time payment with lifetime access">
+          <span className="trial-ended-lifetime-icon" aria-hidden="true">
+            ∞
+          </span>
+          <span>
+            <strong>One-time payment / Lifetime access</strong>
+            <small>Pay once. No recurring billing. Your workspace stays yours.</small>
+          </span>
+        </div>
+
         <button className="upgrade-cta trial-ended-primary" onClick={onUpgrade}>
           <span>See plans and keep scanning</span>
           <ArrowIcon />

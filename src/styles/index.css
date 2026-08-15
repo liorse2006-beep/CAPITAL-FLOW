@@ -4738,6 +4738,48 @@ html.a11y-highlight-links a {
   font-size: 10px;
   line-height: 1.3;
 }
+.trial-ended-lifetime {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: linear-gradient(100deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.035));
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 11px;
+}
+.trial-ended-lifetime-icon {
+  display: inline-flex;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  color: var(--accent-vivid);
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 22px;
+  line-height: 1;
+}
+.trial-ended-lifetime strong,
+.trial-ended-lifetime small {
+  display: block;
+}
+.trial-ended-lifetime strong {
+  color: var(--text-0);
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1.25;
+}
+.trial-ended-lifetime small {
+  margin-top: 3px;
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 10px;
+  line-height: 1.35;
+}
 .trial-ended-primary {
   display: inline-flex;
   align-items: center;

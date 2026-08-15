@@ -16,6 +16,8 @@ describe('TrialEndedModal', () => {
 
     expect(screen.getByRole('dialog', { name: /capital flow trial is complete/i })).toBeInTheDocument();
     expect(screen.getByText(/keep your edge after day seven/i)).toBeInTheDocument();
+    expect(screen.getByText(/one-time payment \/ lifetime access/i)).toBeInTheDocument();
+    expect(screen.getByText(/pay once. no recurring billing/i)).toBeInTheDocument();
     expect(screen.queryByText(/5 scans \/ 24h/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/unlimited scans, alerts, push/i)).not.toBeInTheDocument();
 
