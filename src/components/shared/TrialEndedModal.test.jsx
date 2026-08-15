@@ -8,7 +8,7 @@ describe('TrialEndedModal', () => {
     vi.restoreAllMocks();
   });
 
-  it('explains the value of the trial and opens the plan selector', async () => {
+  it('explains the value of the trial and opens the plan selector without pre-showing plans', async () => {
     const user = userEvent.setup();
     const onUpgrade = vi.fn();
 
@@ -16,8 +16,8 @@ describe('TrialEndedModal', () => {
 
     expect(screen.getByRole('dialog', { name: /capital flow trial is complete/i })).toBeInTheDocument();
     expect(screen.getByText(/keep your edge after day seven/i)).toBeInTheDocument();
-    expect(screen.getByText(/5 scans \/ 24h/i)).toBeInTheDocument();
-    expect(screen.getByText(/unlimited scans, alerts, push/i)).toBeInTheDocument();
+    expect(screen.queryByText(/5 scans \/ 24h/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/unlimited scans, alerts, push/i)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /see plans and keep scanning/i }));
     expect(onUpgrade).toHaveBeenCalledOnce();

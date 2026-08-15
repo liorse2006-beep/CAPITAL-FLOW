@@ -4738,68 +4738,6 @@ html.a11y-highlight-links a {
   font-size: 10px;
   line-height: 1.3;
 }
-.trial-ended-plan-preview {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-top: 14px;
-}
-.trial-ended-plan-preview-card {
-  padding: 14px 15px;
-  background: var(--bg-1);
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-}
-.trial-ended-plan-preview-featured {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.11), rgba(245, 158, 11, 0.025));
-  border-color: rgba(245, 158, 11, 0.4);
-  box-shadow: 0 8px 24px rgba(245, 158, 11, 0.08);
-}
-.trial-ended-plan-preview-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-.trial-ended-plan-name {
-  color: var(--text-0);
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-}
-.trial-ended-plan-preview-featured .trial-ended-plan-name {
-  color: var(--accent);
-}
-.trial-ended-plan-fit {
-  color: var(--text-3);
-  font-family: var(--font);
-  font-size: 10px;
-  white-space: nowrap;
-}
-.trial-ended-plan-price {
-  margin-top: 8px;
-  color: var(--text-0);
-  font-family: var(--mono);
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-}
-.trial-ended-plan-price small {
-  color: var(--text-2);
-  font-family: var(--font);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0;
-}
-.trial-ended-plan-preview-card p {
-  min-height: 30px;
-  margin: 5px 0 0;
-  color: var(--text-2);
-  font-family: var(--font);
-  font-size: 10.5px;
-  line-height: 1.4;
-}
 .trial-ended-primary {
   display: inline-flex;
   align-items: center;
@@ -5014,15 +4952,11 @@ html.a11y-highlight-links a {
     margin-top: 28px;
   }
   .trial-ended-proof-grid,
-  .trial-ended-plan-preview,
   .upgrade-proof-strip {
     grid-template-columns: 1fr;
   }
   .trial-ended-proof-grid {
     gap: 12px;
-  }
-  .trial-ended-plan-preview-card p {
-    min-height: 0;
   }
   .upgrade-proof-strip {
     gap: 0;
@@ -5061,11 +4995,6 @@ html.a11y-highlight-links a {
   }
   .trial-ended-description {
     font-size: 12px;
-  }
-  .trial-ended-plan-preview-head {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 3px;
   }
   .trial-ended-trust,
   .upgrade-trust-row {

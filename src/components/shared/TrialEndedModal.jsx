@@ -77,8 +77,8 @@ function SignalIcon({ type }) {
 
 // Conversion gate shown when the free account reaches the end of its
 // seven-day full-access window. The screen explains the value the user just
-// experienced and gives the two paid paths a concrete identity before the
-// full checkout comparison opens.
+// experienced and opens the full plan comparison only after the user chooses
+// to continue.
 export default function TrialEndedModal({ onClose, onUpgrade }) {
   const panelRef = useModalA11y(onClose);
 
@@ -147,29 +147,6 @@ export default function TrialEndedModal({ onClose, onUpgrade }) {
                 <small>Fundamentals, charts, news, and Capi</small>
               </span>
             </div>
-          </div>
-        </div>
-
-        <div className="trial-ended-plan-preview">
-          <div className="trial-ended-plan-preview-card">
-            <div className="trial-ended-plan-preview-head">
-              <span className="trial-ended-plan-name">PREMIUM</span>
-              <span className="trial-ended-plan-fit">Focused scanning</span>
-            </div>
-            <div className="trial-ended-plan-price">
-              $14.90 <small>one-time</small>
-            </div>
-            <p>5 scans / 24h, Fundamentals, charts, filters, and news.</p>
-          </div>
-          <div className="trial-ended-plan-preview-card trial-ended-plan-preview-featured">
-            <div className="trial-ended-plan-preview-head">
-              <span className="trial-ended-plan-name">ELITE</span>
-              <span className="trial-ended-plan-fit">Active trader workflow</span>
-            </div>
-            <div className="trial-ended-plan-price">
-              $29.90 <small>one-time</small>
-            </div>
-            <p>Unlimited scans, alerts, push, scheduled scans, and Capi.</p>
           </div>
         </div>
 
