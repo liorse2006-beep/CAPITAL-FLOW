@@ -1642,7 +1642,9 @@
 .cf-landing-page .cf-signal-step-num {
   color: var(--text-3);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 0.03em;
 }
 .cf-landing-page .cf-signal-step.is-active .cf-signal-step-num {
   color: var(--accent);
