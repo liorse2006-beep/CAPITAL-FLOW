@@ -26,7 +26,7 @@ export default function LandingPage({ onGetStarted }) {
     if (description) {
       description.setAttribute(
         'content',
-        'Capital Flow סורק נפח חריג, שינויי מגמה וסקטורים חמים ב־S&P 500 וב־NASDAQ 100. מתחילים 7 ימים בחינם, ללא כרטיס אשראי.'
+        'Capital Flow עוזר לך לסרוק את השוק, למצוא מניות עם תנועה חריגה ולפתוח בדיקה מסודרת — בלי לעבור על עשרות טאבים. מתחילים ב־7 ימים בחינם.'
       );
     }
 
