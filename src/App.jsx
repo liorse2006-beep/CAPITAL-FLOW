@@ -532,7 +532,7 @@ function App() {
 
   function promptCreateAlert(symbol, price) {
     if (!canNotify) {
-      setShowUpgradeModal(true);
+      openUpgradeModal();
       return;
     }
     setAlertModalSymbol(symbol);
@@ -552,7 +552,7 @@ function App() {
       return;
     }
     if (!eliteAccess) {
-      setShowUpgradeModal(true);
+      openUpgradeModal();
       return;
     }
     var parts = [
@@ -677,6 +677,16 @@ function App() {
 
   /* ── Upgrade modal ── */
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeContext, setUpgradeContext] = useState('general');
+
+  const openUpgradeModal = useCallback(
+    function (context) {
+      setUpgradeContext(context === 'trial-ended' ? 'trial-ended' : 'general');
+      setShowUpgradeModal(true);
+    },
+    [setShowUpgradeModal, setUpgradeContext]
+  );
+
   useEffect(
     function () {
       if (showUpgradeModal) track('upgrade_modal_shown', { tier: userTier, page: page });
@@ -1108,7 +1118,7 @@ function App() {
         })
         .catch(function (e) {
           if (e.code === 'SCAN_LIMIT') {
-            if (isPremium) setShowUpgradeModal(true);
+            if (isPremium) openUpgradeModal();
             else setShowTrialEndedModal(true);
             return;
           }
@@ -1132,7 +1142,20 @@ function App() {
       scanMeta,
       user,
       getToken,
+      setShowAuthModal,
+      setScanning,
+      setError,
+      setProgress,
+      setLiveResults,
+      setRestoredFromLastScan,
+      setResults,
+      setScanTime,
+      setMarketClosed,
+      setFromCache,
+      setCacheAge,
+      setShowTrialEndedModal,
       setScanMeta,
+      openUpgradeModal,
     ]
   );
 
@@ -1195,13 +1218,19 @@ function App() {
       <PushPermissionPrompt user={user} canNotify={eliteAccess} />
       <InstallPrompt />
 
-      {showUpgradeModal && <UpgradeModal userTier={userTier} onClose={() => setShowUpgradeModal(false)} />}
+      {showUpgradeModal && (
+        <UpgradeModal
+          userTier={userTier}
+          trialEnded={upgradeContext === 'trial-ended'}
+          onClose={() => setShowUpgradeModal(false)}
+        />
+      )}
       {showTrialEndedModal && (
         <TrialEndedModal
           onClose={() => setShowTrialEndedModal(false)}
           onUpgrade={() => {
             setShowTrialEndedModal(false);
-            setShowUpgradeModal(true);
+            openUpgradeModal('trial-ended');
           }}
         />
       )}
@@ -1273,7 +1302,7 @@ function App() {
             results={results}
             scanning={scanning}
             scanMeta={scanMeta}
-            onUpgrade={() => setShowUpgradeModal(true)}
+            onUpgrade={() => openUpgradeModal()}
             onSignIn={() => setShowAuthModal(true)}
             notificationsEnabled={notificationsEnabled}
             showAlertPanel={showAlertPanel}
@@ -1297,7 +1326,7 @@ function App() {
                 <Suspense fallback={<div className="page-loading">Loading…</div>}>
                   <MAScannerPage
                     onSignIn={() => setShowAuthModal(true)}
-                    onUpgrade={() => setShowUpgradeModal(true)}
+                    onUpgrade={() => openUpgradeModal()}
                     onTrialEnded={onTrialEnded}
                     isInWatchlist={isInWatchlist}
                     toggleWatchlistTicker={toggleWatchlistTicker}
@@ -1328,7 +1357,7 @@ function App() {
               element={
                 <Suspense fallback={<div className="page-loading">Loading…</div>}>
                   <FundamentalsPage
-                    onUpgrade={() => setShowUpgradeModal(true)}
+                    onUpgrade={() => openUpgradeModal()}
                     onSignIn={() => openAuthModal('login')}
                     onCreateAccount={() => openAuthModal('signup')}
                   />
@@ -1422,7 +1451,7 @@ function App() {
                   user={user}
                   getToken={getToken}
                   openChart={openChart}
-                  onUpgrade={() => setShowUpgradeModal(true)}
+                  onUpgrade={() => openUpgradeModal()}
                   onSignIn={() => setShowAuthModal(true)}
                 />
               }

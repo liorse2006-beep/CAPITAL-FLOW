@@ -51,6 +51,15 @@ describe('UpgradeModal', () => {
     expect(screen.getByText('$29.90')).toBeInTheDocument();
   });
 
+  it('shows the post-trial value proposition with only the paid paths', () => {
+    renderWithProviders(<UpgradeModal userTier="free" trialEnded onClose={vi.fn()} />);
+    expect(screen.getByText(/keep your edge after the trial/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /keep scanning with premium/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /unlock elite/i })).toBeInTheDocument();
+    expect(screen.queryByText('Explore the basics')).not.toBeInTheDocument();
+    expect(screen.getByText('One payment')).toBeInTheDocument();
+  });
+
   it('closes on Escape', () => {
     const onClose = vi.fn();
     const { container } = renderWithProviders(<UpgradeModal userTier="free" onClose={onClose} />);
