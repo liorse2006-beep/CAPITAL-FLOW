@@ -847,12 +847,22 @@ function setupCategoryTransitions(root, cleanupFns) {
   const sections = Array.from(root.querySelectorAll('.cf-category-section'));
   if (!sections.length) return;
 
+  const rail = root.querySelector('.cf-category-rail');
+  const railItems = rail ? Array.from(rail.querySelectorAll('.cf-category-rail-item')) : [];
+  const railFill = rail?.querySelector('.cf-category-rail-fill');
+  const railGlow = rail?.querySelector('.cf-category-rail-glow');
+
   root.classList.add('has-category-transitions');
 
   const reset = () => {
     sections.forEach((section) =>
       section.classList.remove('is-category-active', 'is-category-before', 'is-category-after')
     );
+    railItems.forEach((item) => item.classList.remove('is-category-active', 'is-category-before', 'is-category-after'));
+    rail?.style.removeProperty('--cf-category-progress');
+    rail?.style.removeProperty('--cf-category-progress-px');
+    railFill?.style.removeProperty('--cf-category-progress');
+    railGlow?.style.removeProperty('--cf-category-progress');
   };
 
   reset();
@@ -860,6 +870,7 @@ function setupCategoryTransitions(root, cleanupFns) {
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reducedMotion) {
     sections.forEach((section) => section.classList.add('is-category-active'));
+    railItems[0]?.classList.add('is-category-active');
     cleanupFns.push(() => {
       reset();
       root.classList.remove('has-category-transitions');
@@ -901,6 +912,22 @@ function setupCategoryTransitions(root, cleanupFns) {
       section.classList.toggle('is-category-before', index < activeIndex);
       section.classList.toggle('is-category-after', index > activeIndex);
     });
+
+    railItems.forEach((item, index) => {
+      item.classList.toggle('is-category-active', index === activeIndex);
+      item.classList.toggle('is-category-before', index < activeIndex);
+      item.classList.toggle('is-category-after', index > activeIndex);
+    });
+
+    const progress = sections.length > 1 ? (activeIndex / (sections.length - 1)) * 100 : 100;
+    rail?.style.setProperty('--cf-category-progress', `${progress}%`);
+    if (rail) {
+      const railHeight = rail.getBoundingClientRect().height;
+      const trackHeight = Math.max(0, railHeight - 24);
+      rail.style.setProperty('--cf-category-progress-px', `${(progress / 100) * trackHeight}px`);
+    }
+    railFill?.style.setProperty('--cf-category-progress', `${progress}%`);
+    railGlow?.style.setProperty('--cf-category-progress', `${progress}%`);
   }
 
   function onScrollOrResize() {

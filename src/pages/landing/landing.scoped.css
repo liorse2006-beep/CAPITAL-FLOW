@@ -1732,6 +1732,129 @@
   transform: translate3d(0, 30px, 0) scale(0.985);
   filter: saturate(0.72);
 }
+.cf-landing-page .cf-category-rail {
+  --cf-category-rail-height: 330px;
+  position: fixed;
+  z-index: 24;
+  top: 50%;
+  right: 18px;
+  display: flex;
+  width: 42px;
+  height: var(--cf-category-rail-height);
+  align-items: stretch;
+  justify-content: center;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+.cf-landing-page .cf-category-rail-track,
+.cf-landing-page .cf-category-rail-fill,
+.cf-landing-page .cf-category-rail-glow {
+  position: absolute;
+  top: 12px;
+  right: 50%;
+  bottom: 12px;
+  width: 1px;
+  transform: translateX(50%);
+}
+.cf-landing-page .cf-category-rail-track {
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(226, 165, 69, 0.24) 12%,
+    rgba(226, 165, 69, 0.1) 88%,
+    transparent
+  );
+}
+.cf-landing-page .cf-category-rail-fill {
+  bottom: auto;
+  height: var(--cf-category-progress-px, 0px);
+  background: linear-gradient(180deg, #ffe19a, var(--accent) 64%, rgba(226, 165, 69, 0.2));
+  box-shadow:
+    0 0 14px rgba(226, 165, 69, 0.68),
+    0 0 28px rgba(226, 165, 69, 0.25);
+  transition: height 0.55s cubic-bezier(0.22, 0.9, 0.25, 1);
+}
+.cf-landing-page .cf-category-rail-glow {
+  z-index: 2;
+}
+.cf-landing-page .cf-category-rail-glow::after {
+  position: absolute;
+  top: var(--cf-category-progress-px, 0px);
+  right: 50%;
+  width: 9px;
+  height: 9px;
+  border: 1px solid #ffe4a4;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow:
+    0 0 10px var(--accent),
+    0 0 24px rgba(226, 165, 69, 0.8),
+    0 0 44px rgba(226, 165, 69, 0.32);
+  content: '';
+  transform: translate(50%, -50%);
+  transition: top 0.55s cubic-bezier(0.22, 0.9, 0.25, 1);
+}
+.cf-landing-page .cf-category-rail-items {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+}
+.cf-landing-page .cf-category-rail-item {
+  display: grid;
+  width: 34px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: rgba(13, 9, 6, 0.72);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  opacity: 0.46;
+  transition:
+    color 0.45s,
+    opacity 0.45s,
+    border-color 0.45s,
+    background 0.45s,
+    box-shadow 0.45s,
+    transform 0.45s;
+}
+.cf-landing-page .cf-category-rail-item.is-category-before {
+  color: var(--accent);
+  opacity: 0.82;
+}
+.cf-landing-page .cf-category-rail-item.is-category-after {
+  opacity: 0.38;
+}
+.cf-landing-page .cf-category-rail-item.is-category-active {
+  border-color: rgba(255, 225, 154, 0.88);
+  background: linear-gradient(135deg, rgba(226, 165, 69, 0.94), rgba(126, 75, 22, 0.94));
+  color: var(--accent-ink);
+  opacity: 1;
+  box-shadow:
+    0 0 0 4px rgba(226, 165, 69, 0.13),
+    0 0 18px rgba(226, 165, 69, 0.62),
+    inset 0 1px 0 rgba(255, 245, 210, 0.46);
+  transform: scale(1.08);
+}
+@keyframes cf-category-rail-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.26);
+  }
+}
+.cf-landing-page .cf-category-rail-glow::after,
+.cf-landing-page .cf-category-rail-item.is-category-active {
+  animation: cf-category-rail-pulse 2.2s ease-in-out infinite;
+}
 .cf-landing-page .cf-how-section {
   background: linear-gradient(180deg, rgba(34, 26, 17, 0.15), transparent);
 }
@@ -2072,6 +2195,16 @@
   .cf-landing-page .cf-feat {
     min-height: 0;
   }
+  .cf-landing-page .cf-category-rail {
+    --cf-category-rail-height: 240px;
+    right: 6px;
+    width: 28px;
+  }
+  .cf-landing-page .cf-category-rail-item {
+    width: 25px;
+    height: 20px;
+    font-size: 8px;
+  }
   .cf-landing-page .cf-payment-trust {
     gap: 8px 13px;
     line-height: 1.6;
@@ -2096,5 +2229,11 @@
     transform: none;
     filter: none;
     transition: none;
+  }
+  .cf-landing-page .cf-category-rail-fill,
+  .cf-landing-page .cf-category-rail-glow::after,
+  .cf-landing-page .cf-category-rail-item {
+    transition: none;
+    animation: none;
   }
 }
