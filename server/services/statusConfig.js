@@ -36,8 +36,8 @@ const COMPONENT_DEFINITIONS = [
     path: '/health',
     expectedStatus: 200,
     timeoutMs: STATUS_CHECK_TIMEOUT_MS,
-    slowMs: 800,
-    verySlowMs: 2500,
+    slowMs: 1500,
+    verySlowMs: 4000,
   },
   {
     key: 'database',
@@ -49,8 +49,8 @@ const COMPONENT_DEFINITIONS = [
     path: '/health',
     expectedStatus: 200,
     timeoutMs: STATUS_CHECK_TIMEOUT_MS,
-    slowMs: 500,
-    verySlowMs: 1500,
+    slowMs: 1200,
+    verySlowMs: 3000,
   },
   {
     key: 'authentication',
@@ -64,8 +64,8 @@ const COMPONENT_DEFINITIONS = [
     body: { email: 'status-probe@example.invalid', password: 'status-probe-only' },
     expectedStatus: 401,
     timeoutMs: STATUS_CHECK_TIMEOUT_MS,
-    slowMs: 800,
-    verySlowMs: 2500,
+    slowMs: 2500,
+    verySlowMs: 5000,
   },
   {
     key: 'market-data',
