@@ -115,7 +115,11 @@ async function activeIncident(componentKey) {
 
 function componentStatus(component, latest, incident, maintenance, flapping) {
   if (maintenance) return 'maintenance';
-  if (incident) return component.key === 'website' ? 'major' : 'partial';
+  if (incident) {
+    if (component.key === 'website') return 'major';
+    if (component.criticality === 'degraded' || component.criticality === 'warning') return 'degraded';
+    return 'partial';
+  }
   if (!latest) return 'unknown';
   if (latest.state === 'degraded' || flapping) return 'degraded';
   return latest.success ? 'operational' : 'degraded';
@@ -123,7 +127,8 @@ function componentStatus(component, latest, incident, maintenance, flapping) {
 
 function overallStatus(components, incidents, maintenance) {
   if (incidents.some((incident) => incident.component_key === 'website')) return 'major';
-  if (incidents.length) return 'partial';
+  if (incidents.some((incident) => !['SEV-3 / Degraded', 'SEV-4 / Warning'].includes(incident.severity))) return 'partial';
+  if (incidents.length) return 'degraded';
   if (components.some((component) => component.status === 'degraded')) return 'degraded';
   if (maintenance.length && components.some((component) => component.status === 'maintenance')) return 'maintenance';
   if (components.length && components.every((component) => component.status === 'operational')) return 'operational';
