@@ -75,6 +75,10 @@ function setRefreshCookie(res, refreshToken) {
   });
 }
 
+function isConfiguredAdmin(email) {
+  return !!ADMIN_EMAIL && String(email || '').toLowerCase() === ADMIN_EMAIL.toLowerCase();
+}
+
 function clearRefreshCookie(res) {
   res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth' });
 }
@@ -268,6 +272,7 @@ router.post('/verify-otp', otpLimiter, async (req, res) => {
         email: user.email,
         is_premium: user.is_premium,
         is_pilot: !!user.is_pilot,
+        is_admin: isConfiguredAdmin(user.email),
         tier: user.tier || 'free',
       },
     });
@@ -336,6 +341,7 @@ router.post('/login', authLimiter, async (req, res) => {
         email: user.email,
         is_premium: user.is_premium,
         is_pilot: !!user.is_pilot,
+        is_admin: isConfiguredAdmin(user.email),
         tier: user.tier || 'free',
       },
     });
@@ -395,6 +401,7 @@ router.post('/reset-password', otpLimiter, async (req, res) => {
         email: user.email,
         is_premium: user.is_premium,
         is_pilot: !!user.is_pilot,
+        is_admin: isConfiguredAdmin(user.email),
         tier: user.tier || 'free',
       },
     });
@@ -449,7 +456,7 @@ router.get('/me', requireAuth, (req, res) => {
     is_premium: !!safeUser.is_premium,
     is_blocked: !!safeUser.is_blocked,
     is_pilot: !!safeUser.is_pilot,
-    is_admin: !!(ADMIN_EMAIL && req.user.email === ADMIN_EMAIL),
+    is_admin: isConfiguredAdmin(req.user.email),
     tier: safeUser.tier || 'free',
     is_elite: safeUser.tier === 'elite',
     // True for Elite AND for any free account still inside its 7-day trial —

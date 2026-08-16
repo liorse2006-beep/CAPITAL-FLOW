@@ -402,10 +402,11 @@ body {
 .topbar-admin-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   padding: 0 12px;
   min-height: 44px;
   height: 44px;
-  margin-left: 16px;
+  margin-left: 8px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--accent);
   background: var(--accent-dim);
@@ -416,6 +417,7 @@ body {
   letter-spacing: 0.8px;
   text-transform: uppercase;
   cursor: pointer;
+  text-decoration: none;
   transition:
     background 0.15s,
     border-color 0.15s;
@@ -423,6 +425,35 @@ body {
 .topbar-admin-btn:hover {
   background: var(--accent-dim);
   border-color: var(--accent-2);
+}
+
+.topbar-status-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  min-height: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--mono);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.topbar-status-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
 }
 
 .topbar-logout-btn {
@@ -446,6 +477,9 @@ body {
     color 0.15s;
 }
 .topbar-admin-btn + .topbar-logout-btn {
+  margin-left: 8px;
+}
+.topbar-status-btn + .topbar-logout-btn {
   margin-left: 8px;
 }
 .topbar-logout-btn:hover {

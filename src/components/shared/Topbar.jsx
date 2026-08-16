@@ -68,6 +68,8 @@ export default function Topbar({
   onToggleNotifications,
   setPage,
 }) {
+  const isAdmin = !!(user && user.is_admin);
+
   return (
     <>
       <header className="topbar">
@@ -92,17 +94,21 @@ export default function Topbar({
             onUpgrade={onUpgrade}
             onSignIn={onSignIn}
           />
-          {user && user.is_admin && (
-            <button
-              className="topbar-admin-btn"
-              // The admin page reads the short-lived token from localStorage
-              // and sends it in an Authorization header. Never put a JWT in
-              // the URL, browser history, or referrer chain.
-              onClick={() => window.open('/status/admin', '_blank', 'noopener,noreferrer')}
-              title="Status Operations"
-            >
-              Status
-            </button>
+          {isAdmin && (
+            <>
+              <a className="topbar-admin-btn" href="/admin" target="_blank" rel="noopener noreferrer" title="Admin panel">
+                Admin
+              </a>
+              <a
+                className="topbar-status-btn"
+                href="https://status.capitalflow.vip/status"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="System status"
+              >
+                Status
+              </a>
+            </>
           )}
           {user && (
             <button className="topbar-logout-btn" onClick={logout} title="Sign out">
