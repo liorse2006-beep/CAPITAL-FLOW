@@ -2,13 +2,19 @@ name: Keep-alive ping
 
 on:
   schedule:
-    # Every 10 minutes — a lightweight uptime check for the paid Render service.
-    - cron: '*/10 * * * *'
+    # Wake the production and independent status services every five minutes.
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
-  ping:
+  ping-main:
     runs-on: ubuntu-latest
     steps:
       - name: Ping health endpoint
-        run: curl --fail --silent --show-error "${{ secrets.RENDER_URL }}/health" --max-time 30
+        run: curl --fail --silent --show-error --retry 3 --retry-all-errors --retry-delay 5 "${{ secrets.RENDER_URL }}/health" --max-time 60
+
+  ping-independent-status:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake independent status monitor
+        run: curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 10 "https://status-capital-flow.onrender.com/health" --max-time 90
