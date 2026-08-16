@@ -757,7 +757,16 @@ function mountElectricBorder(el, opts, ebInstances) {
 // while the stagger reveal still reads essentially the same for headline-
 // length text. ──
 function mountScrollFloat(el, opts, cleanupFns) {
-  const o = Object.assign({ duration: 1, ease: 'back.out(1.7)', stagger: 0.05 }, opts || {});
+  const o = Object.assign(
+    {
+      duration: 1,
+      ease: 'back.inOut(2)',
+      scrollStart: 'top bottom-=10%',
+      scrollEnd: 'bottom bottom-=35%',
+      stagger: 0.05,
+    },
+    opts || {}
+  );
   const text = el.textContent;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -784,43 +793,37 @@ function mountScrollFloat(el, opts, cleanupFns) {
 
   if (reducedMotion) return;
 
-  gsap.set(wordEls, {
-    willChange: 'opacity, transform',
-    opacity: 0,
-    yPercent: 120,
-    scaleY: 1.6,
-    scaleX: 0.85,
-    transformOrigin: '50% 100%',
-  });
-
-  // Plays once, triggered by IntersectionObserver rather than scrubbed to
-  // scroll position via gsap's ScrollTrigger. A continuous scrub tween only
-  // advances via gsap's rAF-driven ticker, which this codebase has
-  // repeatedly found unreliable for revealing content (see
-  // setupHeroEntrance / mountEchoText); an IntersectionObserver callback is
-  // compositor-driven, same as the nav dock's, and doesn't depend on a
-  // scroll-position recalculation firing every frame, so the reveal can't
-  // get stuck at opacity:0 mid-scroll the way the scrub version did.
-  let played = false;
-  const io = new IntersectionObserver(
-    (entries) => {
-      if (played || !entries[0].isIntersecting) return;
-      played = true;
-      gsap.to(wordEls, {
-        duration: o.duration,
-        ease: o.ease,
-        opacity: 1,
-        yPercent: 0,
-        scaleY: 1,
-        scaleX: 1,
-        stagger: o.stagger,
-      });
-      io.disconnect();
+  const tween = gsap.fromTo(
+    wordEls,
+    {
+      willChange: 'opacity, transform',
+      opacity: 0,
+      yPercent: 120,
+      scaleY: 1.6,
+      scaleX: 0.85,
+      transformOrigin: '50% 100%',
     },
-    { threshold: 0.2, rootMargin: '0px 0px -10% 0px' }
+    {
+      duration: o.duration,
+      ease: o.ease,
+      opacity: 1,
+      yPercent: 0,
+      scaleY: 1,
+      scaleX: 1,
+      stagger: o.stagger,
+      scrollTrigger: {
+        trigger: el,
+        start: o.scrollStart,
+        end: o.scrollEnd,
+        scrub: true,
+        invalidateOnRefresh: true,
+      },
+    }
   );
-  io.observe(el);
-  cleanupFns.push(() => io.disconnect());
+  cleanupFns.push(() => {
+    tween.scrollTrigger && tween.scrollTrigger.kill();
+    tween.kill();
+  });
 }
 
 function setupScrollFloat(root, cleanupFns) {
@@ -835,6 +838,91 @@ function setupScrollFloat(root, cleanupFns) {
   // the container direction agree, so word-splitting them is safe.
   root.querySelectorAll('#why h2, #why-tools h2, #how h2, #faq h2, .cf-final h2').forEach((el) => {
     mountScrollFloat(el, {}, cleanupFns);
+  });
+}
+
+// Scroll-activated category roadmap. Each .cf-feat-step is one complete
+// category; the icon, title, copy, and metrics inside it are intentionally not
+// split or animated separately. The active state follows the same reading-line
+// model as the reference timeline: the step marker is activated when its
+// midpoint crosses 55% of the viewport height.
+function setupFeatureRoadmap(root, cleanupFns) {
+  const roadmap = root.querySelector('#tools.cf-feat-roadmap');
+  if (!roadmap) return;
+
+  const steps = Array.from(roadmap.querySelectorAll('.cf-feat-step'));
+  const spineFill = roadmap.querySelector('.cf-feat-spine-fill');
+  if (!steps.length || !spineFill) return;
+
+  const reset = () => {
+    steps.forEach((step) => step.classList.remove('is-active', 'is-current'));
+    roadmap.style.removeProperty('--cf-roadmap-progress');
+    spineFill.style.removeProperty('--cf-roadmap-tip-opacity');
+  };
+
+  reset();
+
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reducedMotion) {
+    steps.forEach((step) => step.classList.add('is-active'));
+    roadmap.style.setProperty('--cf-roadmap-progress', '100%');
+    spineFill.style.setProperty('--cf-roadmap-tip-opacity', '0');
+    cleanupFns.push(reset);
+    return;
+  }
+
+  let ticking = false;
+  let rafId = 0;
+  let stopped = false;
+
+  function update() {
+    ticking = false;
+    rafId = 0;
+    if (stopped) return;
+
+    const rect = roadmap.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const referenceY = viewportHeight * 0.55;
+    const rawProgress = (referenceY - rect.top) / rect.height;
+    const progress = Math.max(0, Math.min(1, rawProgress));
+
+    roadmap.style.setProperty('--cf-roadmap-progress', `${progress * 100}%`);
+    spineFill.style.setProperty('--cf-roadmap-tip-opacity', progress > 0.02 && progress < 0.98 ? '1' : '0');
+
+    let lastActiveIndex = -1;
+    steps.forEach((step, index) => {
+      const marker = step.querySelector('.cf-feat-marker') || step;
+      const markerRect = marker.getBoundingClientRect();
+      const markerCenter = markerRect.top + markerRect.height / 2;
+
+      if (markerCenter <= referenceY) {
+        step.classList.add('is-active');
+        lastActiveIndex = index;
+      } else {
+        step.classList.remove('is-active', 'is-current');
+      }
+    });
+
+    steps.forEach((step) => step.classList.remove('is-current'));
+    if (lastActiveIndex >= 0) steps[lastActiveIndex].classList.add('is-current');
+  }
+
+  function onScrollOrResize() {
+    if (ticking || stopped) return;
+    ticking = true;
+    rafId = requestAnimationFrame(update);
+  }
+
+  window.addEventListener('scroll', onScrollOrResize, { passive: true });
+  window.addEventListener('resize', onScrollOrResize, { passive: true });
+  update();
+
+  cleanupFns.push(() => {
+    stopped = true;
+    window.removeEventListener('scroll', onScrollOrResize);
+    window.removeEventListener('resize', onScrollOrResize);
+    if (rafId) cancelAnimationFrame(rafId);
+    reset();
   });
 }
 
@@ -987,33 +1075,11 @@ function mountEchoText(el, opts, cleanupFns) {
   }
 }
 
-// Rewritten off gsap for the entrance itself (kept only for the
-// scroll-linked background dim, which is scoped to a decorative dim, never
-// blocks real content). gsap.timeline()'s playback is driven by its own
-// rAF ticker same as every other hand-rolled loop in this file — this
-// environment routinely delivers a page that starts backgrounded, and a
-// ticker that never gets its first tick leaves elements parked at whatever
-// gsap.set() put them at, which was opacity:0, i.e. an invisible hero.
-// CSS transitions don't have that failure mode: the compositor owns them,
-// they always reach their end state (resuming correctly across a
-// visibility change) without a JS ticker needing to run at all.
-function setupHeroEntrance(root, cleanupFns) {
+// The entrance uses compositor-owned CSS transitions rather than a JS ticker.
+// That keeps the hero reliable in backgrounded tabs and avoids coupling the
+// fixed animated background to scroll position.
+function setupHeroEntrance(root) {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const bgEl = root.querySelector('.cf-bg');
-  if (!bgEl) return;
-
-  if (!reduceMotion) {
-    const bgTween = gsap.to(bgEl, {
-      opacity: 0.3,
-      ease: 'none',
-      scrollTrigger: { trigger: root.querySelector('.cf-hero'), start: 'top top', end: 'bottom top', scrub: true },
-    });
-    cleanupFns.push(() => {
-      bgTween.scrollTrigger && bgTween.scrollTrigger.kill();
-      bgTween.kill();
-    });
-  }
-
   if (reduceMotion) return;
 
   const targets = [
@@ -1199,11 +1265,12 @@ export function initLandingEffects(rootEl, onGetStarted) {
 
   runSafely('setupSmoothAnchorScroll', () => setupSmoothAnchorScroll(cleanupFns));
   runSafely('setupProofTableSort', () => setupProofTableSort(rootEl, cleanupFns));
-  runSafely('setupHeroEntrance', () => setupHeroEntrance(rootEl, cleanupFns));
+  runSafely('setupHeroEntrance', () => setupHeroEntrance(rootEl));
   runSafely('setupTiltCards', () => setupTiltCards(rootEl, cleanupFns));
   runSafely('setupGradualBlur', () => setupGradualBlur(rootEl, cleanupFns));
   runSafely('setupElectricBorders', () => setupElectricBorders(rootEl, cleanupFns));
   runSafely('setupScrollFloat', () => setupScrollFloat(rootEl, cleanupFns));
+  runSafely('setupFeatureRoadmap', () => setupFeatureRoadmap(rootEl, cleanupFns));
 
   runSafely('mountEchoText', () => {
     const heroEcho = rootEl.querySelector('#cfHeroEcho');

@@ -1170,19 +1170,6 @@
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
   box-shadow: 0 0 40px -18px color-mix(in srgb, var(--accent) 55%, transparent);
 }
-.cf-landing-page .cf-vs-card h3 {
-  font-size: 19px;
-  margin-bottom: 22px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.cf-landing-page .cf-vs-bad h3 {
-  color: var(--text-1);
-}
-.cf-landing-page .cf-vs-tag {
-  color: var(--accent);
-}
 .cf-landing-page .cf-vs-card ul {
   display: flex;
   flex-direction: column;
@@ -1436,20 +1423,17 @@
 }
 .cf-landing-page .cf-card-kicker {
   display: block;
-  margin-bottom: 8px;
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.cf-landing-page .cf-vs-card h3 {
-  font-size: 25px;
+  margin-bottom: 22px;
+  color: var(--text-0);
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: none;
 }
 .cf-landing-page .cf-vs-card li {
   font-size: 15.5px;
 }
-.cf-landing-page .cf-principle-note,
 .cf-landing-page .cf-how-callout {
   display: flex;
   align-items: center;
@@ -1465,17 +1449,11 @@
   text-align: center;
   font-size: 14px;
 }
-.cf-landing-page .cf-principle-note p,
 .cf-landing-page .cf-how-callout p {
   margin: 0;
 }
-.cf-landing-page .cf-principle-note b,
 .cf-landing-page .cf-how-callout b {
   color: var(--text-0);
-}
-.cf-landing-page .cf-principle-icon {
-  color: var(--accent);
-  font-size: 21px;
 }
 .cf-landing-page .cf-proof-section,
 .cf-landing-page .cf-plans-section,
@@ -1527,9 +1505,6 @@
   background: var(--up);
   box-shadow: 0 0 10px var(--up);
 }
-.cf-landing-page .cf-signal-topline b {
-  color: var(--accent);
-}
 .cf-landing-page .cf-signal-chart {
   position: relative;
   height: 250px;
@@ -1579,6 +1554,35 @@
   width: 1px;
   background: linear-gradient(transparent, var(--accent), transparent);
   box-shadow: 0 0 18px 2px rgba(226, 165, 69, 0.48);
+  animation: cf-chart-beam-sweep 5.8s ease-in-out infinite;
+  z-index: 3;
+}
+.cf-landing-page .cf-chart-beam::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 76px;
+  content: '';
+  background: linear-gradient(90deg, transparent, rgba(226, 165, 69, 0.16), transparent);
+  filter: blur(6px);
+  transform: translateX(-50%);
+}
+@keyframes cf-chart-beam-sweep {
+  0% {
+    right: calc(100% - 1px);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.92;
+  }
+  84% {
+    opacity: 0.92;
+  }
+  100% {
+    right: -1px;
+    opacity: 0;
+  }
 }
 .cf-landing-page .cf-chart-label {
   position: absolute;
@@ -1649,15 +1653,12 @@
 .cf-landing-page .cf-signal-step.is-active .cf-signal-step-num {
   color: var(--accent);
 }
-.cf-landing-page .cf-signal-step h3 {
-  margin-bottom: 7px;
-  font-size: 22px;
-}
 .cf-landing-page .cf-signal-step p {
   margin: 0;
-  color: var(--text-1);
-  font-size: 15px;
-  line-height: 1.65;
+  color: var(--text-0);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.55;
 }
 .cf-landing-page .cf-feat-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1701,6 +1702,129 @@
 }
 .cf-landing-page .cf-feature-metric b:nth-of-type(2) {
   margin-right: auto;
+}
+
+/* Category roadmap: each tool is one scroll-activated unit. The content
+   inside a card stays intact; only the complete category step changes state. */
+.cf-landing-page .cf-feat-roadmap {
+  --cf-roadmap-marker-size: 48px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1080px;
+  padding-right: 78px;
+}
+.cf-landing-page .cf-feat-spine {
+  position: absolute;
+  top: 22px;
+  right: 23px;
+  bottom: 22px;
+  width: 2px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.cf-landing-page .cf-feat-spine-bg,
+.cf-landing-page .cf-feat-spine-fill {
+  position: absolute;
+  inset: 0;
+}
+.cf-landing-page .cf-feat-spine-bg {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.cf-landing-page .cf-feat-spine-fill {
+  height: var(--cf-roadmap-progress, 0%);
+  background: linear-gradient(var(--accent) 0%, color-mix(in srgb, var(--accent) 78%, #7d4b16) 60%, transparent 100%);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent);
+  transition: height 0.18s linear;
+  will-change: height;
+}
+.cf-landing-page .cf-feat-spine-fill::after {
+  position: absolute;
+  right: 50%;
+  bottom: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow:
+    0 0 16px var(--accent),
+    0 0 32px color-mix(in srgb, var(--accent) 60%, transparent);
+  content: '';
+  opacity: var(--cf-roadmap-tip-opacity, 0);
+  transform: translateX(50%);
+  transition: opacity 0.3s;
+}
+.cf-landing-page .cf-feat-step {
+  position: relative;
+  opacity: 0.35;
+  transform: translateY(16px);
+  transition:
+    opacity 0.65s cubic-bezier(0.22, 0.9, 0.25, 1),
+    transform 0.65s cubic-bezier(0.22, 0.9, 0.25, 1);
+}
+.cf-landing-page .cf-feat-step.is-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+.cf-landing-page .cf-feat-step .cf-feat {
+  min-height: 0;
+  width: 100%;
+}
+.cf-landing-page .cf-feat-marker {
+  position: absolute;
+  z-index: 1;
+  top: 22px;
+  right: -54px;
+  display: grid;
+  width: var(--cf-roadmap-marker-size);
+  height: var(--cf-roadmap-marker-size);
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  border-radius: 50%;
+  background: var(--bg-1);
+  box-shadow: none;
+  transition:
+    background 0.5s,
+    border-color 0.5s,
+    box-shadow 0.5s,
+    transform 0.4s;
+}
+.cf-landing-page .cf-feat-marker-num {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1;
+  transition: color 0.5s;
+}
+.cf-landing-page .cf-feat-step.is-active .cf-feat-marker {
+  border-color: color-mix(in srgb, var(--accent) 80%, white);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 82%, #7d4b16), var(--accent));
+  box-shadow:
+    0 0 0 6px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 0 32px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.cf-landing-page .cf-feat-step.is-active .cf-feat-marker-num {
+  color: var(--accent-ink);
+}
+.cf-landing-page .cf-feat-step.is-current .cf-feat-marker {
+  animation: cf-feat-roadmap-pulse 2.6s ease-in-out infinite;
+}
+.cf-landing-page .cf-feat-step.is-active .cf-feat {
+  border-color: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+@keyframes cf-feat-roadmap-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 6px color-mix(in srgb, var(--accent) 18%, transparent),
+      0 0 32px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 11px color-mix(in srgb, var(--accent) 8%, transparent),
+      0 0 48px color-mix(in srgb, var(--accent) 70%, transparent);
+  }
 }
 .cf-landing-page .cf-how-section {
   background: linear-gradient(180deg, rgba(34, 26, 17, 0.15), transparent);
@@ -2042,6 +2166,23 @@
   .cf-landing-page .cf-feat {
     min-height: 0;
   }
+  .cf-landing-page .cf-feat-roadmap {
+    --cf-roadmap-marker-size: 40px;
+    gap: 18px;
+    padding-right: 58px;
+  }
+  .cf-landing-page .cf-feat-spine {
+    top: 18px;
+    right: 17px;
+    bottom: 18px;
+  }
+  .cf-landing-page .cf-feat-marker {
+    top: 18px;
+    right: -40px;
+  }
+  .cf-landing-page .cf-feat-marker-num {
+    font-size: 11px;
+  }
   .cf-landing-page .cf-payment-trust {
     gap: 8px 13px;
     line-height: 1.6;
@@ -2057,5 +2198,22 @@
   .cf-landing-page .cf-btn-large:hover,
   .cf-landing-page .cf-btn-outline:hover {
     transform: none;
+  }
+  .cf-landing-page .cf-chart-beam {
+    animation: none;
+  }
+  .cf-landing-page .cf-feat-step {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .cf-landing-page .cf-feat-step.is-current .cf-feat-marker {
+    animation: none;
+  }
+  .cf-landing-page .cf-feat-spine-fill {
+    transition: none;
+  }
+  .cf-landing-page .cf-feat-spine-fill::after {
+    display: none;
   }
 }
