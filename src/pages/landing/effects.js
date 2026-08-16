@@ -841,88 +841,46 @@ function setupScrollFloat(root, cleanupFns) {
   });
 }
 
-// Scroll-activated category roadmap. Each .cf-feat-step is one complete
-// category; the icon, title, copy, and metrics inside it are intentionally not
-// split or animated separately. The active state follows the same reading-line
-// model as the reference timeline: the step marker is activated when its
-// midpoint crosses 55% of the viewport height.
-function setupFeatureRoadmap(root, cleanupFns) {
-  const roadmap = root.querySelector('#tools.cf-feat-roadmap');
-  if (!roadmap) return;
+// Scroll-activated category transitions. A category is a complete landing
+// section; nothing inside the section is promoted to its own scroll step.
+function setupCategoryTransitions(root, cleanupFns) {
+  const sections = Array.from(root.querySelectorAll('.cf-category-section'));
+  if (!sections.length) return;
 
-  const steps = Array.from(roadmap.querySelectorAll('.cf-feat-step'));
-  const spineFill = roadmap.querySelector('.cf-feat-spine-fill');
-  if (!steps.length || !spineFill) return;
+  root.classList.add('has-category-transitions');
 
   const reset = () => {
-    steps.forEach((step) => step.classList.remove('is-active', 'is-current'));
-    roadmap.style.removeProperty('--cf-roadmap-progress');
-    spineFill.style.removeProperty('--cf-roadmap-tip-opacity');
+    sections.forEach((section) => section.classList.remove('is-category-visible'));
   };
 
   reset();
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reducedMotion) {
-    steps.forEach((step) => step.classList.add('is-active'));
-    roadmap.style.setProperty('--cf-roadmap-progress', '100%');
-    spineFill.style.setProperty('--cf-roadmap-tip-opacity', '0');
-    cleanupFns.push(reset);
+    sections.forEach((section) => section.classList.add('is-category-visible'));
+    cleanupFns.push(() => {
+      reset();
+      root.classList.remove('has-category-transitions');
+    });
     return;
   }
 
-  let ticking = false;
-  let rafId = 0;
-  let stopped = false;
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) entry.target.classList.add('is-category-visible');
+      });
+    },
+    { threshold: 0.12, rootMargin: '-8% 0px -8% 0px' }
+  );
 
-  function update() {
-    ticking = false;
-    rafId = 0;
-    if (stopped) return;
-
-    const rect = roadmap.getBoundingClientRect();
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-    const referenceY = viewportHeight * 0.55;
-    const rawProgress = (referenceY - rect.top) / rect.height;
-    const progress = Math.max(0, Math.min(1, rawProgress));
-
-    roadmap.style.setProperty('--cf-roadmap-progress', `${progress * 100}%`);
-    spineFill.style.setProperty('--cf-roadmap-tip-opacity', progress > 0.02 && progress < 0.98 ? '1' : '0');
-
-    let lastActiveIndex = -1;
-    steps.forEach((step, index) => {
-      const marker = step.querySelector('.cf-feat-marker') || step;
-      const markerRect = marker.getBoundingClientRect();
-      const markerCenter = markerRect.top + markerRect.height / 2;
-
-      if (markerCenter <= referenceY) {
-        step.classList.add('is-active');
-        lastActiveIndex = index;
-      } else {
-        step.classList.remove('is-active', 'is-current');
-      }
-    });
-
-    steps.forEach((step) => step.classList.remove('is-current'));
-    if (lastActiveIndex >= 0) steps[lastActiveIndex].classList.add('is-current');
-  }
-
-  function onScrollOrResize() {
-    if (ticking || stopped) return;
-    ticking = true;
-    rafId = requestAnimationFrame(update);
-  }
-
-  window.addEventListener('scroll', onScrollOrResize, { passive: true });
-  window.addEventListener('resize', onScrollOrResize, { passive: true });
-  update();
+  sections.forEach((section) => observer.observe(section));
+  sections[0].classList.add('is-category-visible');
 
   cleanupFns.push(() => {
-    stopped = true;
-    window.removeEventListener('scroll', onScrollOrResize);
-    window.removeEventListener('resize', onScrollOrResize);
-    if (rafId) cancelAnimationFrame(rafId);
+    observer.disconnect();
     reset();
+    root.classList.remove('has-category-transitions');
   });
 }
 
@@ -1270,7 +1228,7 @@ export function initLandingEffects(rootEl, onGetStarted) {
   runSafely('setupGradualBlur', () => setupGradualBlur(rootEl, cleanupFns));
   runSafely('setupElectricBorders', () => setupElectricBorders(rootEl, cleanupFns));
   runSafely('setupScrollFloat', () => setupScrollFloat(rootEl, cleanupFns));
-  runSafely('setupFeatureRoadmap', () => setupFeatureRoadmap(rootEl, cleanupFns));
+  runSafely('setupCategoryTransitions', () => setupCategoryTransitions(rootEl, cleanupFns));
 
   runSafely('mountEchoText', () => {
     const heroEcho = rootEl.querySelector('#cfHeroEcho');
