@@ -43,6 +43,15 @@ if (rawAdminToken && (INSECURE.has(rawAdminToken) || rawAdminToken.length < 32))
   process.exit(1);
 }
 
+const rawStatusAdminToken = env('STATUS_ADMIN_TOKEN');
+if (rawStatusAdminToken && (INSECURE.has(rawStatusAdminToken) || rawStatusAdminToken.length < 32)) {
+  console.error(
+    `\n[FATAL] STATUS_ADMIN_TOKEN is set but too weak (${rawStatusAdminToken.length} chars). ` +
+      'It grants status operations access — set a strong value (≥32 chars) or unset it entirely.\n'
+  );
+  process.exit(1);
+}
+
 module.exports = {
   PORT: parseInt(process.env.PORT, 10) || 3001,
   FINNHUB_API_KEY: env('FINNHUB_API_KEY'),
@@ -79,6 +88,25 @@ module.exports = {
   HCAPTCHA_SECRET: env('HCAPTCHA_SECRET'),
   TURNSTILE_SECRET: env('TURNSTILE_SECRET'),
   FRONTEND_URL: env('FRONTEND_URL', 'http://localhost:5173'),
+  // Status monitoring is intentionally configurable independently from the
+  // app's normal frontend URL. In production this should point at the public
+  // origin that an external worker checks, not at localhost.
+  STATUS_TARGET_URL: env('STATUS_TARGET_URL'),
+  STATUS_PUBLIC_URL: env('STATUS_PUBLIC_URL'),
+  STATUS_FULL_ADMIN_URL: env('STATUS_FULL_ADMIN_URL'),
+  STATUS_ALERT_RECIPIENTS: env('STATUS_ALERT_RECIPIENTS'),
+  STATUS_INTERNAL_TOKEN: env('STATUS_INTERNAL_TOKEN'),
+  STATUS_ADMIN_TOKEN: env('STATUS_ADMIN_TOKEN'),
+  STATUS_MONITOR_ENABLED: env('STATUS_MONITOR_ENABLED', 'true').toLowerCase() !== 'false',
+  STATUS_CHECK_INTERVAL_MS: Math.max(
+    60 * 1000,
+    parseInt(env('STATUS_CHECK_INTERVAL_MS', String(5 * 60 * 1000)), 10) || 5 * 60 * 1000
+  ),
+  STATUS_CHECK_TIMEOUT_MS: Math.max(1000, parseInt(env('STATUS_CHECK_TIMEOUT_MS', '8000'), 10) || 8000),
+  STATUS_RETRY_DELAY_MS: Math.max(250, parseInt(env('STATUS_RETRY_DELAY_MS', '1200'), 10) || 1200),
+  STATUS_FAILURE_CONFIRMATIONS: Math.max(1, parseInt(env('STATUS_FAILURE_CONFIRMATIONS', '2'), 10) || 2),
+  STATUS_RECOVERY_CONFIRMATIONS: Math.max(1, parseInt(env('STATUS_RECOVERY_CONFIRMATIONS', '2'), 10) || 2),
+  STATUS_RAW_RETENTION_DAYS: Math.max(7, parseInt(env('STATUS_RAW_RETENTION_DAYS', '180'), 10) || 180),
   SESSION_SECRET: requireSecret('SESSION_SECRET'),
   ADMIN_TOKEN: env('ADMIN_TOKEN'),
   ADMIN_EMAIL: env('ADMIN_EMAIL'),

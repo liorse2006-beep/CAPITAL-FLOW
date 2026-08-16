@@ -268,7 +268,171 @@ async function initDb() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id, last_used_at);
+
+    -- Public status page and monitoring history. These tables intentionally
+    -- live beside the application data so the status APIs can be added without
+    -- changing any user-facing schema. Raw diagnostics stay private in
+    -- status_checks, while the public route only exposes sanitized aggregates.
+    CREATE TABLE IF NOT EXISTS status_components (
+      component_key       TEXT PRIMARY KEY,
+      name                TEXT NOT NULL,
+      description         TEXT NOT NULL,
+      group_name          TEXT NOT NULL,
+      criticality         TEXT NOT NULL,
+      check_type          TEXT NOT NULL,
+      endpoint            TEXT,
+      expected_status     INTEGER,
+      timeout_ms          INTEGER NOT NULL DEFAULT 8000,
+      slow_ms             INTEGER NOT NULL DEFAULT 1500,
+      very_slow_ms        INTEGER NOT NULL DEFAULT 4000,
+      enabled             INTEGER NOT NULL DEFAULT 1,
+      created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS status_checks (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      cycle_id            TEXT NOT NULL,
+      component_key       TEXT NOT NULL,
+      checked_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+      attempt             INTEGER NOT NULL DEFAULT 1,
+      endpoint            TEXT,
+      check_type          TEXT NOT NULL,
+      success             INTEGER NOT NULL DEFAULT 0,
+      state               TEXT NOT NULL DEFAULT 'unknown',
+      status_code         INTEGER,
+      response_ms         INTEGER,
+      error_message       TEXT,
+      timed_out           INTEGER NOT NULL DEFAULT 0,
+      final_result        INTEGER NOT NULL DEFAULT 1,
+      incident_id         INTEGER,
+      metadata_json       TEXT,
+      FOREIGN KEY (component_key) REFERENCES status_components(component_key)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_status_checks_component_time ON status_checks(component_key, checked_at);
+    CREATE INDEX IF NOT EXISTS idx_status_checks_incident ON status_checks(incident_id);
+
+    CREATE TABLE IF NOT EXISTS status_incidents (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      public_id           TEXT NOT NULL UNIQUE,
+      component_key       TEXT NOT NULL,
+      title               TEXT NOT NULL,
+      severity            TEXT NOT NULL,
+      status              TEXT NOT NULL,
+      started_at          INTEGER NOT NULL,
+      identified_at       INTEGER,
+      monitoring_at       INTEGER,
+      resolved_at         INTEGER,
+      outage_seconds      INTEGER,
+      failure_count       INTEGER NOT NULL DEFAULT 0,
+      recovery_count      INTEGER NOT NULL DEFAULT 0,
+      error_message       TEXT,
+      public_summary      TEXT,
+      created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_status_incidents_status_time ON status_incidents(status, started_at);
+    CREATE INDEX IF NOT EXISTS idx_status_incidents_component ON status_incidents(component_key, status);
+
+    CREATE TABLE IF NOT EXISTS status_incident_updates (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      incident_id         INTEGER NOT NULL,
+      status              TEXT NOT NULL,
+      message             TEXT NOT NULL,
+      is_public           INTEGER NOT NULL DEFAULT 1,
+      created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+      FOREIGN KEY (incident_id) REFERENCES status_incidents(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_status_incident_updates_incident ON status_incident_updates(incident_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS status_notification_deliveries (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      incident_id         INTEGER NOT NULL,
+      notification_type   TEXT NOT NULL,
+      recipient           TEXT NOT NULL,
+      status              TEXT NOT NULL DEFAULT 'pending',
+      attempts            INTEGER NOT NULL DEFAULT 0,
+      sent_at             INTEGER,
+      last_error          TEXT,
+      updated_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+      FOREIGN KEY (incident_id) REFERENCES status_incidents(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_status_notifications_incident ON status_notification_deliveries(incident_id, notification_type);
+
+    CREATE TABLE IF NOT EXISTS status_alert_recipients (
+      email               TEXT PRIMARY KEY,
+      active              INTEGER NOT NULL DEFAULT 1,
+      source              TEXT NOT NULL DEFAULT 'environment',
+      created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS status_maintenance (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      title               TEXT NOT NULL,
+      description         TEXT NOT NULL,
+      starts_at           INTEGER NOT NULL,
+      ends_at             INTEGER NOT NULL,
+      affected_components TEXT NOT NULL,
+      created_by          TEXT NOT NULL,
+      created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_status_maintenance_window ON status_maintenance(starts_at, ends_at);
+
+    CREATE TABLE IF NOT EXISTS status_meta (
+      key                 TEXT PRIMARY KEY,
+      value               TEXT NOT NULL,
+      updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
+    );
   `);
+
+  // Keep the component catalog durable while allowing the monitor to add new
+  // checks in a later deploy without rewriting existing operator settings.
+  try {
+    const { getComponentDefinitions } = require('../services/statusConfig');
+    for (const component of getComponentDefinitions()) {
+      await db
+        .prepare(
+          `INSERT INTO status_components
+             (component_key, name, description, group_name, criticality, check_type, endpoint,
+              expected_status, timeout_ms, slow_ms, very_slow_ms)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(component_key) DO UPDATE SET
+             name = excluded.name,
+             description = excluded.description,
+             group_name = excluded.group_name,
+             criticality = excluded.criticality,
+             check_type = excluded.check_type,
+             endpoint = excluded.endpoint,
+             expected_status = excluded.expected_status,
+             timeout_ms = excluded.timeout_ms,
+             slow_ms = excluded.slow_ms,
+             very_slow_ms = excluded.very_slow_ms,
+             updated_at = unixepoch()`
+        )
+        .run(
+          component.key,
+          component.name,
+          component.description,
+          component.group,
+          component.criticality,
+          component.type,
+          component.path || null,
+          component.expectedStatus || null,
+          component.timeoutMs,
+          component.slowMs,
+          component.verySlowMs
+        );
+    }
+  } catch (err) {
+    console.warn('[db] Status component seed skipped:', safeErrorSummary(err));
+  }
 
   // Safe migrations — silently ignored if the column already exists
   const migrations = [
@@ -318,6 +482,8 @@ async function initDb() {
     // exists and gives up, silently dropping a paid upgrade forever. See
     // routes/webhooks.js.
     `ALTER TABLE processed_webhook_events ADD COLUMN completed_at INTEGER`,
+    `ALTER TABLE status_checks ADD COLUMN cycle_id TEXT`,
+    `ALTER TABLE status_checks ADD COLUMN final_result INTEGER NOT NULL DEFAULT 1`,
   ];
 
   for (const sql of migrations) {

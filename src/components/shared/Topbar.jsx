@@ -98,10 +98,10 @@ export default function Topbar({
               // The admin page reads the short-lived token from localStorage
               // and sends it in an Authorization header. Never put a JWT in
               // the URL, browser history, or referrer chain.
-              onClick={() => window.open('/admin', '_blank', 'noopener,noreferrer')}
-              title="Admin Panel"
+              onClick={() => window.open('/status/admin', '_blank', 'noopener,noreferrer')}
+              title="Status Operations"
             >
-              Admin
+              Status
             </button>
           )}
           {user && (

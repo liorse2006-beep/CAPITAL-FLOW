@@ -12,7 +12,7 @@ Live at [capitalflow.vip](https://capitalflow.vip).
 - **Auth:** Google OAuth + email/password (JWT), `express-session` for the OAuth handshake
 - **Payments:** Whop embedded checkout (cards plus Apple Pay/Google Pay when the buyer's device and wallet are eligible)
 - **Data providers:** Finnhub (quotes/fundamentals), Yahoo Finance (sparklines), Massive / MarketAux / NewsData.io (news, fallback chain), Google AI Studio (Gemini, news catalyst tagging and Capi)
-- **Deployment:** Render (web service), optional Cloudflare Worker edge cache, auto-deploys on push to `main`
+- **Deployment:** Render (web service), optional Cloudflare Worker edge cache, auto-deploys on push to `main`; the status service can run as a separate process/service
 
 ## Local setup
 
@@ -38,6 +38,7 @@ Full list with setup instructions for each provider lives in [.env.example](.env
 - **Auth:** `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_CALLBACK_URL`, `TURNSTILE_SECRET`/`VITE_TURNSTILE_SITE_KEY`
 - **Push:** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`
 - **Admin panel:** `ADMIN_TOKEN` and/or `ADMIN_EMAIL` (panel is disabled if both are unset)
+- **Status monitoring:** `STATUS_TARGET_URL`, `STATUS_PUBLIC_URL`, `STATUS_FULL_ADMIN_URL`, `STATUS_ALERT_RECIPIENTS`, `STATUS_INTERNAL_TOKEN`, `STATUS_ADMIN_TOKEN`, and the `STATUS_*` interval/retry/retention settings
 - **Payments:** `WHOP_API_KEY`, `WHOP_WEBHOOK_SECRET`, `WHOP_PREMIUM_PLAN_ID`, `WHOP_ELITE_PLAN_ID`
 - **Database:** `TURSO_DB_URL`/`TURSO_AUTH_TOKEN`
 - **Optional monitoring:** `VITE_SENTRY_DSN`/`SENTRY_DSN`, `VITE_POSTHOG_KEY`/`VITE_POSTHOG_HOST`
@@ -71,3 +72,9 @@ npm run test:all      # both
 ## Deployment
 
 Render auto-deploys on every push to `main`, but only after the test, lint, format, audit and build gates pass. Set the same environment variables from `.env.example` in the Render dashboard. Running on a paid Starter instance (not the free tier) — no idle spin-down, the background scanner and scheduled jobs run continuously. The production Cloudflare Worker is deployed at `https://capitalflow.liormenaiot.workers.dev`; keep `VITE_SCAN_WORKER_URL` set to that URL in production builds. Deploy the Worker separately only when creating another environment.
+
+### Status page and monitoring
+
+The public status page is available at `/status`; its private operations console is at `/status/admin` and links to the existing full user-admin page. The monitor records checks every five minutes, stores raw diagnostics privately, confirms failures and recoveries with consecutive checks, deduplicates outage/recovery emails, and keeps aggregated availability history.
+
+For outage resilience, run `status-service.js` (or `npm run start:status`) with `status-service.Dockerfile` as a separate Render/Docker service. Give it its own `STATUS_TURSO_DB_URL`/`STATUS_TURSO_AUTH_TOKEN`, `STATUS_PUBLIC_URL`, `STATUS_TARGET_URL`, admin credentials, and Resend credentials. The separate service serves the same sanitized status page and operations APIs while monitoring the main origin, so a main-app process outage does not take the monitoring worker or public status host offline. The repository's default Render hook still deploys the main application; provisioning the second host/DNS record is a hosting-console action and is intentionally not hidden inside an application deploy.

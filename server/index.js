@@ -14,7 +14,7 @@ const { startBackgroundScheduler } = require('./services/backgroundScan');
 const { startScheduledDigest } = require('./services/scheduledDigest');
 const { startScheduledScanRunner } = require('./services/scheduledScanRunner');
 const { startScheduledBackup } = require('./services/dbBackup');
-const { startHealthMonitor } = require('./services/healthMonitor');
+const { startStatusMonitor } = require('./services/statusMonitor');
 const { scanLimiter, apiLimiter, adminLimiter } = require('./middleware/rateLimiters');
 const { isSingletonWorker } = require('./services/clusterBus');
 const { safeErrorSummary } = require('./utils/reportError');
@@ -112,7 +112,9 @@ const spaCsp = helmet.contentSecurityPolicy({
     frameAncestors: ["'none'"],
   },
 });
-app.use((req, res, next) => (req.path.startsWith('/admin') ? next() : spaCsp(req, res, next)));
+app.use((req, res, next) =>
+  req.path.startsWith('/admin') || req.path.startsWith('/status') ? next() : spaCsp(req, res, next)
+);
 
 // CORS allowlist — the app is normally same-origin (backend serves the built
 // frontend), so this only matters for local dev servers and the configured
@@ -223,6 +225,10 @@ app.get('/.well-known/apple-developer-merchantid-domain-association', (req, res)
 // Health check — before all other routes so monitoring can always reach it
 app.use('/', require('./routes/health'));
 
+// Public status and private operations routes. They are server-rendered so
+// the status page remains available without the main React app bundle.
+app.use('/', require('./routes/status'));
+
 // API routes (all mounted at /api)
 app.use('/api', apiLimiter); // floor: every API route is throttled, not just the ones tuned individually
 app.use('/api/auth', require('./routes/auth'));
@@ -297,7 +303,7 @@ if (isSingletonWorker()) {
   startScheduledDigest();
   startScheduledScanRunner();
   startScheduledBackup();
-  startHealthMonitor();
+  startStatusMonitor();
 }
 
 app.listen(PORT, () => {

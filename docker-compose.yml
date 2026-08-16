@@ -24,6 +24,46 @@ services:
       retries: 3
       start_period: 15s
 
+  # Run this as a separate deployment/service in production. It has its own
+  # process and should use a separate Turso database via
+  # STATUS_TURSO_DB_URL/STATUS_TURSO_AUTH_TOKEN.
+  status:
+    profiles: ['status']
+    build:
+      context: .
+      dockerfile: status-service.Dockerfile
+    ports:
+      - '3010:3001'
+    env_file:
+      - .env
+    environment:
+      - PORT=3001
+      - STATUS_TURSO_DB_URL=${STATUS_TURSO_DB_URL}
+      - STATUS_TURSO_AUTH_TOKEN=${STATUS_TURSO_AUTH_TOKEN}
+      - STATUS_PUBLIC_URL=${STATUS_PUBLIC_URL:-http://localhost:3010/status}
+      - STATUS_TARGET_URL=${STATUS_TARGET_URL:-http://app:3001}
+    volumes:
+      - status-data:/app/data
+      - status-logs:/app/logs
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
 volumes:
   data:
   logs:
+  status-data:
+  status-logs:

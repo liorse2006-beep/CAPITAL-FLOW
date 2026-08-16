@@ -7,6 +7,7 @@
     "dev": "concurrently \"node server.js\" \"vite\"",
     "build": "vite build",
     "start": "node server.js",
+    "start:status": "node status-service.js",
     "preview": "vite preview --port 5173",
     "test": "node --test --test-concurrency=1 \"test/**/*.test.js\"",
     "test:cluster": "node --test --test-timeout=60000 test/cluster.integration.js",

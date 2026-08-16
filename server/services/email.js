@@ -1,5 +1,5 @@
 const { Resend } = require('resend');
-const { RESEND_API_KEY, RESEND_FROM_EMAIL, ADMIN_EMAIL, FRONTEND_URL } = require('../config');
+const { RESEND_API_KEY, RESEND_FROM_EMAIL, ADMIN_EMAIL, FRONTEND_URL, STATUS_PUBLIC_URL } = require('../config');
 
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
@@ -155,10 +155,77 @@ async function sendAdminUpgradeAlert(email, tier) {
   });
 }
 
+function statusEmailUrl() {
+  return (STATUS_PUBLIC_URL || `${FRONTEND_URL || ''}/status`).replace(/\/+$/, '');
+}
+
+function statusIncidentText({ incident, component, checks, relatedComponents, recovery }) {
+  const lines = [];
+  if (recovery) {
+    lines.push(`RESOLVED — ${incident.title}`);
+    lines.push('');
+    lines.push(`Incident ID: ${incident.public_id}`);
+    lines.push(`Component: ${component.name}`);
+    lines.push(`Started: ${new Date(incident.started_at * 1000).toISOString()}`);
+    lines.push(`Recovered: ${new Date(incident.resolved_at * 1000).toISOString()}`);
+    lines.push(`Total downtime: ${Math.max(0, incident.outage_seconds || 0)} seconds`);
+    lines.push(`Failed checks: ${incident.failure_count}`);
+    lines.push(`Recovery checks: ${incident.recovery_count}`);
+    lines.push(`Current response time: ${checks.responseMs == null ? 'unknown' : checks.responseMs + ' ms'}`);
+    lines.push('');
+    lines.push('The system passed multiple consecutive recovery checks and is considered operational again.');
+  } else {
+    lines.push(`INCIDENT / OUTAGE — ${incident.title}`);
+    lines.push('');
+    lines.push(`Incident ID: ${incident.public_id}`);
+    lines.push(`Severity: ${incident.severity}`);
+    lines.push(`Component: ${component.name}`);
+    lines.push(`Started: ${new Date(incident.started_at * 1000).toISOString()}`);
+    lines.push(`Affected endpoint: ${checks.endpoint || 'not disclosed'}`);
+    lines.push(`HTTP status: ${checks.statusCode == null ? 'n/a' : checks.statusCode}`);
+    lines.push(`Response time: ${checks.responseMs == null ? 'unknown' : checks.responseMs + ' ms'}`);
+    lines.push(`Failed checks: ${incident.failure_count}`);
+    lines.push(`Error: ${checks.errorMessage || 'Unknown failure — diagnostic evidence is still being collected.'}`);
+    lines.push('');
+    lines.push(`Other components: ${relatedComponents || 'Status correlation is still in progress.'}`);
+    lines.push('');
+    lines.push(
+      'Recommended checks: review the affected component, recent deployments, dependency availability, and the latest private diagnostics.'
+    );
+  }
+  lines.push('');
+  lines.push(`Status page: ${statusEmailUrl()}`);
+  return lines.join('\n');
+}
+
+async function sendStatusIncidentAlert(payload) {
+  const { recipient, incident, component, checks, relatedComponents } = payload;
+  const subject = `[Capital Flow] INCIDENT / OUTAGE — ${incident.title} (${incident.severity})`;
+  const text = statusIncidentText({ incident, component, checks, relatedComponents, recovery: false });
+  if (!resend) {
+    requireDevEmailFallback('Status outage alert', recipient, incident.public_id);
+    return;
+  }
+  await send({ from: RESEND_FROM_EMAIL, to: recipient, subject, text });
+}
+
+async function sendStatusRecoveryAlert(payload) {
+  const { recipient, incident, component, checks } = payload;
+  const subject = `[Capital Flow] RESOLVED — ${incident.title}`;
+  const text = statusIncidentText({ incident, component, checks, recovery: true });
+  if (!resend) {
+    requireDevEmailFallback('Status recovery alert', recipient, incident.public_id);
+    return;
+  }
+  await send({ from: RESEND_FROM_EMAIL, to: recipient, subject, text });
+}
+
 module.exports = {
   sendOTPEmail,
   sendPasswordResetEmail,
   sendWelcomeEmail,
   sendNewSignupAdminAlert,
   sendAdminUpgradeAlert,
+  sendStatusIncidentAlert,
+  sendStatusRecoveryAlert,
 };
