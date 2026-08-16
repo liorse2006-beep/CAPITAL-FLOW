@@ -1706,16 +1706,31 @@
 
 /* Category transitions: each complete landing section enters as one unit. */
 .cf-landing-page.has-category-transitions .cf-category-section {
+  position: relative;
   opacity: 0.42;
-  transform: translate3d(0, 34px, 0);
+  transform: translate3d(0, 30px, 0) scale(0.985);
   transition:
-    opacity 0.8s cubic-bezier(0.22, 0.9, 0.25, 1),
-    transform 0.8s cubic-bezier(0.22, 0.9, 0.25, 1);
-  will-change: opacity, transform;
+    opacity 0.65s cubic-bezier(0.22, 0.9, 0.25, 1),
+    transform 0.65s cubic-bezier(0.22, 0.9, 0.25, 1),
+    filter 0.65s ease;
+  filter: saturate(0.72);
+  will-change: opacity, transform, filter;
 }
-.cf-landing-page.has-category-transitions .cf-category-section.is-category-visible {
+.cf-landing-page.has-category-transitions .cf-category-section.is-category-active {
+  z-index: 1;
   opacity: 1;
-  transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: saturate(1);
+}
+.cf-landing-page.has-category-transitions .cf-category-section.is-category-before {
+  opacity: 0.72;
+  transform: translate3d(0, -10px, 0) scale(0.995);
+  filter: saturate(0.88);
+}
+.cf-landing-page.has-category-transitions .cf-category-section.is-category-after {
+  opacity: 0.42;
+  transform: translate3d(0, 30px, 0) scale(0.985);
+  filter: saturate(0.72);
 }
 .cf-landing-page .cf-how-section {
   background: linear-gradient(180deg, rgba(34, 26, 17, 0.15), transparent);
@@ -2079,6 +2094,7 @@
   .cf-landing-page.has-category-transitions .cf-category-section {
     opacity: 1;
     transform: none;
+    filter: none;
     transition: none;
   }
 }

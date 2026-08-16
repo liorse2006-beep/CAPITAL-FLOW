@@ -841,7 +841,7 @@ function setupScrollFloat(root, cleanupFns) {
   });
 }
 
-// Scroll-activated category transitions. A category is a complete landing
+// Scroll-scrubbed category transitions. A category is a complete landing
 // section; nothing inside the section is promoted to its own scroll step.
 function setupCategoryTransitions(root, cleanupFns) {
   const sections = Array.from(root.querySelectorAll('.cf-category-section'));
@@ -850,14 +850,16 @@ function setupCategoryTransitions(root, cleanupFns) {
   root.classList.add('has-category-transitions');
 
   const reset = () => {
-    sections.forEach((section) => section.classList.remove('is-category-visible'));
+    sections.forEach((section) =>
+      section.classList.remove('is-category-active', 'is-category-before', 'is-category-after')
+    );
   };
 
   reset();
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reducedMotion) {
-    sections.forEach((section) => section.classList.add('is-category-visible'));
+    sections.forEach((section) => section.classList.add('is-category-active'));
     cleanupFns.push(() => {
       reset();
       root.classList.remove('has-category-transitions');
@@ -865,20 +867,57 @@ function setupCategoryTransitions(root, cleanupFns) {
     return;
   }
 
-  const observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) entry.target.classList.add('is-category-visible');
-      });
-    },
-    { threshold: 0.12, rootMargin: '-8% 0px -8% 0px' }
-  );
+  let ticking = false;
+  let rafId = 0;
+  let stopped = false;
+  let activeIndex = -1;
 
-  sections.forEach((section) => observer.observe(section));
-  sections[0].classList.add('is-category-visible');
+  function update() {
+    ticking = false;
+    rafId = 0;
+    if (stopped) return;
+
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const focusY = viewportHeight * 0.48;
+    let nextIndex = 0;
+    let closestDistance = Number.POSITIVE_INFINITY;
+
+    sections.forEach((section, index) => {
+      const rect = section.getBoundingClientRect();
+      const center = rect.top + rect.height / 2;
+      const isNearViewport = rect.bottom > viewportHeight * 0.08 && rect.top < viewportHeight * 0.92;
+      const distance = isNearViewport ? Math.abs(center - focusY) : Number.POSITIVE_INFINITY;
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        nextIndex = index;
+      }
+    });
+
+    if (nextIndex === activeIndex) return;
+    activeIndex = nextIndex;
+
+    sections.forEach((section, index) => {
+      section.classList.toggle('is-category-active', index === activeIndex);
+      section.classList.toggle('is-category-before', index < activeIndex);
+      section.classList.toggle('is-category-after', index > activeIndex);
+    });
+  }
+
+  function onScrollOrResize() {
+    if (ticking || stopped) return;
+    ticking = true;
+    rafId = requestAnimationFrame(update);
+  }
+
+  window.addEventListener('scroll', onScrollOrResize, { passive: true });
+  window.addEventListener('resize', onScrollOrResize, { passive: true });
+  update();
 
   cleanupFns.push(() => {
-    observer.disconnect();
+    stopped = true;
+    window.removeEventListener('scroll', onScrollOrResize);
+    window.removeEventListener('resize', onScrollOrResize);
+    if (rafId) cancelAnimationFrame(rafId);
     reset();
     root.classList.remove('has-category-transitions');
   });
