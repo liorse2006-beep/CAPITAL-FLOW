@@ -314,22 +314,6 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
                 </div>
               )}
             </div>
-            {!user && (
-              <div className="fund-guest-perks">
-                <span>
-                  <span className="fund-guest-check" aria-hidden="true">
-                    ✓
-                  </span>{' '}
-                  Full access for 7 days
-                </span>
-                <span>
-                  <span className="fund-guest-check" aria-hidden="true">
-                    ✓
-                  </span>{' '}
-                  No card required
-                </span>
-              </div>
-            )}
           </div>
 
           <div className="fund-guest-preview" aria-label="Fundamentals preview">

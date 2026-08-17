@@ -318,14 +318,14 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 0 14px;
-  min-height: 44px;
-  height: 44px;
+  padding: 0 11px;
+  min-height: 38px;
+  height: 38px;
   border-radius: var(--radius-sm);
   border: none;
   background: linear-gradient(135deg, var(--accent-vivid) 0%, #a3e635 100%);
   color: #0a0a0a;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
   font-family: var(--mono);
   letter-spacing: 0.8px;
@@ -377,14 +377,14 @@ body {
 .topbar-signin-btn {
   display: inline-flex;
   align-items: center;
-  padding: 0 14px;
-  min-height: 44px;
-  height: 44px;
+  padding: 0 11px;
+  min-height: 38px;
+  height: 38px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-strong);
   background: transparent;
   color: var(--text-2);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   font-family: var(--mono);
   letter-spacing: 0.8px;
@@ -1219,18 +1219,6 @@ body {
 .fund-guest-signin button:hover {
   color: var(--text-0);
 }
-.fund-guest-perks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 18px;
-  color: var(--text-2);
-  font-size: 10px;
-}
-.fund-guest-check {
-  color: var(--green);
-  font-weight: 800;
-}
 .fund-guest-preview {
   position: relative;
   min-width: 0;
@@ -1486,10 +1474,6 @@ body {
   }
   .fund-guest-primary {
     width: 100%;
-  }
-  .fund-guest-perks {
-    flex-direction: column;
-    gap: 6px;
   }
   .fund-preview-topline {
     align-items: flex-start;
@@ -3230,6 +3214,15 @@ td {
   max-width: 400px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
 }
+.empty-rich-guest-card {
+  max-width: 430px;
+  padding: 30px 34px 24px;
+  border-color: rgba(245, 158, 11, 0.28);
+  background: linear-gradient(160deg, rgba(22, 18, 10, 0.98), rgba(10, 10, 10, 0.98) 62%);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.5),
+    0 0 34px rgba(245, 158, 11, 0.08);
+}
 .empty-rich-icon {
   width: 52px;
   height: 52px;
@@ -3248,11 +3241,32 @@ td {
   font-weight: 600;
   margin: 0 0 8px;
 }
+.empty-rich-kicker {
+  display: block;
+  margin: -2px 0 10px;
+  color: var(--accent-vivid);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+}
+.empty-rich-guest-card h3 {
+  font-size: 22px;
+  line-height: 1.2;
+  margin-bottom: 10px;
+}
 .empty-rich-card p {
   color: var(--text-1);
   font-size: 12.5px;
   line-height: 1.6;
   margin: 0 0 16px;
+}
+.empty-rich-guest-card p {
+  max-width: 350px;
+  margin-right: auto;
+  margin-left: auto;
+  line-height: 1.55;
 }
 .empty-rich-pills {
   display: flex;
@@ -3271,6 +3285,10 @@ td {
   border-radius: 100px;
 }
 .empty-rich-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   background: var(--accent-vivid);
   color: #1a1200;
   font-size: 13px;
@@ -3281,12 +3299,47 @@ td {
   width: 100%;
   cursor: pointer;
 }
+.empty-rich-cta span {
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 0.18s ease;
+}
+.empty-rich-cta:hover span {
+  transform: translateX(3px);
+}
+.empty-rich-signin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 14px;
+  color: var(--text-2);
+  font-size: 11px;
+}
+.empty-rich-signin button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-2);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.empty-rich-signin button:hover {
+  color: var(--text-0);
+}
 .empty-rich-cta:hover {
   opacity: 0.9;
 }
 @media (max-width: 600px) {
   .empty-rich-skeleton {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .empty-rich-guest-card {
+    padding: 26px 20px 22px;
+  }
+  .empty-rich-guest-card h3 {
+    font-size: 20px;
   }
 }
 
@@ -3508,10 +3561,10 @@ td {
 /* ── Notification Bell ── */
 .notif-bell {
   position: relative;
-  min-height: 44px;
-  min-width: 44px;
-  height: 44px;
-  width: 44px;
+  min-height: 38px;
+  min-width: 38px;
+  height: 38px;
+  width: 38px;
   padding: 0;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-xs);
@@ -3524,6 +3577,10 @@ td {
   justify-content: center;
   transition: all var(--transition);
   flex-shrink: 0;
+}
+.notif-bell svg {
+  width: 14px;
+  height: 14px;
 }
 .notif-bell:hover {
   border-color: var(--accent);

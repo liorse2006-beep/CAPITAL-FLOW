@@ -1343,7 +1343,8 @@ function App() {
                 <Suspense fallback={<div className="page-loading">Loading…</div>}>
                   <MoneyFlow
                     setShowUpgradeModal={setShowUpgradeModal}
-                    onSignIn={() => setShowAuthModal(true)}
+                    onSignIn={() => openAuthModal('login')}
+                    onCreateAccount={() => openAuthModal('signup')}
                     onTrialEnded={onTrialEnded}
                     alertLevels={alertLevels}
                     promptCreateAlert={promptCreateAlert}

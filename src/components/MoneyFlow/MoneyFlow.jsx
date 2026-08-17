@@ -8,7 +8,14 @@ import { SECTOR_ETFS } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
 import useScanQuota from '../../hooks/useScanQuota';
 
-export default function MoneyFlow({ setShowUpgradeModal, onSignIn, onTrialEnded, alertLevels, promptCreateAlert }) {
+export default function MoneyFlow({
+  setShowUpgradeModal,
+  onSignIn,
+  onCreateAccount,
+  onTrialEnded,
+  alertLevels,
+  promptCreateAlert,
+}) {
   const { user, getToken } = useAuth();
   // Trial users receive the same scan/filter surface as Elite. The server
   // still enforces the real tier and quota independently.
@@ -191,20 +198,44 @@ export default function MoneyFlow({ setShowUpgradeModal, onSignIn, onTrialEnded,
             })}
           </div>
           <div className="empty-rich-overlay">
-            <div className="empty-rich-card">
+            <div className={'empty-rich-card' + (!user ? ' empty-rich-guest-card' : '')}>
               <div className="empty-rich-icon">
                 <img src="/icon-192.png" alt="" />
               </div>
-              <h3>Money Flow Analysis</h3>
-              <p>TRACK WHERE CAPITAL IS ROTATING ACROSS EVERY SECTOR</p>
-              <div className="empty-rich-pills">
-                <span className="empty-rich-pill">11 SECTORS</span>
-                <span className="empty-rich-pill">500+ STOCKS</span>
-                <span className="empty-rich-pill">REAL-TIME DATA</span>
-              </div>
-              <button className="empty-rich-cta" onClick={fetchFlow}>
-                Refresh Flow
-              </button>
+              {user ? (
+                <>
+                  <h3>Money Flow Analysis</h3>
+                  <p>TRACK WHERE CAPITAL IS ROTATING ACROSS EVERY SECTOR</p>
+                  <div className="empty-rich-pills">
+                    <span className="empty-rich-pill">11 SECTORS</span>
+                    <span className="empty-rich-pill">500+ STOCKS</span>
+                    <span className="empty-rich-pill">REAL-TIME DATA</span>
+                  </div>
+                  <button className="empty-rich-cta" onClick={fetchFlow}>
+                    Refresh Flow
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="empty-rich-kicker">LIVE SECTOR INTELLIGENCE</span>
+                  <h3>See where capital is moving.</h3>
+                  <p>Sign in to track real-time inflows and outflows across every major market sector.</p>
+                  <div className="empty-rich-pills">
+                    <span className="empty-rich-pill">11 SECTORS</span>
+                    <span className="empty-rich-pill">500+ STOCKS</span>
+                    <span className="empty-rich-pill">LIVE DATA</span>
+                  </div>
+                  <button className="empty-rich-cta" onClick={onCreateAccount || onSignIn}>
+                    Create account <span aria-hidden="true">→</span>
+                  </button>
+                  <div className="empty-rich-signin">
+                    <span>Already have an account?</span>{' '}
+                    <button type="button" onClick={onSignIn}>
+                      Sign in
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
