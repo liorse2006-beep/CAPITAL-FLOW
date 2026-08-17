@@ -456,6 +456,7 @@ function renderPage(admin, pageNonce) {
 </style>
 <style nonce="${nonce}">
 .refresh-control{white-space:nowrap}
+@media(max-width:760px){.status-nav{flex-wrap:wrap}.nav-actions{margin-left:auto}.history-bars{grid-template-columns:repeat(90,minmax(1px,1fr));gap:1px}}
 .refresh-control:disabled{opacity:.65;cursor:wait}
 .admin-auth{flex-wrap:wrap}
 .admin-button:disabled{opacity:.65;cursor:wait}
