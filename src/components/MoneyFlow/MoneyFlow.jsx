@@ -221,8 +221,7 @@ export default function MoneyFlow({
                   <h3>See where capital is moving.</h3>
                   <p>Sign in to track real-time inflows and outflows across every major market sector.</p>
                   <div className="empty-rich-pills">
-                    <span className="empty-rich-pill">11 SECTORS</span>
-                    <span className="empty-rich-pill">500+ STOCKS</span>
+                    <span className="empty-rich-pill">ALL SECTORS</span>
                     <span className="empty-rich-pill">LIVE DATA</span>
                   </div>
                   <button className="empty-rich-cta" onClick={onCreateAccount || onSignIn}>

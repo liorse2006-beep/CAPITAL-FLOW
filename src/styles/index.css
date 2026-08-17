@@ -8626,6 +8626,10 @@ html.a11y-highlight-links a {
 .ma-guest-card {
   width: min(100%, 460px);
   max-width: 460px;
+  /* The MA overlay lives on the compact controls panel. Its card is taller
+     than that panel, so centering it there makes it float too close to the
+     navigation. Match the vertical rhythm of the other guest screens. */
+  transform: translateY(108px);
 }
 
 .ma-ctrl-group {
@@ -8839,6 +8843,9 @@ html.a11y-highlight-links a {
     position: relative;
     gap: 14px;
     padding: 16px;
+  }
+  .ma-guest-card {
+    transform: translateY(48px);
   }
   .ma-usage {
     margin-left: 0;
