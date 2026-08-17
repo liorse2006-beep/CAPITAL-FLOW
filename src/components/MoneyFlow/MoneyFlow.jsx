@@ -198,21 +198,17 @@ export default function MoneyFlow({
             })}
           </div>
           <div className="empty-rich-overlay">
-            <div className={'empty-rich-card' + (!user ? ' empty-rich-guest-card' : '')}>
+            <div className={'empty-rich-card' + (user ? ' empty-rich-flow-card' : ' empty-rich-guest-card')}>
               <div className="empty-rich-icon">
                 <img src="/icon-192.png" alt="" />
               </div>
               {user ? (
                 <>
-                  <h3>Money Flow Analysis</h3>
-                  <p>TRACK WHERE CAPITAL IS ROTATING ACROSS EVERY SECTOR</p>
-                  <div className="empty-rich-pills">
-                    <span className="empty-rich-pill">11 SECTORS</span>
-                    <span className="empty-rich-pill">500+ STOCKS</span>
-                    <span className="empty-rich-pill">REAL-TIME DATA</span>
-                  </div>
+                  <span className="empty-rich-kicker">SECTOR FLOW</span>
+                  <h3>See where capital is moving.</h3>
+                  <p>Refresh the flow to track real-time inflows and outflows across every major market sector.</p>
                   <button className="empty-rich-cta" onClick={fetchFlow}>
-                    Refresh Flow
+                    Refresh Flow <span aria-hidden="true">→</span>
                   </button>
                 </>
               ) : (
