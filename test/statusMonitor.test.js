@@ -4,7 +4,7 @@ const { test, after } = require('node:test');
 require('./helpers/testEnv');
 process.env.ADMIN_EMAIL = 'not-a-recipient';
 process.env.STATUS_TARGET_URL = 'http://localhost:3001';
-process.env.STATUS_INTERNAL_TOKEN = 'status-test-token';
+process.env.STATUS_INTERNAL_TOKEN = 'status-test-token-which-is-long-enough';
 process.env.STATUS_MONITOR_ENABLED = 'false';
 
 const db = require('../server/db');

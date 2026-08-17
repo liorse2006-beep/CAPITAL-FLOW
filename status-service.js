@@ -14,6 +14,12 @@ if (process.env.NODE_ENV === 'production') {
     console.error('[status-service] STATUS_TURSO_DB_URL is required in production.');
     process.exit(1);
   }
+  if (!process.env.STATUS_INTERNAL_TOKEN || process.env.STATUS_INTERNAL_TOKEN.trim().length < 32) {
+    console.error(
+      '[status-service] STATUS_INTERNAL_TOKEN (the same strong value used by the main app) is required in production.'
+    );
+    process.exit(1);
+  }
   process.env.TURSO_DB_URL = process.env.STATUS_TURSO_DB_URL;
   if (process.env.STATUS_TURSO_AUTH_TOKEN) process.env.TURSO_AUTH_TOKEN = process.env.STATUS_TURSO_AUTH_TOKEN;
 }

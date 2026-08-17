@@ -42,6 +42,9 @@ services:
       - STATUS_TURSO_AUTH_TOKEN=${STATUS_TURSO_AUTH_TOKEN}
       - STATUS_PUBLIC_URL=${STATUS_PUBLIC_URL:-http://localhost:3010/status}
       - STATUS_TARGET_URL=${STATUS_TARGET_URL:-http://app:3001}
+      # Must match the main app value. The status container uses it only for
+      # the protected market-data probe, so missing config fails at boot.
+      - STATUS_INTERNAL_TOKEN=${STATUS_INTERNAL_TOKEN}
     volumes:
       - status-data:/app/data
       - status-logs:/app/logs

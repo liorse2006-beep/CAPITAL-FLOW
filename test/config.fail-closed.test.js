@@ -36,7 +36,7 @@ test('refuses to boot with a short/weak secret', () => {
   assert.strictEqual(exitCode, 1, 'process should exit(1) on a <32-char secret');
 });
 
-test('boots normally with a strong secret', () => {
+test('boots normally with strong non-production secrets', () => {
   const { exitCode } = tryBootWith({ JWT_SECRET: 'a'.repeat(48), SESSION_SECRET: 'b'.repeat(48) });
   assert.strictEqual(exitCode, 0, 'process should boot when secrets are strong');
 });
@@ -46,7 +46,25 @@ test('boots normally with a strong secret', () => {
 // Google login would complete on Google's side and then redirect the
 // user's browser to localhost, a completely broken flow with no error
 // anywhere. This must now refuse to boot instead.
-const STRONG_SECRETS = { JWT_SECRET: 'a'.repeat(48), SESSION_SECRET: 'b'.repeat(48) };
+const STRONG_SECRETS = {
+  JWT_SECRET: 'a'.repeat(48),
+  SESSION_SECRET: 'b'.repeat(48),
+  STATUS_INTERNAL_TOKEN: 'status-probe-test-token-which-is-long-enough',
+};
+
+test('refuses to boot in production without the protected status probe credential', () => {
+  const { exitCode, stderr } = tryBootWith({
+    JWT_SECRET: 'a'.repeat(48),
+    SESSION_SECRET: 'b'.repeat(48),
+    NODE_ENV: 'production',
+    RESEND_API_KEY: 'test-resend-key',
+    STATUS_INTERNAL_TOKEN: '',
+    GOOGLE_CLIENT_ID: '',
+    GOOGLE_CLIENT_SECRET: '',
+  });
+  assert.strictEqual(exitCode, 1);
+  assert.match(stderr, /STATUS_INTERNAL_TOKEN/);
+});
 
 test('refuses to boot in production with Google OAuth configured but no GOOGLE_CALLBACK_URL', () => {
   const { exitCode, stderr } = tryBootWith({

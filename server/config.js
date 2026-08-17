@@ -52,6 +52,20 @@ if (rawStatusAdminToken && (INSECURE.has(rawStatusAdminToken) || rawStatusAdminT
   process.exit(1);
 }
 
+// The status monitor uses this secret only to prove that the request reaching
+// the main app really came from the independent monitor.  Treat it like an
+// operational credential: an omitted or weak value would make the protected
+// market-data probe fail closed and be misreported as a customer-facing data
+// outage.  Production must therefore never start without a strong value.
+const rawStatusInternalToken = env('STATUS_INTERNAL_TOKEN');
+if (rawStatusInternalToken && (INSECURE.has(rawStatusInternalToken) || rawStatusInternalToken.length < 32)) {
+  console.error(
+    `\n[FATAL] STATUS_INTERNAL_TOKEN is set but too weak (${rawStatusInternalToken.length} chars). ` +
+      'Set the same strong value on the main application and the independent status service.\n'
+  );
+  process.exit(1);
+}
+
 module.exports = {
   PORT: parseInt(process.env.PORT, 10) || 3001,
   FINNHUB_API_KEY: env('FINNHUB_API_KEY'),
@@ -95,7 +109,7 @@ module.exports = {
   STATUS_PUBLIC_URL: env('STATUS_PUBLIC_URL'),
   STATUS_FULL_ADMIN_URL: env('STATUS_FULL_ADMIN_URL'),
   STATUS_ALERT_RECIPIENTS: env('STATUS_ALERT_RECIPIENTS'),
-  STATUS_INTERNAL_TOKEN: env('STATUS_INTERNAL_TOKEN'),
+  STATUS_INTERNAL_TOKEN: rawStatusInternalToken,
   STATUS_ADMIN_TOKEN: env('STATUS_ADMIN_TOKEN'),
   STATUS_MONITOR_ENABLED: env('STATUS_MONITOR_ENABLED', 'true').toLowerCase() !== 'false',
   STATUS_CHECK_INTERVAL_MS: Math.max(
@@ -177,6 +191,17 @@ if (process.env.NODE_ENV === 'production' && !module.exports.RESEND_API_KEY) {
   console.error(
     '\n[FATAL] RESEND_API_KEY is not set — in production this would silently print OTP and password-reset ' +
       'codes in plaintext to server logs instead of emailing them. Set RESEND_API_KEY before starting.\n'
+  );
+  process.exit(1);
+}
+
+// A production status host cannot validate the real market-data flow without
+// this shared probe credential.  Fail at boot instead of leaving a running
+// website with a permanently false SEV-2 incident on the public status page.
+if (process.env.NODE_ENV === 'production' && !module.exports.STATUS_INTERNAL_TOKEN) {
+  console.error(
+    '\n[FATAL] STATUS_INTERNAL_TOKEN is not set — the protected market-data probe would fail and create a false ' +
+      'status incident. Set one strong identical value on the main app and independent status service before starting.\n'
   );
   process.exit(1);
 }
