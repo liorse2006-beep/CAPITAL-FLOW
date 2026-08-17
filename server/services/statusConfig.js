@@ -100,6 +100,10 @@ const COMPONENT_DEFINITIONS = [
     description: 'External market-data dependency used for charts and fallback quotes.',
     group: 'External dependencies',
     criticality: 'degraded',
+    // Yahoo can fail while the application's market-data route still works
+    // through another provider. The user-visible market-data check is the
+    // signal that should generate an administrator email.
+    emailOnIncident: false,
     type: 'external-yahoo',
     timeoutMs: STATUS_CHECK_TIMEOUT_MS,
     slowMs: 2000,

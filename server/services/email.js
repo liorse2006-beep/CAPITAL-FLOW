@@ -160,47 +160,67 @@ function statusEmailUrl() {
 }
 
 function statusIncidentText({ incident, component, checks, relatedComponents, recovery }) {
-  const lines = [];
-  if (recovery) {
-    lines.push(`RESOLVED — ${incident.title}`);
-    lines.push('');
-    lines.push(`Incident ID: ${incident.public_id}`);
-    lines.push(`Component: ${component.name}`);
-    lines.push(`Started: ${new Date(incident.started_at * 1000).toISOString()}`);
-    lines.push(`Recovered: ${new Date(incident.resolved_at * 1000).toISOString()}`);
-    lines.push(`Total downtime: ${Math.max(0, incident.outage_seconds || 0)} seconds`);
-    lines.push(`Failed checks: ${incident.failure_count}`);
-    lines.push(`Recovery checks: ${incident.recovery_count}`);
-    lines.push(`Current response time: ${checks.responseMs == null ? 'unknown' : checks.responseMs + ' ms'}`);
-    lines.push('');
-    lines.push('The system passed multiple consecutive recovery checks and is considered operational again.');
-  } else {
-    lines.push(`INCIDENT / OUTAGE — ${incident.title}`);
-    lines.push('');
-    lines.push(`Incident ID: ${incident.public_id}`);
-    lines.push(`Severity: ${incident.severity}`);
-    lines.push(`Component: ${component.name}`);
-    lines.push(`Started: ${new Date(incident.started_at * 1000).toISOString()}`);
-    lines.push(`Affected endpoint: ${checks.endpoint || 'not disclosed'}`);
-    lines.push(`HTTP status: ${checks.statusCode == null ? 'n/a' : checks.statusCode}`);
-    lines.push(`Response time: ${checks.responseMs == null ? 'unknown' : checks.responseMs + ' ms'}`);
-    lines.push(`Failed checks: ${incident.failure_count}`);
-    lines.push(`Error: ${checks.errorMessage || 'Unknown failure — diagnostic evidence is still being collected.'}`);
-    lines.push('');
-    lines.push(`Other components: ${relatedComponents || 'Status correlation is still in progress.'}`);
-    lines.push('');
-    lines.push(
-      'Recommended checks: review the affected component, recent deployments, dependency availability, and the latest private diagnostics.'
-    );
-  }
-  lines.push('');
-  lines.push(`Status page: ${statusEmailUrl()}`);
+  const started = incident.started_at ? new Date(incident.started_at * 1000).toISOString() : 'unknown';
+  const responseTime = checks.responseMs == null ? 'unknown' : `${checks.responseMs} ms`;
+  const endpoint = checks.endpoint || component.path || component.type || 'not disclosed';
+  const httpStatus = checks.statusCode == null ? 'n/a' : checks.statusCode;
+  const errorEvidence = checks.errorMessage || 'No additional diagnostic evidence was returned.';
+  const lines = recovery
+    ? [
+        'CAPITAL FLOW STATUS — INCIDENT RESOLVED',
+        '========================================',
+        '',
+        'SUMMARY',
+        `${component.name} is operational again. The system passed the configured recovery checks.`,
+        '',
+        'INCIDENT DETAILS',
+        `Incident ID: ${incident.public_id}`,
+        `Affected component: ${component.name}`,
+        `Incident severity: ${incident.severity}`,
+        `Started: ${started}`,
+        `Recovered: ${incident.resolved_at ? new Date(incident.resolved_at * 1000).toISOString() : 'unknown'}`,
+        `Total downtime: ${Math.max(0, incident.outage_seconds || 0)} seconds`,
+        '',
+        'RECOVERY EVIDENCE',
+        `Failed checks before recovery: ${incident.failure_count ?? 'unknown'}`,
+        `Successful recovery checks: ${incident.recovery_count ?? 'unknown'}`,
+        `Current response time: ${responseTime}`,
+      ]
+    : [
+        'CAPITAL FLOW STATUS — SITE FUNCTIONALITY ALERT',
+        '===============================================',
+        '',
+        'SUMMARY',
+        `A confirmed problem is affecting ${component.name}. Administrator action may be required.`,
+        `User-facing impact: ${incident.public_summary || 'The affected functionality may not work normally.'}`,
+        '',
+        'INCIDENT DETAILS',
+        `Incident ID: ${incident.public_id}`,
+        `Severity: ${incident.severity}`,
+        `Affected component: ${component.name}`,
+        `Started: ${started}`,
+        `Confirmed failed checks: ${incident.failure_count ?? 'unknown'}`,
+        '',
+        'DIAGNOSTIC EVIDENCE',
+        `Endpoint: ${endpoint}`,
+        `HTTP status: ${httpStatus}`,
+        `Response time: ${responseTime}`,
+        `Error returned: ${errorEvidence}`,
+        'Root cause: Not determined automatically. The information above is evidence, not a confirmed root cause.',
+        '',
+        'SYSTEM CORRELATION',
+        relatedComponents || 'Status correlation is still in progress.',
+        '',
+        'RECOMMENDED NEXT CHECKS',
+        'Review the affected component, recent deployments, provider availability, and the latest private diagnostics.',
+      ];
+  lines.push('', `STATUS PAGE`, statusEmailUrl());
   return lines.join('\n');
 }
 
 async function sendStatusIncidentAlert(payload) {
   const { recipient, incident, component, checks, relatedComponents } = payload;
-  const subject = `[Capital Flow] INCIDENT / OUTAGE — ${incident.title} (${incident.severity})`;
+  const subject = `[Capital Flow] SITE IMPACT — ${incident.title} (${incident.severity})`;
   const text = statusIncidentText({ incident, component, checks, relatedComponents, recovery: false });
   if (!resend) {
     requireDevEmailFallback('Status outage alert', recipient, incident.public_id);
@@ -228,4 +248,5 @@ module.exports = {
   sendAdminUpgradeAlert,
   sendStatusIncidentAlert,
   sendStatusRecoveryAlert,
+  statusIncidentText,
 };

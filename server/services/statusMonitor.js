@@ -308,6 +308,16 @@ function severityFor(component) {
   return 'SEV-4 / Warning';
 }
 
+function shouldEmailIncident(component) {
+  if (!component) return false;
+  if (component.emailOnIncident === false) return false;
+  // A provider can be unhealthy while the application is still serving the
+  // feature through a fallback. The user-facing component check is the one
+  // that should alert an administrator.
+  if (component.group === 'External dependencies') return false;
+  return true;
+}
+
 function titleFor(component, result) {
   if (result.state === 'degraded') return `${component.name} performance degraded`;
   return `${component.name} unavailable`;
@@ -467,7 +477,25 @@ async function syncRecipients() {
 
 async function deliverNotification(type, incident, component, result, relatedComponents) {
   const recipients = await syncRecipients();
+  const checks = {
+    ...result,
+    endpoint: result.endpoint || component.path || component.type,
+  };
   for (const recipient of recipients) {
+    if (type === 'recovery') {
+      const outage = await db
+        .prepare(
+          `SELECT id FROM status_notification_deliveries
+           WHERE incident_id = ? AND notification_type = 'outage'
+             AND recipient = ? AND status = 'sent'
+           LIMIT 1`
+        )
+        .get(incident.id, recipient);
+      // Never send a recovery email to someone who did not receive the
+      // corresponding outage email. This also prevents false recovery mail
+      // for incidents whose alerts were intentionally suppressed.
+      if (!outage) continue;
+    }
     const previous = await db
       .prepare(
         `SELECT * FROM status_notification_deliveries
@@ -484,9 +512,9 @@ async function deliverNotification(type, incident, component, result, relatedCom
         status = 'skipped';
         error = 'Transactional email is not configured.';
       } else if (type === 'recovery') {
-        await sendStatusRecoveryAlert({ recipient, incident, component, checks: result });
+        await sendStatusRecoveryAlert({ recipient, incident, component, checks });
       } else {
-        await sendStatusIncidentAlert({ recipient, incident, component, checks: result, relatedComponents });
+        await sendStatusIncidentAlert({ recipient, incident, component, checks, relatedComponents });
       }
     } catch (err) {
       status = 'failed';
@@ -558,7 +586,11 @@ async function reconcileComponent(component, cycleId, result) {
 
   if (!active && !result.success && failureStreak >= FAILURE_CONFIRMATIONS) {
     const incident = await createIncident(component, cycleId, result, failureStreak);
-    await deliverNotification('outage', incident, component, result, await correlateComponents());
+    if (shouldEmailIncident(component)) {
+      await deliverNotification('outage', incident, component, result, await correlateComponents());
+    } else {
+      console.info(`[status monitor] Email suppressed for non-user-impacting component: ${component.key}`);
+    }
     return { result, incident, maintenance: false, flapping: isFlapping(recent) };
   }
   if (active && !result.success) {
@@ -567,7 +599,7 @@ async function reconcileComponent(component, cycleId, result) {
   }
   if (active && result.success && recoveryStreak >= RECOVERY_CONFIRMATIONS) {
     const incident = await resolveIncident(active, component, cycleId, result, recoveryStreak);
-    await deliverNotification('recovery', incident, component, result, null);
+    if (shouldEmailIncident(component)) await deliverNotification('recovery', incident, component, result, null);
     return { result, incident, maintenance: false, flapping: isFlapping(recent) };
   }
   if (active && result.success) {
@@ -669,5 +701,6 @@ module.exports = {
   getRecentFinalOutcomes,
   isFlapping,
   runStatusCycle,
+  shouldEmailIncident,
   startStatusMonitor,
 };

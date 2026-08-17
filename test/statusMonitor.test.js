@@ -8,7 +8,7 @@ process.env.STATUS_INTERNAL_TOKEN = 'status-test-token';
 process.env.STATUS_MONITOR_ENABLED = 'false';
 
 const db = require('../server/db');
-const { runStatusCycle } = require('../server/services/statusMonitor');
+const { runStatusCycle, shouldEmailIncident } = require('../server/services/statusMonitor');
 
 const originalFetch = global.fetch;
 let healthFails = false;
@@ -44,6 +44,15 @@ async function clearStatusTables() {
   await db.prepare('DELETE FROM status_maintenance').run();
   await db.prepare("UPDATE status_components SET enabled = CASE WHEN component_key = 'ssl' THEN 0 ELSE 1 END").run();
 }
+
+test('status email policy alerts only for user-impacting components', () => {
+  assert.equal(
+    shouldEmailIncident({ key: 'yahoo', group: 'External dependencies', emailOnIncident: false }),
+    false
+  );
+  assert.equal(shouldEmailIncident({ key: 'market-data', group: 'Critical functionality' }), true);
+  assert.equal(shouldEmailIncident({ key: 'website', group: 'Core platform' }), true);
+});
 
 test('status monitor records checks, confirms an outage, and resolves it after recovery checks', async () => {
   await clearStatusTables();
