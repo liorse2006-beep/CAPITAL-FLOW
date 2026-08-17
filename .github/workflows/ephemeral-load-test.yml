@@ -57,7 +57,17 @@ jobs:
           cat /tmp/capital-flow-load-test.log
           exit 1
 
-      - name: Run 500 read-only virtual users
+      - name: Warm the isolated application with 500 read-only virtual users
+        env:
+          LOAD_TEST_TARGET_URL: http://127.0.0.1:3001
+          LOAD_TEST_CONFIRM: staging
+          LOAD_TEST_USERS: '500'
+          LOAD_TEST_PATHS: /health,/status/api/summary
+          LOAD_TEST_TIMEOUT_MS: '10000'
+          LOAD_TEST_MAX_P95_MS: '10000'
+        run: npm run load:500
+
+      - name: Measure 500 read-only virtual users after warm-up
         env:
           LOAD_TEST_TARGET_URL: http://127.0.0.1:3001
           LOAD_TEST_CONFIRM: staging
