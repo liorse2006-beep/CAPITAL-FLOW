@@ -1,9 +1,13 @@
 import React from 'react';
 
 export default function Toast({ message, show, onClose }) {
-  if (!show) return null;
   return (
-    <div className={'toast ' + (show ? 'show' : '')} role="status" aria-live="polite">
+    <div
+      className={'toast ' + (show ? 'show' : '')}
+      role="status"
+      aria-live={show ? 'polite' : 'off'}
+      aria-hidden={!show}
+    >
       <div className="toast-icon">
         <svg
           width="18"
@@ -21,7 +25,7 @@ export default function Toast({ message, show, onClose }) {
         </svg>
       </div>
       <span className="toast-msg">{message}</span>
-      <button className="toast-close" onClick={onClose}>
+      <button className="toast-close" type="button" onClick={onClose} aria-label="Close notification">
         <svg
           width="14"
           height="14"
