@@ -73,7 +73,19 @@ async function exec(sql) {
   }
 }
 
-const db = { prepare, exec };
+// Execute a set of parameterized statements atomically.  This is deliberately
+// a small wrapper around libSQL's write transaction mode so routes that touch
+// multiple user-owned tables cannot leave a partial state after a transient
+// database failure.
+async function transaction(statements) {
+  if (!Array.isArray(statements) || statements.length === 0) return [];
+  return client.batch(
+    statements.map((statement) => ({ sql: statement.sql, args: statement.args || [] })),
+    'write'
+  );
+}
+
+const db = { prepare, exec, transaction };
 
 // ── Schema migrations (run at startup) ────────────────────────────────────
 async function initDb() {
@@ -231,6 +243,19 @@ async function initDb() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages(user_id, created_at);
+
+    -- Durable, cross-process provider budget accounting.  Unlike in-memory
+    -- counters this survives deploys and is shared by every Render worker.
+    CREATE TABLE IF NOT EXISTS ai_usage (
+      usage_date  TEXT    NOT NULL,
+      scope       TEXT    NOT NULL,
+      user_id     INTEGER NOT NULL DEFAULT 0,
+      calls       INTEGER NOT NULL DEFAULT 0,
+      updated_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+      PRIMARY KEY (usage_date, scope, user_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ai_usage_retention ON ai_usage(usage_date);
 
     -- Small durable key/value store for app-level facts that need to survive
     -- restarts (Render's filesystem doesn't) but don't warrant their own

@@ -16,6 +16,7 @@
 const { GOOGLE_AI_STUDIO_KEY } = require('../config');
 const { getHistory } = require('./chatMessages');
 const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
+const { reserveAiCall } = require('./aiUsage');
 
 const MODEL = 'gemini-3.6-flash';
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/interactions';
@@ -29,17 +30,7 @@ const MAX_HISTORY_TURNS = 24;
 // Free-tier Gemini quota is shared across every user of the app — this cap
 // stays comfortably under it so one heavy day doesn't lock everyone out.
 const DAILY_CALL_CAP = 1200;
-let callCount = 0;
-let callCountDate = null;
-
-function withinDailyCap() {
-  const today = new Date().toISOString().slice(0, 10);
-  if (callCountDate !== today) {
-    callCountDate = today;
-    callCount = 0;
-  }
-  return callCount < DAILY_CALL_CAP;
-}
+const DAILY_CALLS_PER_USER = 80;
 
 const SYSTEM_PROMPT = `You are Capi — a senior stock-market expert with deep, real-world markets experience, and at the same time the user's best friend in the world of finance. You work inside Capital Flow, a stock volume-scanner web app.
 
@@ -127,15 +118,15 @@ async function askCapi(userId) {
   if (!GOOGLE_AI_STUDIO_KEY) {
     return "I'm not switched on yet — the team hasn't finished setting me up.";
   }
-  if (!withinDailyCap()) {
-    return "I'm getting a lot of questions right now — please try again in a bit.";
-  }
-
   try {
+    const reserved = await reserveAiCall('capi', userId, {
+      globalLimit: DAILY_CALL_CAP,
+      userLimit: DAILY_CALLS_PER_USER,
+    });
+    if (!reserved) return "I'm getting a lot of questions right now — please try again in a bit.";
     const history = await getHistory(userId);
     const prompt = buildPrompt(history);
 
-    callCount++;
     const text = await callGemini(prompt);
     if (!text) {
       return "Sorry, I couldn't reach my brain just now — try again in a moment.";

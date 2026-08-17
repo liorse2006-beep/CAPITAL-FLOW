@@ -8,6 +8,7 @@
 
 const { GOOGLE_AI_STUDIO_KEY } = require('../config');
 const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
+const { reserveAiCall } = require('./aiUsage');
 
 const MODEL = 'gemini-3.6-flash';
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/interactions';
@@ -17,17 +18,6 @@ const API_REVISION = '2026-05-20';
 // kept modest since this fires per news-scan click, batched one call per
 // symbol rather than one per article.
 const DAILY_CALL_CAP = 300;
-let callCount = 0;
-let callCountDate = null;
-
-function withinDailyCap() {
-  const today = new Date().toISOString().slice(0, 10);
-  if (callCountDate !== today) {
-    callCountDate = today;
-    callCount = 0;
-  }
-  return callCount < DAILY_CALL_CAP;
-}
 
 // Closed taxonomy — the model must pick the single best-fitting category
 // from this exact list (or "other"), never invent a new one. This is what
@@ -79,7 +69,6 @@ function extractJsonArray(text) {
 async function summarizeArticles(symbol, articles) {
   if (!GOOGLE_AI_STUDIO_KEY) return null;
   if (!Array.isArray(articles) || articles.length === 0) return null;
-  if (!withinDailyCap()) return null;
 
   const input =
     'Ticker: ' +
@@ -92,7 +81,7 @@ async function summarizeArticles(symbol, articles) {
       .join('\n\n');
 
   try {
-    callCount++;
+    if (!(await reserveAiCall('news', null, { globalLimit: DAILY_CALL_CAP }))) return null;
     const res = await fetchWithTimeout(
       API_BASE,
       {

@@ -596,12 +596,15 @@ window.addEventListener('error', function (e) {
   if (typeof toast === 'function') toast('Script error: ' + (e.message || 'see console'), true);
 });
 
-// Static ADMIN_TOKEN wins when provided via URL; otherwise use the live JWT
-// from localStorage — it's always fresh and never needs a manual refresh.
+// Static ADMIN_TOKEN is retained only in this page's JavaScript memory for
+// the current open admin page. It is intentionally never persisted in
+// localStorage/sessionStorage, where an unrelated page or later browser use
+// could retrieve it. Otherwise use the live JWT, which is always refreshed
+// through the normal application session flow.
+let transientAdminToken = '';
 function authHeaders() {
-  const staticToken = sessionStorage.getItem('vs_admin_token') || '';
-  return staticToken
-    ? { 'x-admin-token': staticToken }
+  return transientAdminToken
+    ? { 'x-admin-token': transientAdminToken }
     : { 'Authorization': 'Bearer ' + (localStorage.getItem('vs_token') || '') };
 }
 let AUTH_HEADERS = authHeaders();
@@ -625,7 +628,8 @@ function safeOn(id, event, handler) {
 safeOn('admin-token-save', 'click', function () {
   const value = document.getElementById('admin-token-input').value.trim();
   if (!value) return;
-  sessionStorage.setItem('vs_admin_token', value);
+  transientAdminToken = value;
+  document.getElementById('admin-token-input').value = '';
   refreshAuthHeaders();
   load();
   loadAuditLog();

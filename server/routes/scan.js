@@ -22,12 +22,21 @@ const FLOOR_CAP = 500_000_000;
 const inFlightScans = new Map(); // universeKey → { promise, subscribers: Set<{state, opts}> }
 
 function parseVol(str) {
-  if (!str) return 0;
+  if (str == null || str === '') return 0;
   const s = str.toString().toUpperCase().trim();
-  if (s.endsWith('B')) return parseFloat(s) * 1e9;
-  if (s.endsWith('M')) return parseFloat(s) * 1e6;
-  if (s.endsWith('K')) return parseFloat(s) * 1e3;
-  return parseFloat(s) || 0;
+  const match = /^(\d+(?:\.\d+)?)([KMB])?$/.exec(s);
+  if (!match) return null;
+  const multiplier = match[2] === 'B' ? 1e9 : match[2] === 'M' ? 1e6 : match[2] === 'K' ? 1e3 : 1;
+  const value = Number(match[1]) * multiplier;
+  return Number.isFinite(value) && value <= 100_000_000_000_000 ? value : null;
+}
+
+function boundedNumber(value, fallback, min, max) {
+  if (value == null || value === '') return fallback;
+  if (Array.isArray(value)) return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) return null;
+  return parsed;
 }
 
 /** Does one already-enriched result row pass this user's own filters? */
@@ -80,13 +89,26 @@ function joinSharedScan(universeKey, tickers, state, opts) {
 }
 
 router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
-  const minVolumeRatio = parseFloat(req.query.minVolumeRatio) || 1.5;
-  const minMarketCap = parseFloat(req.query.minMarketCap) || 1_000_000_000;
-  const minPrice = parseFloat(req.query.minPrice) || 0;
-  const maxPrice = parseFloat(req.query.maxPrice) || 0;
+  const minVolumeRatio = boundedNumber(req.query.minVolumeRatio, 1.5, 0.1, 100);
+  const minMarketCap = boundedNumber(req.query.minMarketCap, 1_000_000_000, 0, 100_000_000_000_000);
+  const minPrice = boundedNumber(req.query.minPrice, 0, 0, 10_000_000);
+  const maxPrice = boundedNumber(req.query.maxPrice, 0, 0, 10_000_000);
   const minVolRaw = req.query.minVol || '';
-  const sectors = req.query.sectors ? req.query.sectors.split(',') : [];
+  const minVolNum = parseVol(minVolRaw);
+  const sectors = typeof req.query.sectors === 'string' ? req.query.sectors.split(',').filter(Boolean) : [];
   const list = req.query.list || '';
+
+  if (
+    minVolumeRatio == null ||
+    minMarketCap == null ||
+    minPrice == null ||
+    maxPrice == null ||
+    minVolNum == null ||
+    sectors.length > 20 ||
+    (maxPrice > 0 && minPrice > maxPrice)
+  ) {
+    return res.status(400).json({ error: 'Invalid scan filters' });
+  }
 
   const userOpts = {
     minVolumeRatio,
@@ -94,7 +116,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
     minPrice,
     maxPrice,
     minVolRaw,
-    minVolNum: parseVol(minVolRaw),
+    minVolNum,
   };
 
   // Return background cache instantly if fresh and compatible.

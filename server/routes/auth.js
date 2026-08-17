@@ -477,16 +477,19 @@ router.delete('/account', requireAuth, async (req, res) => {
     const userId = req.user.id;
     const email = req.user.email;
 
-    await db.prepare('DELETE FROM user_sessions WHERE user_id = ?').run(userId);
-    await db.prepare('DELETE FROM watchlist_alerts WHERE user_id = ?').run(userId);
-    await db.prepare('DELETE FROM watchlist WHERE user_id = ?').run(userId);
-    await db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(userId);
-    await db.prepare('DELETE FROM feedback WHERE user_id = ?').run(userId);
-    await db.prepare('DELETE FROM scheduled_scans WHERE user_id = ?').run(userId);
-    await db.prepare('DELETE FROM notifications WHERE user_id = ?').run(userId);
-    await db.prepare('DELETE FROM chat_messages WHERE user_id = ?').run(userId);
-    if (email) await db.prepare('DELETE FROM otp_codes WHERE email = ?').run(email);
-    await db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    const statements = [
+      'user_sessions',
+      'watchlist_alerts',
+      'watchlist',
+      'push_subscriptions',
+      'feedback',
+      'scheduled_scans',
+      'notifications',
+      'chat_messages',
+    ].map((table) => ({ sql: `DELETE FROM ${table} WHERE user_id = ?`, args: [userId] }));
+    if (email) statements.push({ sql: 'DELETE FROM otp_codes WHERE email = ?', args: [email] });
+    statements.push({ sql: 'DELETE FROM users WHERE id = ?', args: [userId] });
+    await db.transaction(statements);
 
     res.json({ ok: true });
   } catch (err) {
