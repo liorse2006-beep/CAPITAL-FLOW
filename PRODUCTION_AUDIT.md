@@ -54,14 +54,38 @@ actually executed.
 0 critical, 0 total**. Targeted backup/restore, heartbeat, rollup, load-harness and
 push-failure and backup-delivery-failure tests passed as part of the 295 backend tests.
 
+### Post-deploy verification — 2026-08-17
+
+- Commit `13bfee2` was pushed to `main`; the Render **CAPITAL-FLOW** and
+  **status-capital-flow** services both reached `live` on that commit. GitHub CI and Deploy
+  both completed successfully, including tests, lint, format, build and the production audit
+  gate.
+- `https://capitalflow.vip/health`, `https://status.capitalflow.vip/health`, and the
+  Render status origin health endpoint returned `200`. The public status page returned `200`
+  with `Cache-Control: no-store`, CSP, refresh controls and the separate `/status/admin`
+  shell.
+- The deployed summary exposed nine monitored components, a successful worker heartbeat,
+  the next scheduled check, current history coverage, and sanitized component boundaries.
+  Unauthenticated admin requests returned `401`; the internal market-data endpoint returned
+  `503` without its shared probe token rather than exposing data publicly.
+- The safe local 500-user run completed with **0/500 failures**, **0% error rate**, and
+  **1,077 ms p95** across `/health` and `/status/api/summary`. Production was intentionally
+  not stress-tested; the repository workflow requires an explicitly approved staging target.
+- The read-only wallet readiness probe passed the Apple verification file, production origin,
+  Google Pay CSP, Whop checkout CSP and scanner route checks. No payment or wallet transaction
+  was performed.
+- Render was not upgraded; the independent status service remains on the existing Free plan
+  to preserve the no-additional-cost constraint. GitHub's five-minute keep-alive workflow
+  remains enabled as the external wake/watchdog path.
+
 ### External gates still required before a “100% launch” declaration
 
-The repository now contains the controls and verification paths, but a responsible launch
-sign-off still needs: one approved staging run of the 500-user workflow, real Resend delivery
-and failure-retry observation, an Apple Pay device authorization, a Google Pay device
-authorization, a low-risk Whop payment plus webhook reconciliation, and deployment-console
-confirmation that the independent Render status service has its own database, auth secrets,
-`STATUS_INTERNAL_TOKEN`, backup recipients and external watchdog repository secrets.
+The repository and deployment now contain the controls and verification paths. Final
+sign-off still needs only: one approved staging run of the 500-user workflow, real Resend
+delivery plus failure-retry observation, an Apple Pay device authorization, a Google Pay
+device authorization, and a low-risk Whop payment plus webhook reconciliation. These require
+external devices, a safe staging target, or a real inbox/payment session and were not
+performed automatically.
 
 ## Implementation pass — 2026-08-12
 
