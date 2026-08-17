@@ -329,6 +329,10 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
 
   return (
     <div className="page-content fund-page">
+      <header className="fund-workspace-head">
+        <h1>Fundamentals</h1>
+        <p>Build a focused company read before you trade.</p>
+      </header>
       <div className="fund-panel">
         <form className="fund-search-row" onSubmit={runLookup}>
           <div className="fund-search-field">

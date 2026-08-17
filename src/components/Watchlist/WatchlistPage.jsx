@@ -100,7 +100,7 @@ export default function WatchlistPage({
   }
 
   return (
-    <div className="page-content">
+    <div className="page-content watchlist-page">
       <div className="flow-header">
         <div>
           <h2 className="flow-title">Watchlist</h2>
@@ -143,12 +143,19 @@ export default function WatchlistPage({
       {canNotify && (
         <div className="notif-settings-panel">
           <div className="notif-settings-row">
+            <div className="notif-settings-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+            </div>
             <div>
               <div className="notif-settings-title">Push Notifications</div>
               <div className="notif-settings-sub">
                 Get notified the moment a watchlist ticker crosses its alert threshold — even when the app is closed.
               </div>
             </div>
+            <div className="notif-settings-action">
             {!pushSupported ? (
               isIosNotInstalled() ? (
                 <span className="notif-settings-unsupported">
@@ -166,6 +173,7 @@ export default function WatchlistPage({
                 {pushBusy ? '...' : pushEnabled ? 'Enabled' : 'Enable'}
               </button>
             )}
+            </div>
           </div>
           {pushError && <div className="notif-settings-error">{pushError}</div>}
         </div>
