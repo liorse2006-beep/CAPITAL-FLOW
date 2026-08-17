@@ -1142,7 +1142,7 @@ function setupHeroEntrance(root) {
   });
 }
 
-// CTAs are plain .cf-btn buttons in the static markup (no href to a real
+// CTAs are buttons marked with data-cta-location in the static markup (no href to a real
 // checkout — the original page never had auth). One delegated listener
 // routes every click to the caller's onGetStarted, matching the historical
 // LandingPage.jsx pattern of opening the sign-in modal for any CTA.
@@ -1206,7 +1206,7 @@ function setupScrollCta(root, cleanupFns) {
 
 function setupCtaDelegation(root, onGetStarted, cleanupFns) {
   function onClick(e) {
-    const btn = e.target.closest('.cf-btn');
+    const btn = e.target.closest('[data-cta-location]');
     if (btn && root.contains(btn)) {
       e.preventDefault();
       onGetStarted();

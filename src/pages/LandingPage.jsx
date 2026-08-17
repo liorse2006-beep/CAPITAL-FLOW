@@ -1,8 +1,65 @@
 import React, { useEffect, useRef } from 'react';
+import { createRoot } from 'react-dom/client';
 import bodyHtml from './landing/landing.body.html?raw';
+import SpecularButton from '../components/SpecularButton';
 import { initLandingEffects } from './landing/effects';
 import { track } from '../analytics';
 import './landing/landing.scoped.css';
+
+function mountSpecularCtas(root) {
+  const mounted = [];
+  const ctas = root.querySelectorAll('.cf-btn[data-cta-location]');
+
+  ctas.forEach((button) => {
+    const ctaLocation = button.getAttribute('data-cta-location');
+    const label = button.textContent.replace(/\s+/g, ' ').trim();
+    const isNav = button.classList.contains('cf-nav-cta');
+    const isLarge = button.classList.contains('cf-btn-large');
+    const isOutline = button.classList.contains('cf-btn-outline');
+    const isPlan = Boolean(button.closest('.cf-plan-card'));
+    const variant = isNav ? 'nav' : isPlan ? 'plan' : isOutline ? 'outline' : 'primary';
+    const size = isNav ? 'sm' : isPlan ? 'md' : 'lg';
+    const mount = document.createElement('span');
+    mount.className = 'cf-specular-cta-mount';
+    const reactRoot = createRoot(mount);
+
+    button.replaceWith(mount);
+    reactRoot.render(
+      <SpecularButton
+        size={size}
+        radius={18}
+        tint="#ffffff"
+        tintOpacity={isOutline ? 0.04 : 0.02}
+        blur={0}
+        textColor={isOutline ? '#f5ead4' : '#241507'}
+        lineColor="#fff1c5"
+        baseColor={isOutline ? '#6e522b' : '#a96b1d'}
+        intensity={1.15}
+        shineSize={10}
+        shineFade={40}
+        thickness={1}
+        speed={0.35}
+        followMouse
+        proximity={250}
+        autoAnimate={false}
+        type={button.getAttribute('type') || 'button'}
+        className={`cf-specular-cta cf-specular-cta--${variant}${isLarge ? ' cf-specular-cta--large' : ''}`}
+        data-cta-location={ctaLocation}
+      >
+        {label}
+      </SpecularButton>
+    );
+
+    mounted.push({ button, mount, reactRoot });
+  });
+
+  return () => {
+    mounted.forEach(({ button, mount, reactRoot }) => {
+      reactRoot.unmount();
+      if (mount.parentNode) mount.replaceWith(button);
+    });
+  };
+}
 
 // Public marketing page shown at "/" for logged-out visitors (see App.jsx:
 // `location.pathname === '/' && !user`). Ported from a hand-authored static
@@ -16,8 +73,9 @@ export default function LandingPage({ onGetStarted }) {
   const rootRef = useRef(null);
 
   useEffect(() => {
-    const cleanup = initLandingEffects(rootRef.current, onGetStarted);
     const root = rootRef.current;
+    const cleanupSpecularCtas = mountSpecularCtas(root);
+    const cleanup = initLandingEffects(root, onGetStarted);
     const previousTitle = document.title;
     const description = document.querySelector('meta[name="description"]');
     const previousDescription = description ? description.getAttribute('content') : null;
@@ -46,6 +104,7 @@ export default function LandingPage({ onGetStarted }) {
     return () => {
       root.removeEventListener('click', onMarketingClick);
       cleanup();
+      cleanupSpecularCtas();
       document.title = previousTitle;
       if (description && previousDescription !== null) description.setAttribute('content', previousDescription);
     };
