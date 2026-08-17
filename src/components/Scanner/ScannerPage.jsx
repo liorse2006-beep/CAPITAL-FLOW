@@ -533,7 +533,9 @@ export default function ScannerPage({
                 </div>
                 <span className="empty-rich-kicker">MARKET INTELLIGENCE</span>
                 <h3>Find the market&apos;s next move.</h3>
-                <p>Create an account to scan unusual volume across hundreds of stocks and see where activity is building.</p>
+                <p>
+                  Create an account to scan unusual volume across hundreds of stocks and see where activity is building.
+                </p>
                 <div className="empty-rich-pills">
                   <span className="empty-rich-pill">500+ STOCKS</span>
                   <span className="empty-rich-pill">UNUSUAL VOLUME</span>
