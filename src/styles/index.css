@@ -687,7 +687,9 @@ body {
   background: var(--bg-0);
   border: 1px solid var(--border-strong);
   border-radius: 10px;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 .fund-search-row:focus-within .fund-search-field {
   border-color: var(--accent);
