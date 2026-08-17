@@ -1,0 +1,75 @@
+name: Ephemeral application load test
+
+on:
+  push:
+    branches: [codex/ephemeral-load-test]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NODE_ENV: staging
+      PORT: 3001
+      FRONTEND_URL: http://127.0.0.1:3001
+      JWT_SECRET: ci-ephemeral-load-test-jwt-secret-2026-08-17-long-enough
+      SESSION_SECRET: ci-ephemeral-load-test-session-secret-2026-08-17-long-enough
+      STATUS_MONITOR_ENABLED: 'false'
+      STATUS_BACKUP_ENABLED: 'false'
+      ADMIN_EMAIL: ''
+      RESEND_API_KEY: ''
+      GMAIL_USER: ''
+      GMAIL_APP_PASSWORD: ''
+      CLUSTER_WORKERS: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the production container assets
+        run: npm run build
+
+      - name: Start isolated application
+        shell: bash
+        run: |
+          mkdir -p data logs
+          node server.js > /tmp/capital-flow-load-test.log 2>&1 &
+          echo $! > /tmp/capital-flow-load-test.pid
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:3001/health > /tmp/capital-flow-health.json; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/capital-flow-load-test.log
+          exit 1
+
+      - name: Run 500 read-only virtual users
+        env:
+          LOAD_TEST_TARGET_URL: http://127.0.0.1:3001
+          LOAD_TEST_CONFIRM: staging
+          LOAD_TEST_USERS: '500'
+          LOAD_TEST_PATHS: /health,/status/api/summary
+          LOAD_TEST_TIMEOUT_MS: '10000'
+        run: npm run load:500
+
+      - name: Print application log
+        if: always()
+        shell: bash
+        run: |
+          if test -f /tmp/capital-flow-load-test.log; then
+            tail -n 120 /tmp/capital-flow-load-test.log
+          fi
