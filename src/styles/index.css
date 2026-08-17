@@ -636,6 +636,9 @@ body {
   max-width: 920px;
   margin: 0 auto;
 }
+.fund-guest-empty {
+  margin-top: 26px;
+}
 .fund-panel {
   background: var(--bg-1);
   border: 1px solid var(--border-strong);

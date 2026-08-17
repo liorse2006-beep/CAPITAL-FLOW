@@ -22,8 +22,10 @@ function renderPage(props = {}) {
 describe('FundamentalsPage', () => {
   it('gates the lookup behind sign-in for a logged-out visitor, never showing the search UI', () => {
     renderPage();
-    // Upsell copy pitches the swing-decision framing; the search UI is absent.
-    expect(screen.getByText(/swing decision/i)).toBeInTheDocument();
+    // The guest gate explains the feature without rendering a fake data result.
+    expect(screen.getByText(/key fundamentals behind any ticker/i)).toBeInTheDocument();
+    expect(screen.queryByText('AAPL')).not.toBeInTheDocument();
+    expect(screen.queryByText(/live read/i)).not.toBeInTheDocument();
     expect(screen.queryByText('Analyze')).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/Enter a ticker/)).not.toBeInTheDocument();
   });
@@ -33,7 +35,7 @@ describe('FundamentalsPage', () => {
     const onSignIn = vi.fn();
     const onUpgrade = vi.fn();
     renderPage({ onSignIn, onUpgrade });
-    await user.click(screen.getByText('Sign In'));
+    await user.click(screen.getByRole('button', { name: /sign in/i }));
     expect(onSignIn).toHaveBeenCalled();
     expect(onUpgrade).not.toHaveBeenCalled();
   });
@@ -198,7 +200,7 @@ describe("FundamentalsPage — free-tier access mirrors the server's trial gate"
 
   it('still shows the upsell for a free account whose trial has ended (elite_access false)', async () => {
     renderAsUser({ id: 3, email: 'expired@test.local', tier: 'free', is_premium: false, elite_access: false });
-    expect(await screen.findByText(/swing decision/i)).toBeInTheDocument();
+    expect(await screen.findByText(/key fundamentals behind any ticker/i)).toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/Enter a ticker/)).not.toBeInTheDocument();
   });
 });

@@ -67,15 +67,6 @@ const SELECTABLE_METRICS = [
 ];
 const ALL_METRIC_KEYS = SELECTABLE_METRICS.map((m) => m.key);
 
-const GUEST_PREVIEW_METRICS = [
-  { label: 'Float', value: '1.44B', sub: 'Tradable shares', tone: 'neutral' },
-  { label: 'Short interest', value: '1.0%', sub: 'Of float', tone: 'neutral' },
-  { label: 'P/E ratio', value: '31.20', sub: 'Price / earnings', tone: 'neutral' },
-  { label: 'Debt / equity', value: '1.45', sub: 'Balance-sheet risk', tone: 'neutral' },
-  { label: 'Revenue growth', value: '+8.9%', sub: '5-year average', tone: 'good' },
-  { label: 'Next earnings', value: 'Nov 05', sub: 'Volatility catalyst', tone: 'warn' },
-];
-
 function MetricIcon({ path }) {
   return (
     <svg
@@ -286,64 +277,40 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
   if (!hasAccess) {
     return (
       <div className="page-content fund-page">
-        <section className="fund-guest-hero" aria-labelledby="fund-guest-title">
-          <div className="fund-guest-copy">
-            <div className="fund-guest-kicker">
-              <img src="/icon-192.png" alt="" width="24" height="24" />
-              <span>Fundamentals desk</span>
-              <span className="fund-guest-live-dot" aria-hidden="true" />
-            </div>
-            <h2 id="fund-guest-title" className="fund-guest-title">
-              Know the business before you trade the ticker.
-            </h2>
-            <p className="fund-guest-sub">
-              Pull up any ticker and read the six numbers that matter for a swing decision — not a full equity-research
-              report, just a clear read on liquidity, valuation, leverage, growth, and the next catalyst.
-            </p>
-            <div className="fund-guest-actions">
-              <button className="scan-btn fund-guest-primary" onClick={user ? onUpgrade : onCreateAccount || onSignIn}>
-                {user ? 'Upgrade to Premium' : 'Create free account'}
+        <section className="empty-rich fund-guest-empty" aria-labelledby="fund-guest-title">
+          <div className="empty-rich-skeleton" aria-hidden="true">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div className="empty-rich-skeleton-card" key={i}>
+                <div className="empty-rich-skeleton-bar-label" />
+                <div className={'empty-rich-skeleton-bar-value' + (i % 2 === 0 ? ' accent' : '')} />
+              </div>
+            ))}
+          </div>
+          <div className="empty-rich-overlay">
+            <div className="empty-rich-card empty-rich-guest-card fund-guest-card">
+              <div className="empty-rich-icon">
+                <img src="/icon-192.png" alt="" />
+              </div>
+              <span className="empty-rich-kicker">FUNDAMENTALS DESK</span>
+              <h3 id="fund-guest-title">Know what you&apos;re trading.</h3>
+              <p>Review the key fundamentals behind any ticker — valuation, leverage, growth, and the next catalyst.</p>
+              <div className="empty-rich-pills">
+                <span className="empty-rich-pill">KEY FUNDAMENTALS</span>
+                <span className="empty-rich-pill">TICKER LOOKUPS</span>
+                <span className="empty-rich-pill">CLEAR CONTEXT</span>
+              </div>
+              <button className="empty-rich-cta" onClick={user ? onUpgrade : onCreateAccount || onSignIn}>
+                {user ? 'Upgrade to Premium' : 'Create account'}
                 {!user && <span aria-hidden="true">→</span>}
               </button>
               {!user && (
-                <div className="fund-guest-signin">
-                  <span>Already have an account?</span>
+                <div className="empty-rich-signin">
+                  <span>Already have an account?</span>{' '}
                   <button type="button" onClick={onSignIn}>
-                    Sign In
+                    Sign in
                   </button>
                 </div>
               )}
-            </div>
-          </div>
-
-          <div className="fund-guest-preview" aria-label="Fundamentals preview">
-            <div className="fund-preview-glow" aria-hidden="true" />
-            <div className="fund-preview-topline">
-              <span className="fund-preview-label">Live read</span>
-              <span className="fund-preview-lock">Create an account to unlock</span>
-            </div>
-            <div className="fund-preview-company">
-              <div className="fund-preview-company-main">
-                <span className="fund-preview-symbol">AAPL</span>
-                <span className="fund-preview-name">Apple Inc.</span>
-              </div>
-              <div className="fund-preview-price">
-                <strong>$190.50</strong>
-                <span>▲ 0.80%</span>
-              </div>
-            </div>
-            <div className="fund-preview-grid">
-              {GUEST_PREVIEW_METRICS.map((metric) => (
-                <div className="fund-preview-tile" key={metric.label}>
-                  <span className="fund-preview-tile-label">{metric.label}</span>
-                  <strong className={'fund-preview-tile-value tone-' + metric.tone}>{metric.value}</strong>
-                  <span className="fund-preview-tile-sub">{metric.sub}</span>
-                </div>
-              ))}
-            </div>
-            <div className="fund-preview-footer">
-              <span className="fund-preview-footer-dot" aria-hidden="true" />
-              Verified market data · refreshed per lookup
             </div>
           </div>
         </section>
