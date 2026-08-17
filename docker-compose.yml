@@ -41,7 +41,9 @@ services:
       - STATUS_TURSO_DB_URL=${STATUS_TURSO_DB_URL}
       - STATUS_TURSO_AUTH_TOKEN=${STATUS_TURSO_AUTH_TOKEN}
       - STATUS_PUBLIC_URL=${STATUS_PUBLIC_URL:-http://localhost:3010/status}
-      - STATUS_TARGET_URL=${STATUS_TARGET_URL:-http://app:3001}
+      # Deliberately require an independently reachable origin. A status
+      # deployment must not depend on the app container or Docker network.
+      - STATUS_TARGET_URL=${STATUS_TARGET_URL:?Set the public app origin for the independent status service}
       # Must match the main app value. The status container uses it only for
       # the protected market-data probe, so missing config fails at boot.
       - STATUS_INTERNAL_TOKEN=${STATUS_INTERNAL_TOKEN}
@@ -49,9 +51,6 @@ services:
       - status-data:/app/data
       - status-logs:/app/logs
     restart: unless-stopped
-    depends_on:
-      app:
-        condition: service_started
     healthcheck:
       test:
         [

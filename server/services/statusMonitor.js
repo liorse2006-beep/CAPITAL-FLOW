@@ -126,8 +126,7 @@ function getUrl(path) {
 
 async function readHttpCheck(component) {
   const headers = { Accept: 'application/json, text/html;q=0.9' };
-  if (component.type === 'market-data' && STATUS_INTERNAL_TOKEN)
-    headers['x-status-check-token'] = STATUS_INTERNAL_TOKEN;
+  if (component.requiresStatusToken && STATUS_INTERNAL_TOKEN) headers['x-status-check-token'] = STATUS_INTERNAL_TOKEN;
   const request = {
     headers,
     redirect: component.redirect || 'follow',
@@ -380,6 +379,10 @@ function shouldEmailIncident(component) {
   return true;
 }
 
+function isUserImpacting(component) {
+  return !component || component.userImpact !== false;
+}
+
 function watchdogCycleId() {
   return `watchdog-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
 }
@@ -593,6 +596,27 @@ async function resolveIncident(incident, component, cycleId, result, recoveryCou
   return db.prepare('SELECT * FROM status_incidents WHERE id = ?').get(incident.id);
 }
 
+async function closeNonImpactIncident(incident, component, cycleId) {
+  const resolvedAt = now();
+  const message =
+    'This provider probe is informational only. The user-facing provider chain remains operational, so the incident was closed.';
+  await db
+    .prepare(
+      `UPDATE status_incidents
+       SET status = 'resolved', resolved_at = ?, outage_seconds = MAX(0, ? - started_at),
+           public_summary = ?, updated_at = ?
+       WHERE id = ?`
+    )
+    .run(resolvedAt, resolvedAt, message, resolvedAt, incident.id);
+  await db
+    .prepare('INSERT INTO status_incident_updates (incident_id, status, message, is_public) VALUES (?, ?, ?, 1)')
+    .run(incident.id, 'Closed', message);
+  await db
+    .prepare('UPDATE status_checks SET incident_id = ? WHERE cycle_id = ? AND component_key = ?')
+    .run(incident.id, cycleId, component.key);
+  return db.prepare('SELECT * FROM status_incidents WHERE id = ?').get(incident.id);
+}
+
 function getConfiguredRecipients() {
   const values = [
     ...(STATUS_ALERT_RECIPIENTS || '')
@@ -726,6 +750,10 @@ async function reconcileComponent(component, cycleId, result) {
   const maintenance = await getActiveMaintenance();
   if (maintenanceAffects(maintenance, component.key)) return { result, incident: null, maintenance: true };
   const active = await getActiveIncident(component.key);
+  if (!isUserImpacting(component)) {
+    if (active) await closeNonImpactIncident(active, component, cycleId);
+    return { result, incident: null, maintenance: false, flapping: false };
+  }
   const recent = await getRecentFinalOutcomes(component.key, 12);
   const failureStreak = consecutive(recent, (row) => !row.success);
   const recoveryStreak = consecutive(recent, (row) => row.success && row.state === 'operational');

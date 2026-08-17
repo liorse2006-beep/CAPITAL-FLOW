@@ -95,7 +95,17 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
   const maxPrice = boundedNumber(req.query.maxPrice, 0, 0, 10_000_000);
   const minVolRaw = req.query.minVol || '';
   const minVolNum = parseVol(minVolRaw);
-  const sectors = typeof req.query.sectors === 'string' ? req.query.sectors.split(',').filter(Boolean) : [];
+  const sectors =
+    typeof req.query.sectors === 'string'
+      ? [
+          ...new Set(
+            req.query.sectors
+              .split(',')
+              .map((value) => value.trim())
+              .filter(Boolean)
+          ),
+        ]
+      : [];
   const list = req.query.list || '';
 
   if (
@@ -105,6 +115,9 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
     maxPrice == null ||
     minVolNum == null ||
     sectors.length > 20 ||
+    sectors.some((sector) => !Object.prototype.hasOwnProperty.call(SECTOR_TICKERS, sector)) ||
+    (list && !['nasdaq100', 'sp500', 'sectors'].includes(list)) ||
+    (list === 'sectors' && sectors.length === 0) ||
     (maxPrice > 0 && minPrice > maxPrice)
   ) {
     return res.status(400).json({ error: 'Invalid scan filters' });

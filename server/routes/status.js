@@ -147,14 +147,25 @@ function componentStatus(component, latest, incident, maintenance, flapping) {
 }
 
 function overallStatus(components, incidents, maintenance) {
-  if (incidents.some((incident) => incident.component_key === 'website')) return 'major';
-  if (incidents.some((incident) => incident.component_key === 'monitoring-worker')) return 'degraded';
-  if (incidents.some((incident) => !['SEV-3 / Degraded', 'SEV-4 / Warning'].includes(incident.severity)))
+  const userImpactingComponents = components.filter((component) => component.userImpact !== false);
+  const userImpactingIncidents = incidents.filter((incident) => incident.userImpact !== false);
+  if (userImpactingIncidents.some((incident) => (incident.component_key || incident.componentKey) === 'website'))
+    return 'major';
+  if (
+    userImpactingIncidents.some((incident) => (incident.component_key || incident.componentKey) === 'monitoring-worker')
+  )
+    return 'degraded';
+  if (userImpactingIncidents.some((incident) => !['SEV-3 / Degraded', 'SEV-4 / Warning'].includes(incident.severity)))
     return 'partial';
-  if (incidents.length) return 'degraded';
-  if (components.some((component) => component.status === 'degraded')) return 'degraded';
-  if (maintenance.length && components.some((component) => component.status === 'maintenance')) return 'maintenance';
-  if (components.length && components.every((component) => component.status === 'operational')) return 'operational';
+  if (userImpactingIncidents.length) return 'degraded';
+  if (userImpactingComponents.some((component) => component.status === 'degraded')) return 'degraded';
+  if (maintenance.length && userImpactingComponents.some((component) => component.status === 'maintenance'))
+    return 'maintenance';
+  if (
+    userImpactingComponents.length &&
+    userImpactingComponents.every((component) => component.status === 'operational')
+  )
+    return 'operational';
   return 'unknown';
 }
 
@@ -290,6 +301,7 @@ async function publicSnapshot() {
       name: component.name,
       description: component.description,
       group: component.group,
+      userImpact: component.userImpact !== false,
       status: componentStatus(component, latest, incident, maintenanceAffects(maintenance, component.key), flapping),
       flapping,
       responseMs: latest?.response_ms ?? null,
@@ -319,6 +331,7 @@ async function publicSnapshot() {
       ...component.incident,
       componentKey: component.key,
       componentName: component.name,
+      userImpact: component.userImpact,
     }));
   const watchdogIncident = await activeIncident('monitoring-worker');
   if (!heartbeat.healthy) {

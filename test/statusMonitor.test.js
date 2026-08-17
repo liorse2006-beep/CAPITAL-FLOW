@@ -28,12 +28,14 @@ global.fetch = async function (url) {
   if (value.includes('query1.finance.yahoo.com')) {
     return jsonResponse(200, { chart: { result: [{ meta: { symbol: 'AAPL' } }] } });
   }
-  if (value.endsWith('/health')) {
+  if (value.endsWith('/status/internal/database')) {
     return jsonResponse(
       healthFails ? 503 : 200,
       healthFails ? { status: 'error' } : { status: 'ok', db: { status: 'ok' } }
     );
   }
+  if (value.endsWith('/health'))
+    return jsonResponse(healthFails ? 503 : 200, healthFails ? { status: 'error' } : { status: 'ok' });
   if (value.endsWith('/api/auth/login') || value.endsWith('/api/news/AAPL'))
     return jsonResponse(401, { error: 'Unauthorized' });
   if (value.endsWith('/status/internal/market-data'))
@@ -56,6 +58,28 @@ test('status email policy alerts only for user-impacting components', () => {
   assert.equal(shouldEmailIncident({ key: 'yahoo', group: 'External dependencies', emailOnIncident: false }), false);
   assert.equal(shouldEmailIncident({ key: 'market-data', group: 'Critical functionality' }), true);
   assert.equal(shouldEmailIncident({ key: 'website', group: 'Core platform' }), true);
+});
+
+test('status monitor sends the shared probe token only to protected probes', async () => {
+  const headers = [];
+  const original = global.fetch;
+  global.fetch = async (_url, options) => {
+    headers.push(options?.headers || {});
+    return jsonResponse(200, { status: 'ok', db: { status: 'ok' } });
+  };
+  try {
+    await runStatusCycle();
+    assert.ok(
+      headers.some((value) => value['x-status-check-token']),
+      'protected database probe receives token'
+    );
+    assert.ok(
+      headers.some((value) => !value['x-status-check-token']),
+      'ordinary public checks never receive token'
+    );
+  } finally {
+    global.fetch = original;
+  }
 });
 
 test('status heartbeat reports fresh, starting, and stale worker states', () => {

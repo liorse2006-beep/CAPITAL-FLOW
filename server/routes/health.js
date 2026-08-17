@@ -2,16 +2,19 @@ const express = require('express');
 const { reportError } = require('../utils/reportError');
 const router = express.Router();
 const db = require('../db');
+const { STATUS_INTERNAL_TOKEN } = require('../config');
+
+function hasValidStatusToken(req) {
+  return Boolean(STATUS_INTERNAL_TOKEN) && req.get('x-status-check-token') === STATUS_INTERNAL_TOKEN;
+}
 
 router.get('/health', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   try {
     await db.prepare('SELECT 1').get();
     res.json({
       status: 'ok',
-      uptime: Math.floor(process.uptime()),
-      memory_mb: Math.round(process.memoryUsage().rss / 1024 / 1024),
       timestamp: new Date().toISOString(),
-      db: { status: 'ok' },
     });
   } catch (err) {
     reportError(err, '[health]');
@@ -19,6 +22,18 @@ router.get('/health', async (req, res) => {
       status: 'error',
       timestamp: new Date().toISOString(),
     });
+  }
+});
+
+router.get('/status/internal/database', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!hasValidStatusToken(req)) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await db.prepare('SELECT 1').get();
+    return res.json({ status: 'ok', db: { status: 'ok' }, timestamp: new Date().toISOString() });
+  } catch (err) {
+    reportError(err, '[health database probe]');
+    return res.status(503).json({ status: 'error', timestamp: new Date().toISOString() });
   }
 });
 

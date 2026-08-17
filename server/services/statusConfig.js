@@ -46,8 +46,12 @@ const COMPONENT_DEFINITIONS = [
     group: 'Core platform',
     criticality: 'critical',
     type: 'database-json',
-    path: '/health',
+    // The public health endpoint deliberately exposes only a minimal liveness
+    // result. The independent monitor uses this protected probe to verify a
+    // real database query without publishing infrastructure diagnostics.
+    path: '/status/internal/database',
     expectedStatus: 200,
+    requiresStatusToken: true,
     timeoutMs: STATUS_CHECK_TIMEOUT_MS,
     slowMs: 1200,
     verySlowMs: 3000,
@@ -76,6 +80,7 @@ const COMPONENT_DEFINITIONS = [
     type: 'market-data',
     path: '/status/internal/market-data',
     expectedStatus: 200,
+    requiresStatusToken: true,
     timeoutMs: STATUS_CHECK_TIMEOUT_MS,
     slowMs: 2000,
     verySlowMs: 5000,
@@ -100,6 +105,10 @@ const COMPONENT_DEFINITIONS = [
     description: 'External market-data dependency used for charts and fallback quotes.',
     group: 'External dependencies',
     criticality: 'degraded',
+    // This is an observability-only fallback-provider probe. The separate
+    // market-data component verifies the actual user-facing provider chain,
+    // so Yahoo alone must not create a customer-impact incident.
+    userImpact: false,
     // Yahoo can fail while the application's market-data route still works
     // through another provider. The user-visible market-data check is the
     // signal that should generate an administrator email.
