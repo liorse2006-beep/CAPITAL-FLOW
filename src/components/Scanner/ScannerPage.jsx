@@ -26,6 +26,7 @@ const SCAN_MODE_OPTIONS = [
   {
     mode: 'all',
     color: '#06B6D4',
+    rgb: '6, 182, 212',
     label: 'Full Scan',
     desc: 'S&P 500 + NASDAQ 100 + all sectors combined',
     icon: (
@@ -47,6 +48,7 @@ const SCAN_MODE_OPTIONS = [
   {
     mode: 'sp500',
     color: '#22C55E',
+    rgb: '34, 197, 94',
     label: 'S&P 500',
     desc: "America's 500 largest public companies by market cap",
     icon: (
@@ -67,6 +69,7 @@ const SCAN_MODE_OPTIONS = [
   {
     mode: 'nasdaq100',
     color: '#3B82F6',
+    rgb: '59, 130, 246',
     label: 'NASDAQ 100',
     desc: 'Top 100 innovative and tech-dominant companies',
     icon: (
@@ -87,6 +90,7 @@ const SCAN_MODE_OPTIONS = [
   {
     mode: 'sectors',
     color: '#F59E0B',
+    rgb: '245, 158, 11',
     label: 'By Sector',
     desc: 'Target specific industries — top 5 holdings per sector',
     icon: (
@@ -365,6 +369,7 @@ export default function ScannerPage({
       {!results && !scanning && (
         <div className="scan-mode-wrap">
           <div className="scan-mode-header">
+            <div className="scan-mode-kicker">Market scan / 01</div>
             <h2 className="scan-mode-title">Select Universe</h2>
             <p className="scan-mode-sub">Choose which stocks to scan for unusual volume activity</p>
           </div>
@@ -450,16 +455,20 @@ export default function ScannerPage({
                   </svg>
                   <span className="scan-mode-go-label">Start Market Scan</span>
                 </button>
+                <ScheduleScan scanType="capitalFlow" user={user} onUpgrade={onUpgrade} onSignIn={onSignIn} />
                 {!isPremium && scanMeta && scanMeta.tier === 'premium' && (
                   <span className="scan-limit-topbar">
                     {(scanMeta.premium ? scanMeta.premium.left : 5) + '/5 scans left today'}
                   </span>
                 )}
-                <ScheduleScan scanType="capitalFlow" user={user} onUpgrade={onUpgrade} onSignIn={onSignIn} />
               </div>
             )}
           </div>
 
+          <div className="scan-mode-options-head">
+            <span>Available universes</span>
+            <span>{SCAN_MODE_OPTIONS.length + ' scan modes'}</span>
+          </div>
           <div className="scan-mode-options">
             {SCAN_MODE_OPTIONS.map((cfg) => {
               const isActive = scanMode === cfg.mode;
@@ -472,7 +481,7 @@ export default function ScannerPage({
                     if (cfg.mode === 'sectors') setShowSectorModal(true);
                     else setSelectedSectors([]);
                   }}
-                  style={{ '--card-color': cfg.color }}
+                  style={{ '--card-color': cfg.color, '--card-rgb': cfg.rgb }}
                 >
                   <div className="scan-mode-glow" />
                   <div className="scan-mode-icon-wrap">{cfg.icon}</div>

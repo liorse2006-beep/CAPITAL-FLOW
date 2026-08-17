@@ -1611,21 +1611,22 @@ body {
 /* ── Pre-scan filter panel (shown above Select Universe) ── */
 .scan-filters-panel {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   flex-wrap: wrap;
-  row-gap: 16px;
-  padding: 18px 20px;
-  background: var(--bg-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  margin-bottom: 20px;
+  gap: 14px 0;
+  padding: 16px 18px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
+  margin-bottom: 28px;
 }
 .scan-filter-group {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  padding: 0 22px;
+  gap: 7px;
+  padding: 0 18px;
   border-right: 1px solid var(--border-strong);
 }
 /* Start Scan + Schedule live in the same card as the filters, pinned to the
@@ -1634,9 +1635,9 @@ body {
 .scan-filters-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin-left: auto;
-  padding-left: 22px;
+  padding-left: 18px;
 }
 @media (max-width: 700px) {
   .scan-filters-actions {
@@ -1656,7 +1657,7 @@ body {
   padding-right: 0;
 }
 .scan-filter-label {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1668,12 +1669,12 @@ body {
   gap: 8px;
 }
 .scan-filter-input {
-  height: 30px;
+  height: 34px;
   padding: 0 10px;
-  width: 74px;
+  width: 82px;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--bg-2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
   color: var(--text-0);
   font-size: 13px;
   font-family: var(--mono);
@@ -1988,14 +1989,13 @@ body {
 .scan-mode-wrap {
   position: relative;
   isolation: isolate;
-  padding: 48px 24px 32px;
-  /* Pre-scan is the only content on the page at this point — filling the
-     remaining viewport height (rather than just a fraction of it) and
-     centering within it avoids a large dead void below on tall screens. */
-  min-height: calc(100vh - 200px);
+  width: min(1140px, 100%);
+  margin: 0 auto;
+  padding: 42px 28px 48px;
+  min-height: auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
 }
 .scan-guest-overlay {
   position: absolute;
@@ -2014,26 +2014,60 @@ body {
   max-width: 500px;
 }
 .scan-mode-header {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
+}
+.scan-mode-kicker {
+  margin-bottom: 9px;
+  color: var(--accent-vivid);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
 }
 .scan-mode-title {
-  font-size: 22px;
-  font-weight: 700;
+  font-size: clamp(30px, 4vw, 46px);
+  font-weight: 750;
   color: var(--text-1);
-  letter-spacing: -0.3px;
-  margin-bottom: 6px;
+  letter-spacing: -0.055em;
+  line-height: 1;
+  margin-bottom: 10px;
 }
 .scan-mode-sub {
-  font-size: 13px;
+  max-width: 620px;
+  font-size: 14px;
   color: var(--text-3);
   font-weight: 400;
+  line-height: 1.55;
+}
+
+.scan-mode-options-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 13px;
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.scan-mode-options-head span:first-child {
+  color: var(--text-1);
+}
+.scan-mode-options-head span:last-child {
+  color: var(--text-3);
+  font-weight: 500;
+  letter-spacing: 0.08em;
 }
 
 .scan-mode-options {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 24px;
+  gap: 14px;
+  margin-bottom: 0;
 }
 .scan-mode-card {
   position: relative;
@@ -2041,10 +2075,11 @@ body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  background: var(--bg-1);
+  min-height: 154px;
+  background: linear-gradient(145deg, rgba(24, 24, 27, 0.98), rgba(16, 16, 18, 0.98));
   border: 1px solid var(--border-strong);
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: 14px;
+  padding: 18px 20px 17px;
   cursor: pointer;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
   transition:
@@ -2064,8 +2099,8 @@ body {
   pointer-events: none;
 }
 .scan-mode-card:hover {
-  border-color: rgba(var(--card-rgb), 0.32);
-  background: var(--bg-2);
+  border-color: rgba(var(--card-rgb), 0.5);
+  background: linear-gradient(145deg, rgba(29, 29, 32, 0.98), rgba(18, 18, 20, 0.98));
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
@@ -2073,14 +2108,26 @@ body {
   opacity: 1;
 }
 .scan-mode-card.active {
-  border-color: rgba(var(--card-rgb), 0.65);
-  background: rgba(var(--card-rgb), 0.07);
+  border-color: rgba(245, 158, 11, 0.75);
+  background: linear-gradient(145deg, rgba(245, 158, 11, 0.08), rgba(20, 19, 17, 0.98) 58%);
   box-shadow:
-    0 0 0 1px rgba(var(--card-rgb), 0.14),
-    0 6px 24px rgba(var(--card-rgb), 0.1);
+    0 0 0 1px rgba(245, 158, 11, 0.13),
+    0 18px 35px rgba(245, 158, 11, 0.08);
 }
 .scan-mode-card.active::before {
   opacity: 1;
+}
+.scan-mode-card.active::after {
+  content: 'Selected';
+  position: absolute;
+  top: 17px;
+  right: 18px;
+  color: #fbbf24;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
 }
 .scan-mode-glow {
   position: absolute;
@@ -2099,25 +2146,26 @@ body {
 }
 
 .scan-mode-icon-wrap {
-  width: 48px;
-  height: 48px;
+  width: 38px;
+  height: 38px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 11px;
+  border-radius: 10px;
   background: rgba(var(--card-rgb), 0.1);
   color: var(--card-color);
   border: 1px solid rgba(var(--card-rgb), 0.22);
   transition: all 0.2s;
-  margin-bottom: 16px;
+  margin-bottom: 15px;
 }
 .scan-mode-card:hover .scan-mode-icon-wrap {
   background: rgba(var(--card-rgb), 0.17);
 }
 .scan-mode-card.active .scan-mode-icon-wrap {
-  background: rgba(var(--card-rgb), 0.2);
-  border-color: rgba(var(--card-rgb), 0.4);
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.28);
+  color: #fbbf24;
 }
 
 .scan-mode-text {
@@ -2125,7 +2173,7 @@ body {
   min-width: 0;
 }
 .scan-mode-label {
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text-0);
   margin-bottom: 5px;
@@ -2137,10 +2185,10 @@ body {
   line-height: 1.45;
 }
 .scan-mode-card.active .scan-mode-label {
-  color: var(--card-color);
+  color: var(--text-0);
 }
 .scan-mode-card.active .scan-mode-desc {
-  color: var(--text-1);
+  color: var(--text-2);
 }
 
 .scan-mode-meta {
@@ -2164,23 +2212,23 @@ body {
    visible gold border instead of its foil-text shimmer, which read as too
    flashy for a button clicked repeatedly every session. */
 .scan-mode-go {
-  margin-top: 4px;
-  min-width: 186px;
+  margin-top: 0;
+  min-width: 168px;
   height: 42px;
-  padding: 0 22px;
+  padding: 0 18px;
   font-size: 11px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 9px;
   font-weight: 700;
-  border: 1px solid rgba(245, 158, 11, 0.8);
+  border: 1px solid var(--accent-vivid);
   border-radius: 10px;
-  background: linear-gradient(180deg, rgba(245, 158, 11, 0.14), rgba(245, 158, 11, 0.04));
-  color: #ffc45c;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #1a1200;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 6px 20px rgba(245, 158, 11, 0.1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 9px 24px rgba(245, 158, 11, 0.16);
   transition:
     background var(--transition),
     border-color var(--transition),
@@ -2197,11 +2245,11 @@ body {
   text-transform: uppercase;
 }
 .scan-mode-go:hover {
-  background: linear-gradient(180deg, rgba(245, 158, 11, 0.24), rgba(245, 158, 11, 0.08));
+  background: linear-gradient(135deg, #fde047, #f59e0b);
   border-color: var(--accent-vivid);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 8px 24px rgba(245, 158, 11, 0.18);
+    0 11px 28px rgba(245, 158, 11, 0.23);
   transform: translateY(-1px);
 }
 .scan-mode-go:hover svg {
@@ -2218,6 +2266,21 @@ body {
 .scan-mode-go:focus-visible {
   outline: 2px solid var(--accent-vivid);
   outline-offset: 3px;
+}
+.scan-filters-actions .schedule-scan-btn {
+  height: 42px;
+  min-width: 112px;
+  padding: 0 14px;
+  border-color: var(--border-strong);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text-2);
+  font-weight: 600;
+}
+.scan-filters-actions .schedule-scan-btn:hover {
+  color: var(--text-0);
+  border-color: rgba(245, 158, 11, 0.6);
+  background: rgba(245, 158, 11, 0.06);
 }
 
 /* ── Scan Mode Data Strip ── */
@@ -2267,41 +2330,41 @@ body {
 
 @media (max-width: 600px) {
   .scan-mode-wrap {
-    padding: 32px 16px 24px;
+    padding: 30px 16px 28px;
   }
   .scan-guest-overlay {
     padding: 16px;
   }
   .scan-mode-options {
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 10px;
   }
-  /* Cards go from a tall vertical stack to a single compact row — the
-     description text carries the least information here, so it's the
-     first thing to drop rather than leaving dead vertical space. */
+  /* On phones the cards become a one-column stack while retaining their
+     descriptions, so the original universe copy stays visible. */
   .scan-mode-card {
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 14px;
-    border-radius: 8px;
+    min-height: 132px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    padding: 16px;
+    border-radius: 12px;
   }
   .scan-mode-icon-wrap {
-    width: 36px;
-    height: 36px;
-    margin-bottom: 0;
+    width: 34px;
+    height: 34px;
+    margin-bottom: 12px;
   }
   .scan-mode-icon-wrap svg {
     width: 18px;
     height: 18px;
   }
   .scan-mode-label {
-    margin-bottom: 0;
-    font-size: 14px;
-    white-space: nowrap;
+    margin-bottom: 4px;
+    font-size: 16px;
+    white-space: normal;
   }
   .scan-mode-desc {
-    display: none;
+    display: block;
   }
   .scan-mode-data-strip {
     margin-top: 0;
