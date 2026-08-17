@@ -8,7 +8,13 @@ process.env.STATUS_INTERNAL_TOKEN = 'status-test-token';
 process.env.STATUS_MONITOR_ENABLED = 'false';
 
 const db = require('../server/db');
-const { runStatusCycle, shouldEmailIncident } = require('../server/services/statusMonitor');
+const {
+  getHeartbeatHealth,
+  pruneStatusData,
+  runHeartbeatWatchdog,
+  runStatusCycle,
+  shouldEmailIncident,
+} = require('../server/services/statusMonitor');
 
 const originalFetch = global.fetch;
 let healthFails = false;
@@ -41,17 +47,72 @@ async function clearStatusTables() {
   await db.prepare('DELETE FROM status_incident_updates').run();
   await db.prepare('DELETE FROM status_incidents').run();
   await db.prepare('DELETE FROM status_checks').run();
+  await db.prepare('DELETE FROM status_daily_rollups').run();
   await db.prepare('DELETE FROM status_maintenance').run();
   await db.prepare("UPDATE status_components SET enabled = CASE WHEN component_key = 'ssl' THEN 0 ELSE 1 END").run();
 }
 
 test('status email policy alerts only for user-impacting components', () => {
-  assert.equal(
-    shouldEmailIncident({ key: 'yahoo', group: 'External dependencies', emailOnIncident: false }),
-    false
-  );
+  assert.equal(shouldEmailIncident({ key: 'yahoo', group: 'External dependencies', emailOnIncident: false }), false);
   assert.equal(shouldEmailIncident({ key: 'market-data', group: 'Critical functionality' }), true);
   assert.equal(shouldEmailIncident({ key: 'website', group: 'Core platform' }), true);
+});
+
+test('status heartbeat reports fresh, starting, and stale worker states', () => {
+  const current = Math.floor(Date.now() / 1000);
+  const fresh = getHeartbeatHealth({ last_cycle_at: current, last_cycle_status: 'success' });
+  assert.equal(fresh.healthy, true);
+  assert.equal(fresh.status, 'success');
+  assert.equal(fresh.lastCycleAt, current);
+
+  const starting = getHeartbeatHealth({});
+  assert.equal(starting.healthy, true);
+  assert.equal(starting.status, 'starting');
+
+  const stale = getHeartbeatHealth({
+    last_cycle_at: current - 3600,
+    last_cycle_status: 'success',
+  });
+  assert.equal(stale.healthy, false);
+  assert.equal(stale.status, 'stale');
+  assert.match(stale.reason, /expected interval/i);
+
+  const failed = getHeartbeatHealth({
+    last_cycle_at: current,
+    last_cycle_status: 'error',
+    last_cycle_error: 'cycle failed',
+  });
+  assert.equal(failed.healthy, false);
+  assert.equal(failed.status, 'stale');
+  assert.equal(failed.reason, 'cycle failed');
+});
+
+test('heartbeat watchdog is safely disabled when the monitor is disabled', async () => {
+  const result = await runHeartbeatWatchdog();
+  assert.deepEqual(result, { healthy: true, status: 'disabled' });
+});
+
+test('raw status checks are converted into durable daily rollups before retention pruning', async () => {
+  await clearStatusTables();
+  const oldTimestamp = Math.floor(Date.now() / 1000) - 200 * 86400;
+  await db
+    .prepare(
+      `INSERT INTO status_checks
+       (cycle_id, component_key, checked_at, attempt, endpoint, check_type, success, state, final_result)
+       VALUES (?, 'website', ?, 1, '/', 'http-content', 1, 'operational', 1)`
+    )
+    .run('retention-rollup-test', oldTimestamp);
+
+  await pruneStatusData();
+  const raw = await db
+    .prepare("SELECT COUNT(*) AS count FROM status_checks WHERE cycle_id = 'retention-rollup-test'")
+    .get();
+  const rollup = await db
+    .prepare("SELECT * FROM status_daily_rollups WHERE day = date(?, 'unixepoch') AND component_key = 'website'")
+    .get(oldTimestamp);
+  assert.equal(Number(raw.count), 0);
+  assert.equal(Number(rollup.total_checks), 1);
+  assert.equal(Number(rollup.successful_checks), 1);
 });
 
 test('status monitor records checks, confirms an outage, and resolves it after recovery checks', async () => {

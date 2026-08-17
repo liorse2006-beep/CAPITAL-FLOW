@@ -107,6 +107,20 @@ module.exports = {
   STATUS_FAILURE_CONFIRMATIONS: Math.max(1, parseInt(env('STATUS_FAILURE_CONFIRMATIONS', '2'), 10) || 2),
   STATUS_RECOVERY_CONFIRMATIONS: Math.max(1, parseInt(env('STATUS_RECOVERY_CONFIRMATIONS', '2'), 10) || 2),
   STATUS_RAW_RETENTION_DAYS: Math.max(7, parseInt(env('STATUS_RAW_RETENTION_DAYS', '180'), 10) || 180),
+  // The independent status host must detect a monitor that has stopped
+  // advancing even when its process and database are still reachable.
+  STATUS_HEARTBEAT_STALE_MULTIPLIER: Math.max(1.5, parseFloat(env('STATUS_HEARTBEAT_STALE_MULTIPLIER', '2')) || 2),
+  STATUS_WATCHDOG_INTERVAL_MS: Math.max(15 * 1000, parseInt(env('STATUS_WATCHDOG_INTERVAL_MS', '60000'), 10) || 60000),
+  STATUS_BACKUP_ENABLED: env('STATUS_BACKUP_ENABLED', 'true').toLowerCase() !== 'false',
+  STATUS_BACKUP_INTERVAL_MS: Math.max(
+    60 * 60 * 1000,
+    parseInt(env('STATUS_BACKUP_INTERVAL_MS', String(24 * 60 * 60 * 1000)), 10) || 24 * 60 * 60 * 1000
+  ),
+  STATUS_BACKUP_RECIPIENTS: env('STATUS_BACKUP_RECIPIENTS'),
+  STATUS_BACKUP_MAX_BYTES: Math.max(
+    1024 * 1024,
+    parseInt(env('STATUS_BACKUP_MAX_BYTES', String(20 * 1024 * 1024)), 10) || 20 * 1024 * 1024
+  ),
   SESSION_SECRET: requireSecret('SESSION_SECRET'),
   ADMIN_TOKEN: env('ADMIN_TOKEN'),
   ADMIN_EMAIL: env('ADMIN_EMAIL'),

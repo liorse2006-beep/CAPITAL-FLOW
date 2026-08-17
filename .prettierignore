@@ -5,8 +5,11 @@ logs
 tools
 package-lock.json
 .env
+.env.example
 *.log
 capture-reel-*.js
 LANDING PAGE/**
+src/pages/landing/**
 payment-provider-guide.html
 UPDATE SESSION.md
+videos/

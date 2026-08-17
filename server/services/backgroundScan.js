@@ -139,8 +139,10 @@ async function checkWatchlistAlerts(results) {
         const alertPayload = alertNotificationPayload(alert, r);
         broadcastToUser(Number(userId), 'alert', alertPayload);
         try {
-          require('./webPush').sendPushToUser(Number(userId), alertPayload);
-        } catch (_) {}
+          await require('./webPush').sendPushToUser(Number(userId), alertPayload);
+        } catch (err) {
+          reportError(err, '[checkWatchlistAlerts push]');
+        }
         // Persisted so the alert still shows up in the in-app bell even if
         // the push never reached the device (computer off, dismissed, etc).
         require('./notifications')

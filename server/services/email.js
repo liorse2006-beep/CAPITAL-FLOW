@@ -220,7 +220,7 @@ function statusIncidentText({ incident, component, checks, relatedComponents, re
 
 async function sendStatusIncidentAlert(payload) {
   const { recipient, incident, component, checks, relatedComponents } = payload;
-  const subject = `[Capital Flow] SITE IMPACT — ${incident.title} (${incident.severity})`;
+  const subject = `[Capital Flow] INCIDENT / OUTAGE — ${incident.title} (${incident.severity})`;
   const text = statusIncidentText({ incident, component, checks, relatedComponents, recovery: false });
   if (!resend) {
     requireDevEmailFallback('Status outage alert', recipient, incident.public_id);
@@ -240,6 +240,28 @@ async function sendStatusRecoveryAlert(payload) {
   await send({ from: RESEND_FROM_EMAIL, to: recipient, subject, text });
 }
 
+async function sendStatusBackupEmail({ recipient, filename, content, tableCount, createdAt }) {
+  if (!resend) {
+    requireDevEmailFallback('Status database backup', recipient, filename);
+    return;
+  }
+  await send({
+    from: RESEND_FROM_EMAIL,
+    to: recipient,
+    subject: '[Capital Flow] Status database backup — ' + createdAt.slice(0, 10),
+    text: [
+      'Automated backup of the independent Capital Flow status database.',
+      '',
+      'Created: ' + createdAt,
+      'Tables: ' + tableCount,
+      'File: ' + filename,
+      '',
+      'Restore only against a verified status database target and run the restore tool in dry-run mode first.',
+    ].join('\n'),
+    attachments: [{ filename, content: content.toString('base64') }],
+  });
+}
+
 module.exports = {
   sendOTPEmail,
   sendPasswordResetEmail,
@@ -248,5 +270,6 @@ module.exports = {
   sendAdminUpgradeAlert,
   sendStatusIncidentAlert,
   sendStatusRecoveryAlert,
+  sendStatusBackupEmail,
   statusIncidentText,
 };

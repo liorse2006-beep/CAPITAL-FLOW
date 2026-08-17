@@ -374,10 +374,13 @@ export default function ScannerPage({
               style={{ '--filter-color': '#06B6D4' }}
               onClick={!filtersUnlocked ? goToUpgrade : undefined}
             >
-              <span className="scan-filter-label">Min Ratio</span>
+              <label className="scan-filter-label" htmlFor="scan-min-ratio">
+                Min Ratio
+              </label>
               <div className="scan-filter-input-row">
                 <input
                   className="scan-filter-input"
+                  id="scan-min-ratio"
                   type="number"
                   step="0.5"
                   min="1"
@@ -392,10 +395,13 @@ export default function ScannerPage({
               style={{ '--filter-color': '#22C55E' }}
               onClick={!filtersUnlocked ? goToUpgrade : undefined}
             >
-              <span className="scan-filter-label">Min Cap $B</span>
+              <label className="scan-filter-label" htmlFor="scan-min-cap">
+                Min Cap $B
+              </label>
               <div className="scan-filter-input-row">
                 <input
                   className="scan-filter-input"
+                  id="scan-min-cap"
                   type="number"
                   step="0.5"
                   min="0"
@@ -410,10 +416,13 @@ export default function ScannerPage({
               style={{ '--filter-color': '#F59E0B' }}
               onClick={!filtersUnlocked ? goToUpgrade : undefined}
             >
-              <span className="scan-filter-label">Min Vol</span>
+              <label className="scan-filter-label" htmlFor="scan-min-vol">
+                Min Vol
+              </label>
               <div className="scan-filter-input-row">
                 <input
                   className="scan-filter-input"
+                  id="scan-min-vol"
                   type="text"
                   placeholder="e.g. 1M"
                   value={minVol}

@@ -8,14 +8,16 @@ const { checkAdminToken } = require('../services/adminAccess');
 const {
   getActiveMaintenance,
   getComponentDefinitionsFromDb,
+  getHeartbeatHealth,
   getMeta,
   getRecentFinalOutcomes,
   getUpcomingMaintenance,
   isFlapping,
   runStatusCycle,
 } = require('../services/statusMonitor');
-const { DISPLAY_STATUS, getFullAdminUrl, getStatusPublicUrl, getStatusTargetUrl } = require('../services/statusConfig');
+const { getFullAdminUrl, getStatusPublicUrl } = require('../services/statusConfig');
 const { reportError } = require('../utils/reportError');
+const { runStatusBackup } = require('../services/statusDbBackup');
 
 const statusAdminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -64,27 +66,36 @@ function parseAffected(value) {
   }
 }
 
-function safeStatus(status) {
-  return DISPLAY_STATUS[status] ? status : 'unknown';
-}
-
 async function uptimeFor(componentKey, days) {
   const since = unixNow() - days * 86400;
-  const row = await db
-    .prepare(
-      `SELECT COUNT(*) AS total, COALESCE(SUM(success), 0) AS successful,
-              MIN(checked_at) AS first_check, MAX(checked_at) AS last_check
-       FROM status_checks
-       WHERE component_key = ? AND final_result = 1 AND checked_at >= ?`
-    )
-    .get(componentKey, since);
-  const total = Number(row?.total || 0);
-  const successful = Number(row?.successful || 0);
+  const [raw, rollup] = await Promise.all([
+    db
+      .prepare(
+        `SELECT COUNT(*) AS total, COALESCE(SUM(success), 0) AS successful,
+                MIN(checked_at) AS first_check, MAX(checked_at) AS last_check
+         FROM status_checks
+         WHERE component_key = ? AND final_result = 1 AND checked_at >= ?`
+      )
+      .get(componentKey, since),
+    db
+      .prepare(
+        `SELECT COALESCE(SUM(total_checks), 0) AS total,
+                COALESCE(SUM(successful_checks), 0) AS successful,
+                MIN(first_check) AS first_check, MAX(last_check) AS last_check
+         FROM status_daily_rollups
+         WHERE component_key = ? AND day >= date(?, 'unixepoch')`
+      )
+      .get(componentKey, since),
+  ]);
+  const total = Number(raw?.total || 0) + Number(rollup?.total || 0);
+  const successful = Number(raw?.successful || 0) + Number(rollup?.successful || 0);
+  const firstChecks = [raw?.first_check, rollup?.first_check].filter((value) => value != null).map(Number);
+  const lastChecks = [raw?.last_check, rollup?.last_check].filter((value) => value != null).map(Number);
   return {
     availability: total ? Math.round((successful / total) * 10000) / 100 : null,
     checks: total,
-    firstCheck: row?.first_check || null,
-    lastCheck: row?.last_check || null,
+    firstCheck: firstChecks.length ? Math.min(...firstChecks) : null,
+    lastCheck: lastChecks.length ? Math.max(...lastChecks) : null,
   };
 }
 
@@ -96,6 +107,16 @@ async function latestCheck(componentKey) {
        FROM status_checks
        WHERE component_key = ? AND final_result = 1
        ORDER BY checked_at DESC, id DESC LIMIT 1`
+    )
+    .get(componentKey);
+}
+
+async function checkBoundaries(componentKey) {
+  return db
+    .prepare(
+      'SELECT MAX(CASE WHEN success = 1 THEN checked_at END) AS last_success, ' +
+        'MAX(CASE WHEN success = 0 THEN checked_at END) AS last_failure ' +
+        'FROM status_checks WHERE component_key = ? AND final_result = 1'
     )
     .get(componentKey);
 }
@@ -127,7 +148,9 @@ function componentStatus(component, latest, incident, maintenance, flapping) {
 
 function overallStatus(components, incidents, maintenance) {
   if (incidents.some((incident) => incident.component_key === 'website')) return 'major';
-  if (incidents.some((incident) => !['SEV-3 / Degraded', 'SEV-4 / Warning'].includes(incident.severity))) return 'partial';
+  if (incidents.some((incident) => incident.component_key === 'monitoring-worker')) return 'degraded';
+  if (incidents.some((incident) => !['SEV-3 / Degraded', 'SEV-4 / Warning'].includes(incident.severity)))
+    return 'partial';
   if (incidents.length) return 'degraded';
   if (components.some((component) => component.status === 'degraded')) return 'degraded';
   if (maintenance.length && components.some((component) => component.status === 'maintenance')) return 'maintenance';
@@ -165,7 +188,7 @@ async function publicIncidents(limit = 20) {
 async function dailyHistory(days = 90) {
   const boundedDays = Math.min(90, Math.max(1, Number(days) || 90));
   const since = unixNow() - (boundedDays - 1) * 86400;
-  const rows = await db
+  const rawRows = await db
     .prepare(
       `SELECT component_key, date(checked_at, 'unixepoch') AS day,
               COUNT(*) AS total, COALESCE(SUM(success), 0) AS successful,
@@ -177,6 +200,41 @@ async function dailyHistory(days = 90) {
        ORDER BY day ASC`
     )
     .all(since);
+  const rollupRows = await db
+    .prepare(
+      `SELECT component_key, day, total_checks AS total,
+              successful_checks AS successful, degraded_checks AS degraded,
+              first_check
+       FROM status_daily_rollups
+       WHERE day >= date(?, 'unixepoch')
+       ORDER BY day ASC`
+    )
+    .all(since);
+  const combined = new Map();
+  for (const row of [...rollupRows, ...rawRows]) {
+    const key = row.component_key + '|' + row.day;
+    const previous = combined.get(key);
+    if (!previous) {
+      combined.set(key, {
+        ...row,
+        total: Number(row.total || 0),
+        successful: Number(row.successful || 0),
+        degraded: Number(row.degraded || 0),
+        first_check: row.first_check || null,
+      });
+      continue;
+    }
+    previous.total += Number(row.total || 0);
+    previous.successful += Number(row.successful || 0);
+    previous.degraded += Number(row.degraded || 0);
+    previous.first_check =
+      previous.first_check == null
+        ? row.first_check || null
+        : row.first_check == null
+          ? previous.first_check
+          : Math.min(Number(previous.first_check), Number(row.first_check));
+  }
+  const rows = [...combined.values()].sort((left, right) => String(left.day).localeCompare(String(right.day)));
   const byDay = new Map();
   const byComponent = {};
   rows.forEach((row) => {
@@ -217,12 +275,14 @@ async function dailyHistory(days = 90) {
 
 async function publicSnapshot() {
   await db.ready;
+  const meta = await getMeta();
+  const heartbeat = getHeartbeatHealth(meta);
   const catalog = await getComponentDefinitionsFromDb();
   const maintenance = await getActiveMaintenance();
   const scheduledMaintenance = await getUpcomingMaintenance();
   const rawComponents = [];
   for (const component of catalog) {
-    const latest = await latestCheck(component.key);
+    const [latest, boundaries] = await Promise.all([latestCheck(component.key), checkBoundaries(component.key)]);
     const incident = await activeIncident(component.key);
     const flapping = isFlapping(await getRecentFinalOutcomes(component.key, 8));
     rawComponents.push({
@@ -234,8 +294,8 @@ async function publicSnapshot() {
       flapping,
       responseMs: latest?.response_ms ?? null,
       lastCheck: latest?.checked_at || null,
-      lastSuccess: latest?.success ? latest.checked_at : null,
-      lastFailure: latest && !latest.success ? latest.checked_at : null,
+      lastSuccess: boundaries?.last_success || null,
+      lastFailure: boundaries?.last_failure || null,
       incident: incident
         ? {
             publicId: incident.public_id,
@@ -260,7 +320,19 @@ async function publicSnapshot() {
       componentKey: component.key,
       componentName: component.name,
     }));
-  const meta = await getMeta();
+  const watchdogIncident = await activeIncident('monitoring-worker');
+  if (!heartbeat.healthy) {
+    incidents.unshift({
+      publicId: watchdogIncident?.public_id || 'MONITORING-WORKER-STALE',
+      title: watchdogIncident?.title || 'Monitoring worker heartbeat stale',
+      severity: watchdogIncident?.severity || 'SEV-2 / Major',
+      status: watchdogIncident?.status || 'identified',
+      startedAt: watchdogIncident?.started_at || Number(meta.heartbeat_watchdog_checked_at || unixNow()),
+      summary: 'The independent monitoring worker has not completed a cycle within the expected interval.',
+      componentKey: 'monitoring-worker',
+      componentName: 'Monitoring worker',
+    });
+  }
   const history = await dailyHistory(90);
   return {
     overall: overallStatus(rawComponents, incidents, maintenance),
@@ -287,7 +359,10 @@ async function publicSnapshot() {
     heartbeat: {
       lastCycleAt: asNumber(meta.last_cycle_at),
       nextCycleAt: asNumber(meta.next_cycle_at),
-      status: meta.last_cycle_status || 'unknown',
+      status: heartbeat.status,
+      healthy: heartbeat.healthy,
+      ageSeconds: heartbeat.ageSeconds,
+      maxAgeSeconds: heartbeat.maxAgeSeconds,
       intervalMs: STATUS_CHECK_INTERVAL_MS,
     },
     coverageStartedAt: history.startedAt,
@@ -371,6 +446,7 @@ function renderPage(admin, pageNonce) {
 .refresh-control:disabled{opacity:.65;cursor:wait}
 .admin-auth{flex-wrap:wrap}
 .admin-button:disabled{opacity:.65;cursor:wait}
+.history-bar{padding:0;border:0;appearance:none;min-width:0}
 </style>
 </head>
 <body>
@@ -391,7 +467,7 @@ function renderPage(admin, pageNonce) {
     <section class="section" aria-labelledby="active-incidents-title"><div class="section-head"><h2 id="active-incidents-title">Active incidents</h2><p>Confirmed incidents only</p></div><div class="card" id="active-incidents"><div class="empty">No active incidents.</div></div></section>
     <section class="section" aria-labelledby="previous-incidents-title"><div class="section-head"><h2 id="previous-incidents-title">Previous incidents</h2><p>Resolved incidents from monitoring history</p></div><div class="card" id="previous-incidents"><div class="empty">No incidents have been recorded yet.</div></div></section>
      <div class="admin-area${admin ? ' show' : ''}" id="admin-area">
-      <section class="section"><div class="section-head"><h2>Operations console</h2><p>Private monitoring controls</p></div><div class="card admin-panel"><h3>Admin authentication</h3><p>Use the existing admin token or sign in as the configured administrator. The token is stored locally in this browser only and is sent in a request header.</p><div class="admin-auth"><input class="admin-input" id="admin-token" type="password" autocomplete="off" placeholder="Static admin token"><button class="admin-button" id="save-token" type="button">Use token</button><button class="admin-button secondary" id="refresh-admin-page" type="button">Refresh admin</button><button class="admin-button secondary" id="check-now" type="button">Run check now</button><a class="nav-link" href="${getFullAdminUrl()}">Full user admin</a></div><div class="admin-help" id="admin-auth-status"></div></div></section>
+      <section class="section"><div class="section-head"><h2>Operations console</h2><p>Private monitoring controls</p></div><div class="card admin-panel"><h3>Admin authentication</h3><p>Use the existing admin token or sign in as the configured administrator. A static token is stored in this tab only and is sent in a request header.</p><div class="admin-auth"><input class="admin-input" id="admin-token" type="password" autocomplete="off" placeholder="Static admin token"><button class="admin-button" id="save-token" type="button">Use token</button><button class="admin-button secondary" id="refresh-admin-page" type="button">Refresh admin</button><button class="admin-button secondary" id="check-now" type="button">Run check now</button><a class="nav-link" href="${getFullAdminUrl()}">Full user admin</a></div><div class="admin-help" id="admin-auth-status"></div></div></section>
       <section class="section admin-only" id="admin-controls"><div class="section-head"><h2>Monitoring controls</h2><p id="admin-meta">—</p></div><div class="card admin-panel"><div class="admin-toolbar"><button class="admin-button secondary" id="refresh-admin" type="button">Refresh diagnostics</button><span class="admin-help">Manual checks are rate-limited and never depend on this dashboard remaining open.</span></div></div><div class="card admin-panel"><h3>Scheduled maintenance</h3><p>Maintenance suppresses normal outage alerts only for the selected components and time window. The monitor continues recording checks.</p><form class="maintenance-form" id="maintenance-form"><input class="admin-input" name="title" required maxlength="120" placeholder="Maintenance title"><input class="admin-input" name="startsAt" required type="datetime-local"><input class="admin-input" name="endsAt" required type="datetime-local"><input class="admin-input" name="components" required placeholder="Components: website,backend or *"><textarea class="admin-textarea wide" name="description" required maxlength="1000" placeholder="What is changing and what users should expect?"></textarea><div class="wide"><button class="admin-button" type="submit">Schedule maintenance</button></div></form></div><div class="card admin-panel"><h3>Alert recipients</h3><p>Environment recipients are cached into the status store. Additional recipients can be managed here.</p><form class="admin-toolbar" id="recipient-form"><input class="admin-input" name="email" required type="email" placeholder="admin@example.com"><button class="admin-button" type="submit">Add recipient</button></form><div class="admin-table-wrap" id="recipients-table"><div class="empty">No recipients loaded.</div></div></div><div class="card admin-panel"><h3>Incidents and diagnostics</h3><div class="admin-table-wrap" id="admin-incidents"><div class="empty">Authenticate to load private diagnostics.</div></div></div><div class="card admin-panel"><h3>Recent monitoring checks</h3><div class="admin-table-wrap" id="admin-checks"><div class="empty">Authenticate to load private checks.</div></div></div><div class="card admin-panel"><h3>Maintenance history</h3><div class="admin-table-wrap" id="admin-maintenance"><div class="empty">Authenticate to load maintenance.</div></div></div></section>
     </div>
   </main>
@@ -413,7 +489,9 @@ function renderPage(admin, pageNonce) {
   function fmtUptime(value){return value==null?'—':Number(value).toFixed(2)+'%'}
   function statusClass(status){var map={operational:'ok',degraded:'warn',partial:'partial',major:'down',maintenance:'maintenance',unknown:'unknown'};return map[status]||'unknown'}
   function toast(message){var el=byId('toast');el.textContent=message;el.classList.add('show');setTimeout(function(){el.classList.remove('show')},2600)}
-  function authHeaders(){var headers={};var token=localStorage.getItem(tokenKey);var jwt=localStorage.getItem('vs_token');if(token)headers['x-admin-token']=token;else if(jwt)headers.Authorization='Bearer '+jwt;return headers}
+  function readSessionValue(key){try{return window.sessionStorage.getItem(key)||''}catch(error){return ''}}
+  function writeSessionValue(key,value){try{window.sessionStorage.setItem(key,value)}catch(error){}}
+  function authHeaders(){var headers={};var token=readSessionValue(tokenKey);var jwt=localStorage.getItem('vs_token');if(token)headers['x-admin-token']=token;else if(jwt)headers.Authorization='Bearer '+jwt;return headers}
   function jsonHeaders(){var headers=authHeaders();headers['Content-Type']='application/json';return headers}
   function renderBadge(status){var badge=byId('overall-badge');badge.className='status-dot '+statusClass(status);badge.textContent=statusLabels[status]||'Checking'}
   function renderComponent(component){
@@ -441,9 +519,12 @@ function renderPage(admin, pageNonce) {
     var checks=data.checks||[];byId('admin-checks').innerHTML=checks.length?'<table class="admin-table"><thead><tr><th>Time</th><th>Component</th><th>Result</th><th>HTTP</th><th>Latency</th><th>Diagnostic</th></tr></thead><tbody>'+checks.slice(0,120).map(function(item){return '<tr><td>'+fmtTime(item.checked_at)+'<br>attempt '+item.attempt+(item.final_result?' · final':'')+'</td><td><strong>'+escapeHtml(item.component_key)+'</strong><br>'+escapeHtml(item.check_type)+'</td><td>'+ (item.success?'Success':'Failed')+'<br>'+escapeHtml(item.state)+'</td><td>'+escapeHtml(item.status_code==null?'—':item.status_code)+'</td><td>'+fmtMs(item.response_ms)+'</td><td><code>'+escapeHtml(item.error_message||'—')+'</code></td></tr>'}).join('')+'</tbody></table>':'<div class="empty">No checks yet.</div>';
     var maintenance=data.maintenance||[];byId('admin-maintenance').innerHTML=maintenance.length?'<table class="admin-table"><thead><tr><th>Title</th><th>Window</th><th>Components</th><th>Action</th></tr></thead><tbody>'+maintenance.map(function(item){return '<tr><td><strong>'+escapeHtml(item.title)+'</strong><br>'+escapeHtml(item.description)+'</td><td>'+fmtTime(item.starts_at)+' → '+fmtTime(item.ends_at)+'</td><td>'+escapeHtml(String(item.affected_components))+'</td><td><button class="admin-button danger" data-delete-maintenance="'+item.id+'" type="button">Delete</button></td></tr>'}).join('')+'</tbody></table>':'<div class="empty">No maintenance windows.</div>';
   }
-  async function loadAdmin(){if(!ADMIN_PAGE)return;try{var response=await fetch('/status/api/admin/overview',{headers:authHeaders(),cache:'no-store'});if(!response.ok){byId('admin-auth-status').textContent=response.status===401?'Enter an admin token or sign in as the configured admin.':'Admin access is not configured.';byId('admin-controls').classList.remove('show');return}renderAdmin(await response.json())}catch(error){byId('admin-auth-status').textContent='Could not load private diagnostics.'}}
+  async function runStatusBackup(){try{var result=await adminRequest('/status/api/admin/backup/run-now',{method:'POST'});toast('Status backup sent: '+((result.backup&&result.backup.filename)||'complete'));loadAdmin()}catch(error){toast(error.message)}}
+  function installBackupButton(){var toolbar=byId('admin-controls')&&byId('admin-controls').querySelector('.admin-toolbar');if(!toolbar||byId('run-status-backup'))return;var button=document.createElement('button');button.id='run-status-backup';button.className='admin-button secondary';button.type='button';button.textContent='Backup status DB';button.addEventListener('click',runStatusBackup);toolbar.appendChild(button)}
+  var adminControls=byId('admin-controls');if(adminControls&&window.MutationObserver){new MutationObserver(installBackupButton).observe(adminControls,{childList:true,subtree:true})}
+  async function loadAdmin(){if(!ADMIN_PAGE)return;try{var response=await fetch('/status/api/admin/overview',{headers:authHeaders(),cache:'no-store'});if(!response.ok){byId('admin-auth-status').textContent=response.status===401?'Enter an admin token or sign in as the configured admin.':'Admin access is not configured.';byId('admin-controls').classList.remove('show');return}renderAdmin(await response.json());installBackupButton()}catch(error){byId('admin-auth-status').textContent='Could not load private diagnostics.'}}
   async function adminRequest(url,options){var response=await fetch(url,Object.assign({},options||{}, {headers:Object.assign({},jsonHeaders(),(options&&options.headers)||{})}));var data=await response.json().catch(function(){return {}});if(!response.ok)throw new Error(data.error||'Request failed');return data}
-  byId('save-token').addEventListener('click',function(){var value=byId('admin-token').value.trim();if(value)localStorage.setItem(tokenKey,value);loadAdmin()});
+  byId('save-token').addEventListener('click',function(){var value=byId('admin-token').value.trim();if(value)writeSessionValue(tokenKey,value);loadAdmin()});
   byId('check-now').addEventListener('click',async function(){try{await adminRequest('/status/api/admin/check-now',{method:'POST'});toast('Monitoring cycle started');setTimeout(function(){loadSummary();loadAdmin()},1200)}catch(error){toast(error.message)}});
   async function refreshAdminView(button){var label=button&&button.textContent;if(button){button.disabled=true;button.textContent='Refreshing…'}try{await Promise.all([loadAdmin(),loadSummary()]);markPageUpdated();toast('Admin refreshed')}finally{if(button){button.disabled=false;button.textContent=label}}}
   byId('refresh-admin').addEventListener('click',function(){refreshAdminView(this)});
@@ -509,6 +590,7 @@ router.get(
 router.get(
   '/status/internal/market-data',
   asyncRoute(async (req, res) => {
+    if (!STATUS_INTERNAL_TOKEN) return res.status(503).json({ error: 'Internal market-data probe is not configured.' });
     if (STATUS_INTERNAL_TOKEN && req.headers['x-status-check-token'] !== STATUS_INTERNAL_TOKEN)
       return res.status(401).json({ error: 'Unauthorized' });
     try {
@@ -544,6 +626,23 @@ router.post(
     if (!actor) return;
     runStatusCycle().catch((err) => reportError(err, '[status manual cycle]'));
     res.status(202).json({ ok: true, message: 'Monitoring cycle started.' });
+  })
+);
+
+router.post(
+  '/status/api/admin/backup/run-now',
+  asyncRoute(async (req, res) => {
+    const actor = await checkAdminToken(req, res);
+    if (!actor) return;
+    const result = await runStatusBackup();
+    if (result.status !== 'success') {
+      return res.status(503).json({ error: 'Status database backups are disabled.' });
+    }
+    res.json({
+      ok: true,
+      actor,
+      backup: { filename: result.filename, bytes: result.bytes, recipients: result.recipients },
+    });
   })
 );
 

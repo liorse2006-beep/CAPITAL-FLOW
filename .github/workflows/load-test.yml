@@ -1,0 +1,27 @@
+name: Staging load test
+
+on:
+  workflow_dispatch:
+    inputs:
+      users:
+        description: 'Concurrent read-only virtual users'
+        required: false
+        default: '500'
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - name: Run the guarded read-only capacity harness
+        env:
+          LOAD_TEST_TARGET_URL: ${{ secrets.STAGING_URL }}
+          LOAD_TEST_CONFIRM: staging
+          LOAD_TEST_USERS: ${{ inputs.users }}
+          LOAD_TEST_PATHS: /health,/status/api/summary
+        run: npm run load:500

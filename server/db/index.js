@@ -390,6 +390,34 @@ async function initDb() {
       value               TEXT NOT NULL,
       updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
     );
+
+    -- Durable daily rollups keep long-term availability history after raw
+    -- checks are pruned. The row is replaced from the still-present raw day
+    -- before deletion, making a retry idempotent if a worker stops mid-prune.
+    CREATE TABLE IF NOT EXISTS status_daily_rollups (
+      day                 TEXT NOT NULL,
+      component_key       TEXT NOT NULL,
+      total_checks        INTEGER NOT NULL,
+      successful_checks   INTEGER NOT NULL,
+      degraded_checks     INTEGER NOT NULL DEFAULT 0,
+      failed_checks       INTEGER NOT NULL,
+      first_check         INTEGER,
+      last_check          INTEGER,
+      updated_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+      PRIMARY KEY (day, component_key)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_status_rollups_day ON status_daily_rollups(day);
+
+    -- A short-lived lease prevents two independently deployed status hosts
+    -- from running the same monitoring cycle and sending duplicate incidents.
+    -- The lease is advisory and expires automatically if a worker dies.
+    CREATE TABLE IF NOT EXISTS status_worker_leases (
+      lock_key            TEXT PRIMARY KEY,
+      owner_id            TEXT NOT NULL,
+      expires_at          INTEGER NOT NULL,
+      updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
+    );
   `);
 
   // Keep the component catalog durable while allowing the monitor to add new

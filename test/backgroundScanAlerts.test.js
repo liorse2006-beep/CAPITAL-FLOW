@@ -93,6 +93,24 @@ test('checkWatchlistAlerts does not fire when the ratio is below threshold', asy
   }
 });
 
+test('checkWatchlistAlerts absorbs a rejected push delivery without crashing the scan', async () => {
+  const userId = await makeUser('bg-alert-push-failure@test.local');
+  await setAlert(userId, 'NVDA', { type: 'volume', minRatio: 2.0 });
+
+  const originalSend = webPush.sendPushToUser;
+  webPush.sendPushToUser = async () => {
+    throw new Error('simulated push provider outage');
+  };
+
+  try {
+    await assert.doesNotReject(() =>
+      checkWatchlistAlerts([{ symbol: 'NVDA', name: 'NVIDIA', volumeRatio: 4.0, change: 2.5, price: 120 }])
+    );
+  } finally {
+    webPush.sendPushToUser = originalSend;
+  }
+});
+
 test('checkWatchlistAlerts fires a price alert once the price crosses to the other side of the target', async () => {
   const userId = await makeUser('bg-alert-price-fire@test.local');
   // Set while the price is below the target — starting_side is recorded as

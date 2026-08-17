@@ -37,7 +37,7 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm run build
-      - run: npm audit --audit-level=critical
+      - run: npm audit --omit=dev --audit-level=high
 
   # ── 2. Trigger Render redeploy via deploy hook ────────────────────────────
   deploy:

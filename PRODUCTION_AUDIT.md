@@ -14,6 +14,55 @@ explicitly rather than "assumed fine."
 Legend: **TESTED** = actually executed and observed. **CODE REVIEW** = read the code, did not
 execute. **NOT COVERED** = not looked at in that pass.
 
+## Launch closure implementation pass — 2026-08-17
+
+The nine remaining launch-readiness gaps from the previous closure were addressed in code and
+re-verified locally. This section supersedes the older open-gap notes below where it conflicts
+with them; it does not convert external provider/device checks into claims that were not
+actually executed.
+
+### Closed in this pass
+
+- Added an independent heartbeat watchdog, a database-backed worker lease, stale-heartbeat
+  incident/recovery handling, and a separate GitHub Actions watchdog for a completely
+  unreachable status host.
+- Updated production dependencies and lockfile. `npm audit --omit=dev --audit-level=high`
+  reports **0 vulnerabilities**.
+- Added a guarded read-only `500`-virtual-user load harness and a manual staging workflow.
+  The harness has a deterministic 500-request regression test; no production stress test was
+  run.
+- Kept the wallet flow device-aware through Whop's express checkout, preserved the Apple Pay
+  verification path and wallet CSP origins, and ran the read-only production readiness probe:
+  Apple verification file `200`, origin `200`, Google Pay CSP present, Whop CSP present, and
+  scanner route `200`. Real Apple Pay/Google Pay authorization still requires eligible devices,
+  wallets and a test transaction.
+- Awaited background push delivery and report failures so a rejected push cannot become an
+  unhandled promise or terminate the scan path.
+- Closed the Prettier gate while explicitly excluding the user-maintained landing-page source
+  from this app-only check; CI now audits high/critical production dependencies.
+- Fail-closed the internal market-data probe when its shared secret is absent, corrected status
+  last-success/last-failure boundaries, removed the mobile history-button overflow, added
+  scanner input labels, and kept static status tokens in `sessionStorage` only.
+- Added independent status-database gzip backup/restore with dry-run-by-default restore, admin
+  backup action, scheduled delivery, failure recording, and tests.
+
+### Verification evidence
+
+`npm run test:all`: **295 backend, 101 frontend, 7 Worker, 1 cluster tests passed**.
+`npm run lint`: **0 errors** (pre-existing warnings remain). `npm run format:check`: passed.
+`npm run build`: passed. `git diff --check`: passed. Production dependency audit: **0 high,
+0 critical, 0 total**. Targeted backup/restore, heartbeat, rollup, load-harness and
+push-failure and backup-delivery-failure tests passed as part of the 295 backend tests.
+
+### External gates still required before a “100% launch” declaration
+
+The repository now contains the controls and verification paths, but a responsible launch
+sign-off still needs: one approved staging run of the 500-user workflow, real Resend delivery
+and failure-retry observation, an Apple Pay device authorization, a Google Pay device
+authorization, a low-risk Whop payment plus webhook reconciliation, and deployment-console
+confirmation that the independent Render status service has its own database, auth secrets,
+`STATUS_INTERNAL_TOKEN`, backup recipients and external watchdog repository secrets.
+
 ## Implementation pass — 2026-08-12
 
 The repository remediation pass aligned Trial access across normal HTTP and SSE routes,

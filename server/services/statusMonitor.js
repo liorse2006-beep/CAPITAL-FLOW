@@ -8,11 +8,13 @@ const {
   STATUS_ALERT_RECIPIENTS,
   STATUS_CHECK_INTERVAL_MS,
   STATUS_FAILURE_CONFIRMATIONS,
+  STATUS_HEARTBEAT_STALE_MULTIPLIER,
   STATUS_MONITOR_ENABLED,
   STATUS_RAW_RETENTION_DAYS,
   STATUS_RECOVERY_CONFIRMATIONS,
   STATUS_RETRY_DELAY_MS,
   STATUS_INTERNAL_TOKEN,
+  STATUS_WATCHDOG_INTERVAL_MS,
 } = require('../config');
 const { sendStatusIncidentAlert, sendStatusRecoveryAlert } = require('./email');
 const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
@@ -21,14 +23,74 @@ const { getComponentDefinitions, getStatusTargetUrl } = require('./statusConfig'
 
 const FAILURE_CONFIRMATIONS = STATUS_FAILURE_CONFIRMATIONS;
 const RECOVERY_CONFIRMATIONS = STATUS_RECOVERY_CONFIRMATIONS;
-const state = { running: false, cyclePromise: null, timer: null, startedAt: null };
+const WATCHDOG_COMPONENT = {
+  key: 'monitoring-worker',
+  name: 'Monitoring worker',
+  description: 'Independent monitoring worker heartbeat and scheduler.',
+  group: 'Infrastructure',
+  criticality: 'major',
+  type: 'heartbeat',
+  path: '/health',
+  emailOnIncident: true,
+};
+const state = {
+  running: false,
+  cyclePromise: null,
+  timer: null,
+  watchdogTimer: null,
+  watchdogPromise: null,
+  monitorStartedAt: null,
+  ownerId: crypto.randomUUID(),
+  startedAt: null,
+};
 
 function now() {
   return Math.floor(Date.now() / 1000);
 }
 
+function heartbeatMaxAgeSeconds() {
+  return Math.max(90, Math.ceil((STATUS_CHECK_INTERVAL_MS / 1000) * STATUS_HEARTBEAT_STALE_MULTIPLIER));
+}
+
+function getHeartbeatHealth(meta = {}) {
+  const current = now();
+  const lastCycleAt = Number(meta.last_cycle_at || 0);
+  const lastCycleStatus = String(meta.last_cycle_status || '');
+  const startedAt = Number(state.monitorStartedAt || current);
+  const ageSeconds = lastCycleAt ? Math.max(0, current - lastCycleAt) : Math.max(0, current - startedAt);
+  const maxAgeSeconds = heartbeatMaxAgeSeconds();
+  if (!lastCycleAt && ageSeconds <= maxAgeSeconds) {
+    return { healthy: true, status: 'starting', ageSeconds, maxAgeSeconds, lastCycleAt: null, reason: null };
+  }
+  if (lastCycleStatus !== 'success' || ageSeconds > maxAgeSeconds) {
+    const reason =
+      lastCycleStatus && lastCycleStatus !== 'success'
+        ? String(meta.last_cycle_error || `Last monitoring cycle status: ${lastCycleStatus}.`)
+        : 'No completed monitoring cycle was recorded within the expected interval.';
+    return { healthy: false, status: 'stale', ageSeconds, maxAgeSeconds, lastCycleAt: lastCycleAt || null, reason };
+  }
+  return { healthy: true, status: 'success', ageSeconds, maxAgeSeconds, lastCycleAt };
+}
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function acquireLease(lockKey) {
+  const current = now();
+  const expiresAt = current + Math.max(60, Math.ceil((STATUS_CHECK_INTERVAL_MS / 1000) * 2));
+  const result = await db
+    .prepare(
+      'INSERT INTO status_worker_leases (lock_key, owner_id, expires_at, updated_at) VALUES (?, ?, ?, ?) ' +
+        'ON CONFLICT(lock_key) DO UPDATE SET owner_id = excluded.owner_id, expires_at = excluded.expires_at, updated_at = excluded.updated_at ' +
+        'WHERE status_worker_leases.expires_at < ? OR status_worker_leases.owner_id = ?'
+    )
+    .run(lockKey, state.ownerId, expiresAt, current, current, state.ownerId);
+  return Number(result?.changes || 0) > 0;
+}
+
+async function releaseLease(lockKey) {
+  await db.prepare('DELETE FROM status_worker_leases WHERE lock_key = ? AND owner_id = ?').run(lockKey, state.ownerId);
 }
 
 function parseJson(text) {
@@ -150,7 +212,7 @@ async function checkYahoo(component) {
   };
 }
 
-async function checkDns(component) {
+async function checkDns(_component) {
   const host = new URL(getStatusTargetUrl()).hostname;
   const addresses = await dns.lookup(host, { all: true });
   return {
@@ -316,6 +378,90 @@ function shouldEmailIncident(component) {
   // that should alert an administrator.
   if (component.group === 'External dependencies') return false;
   return true;
+}
+
+function watchdogCycleId() {
+  return `watchdog-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+}
+
+async function runHeartbeatWatchdog() {
+  if (!STATUS_MONITOR_ENABLED) return { healthy: true, status: 'disabled' };
+  if (state.watchdogPromise) return state.watchdogPromise;
+  state.watchdogPromise = (async () => {
+    await db.ready;
+    if (!(await acquireLease('status-watchdog'))) {
+      return { healthy: true, status: 'another_worker' };
+    }
+    try {
+      const meta = await getMeta();
+      const health = getHeartbeatHealth(meta);
+      await setMeta('heartbeat_watchdog_status', health.status);
+      await setMeta('heartbeat_watchdog_checked_at', now());
+      await setMeta('heartbeat_watchdog_age_seconds', health.ageSeconds);
+      const active = await getActiveIncident(WATCHDOG_COMPONENT.key);
+      const cycleId = watchdogCycleId();
+      if (!health.healthy) {
+        await setMeta('heartbeat_recovery_streak', 0);
+        const result = {
+          success: false,
+          state: 'failed',
+          statusCode: 503,
+          responseMs: null,
+          errorMessage: health.reason,
+          timedOut: false,
+          endpoint: '/health',
+        };
+        const incident = active
+          ? await updateIncidentFailure(active, WATCHDOG_COMPONENT, cycleId, result)
+          : await createIncident(WATCHDOG_COMPONENT, cycleId, result, 1);
+        if (shouldEmailIncident(WATCHDOG_COMPONENT)) {
+          await deliverNotification('outage', incident, WATCHDOG_COMPONENT, result, await correlateComponents());
+        }
+        return { ...health, incident };
+      }
+      if (!active) {
+        await setMeta('heartbeat_recovery_streak', 0);
+        return health;
+      }
+      const streak = Number(meta.heartbeat_recovery_streak || 0) + 1;
+      await setMeta('heartbeat_recovery_streak', streak);
+      const result = {
+        success: true,
+        state: 'operational',
+        statusCode: 200,
+        responseMs: null,
+        errorMessage: null,
+        timedOut: false,
+        endpoint: '/health',
+      };
+      if (streak >= RECOVERY_CONFIRMATIONS) {
+        const incident = await resolveIncident(active, WATCHDOG_COMPONENT, cycleId, result, streak);
+        if (shouldEmailIncident(WATCHDOG_COMPONENT)) {
+          await deliverNotification('recovery', incident, WATCHDOG_COMPONENT, result, null);
+        }
+        await setMeta('heartbeat_recovery_streak', 0);
+        return { ...health, incident };
+      }
+      const incident = await updateIncidentRecovery(active, WATCHDOG_COMPONENT, cycleId, result, streak);
+      return { ...health, incident };
+    } finally {
+      await releaseLease('status-watchdog').catch((err) => reportError(err, '[status watchdog lease release]'));
+    }
+  })();
+  try {
+    return await state.watchdogPromise;
+  } finally {
+    state.watchdogPromise = null;
+  }
+}
+
+function startStatusWatchdog() {
+  if (!STATUS_MONITOR_ENABLED || state.watchdogTimer) return;
+  const run = () => runHeartbeatWatchdog().catch((err) => reportError(err, '[status heartbeat watchdog]'));
+  const startup = setTimeout(run, Math.min(30 * 1000, STATUS_WATCHDOG_INTERVAL_MS));
+  startup.unref();
+  state.watchdogTimer = setInterval(run, STATUS_WATCHDOG_INTERVAL_MS);
+  state.watchdogTimer.unref();
 }
 
 function titleFor(component, result) {
@@ -595,6 +741,9 @@ async function reconcileComponent(component, cycleId, result) {
   }
   if (active && !result.success) {
     const incident = await updateIncidentFailure(active, component, cycleId, result);
+    if (shouldEmailIncident(component)) {
+      await deliverNotification('outage', incident, component, result, await correlateComponents());
+    }
     return { result, incident, maintenance: false, flapping: isFlapping(recent) };
   }
   if (active && result.success && recoveryStreak >= RECOVERY_CONFIRMATIONS) {
@@ -620,6 +769,45 @@ async function setMeta(key, value) {
 
 async function pruneStatusData() {
   const cutoff = now() - STATUS_RAW_RETENTION_DAYS * 86400;
+  const oldChecks = await db
+    .prepare(
+      `SELECT component_key, date(checked_at, 'unixepoch') AS day,
+              COUNT(*) AS total_checks, COALESCE(SUM(success), 0) AS successful_checks,
+              COALESCE(SUM(CASE WHEN state = 'degraded' THEN 1 ELSE 0 END), 0) AS degraded_checks,
+              MIN(checked_at) AS first_check, MAX(checked_at) AS last_check
+       FROM status_checks
+       WHERE final_result = 1 AND checked_at < ?
+       GROUP BY component_key, day`
+    )
+    .all(cutoff);
+  for (const row of oldChecks) {
+    await db
+      .prepare(
+        `INSERT INTO status_daily_rollups
+           (day, component_key, total_checks, successful_checks, degraded_checks,
+            failed_checks, first_check, last_check, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(day, component_key) DO UPDATE SET
+           total_checks = excluded.total_checks,
+           successful_checks = excluded.successful_checks,
+           degraded_checks = excluded.degraded_checks,
+           failed_checks = excluded.failed_checks,
+           first_check = excluded.first_check,
+           last_check = excluded.last_check,
+           updated_at = excluded.updated_at`
+      )
+      .run(
+        row.day,
+        row.component_key,
+        Number(row.total_checks || 0),
+        Number(row.successful_checks || 0),
+        Number(row.degraded_checks || 0),
+        Number(row.total_checks || 0) - Number(row.successful_checks || 0),
+        row.first_check || null,
+        row.last_check || null,
+        now()
+      );
+  }
   await db.prepare('DELETE FROM status_checks WHERE checked_at < ?').run(cutoff);
   await db
     .prepare(
@@ -636,6 +824,10 @@ async function runStatusCycle() {
     const started = Date.now();
     state.startedAt = Math.floor(started / 1000);
     await db.ready;
+    if (!(await acquireLease('status-cycle'))) {
+      state.startedAt = null;
+      return { skipped: true, reason: 'Another status worker owns the monitoring lease.' };
+    }
     await setMeta('cycle_started_at', Math.floor(started / 1000));
     let results = [];
     try {
@@ -669,6 +861,7 @@ async function runStatusCycle() {
       reportError(err, '[status monitor cycle]');
       throw err;
     } finally {
+      await releaseLease('status-cycle').catch((err) => reportError(err, '[status monitor lease release]'));
       state.startedAt = null;
     }
   })();
@@ -681,6 +874,7 @@ async function runStatusCycle() {
 
 function startStatusMonitor() {
   if (!STATUS_MONITOR_ENABLED || state.timer) return;
+  state.monitorStartedAt = now();
   const run = () => runStatusCycle().catch(() => {});
   const startup = setTimeout(run, 15 * 1000);
   startup.unref();
@@ -697,10 +891,14 @@ module.exports = {
   getActiveMaintenance,
   getComponentDefinitionsFromDb,
   getMeta,
+  getHeartbeatHealth,
   getUpcomingMaintenance,
   getRecentFinalOutcomes,
   isFlapping,
+  pruneStatusData,
   runStatusCycle,
+  runHeartbeatWatchdog,
   shouldEmailIncident,
   startStatusMonitor,
+  startStatusWatchdog,
 };

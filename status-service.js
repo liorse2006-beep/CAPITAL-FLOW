@@ -22,7 +22,13 @@ const express = require('express');
 const helmet = require('helmet');
 const db = require('./server/db');
 const statusRouter = require('./server/routes/status');
-const { startStatusMonitor } = require('./server/services/statusMonitor');
+const {
+  getHeartbeatHealth,
+  getMeta,
+  startStatusMonitor,
+  startStatusWatchdog,
+} = require('./server/services/statusMonitor');
+const { startScheduledStatusBackup } = require('./server/services/statusDbBackup');
 const { PORT } = require('./server/config');
 const { safeErrorSummary } = require('./server/utils/reportError');
 
@@ -36,9 +42,19 @@ app.use(express.static(path.join(__dirname, 'public'), { index: false, maxAge: '
 app.get('/', (_req, res) => res.redirect('/status'));
 
 app.get('/health', async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   try {
     await db.prepare('SELECT 1').get();
-    res.json({ status: 'ok', service: 'status', timestamp: new Date().toISOString() });
+    const heartbeat = getHeartbeatHealth(await getMeta());
+    if (!heartbeat.healthy) {
+      return res.status(503).json({
+        status: 'error',
+        service: 'status',
+        heartbeat: { status: heartbeat.status, ageSeconds: heartbeat.ageSeconds },
+        timestamp: new Date().toISOString(),
+      });
+    }
+    res.json({ status: 'ok', service: 'status', heartbeat: heartbeat.status, timestamp: new Date().toISOString() });
   } catch (err) {
     console.error('[status-service] health failure:', safeErrorSummary(err));
     res.status(503).json({ status: 'error', service: 'status' });
@@ -50,6 +66,8 @@ app.use('/', statusRouter);
 db.ready
   .then(() => {
     startStatusMonitor();
+    startStatusWatchdog();
+    startScheduledStatusBackup();
     app.listen(PORT, () => {
       console.log(`Independent status service running at http://localhost:${PORT}`);
     });
