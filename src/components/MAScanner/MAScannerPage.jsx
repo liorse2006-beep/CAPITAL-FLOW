@@ -33,6 +33,7 @@ const MARKET_OPTIONS = [
 
 export default function MAScannerPage({
   onSignIn,
+  onCreateAccount,
   onUpgrade,
   onTrialEnded,
   isInWatchlist,
@@ -472,6 +473,48 @@ export default function MAScannerPage({
             })
           ),
           React.createElement('span', { className: 'ma-usage-label' }, categoryQuota(scanMeta, 'maScanner').label)
+        ),
+
+      isLocked &&
+        React.createElement(
+          'div',
+          { className: 'ma-guest-overlay' },
+          React.createElement(
+            'div',
+            { className: 'empty-rich-card empty-rich-guest-card ma-guest-card' },
+            React.createElement(
+              'div',
+              { className: 'empty-rich-icon' },
+              React.createElement('img', { src: '/icon-192.png', alt: '' })
+            ),
+            React.createElement('span', { className: 'empty-rich-kicker' }, 'MARKET-WIDE SCANNING'),
+            React.createElement('h3', null, 'Find stocks at the move.'),
+            React.createElement(
+              'p',
+              null,
+              'Create an account to scan moving-average setups across hundreds of stocks, sectors, and timeframes.'
+            ),
+            React.createElement(
+              'div',
+              { className: 'empty-rich-pills' },
+              React.createElement('span', { className: 'empty-rich-pill' }, 'SMA 9 / 20 / 50 / 150'),
+              React.createElement('span', { className: 'empty-rich-pill' }, 'DAILY + WEEKLY'),
+              React.createElement('span', { className: 'empty-rich-pill' }, '500+ STOCKS')
+            ),
+            React.createElement(
+              'button',
+              { className: 'empty-rich-cta', onClick: onCreateAccount || onSignIn },
+              'Create account ',
+              React.createElement('span', { 'aria-hidden': 'true' }, '→')
+            ),
+            React.createElement(
+              'div',
+              { className: 'empty-rich-signin' },
+              React.createElement('span', null, 'Already have an account?'),
+              ' ',
+              React.createElement('button', { type: 'button', onClick: onSignIn }, 'Sign in')
+            )
+          )
         )
     ),
 

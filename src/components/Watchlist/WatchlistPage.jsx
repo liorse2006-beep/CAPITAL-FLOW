@@ -91,6 +91,7 @@ export default function WatchlistPage({
   alertLevels,
   promptCreateAlert,
   onRequireAuth,
+  onCreateAccount,
 }) {
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -211,24 +212,44 @@ export default function WatchlistPage({
             ))}
           </div>
           <div className="empty-rich-overlay">
-            <div className="empty-rich-card">
+            <div className={'empty-rich-card' + (!user ? ' empty-rich-guest-card' : '')}>
               <div className="empty-rich-icon">
                 <img src="/icon-192.png" alt="" />
               </div>
-              <h3>{user ? 'Your Watchlist' : 'Sign in to use your Watchlist'}</h3>
-              <p>
-                {user
-                  ? 'STAR ANY TICKER TO TRACK IT ACROSS EVERY SESSION'
-                  : 'SIGN IN TO SAVE TICKERS, TRACK LIVE QUOTES, AND CREATE ALERTS'}
-              </p>
-              <div className="empty-rich-pills">
-                <span className="empty-rich-pill">SAVED ACROSS SESSIONS</span>
-                <span className="empty-rich-pill">LIVE QUOTES</span>
-                <span className="empty-rich-pill">ONE-TAP ADD</span>
-              </div>
-              <button className="empty-rich-cta" onClick={() => (user ? setShowAddModal(true) : onRequireAuth?.())}>
-                {user ? '+ Add Ticker' : 'Sign in to get started'}
-              </button>
+              {user ? (
+                <>
+                  <h3>Your Watchlist</h3>
+                  <p>STAR ANY TICKER TO TRACK IT ACROSS EVERY SESSION</p>
+                  <div className="empty-rich-pills">
+                    <span className="empty-rich-pill">SAVED ACROSS SESSIONS</span>
+                    <span className="empty-rich-pill">LIVE QUOTES</span>
+                    <span className="empty-rich-pill">ONE-TAP ADD</span>
+                  </div>
+                  <button className="empty-rich-cta" onClick={() => setShowAddModal(true)}>
+                    + Add Ticker
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="empty-rich-kicker">WATCHLIST INTELLIGENCE</span>
+                  <h3>Keep every signal in view.</h3>
+                  <p>Save the tickers that matter, follow live quotes, and build alerts around your next move.</p>
+                  <div className="empty-rich-pills">
+                    <span className="empty-rich-pill">SAVED ACROSS SESSIONS</span>
+                    <span className="empty-rich-pill">LIVE QUOTES</span>
+                    <span className="empty-rich-pill">ONE-TAP ADD</span>
+                  </div>
+                  <button className="empty-rich-cta" onClick={onCreateAccount || onRequireAuth}>
+                    Create account <span aria-hidden="true">→</span>
+                  </button>
+                  <div className="empty-rich-signin">
+                    <span>Already have an account?</span>{' '}
+                    <button type="button" onClick={onRequireAuth}>
+                      Sign in
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

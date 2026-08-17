@@ -188,6 +188,7 @@ export default function ScannerPage({
   onUpgrade,
   onSignIn,
   openChart,
+  onCreateAccount,
 }) {
   const [currentTime, setCurrentTime] = useState(null);
   const [showSectorModal, setShowSectorModal] = useState(false);
@@ -447,7 +448,7 @@ export default function ScannerPage({
                   >
                     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                   </svg>
-                  <span className="scan-mode-go-label">Run Scan</span>
+                  <span className="scan-mode-go-label">Start Market Scan</span>
                 </button>
                 {!isPremium && scanMeta && scanMeta.tier === 'premium' && (
                   <span className="scan-limit-topbar">
@@ -521,6 +522,33 @@ export default function ScannerPage({
               <button className="sector-clear" onClick={() => setShowSectorModal(true)}>
                 Change sectors
               </button>
+            </div>
+          )}
+
+          {!user && (
+            <div className="scan-guest-overlay" aria-label="Capital Flow scan preview">
+              <div className="empty-rich-card empty-rich-guest-card scan-guest-card">
+                <div className="empty-rich-icon">
+                  <img src="/icon-192.png" alt="" />
+                </div>
+                <span className="empty-rich-kicker">MARKET INTELLIGENCE</span>
+                <h3>Find the market&apos;s next move.</h3>
+                <p>Create an account to scan unusual volume across hundreds of stocks and see where activity is building.</p>
+                <div className="empty-rich-pills">
+                  <span className="empty-rich-pill">500+ STOCKS</span>
+                  <span className="empty-rich-pill">UNUSUAL VOLUME</span>
+                  <span className="empty-rich-pill">SECTOR SIGNALS</span>
+                </div>
+                <button className="empty-rich-cta" onClick={onCreateAccount || onSignIn}>
+                  Create account <span aria-hidden="true">→</span>
+                </button>
+                <div className="empty-rich-signin">
+                  <span>Already have an account?</span>{' '}
+                  <button type="button" onClick={onSignIn}>
+                    Sign in
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -1325,7 +1325,8 @@ function App() {
               element={
                 <Suspense fallback={<div className="page-loading">Loading…</div>}>
                   <MAScannerPage
-                    onSignIn={() => setShowAuthModal(true)}
+                    onSignIn={() => openAuthModal('login')}
+                    onCreateAccount={() => openAuthModal('signup')}
                     onUpgrade={() => openUpgradeModal()}
                     onTrialEnded={onTrialEnded}
                     isInWatchlist={isInWatchlist}
@@ -1388,7 +1389,8 @@ function App() {
                   setShowUpgradeModal={setShowUpgradeModal}
                   alertLevels={alertLevels}
                   promptCreateAlert={promptCreateAlert}
-                  onRequireAuth={() => setShowAuthModal(true)}
+                  onRequireAuth={() => openAuthModal('login')}
+                  onCreateAccount={() => openAuthModal('signup')}
                 />
               }
             />
@@ -1454,6 +1456,7 @@ function App() {
                   openChart={openChart}
                   onUpgrade={() => openUpgradeModal()}
                   onSignIn={() => setShowAuthModal(true)}
+                  onCreateAccount={() => openAuthModal('signup')}
                 />
               }
             />

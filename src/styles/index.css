@@ -1983,6 +1983,8 @@ body {
 
 /* Scan Mode Selector */
 .scan-mode-wrap {
+  position: relative;
+  isolation: isolate;
   padding: 48px 24px 32px;
   /* Pre-scan is the only content on the page at this point — filling the
      remaining viewport height (rather than just a fraction of it) and
@@ -1991,6 +1993,22 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
+}
+.scan-guest-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  border-radius: var(--radius);
+  background: rgba(5, 5, 5, 0.84);
+  backdrop-filter: blur(3px);
+}
+.scan-guest-card {
+  width: min(100%, 500px);
+  max-width: 500px;
 }
 .scan-mode-header {
   margin-bottom: 32px;
@@ -2144,35 +2162,59 @@ body {
    flashy for a button clicked repeatedly every session. */
 .scan-mode-go {
   margin-top: 4px;
-  padding: 15px 40px;
-  font-size: 13px;
+  min-width: 186px;
+  height: 42px;
+  padding: 0 22px;
+  font-size: 11px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 9px;
   font-weight: 700;
-  border: 1.5px solid var(--accent-vivid);
-  border-radius: 100px;
-  background: #0a0906;
-  color: var(--accent-vivid);
+  border: 1px solid rgba(245, 158, 11, 0.8);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.14), rgba(245, 158, 11, 0.04));
+  color: #ffc45c;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 6px 20px rgba(245, 158, 11, 0.1);
   transition:
     background var(--transition),
-    box-shadow var(--transition);
+    border-color var(--transition),
+    box-shadow var(--transition),
+    transform var(--transition);
+}
+.scan-mode-go svg {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--transition);
 }
 .scan-mode-go-label {
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 .scan-mode-go:hover {
-  background: #171208;
-  box-shadow: 0 0 18px rgba(245, 158, 11, 0.22);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.24), rgba(245, 158, 11, 0.08));
+  border-color: var(--accent-vivid);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 8px 24px rgba(245, 158, 11, 0.18);
+  transform: translateY(-1px);
+}
+.scan-mode-go:hover svg {
+  transform: translateX(1px) rotate(-8deg);
 }
 .scan-mode-go:active {
   opacity: 0.85;
+  transform: translateY(0);
 }
 .scan-mode-go:disabled {
   opacity: 0.35;
   box-shadow: none;
+}
+.scan-mode-go:focus-visible {
+  outline: 2px solid var(--accent-vivid);
+  outline-offset: 3px;
 }
 
 /* ── Scan Mode Data Strip ── */
@@ -2223,6 +2265,9 @@ body {
 @media (max-width: 600px) {
   .scan-mode-wrap {
     padding: 32px 16px 24px;
+  }
+  .scan-guest-overlay {
+    padding: 16px;
   }
   .scan-mode-options {
     grid-template-columns: 1fr;
@@ -8555,6 +8600,7 @@ html.a11y-highlight-links a {
    ───────────────────────────────────────────────────────────────────────── */
 
 .ma-controls {
+  position: relative;
   display: flex;
   align-items: flex-start;
   flex-wrap: wrap;
@@ -8564,6 +8610,22 @@ html.a11y-highlight-links a {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   margin-bottom: 12px;
+}
+.ma-guest-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  border-radius: inherit;
+  background: rgba(5, 5, 5, 0.78);
+  backdrop-filter: blur(2px);
+}
+.ma-guest-card {
+  width: min(100%, 460px);
+  max-width: 460px;
 }
 
 .ma-ctrl-group {
@@ -8774,6 +8836,7 @@ html.a11y-highlight-links a {
 
 @media (max-width: 768px) {
   .ma-controls {
+    position: relative;
     gap: 14px;
     padding: 16px;
   }
