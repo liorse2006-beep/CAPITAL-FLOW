@@ -2,6 +2,27 @@ const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { verifyToken } = require('../services/auth');
 const { resolveSseTicket } = require('./authMiddleware');
 
+// This domain is proxied through Cloudflare in front of Render — two proxy
+// hops, not one. `app.set('trust proxy', 1)` (server/index.js) only trusts
+// the single closest hop, so req.ip ends up resolving to whichever address
+// Cloudflare happened to use on its edge-to-origin connection for THAT
+// request — which Cloudflare does not guarantee stays the same between
+// requests from the same visitor. Verified externally: 12 back-to-back
+// login attempts from one real IP produced a non-monotonic
+// ratelimit-remaining sequence (8,7,7,6,9,9,8,9,5,7,7,7) instead of a clean
+// countdown — the limiter was silently keying different requests from the
+// same attacker under different buckets, weakening the brute-force
+// protection on login/OTP well below the configured 10-per-15-minutes.
+// Cloudflare's CF-Connecting-IP header is set once, at the edge, to the
+// true original client IP, and is untouched by anything between Cloudflare
+// and this app — using it instead of req.ip removes the ambiguity
+// entirely. Falls back to req.ip when the header is absent (local dev, the
+// test suite, or any request that somehow reaches this app without going
+// through Cloudflare) so nothing here depends on the production topology.
+function realIp(req) {
+  return req.headers['cf-connecting-ip'] || req.ip;
+}
+
 // Default express-rate-limit keys by IP alone — fine for pre-login
 // endpoints (see authLimiter/otpLimiter below, which must stay IP-keyed:
 // that's exactly the brute-force surface, and there's no authenticated
@@ -27,7 +48,7 @@ function userOrIpKey(req, _res) {
   // ipKeyGenerator takes the IP string itself (normalizes IPv6 to a /56
   // subnet so one visitor can't dodge the limit across addresses within
   // their own allocated block) — not (req, res).
-  return ipKeyGenerator(req.ip);
+  return ipKeyGenerator(realIp(req));
 }
 
 // EventSource (used for /api/stream) cannot send an Authorization header —
@@ -45,7 +66,7 @@ function userOrIpKey(req, _res) {
 function ticketOrIpKey(req, _res) {
   const userId = resolveSseTicket(req.query.ticket);
   if (userId) return 'user:' + userId;
-  return ipKeyGenerator(req.ip);
+  return ipKeyGenerator(realIp(req));
 }
 
 // Tight limiter for credential endpoints — stops brute-force on login,
@@ -55,6 +76,7 @@ const authLimiter = rateLimit({
   max: 10, // 10 attempts per IP per window
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(realIp(req)),
   message: { error: 'Too many attempts. Please wait a few minutes and try again.' },
 });
 
@@ -65,6 +87,7 @@ const otpLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(realIp(req)),
   message: { error: 'Too many code attempts. Request a new code and try again later.' },
 });
 
@@ -121,6 +144,7 @@ const adminLimiter = rateLimit({
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(realIp(req)),
   message: { error: 'Too many requests. Please wait a few minutes and try again.' },
 });
 
@@ -144,6 +168,7 @@ const publicWriteLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(realIp(req)),
   message: { error: 'Too many requests. Please try again shortly.' },
 });
 
@@ -158,6 +183,7 @@ const publicDataLimiter = rateLimit({
   max: 8,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(realIp(req)),
   message: { error: 'Too many requests. Please slow down.' },
 });
 
@@ -172,6 +198,7 @@ const sessionLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(realIp(req)),
   message: { error: 'Too many requests. Please slow down.' },
 });
 
