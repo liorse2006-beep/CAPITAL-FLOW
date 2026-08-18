@@ -171,6 +171,22 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/fundamentals?symbol=AAPL'), expect.anything());
   });
+
+  it('removes a recent ticker from the visible list and local preference', async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderPremiumPage();
+
+    await screen.findByPlaceholderText(/Enter a ticker/);
+    await user.type(screen.getByPlaceholderText(/Enter a ticker/), 'AAPL');
+    await user.click(screen.getByText('Analyze'));
+    await screen.findByText('Apple Inc.');
+
+    fetchMock.mockClear();
+    await user.click(screen.getByRole('button', { name: 'Remove AAPL from recent searches' }));
+    expect(screen.queryByRole('button', { name: 'AAPL' })).not.toBeInTheDocument();
+    expect(localStorage.getItem('vs_fund_recent:1')).not.toContain('AAPL');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("FundamentalsPage — free-tier access mirrors the server's trial gate", () => {

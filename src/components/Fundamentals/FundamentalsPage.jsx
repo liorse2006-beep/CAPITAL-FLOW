@@ -188,6 +188,17 @@ function saveRecentTicker(userId, symbol) {
   return next;
 }
 
+function removeRecentTicker(userId, symbol) {
+  const next = loadRecentTickers(userId).filter((ticker) => ticker !== symbol);
+  try {
+    localStorage.setItem(RECENT_KEY_PREFIX + userId, JSON.stringify(next));
+  } catch (e) {
+    // This is a convenience-only local preference. Keep the visible state
+    // correct even when persistent browser storage is unavailable.
+  }
+  return next;
+}
+
 export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount }) {
   const { getToken, user } = useAuth();
   // Premium/Elite always; a free account also gets full (unlimited) access
@@ -272,6 +283,11 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
   function lookupRecent(symbol) {
     setSymbolInput(symbol);
     lookupSymbol(symbol);
+  }
+
+  function removeRecent(symbol) {
+    if (!user) return;
+    setRecentTickers(removeRecentTicker(user.id, symbol));
   }
 
   if (!hasAccess) {
@@ -371,15 +387,21 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
           <div className="fund-recent">
             <span className="fund-recent-label">Recent</span>
             {recentTickers.map((sym) => (
-              <button
-                key={sym}
-                type="button"
-                className="fund-recent-chip"
-                disabled={loading}
-                onClick={() => lookupRecent(sym)}
-              >
-                {sym}
-              </button>
+              <div key={sym} className="fund-recent-chip">
+                <button type="button" className="fund-recent-open" disabled={loading} onClick={() => lookupRecent(sym)}>
+                  {sym}
+                </button>
+                <button
+                  type="button"
+                  className="fund-recent-remove"
+                  disabled={loading}
+                  onClick={() => removeRecent(sym)}
+                  aria-label={`Remove ${sym} from recent searches`}
+                  title={`Remove ${sym}`}
+                >
+                  ×
+                </button>
+              </div>
             ))}
           </div>
         )}
