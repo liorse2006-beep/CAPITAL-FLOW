@@ -31,7 +31,9 @@ function mountSpecularCtas(root) {
         tint="#ffffff"
         tintOpacity={isOutline ? 0.04 : 0.02}
         blur={0}
-        textColor={isOutline ? '#f5ead4' : '#241507'}
+        // Keep the label bright: the specular rim is transparent by design,
+        // so a dark label disappears against the landing page background.
+        textColor="#fff4dd"
         lineColor="#fff1c5"
         baseColor={isOutline ? '#6e522b' : '#a96b1d'}
         intensity={1.15}

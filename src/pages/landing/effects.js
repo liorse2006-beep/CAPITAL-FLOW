@@ -14,6 +14,7 @@
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Renderer, Program, Mesh, Triangle } from 'ogl';
+import { TRUST_LOGO_SYMBOLS } from './trustLogos';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -836,7 +837,7 @@ function setupScrollFloat(root, cleanupFns) {
   // LTR order, so "MA Scanner" rendered as "Scanner MA". The section
   // headings below are pure Hebrew, where the reading-order direction and
   // the container direction agree, so word-splitting them is safe.
-  root.querySelectorAll('#why h2, #why-tools h2, #how h2, #faq h2, .cf-final h2').forEach((el) => {
+  root.querySelectorAll('#why-tools h2, #faq h2, .cf-final h2').forEach((el) => {
     mountScrollFloat(el, {}, cleanupFns);
   });
 }
@@ -1155,7 +1156,7 @@ function setupHeroEntrance(root) {
 // several other effects in this file) it can't get stuck mid-transition if
 // the tab starts backgrounded.
 // Builds the trust strip's moving marquee: two identical copies of the
-// phrase set placed side by side, translated -50% on a CSS loop (see
+// logo set placed side by side, translated -50% on a CSS loop (see
 // .cf-marq's @keyframes in landing.scoped.css) — the standard seamless-
 // marquee trick already used for the top ticker banner earlier in this
 // project, and for the same reason: a plain CSS animation starts the
@@ -1163,34 +1164,71 @@ function setupHeroEntrance(root) {
 // up) and runs on the compositor, so it can't stutter from main-thread
 // contention with the WebGL scanner background or ElectricBorder's rAF
 // loops. Built via JS rather than hand-duplicated in the static markup
-// purely to avoid maintaining two copies of the same phrase list by hand.
-function mountTrustMarquee(el, phrases, cleanupFns) {
+// purely to avoid maintaining two copies of the same logo list by hand.
+function mountTrustMarquee(el, assets, cleanupFns) {
   function buildSegment() {
     const seg = document.createElement('div');
     seg.className = 'cf-marq-seg';
-    // Repeated a few times over so a single segment is comfortably wider
-    // than any realistic viewport — otherwise the track runs out of
-    // content mid-loop and a blank gap scrolls into view (the exact bug
-    // fixed for the old top ticker banner).
-    for (let rep = 0; rep < 4; rep++) {
-      phrases.forEach((p) => {
+    // With 300 unique logos, one copy per segment is already much wider than
+    // any realistic viewport. Smaller future sets still get extra copies so
+    // the track never runs out of content mid-loop.
+    const segmentCopies = assets.length >= 100 ? 1 : 6;
+    for (let rep = 0; rep < segmentCopies; rep++) {
+      assets.forEach((asset) => {
         const item = document.createElement('span');
-        item.className = 'cf-marq-item';
-        item.innerHTML = '<span class="cf-marq-dot"></span><span><b>' + p[0] + '</b> ' + p[1] + '</span>';
+        item.className = 'cf-marq-item cf-marq-logo-item';
+
+        const frame = document.createElement('span');
+        frame.className = 'cf-marq-logo-frame';
+
+        const logo = document.createElement('img');
+        logo.className = 'cf-marq-logo';
+        logo.src = 'https://assets.parqet.com/logos/symbol/' + asset.symbol + '?format=svg&size=32';
+        logo.alt = '';
+        logo.decoding = 'async';
+        logo.loading = 'eager';
+
+        const fallback = document.createElement('span');
+        fallback.className = 'cf-marq-logo-fallback';
+        fallback.setAttribute('aria-hidden', 'true');
+        fallback.hidden = true;
+        fallback.innerHTML = '<i></i><i></i><i></i>';
+
+        logo.addEventListener(
+          'load',
+          () => {
+            frame.classList.add('has-logo');
+          },
+          { once: true }
+        );
+        logo.addEventListener(
+          'error',
+          () => {
+            frame.classList.add('has-logo');
+            logo.hidden = true;
+            fallback.hidden = false;
+          },
+          { once: true }
+        );
+
+        if (logo.complete && logo.naturalWidth > 0) {
+          frame.classList.add('has-logo');
+        }
+
+        frame.append(logo, fallback);
+        item.appendChild(frame);
         seg.appendChild(item);
-        const sep = document.createElement('span');
-        sep.className = 'cf-marq-sep';
-        sep.textContent = '◆';
-        seg.appendChild(sep);
       });
     }
     return seg;
   }
-  el.appendChild(buildSegment());
-  el.appendChild(buildSegment());
-  cleanupFns.push(() => {
-    el.textContent = '';
-  });
+    el.appendChild(buildSegment());
+    el.appendChild(buildSegment());
+    el.style.setProperty('--cf-marq-duration', Math.max(26, assets.length * 0.48) + 's');
+    cleanupFns.push(() => {
+      el.textContent = '';
+      el.style.removeProperty('--cf-marq-duration');
+    });
 }
 
 function setupScrollCta(root, cleanupFns) {
@@ -1276,12 +1314,7 @@ export function initLandingEffects(rootEl, onGetStarted) {
     if (marqEl) {
       mountTrustMarquee(
         marqEl,
-        [
-          ['למצוא את מה שמעניין', 'בלי לעבור על הכול'],
-          ['לפתוח בדיקה', 'לפני שמחליטים'],
-          ['לשמור למעקב', 'ולחזור כשנוח'],
-          ['פחות רעש', 'יותר הקשר'],
-        ],
+        TRUST_LOGO_SYMBOLS.map((symbol) => ({ symbol })),
         cleanupFns
       );
     }

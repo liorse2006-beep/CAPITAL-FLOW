@@ -552,37 +552,6 @@
 .cf-landing-page .cf-blk {
   padding: 100px 0;
 }
-.cf-landing-page .cf-steps {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 40px;
-  max-width: 960px;
-  margin: 0 auto;
-}
-.cf-landing-page .cf-step-num {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 15px;
-  color: var(--accent-ink);
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 20px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 60%, white), var(--accent));
-}
-.cf-landing-page .cf-step h3 {
-  font-size: 19px;
-  margin-bottom: 10px;
-}
-.cf-landing-page .cf-step p {
-  margin: 0;
-  font-size: 15px;
-  color: var(--text-1);
-  line-height: 1.6;
-}
 .cf-landing-page .cf-feat-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -888,9 +857,6 @@
   .cf-landing-page .cf-feat-span2 {
     grid-column: span 1;
   }
-  .cf-landing-page .cf-steps {
-    grid-template-columns: 1fr;
-  }
 }
 @media (max-width: 800px) {
   .cf-landing-page .cf-hero-grid {
@@ -1072,20 +1038,46 @@
   }
 }
 
-/* Trust strip — a live moving marquee of short status phrases (built by
-   effects.js's mountTrustMarquee, two identical copies of the phrase set
+/* Trust strip — a live moving marquee of verified company logos (built by
+   effects.js's mountTrustMarquee, two identical copies of the logo set
    translated -50% on a loop; see that function's comment for why it's a
-   plain CSS animation and not JS-driven). Edge fade masks so phrases
-   scroll in/out smoothly at the container edges instead of clipping mid-word. */
+   plain CSS animation and not JS-driven). Edge fade masks keep logos from
+   clipping abruptly as they enter and leave the strip. */
 .cf-landing-page .cf-trust {
   border-top: 1px solid color-mix(in srgb, var(--accent) 16%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--accent) 16%, transparent);
   background: color-mix(in srgb, var(--bg-1) 55%, transparent);
+  direction: ltr;
   overflow: hidden;
   position: relative;
   height: 56px;
   display: flex;
   align-items: center;
+}
+.cf-landing-page .cf-trust-badge {
+  position: absolute;
+  top: 50%;
+  right: 22px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transform: translateY(-50%);
+  color: var(--text-0);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 45%, transparent);
+  white-space: nowrap;
+}
+.cf-landing-page .cf-trust-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--up);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--up) 72%, transparent);
 }
 .cf-landing-page .cf-trust::before,
 .cf-landing-page .cf-trust::after {
@@ -1109,10 +1101,8 @@
   display: flex;
   width: max-content;
   flex-shrink: 0;
-  animation: cf-marq-scroll 26s linear infinite;
-}
-.cf-landing-page .cf-trust:hover .cf-marq {
-  animation-play-state: paused;
+  will-change: transform;
+  animation: cf-marq-scroll var(--cf-marq-duration, 26s) linear infinite;
 }
 @keyframes cf-marq-scroll {
   from {
@@ -1130,29 +1120,66 @@
 .cf-landing-page .cf-marq-item {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 34px;
+  justify-content: center;
+  width: 54px;
+  padding: 0;
   white-space: nowrap;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-1);
-  line-height: 1;
-}
-.cf-landing-page .cf-marq-item .cf-marq-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--up);
   flex-shrink: 0;
-  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--up) 55%, transparent);
 }
-.cf-landing-page .cf-marq-item b {
-  color: var(--accent);
-  font-weight: 700;
+.cf-landing-page .cf-marq-logo-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
 }
-.cf-landing-page .cf-marq-sep {
-  color: var(--text-3);
-  font-size: 12px;
+.cf-landing-page .cf-marq-logo-frame::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(226, 165, 69, 0.22), transparent 70%);
+  opacity: 1;
+  transition: opacity 160ms ease;
+}
+.cf-landing-page .cf-marq-logo-frame.has-logo::before {
+  opacity: 0;
+}
+.cf-landing-page .cf-marq-logo {
+  display: block;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  filter: saturate(1.18) contrast(1.22) brightness(1.16) drop-shadow(0 0 2px rgba(243, 237, 225, 0.38));
+}
+.cf-landing-page .cf-marq-logo-fallback {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  width: 14px;
+  height: 16px;
+}
+.cf-landing-page .cf-marq-logo-fallback[hidden] {
+  display: none;
+}
+.cf-landing-page .cf-marq-logo-fallback i {
+  display: block;
+  width: 14px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.cf-landing-page .cf-marq-logo-fallback i:nth-child(2) {
+  width: 11px;
+}
+.cf-landing-page .cf-marq-logo-fallback i:nth-child(3) {
+  width: 8px;
 }
 @media (prefers-reduced-motion: reduce) {
   .cf-landing-page .cf-marq {
@@ -1177,6 +1204,19 @@
 .cf-landing-page .cf-sec-head h2 {
   font-size: 36px;
   margin-bottom: 16px;
+}
+.cf-landing-page .cf-why .cf-sec-head {
+  max-width: 980px;
+}
+.cf-landing-page .cf-why-title-line {
+  display: block;
+  white-space: nowrap;
+}
+.cf-landing-page .cf-why .cf-sec-head h2 .cf-why-title-line--light {
+  color: var(--text-0);
+}
+.cf-landing-page .cf-why .cf-sec-head h2 .cf-why-title-line--accent {
+  color: var(--accent);
 }
 .cf-landing-page .cf-sec-head p {
   font-size: 16px;
@@ -1250,6 +1290,9 @@
   }
   .cf-landing-page .cf-sec-head h2 {
     font-size: 26px;
+  }
+  .cf-landing-page .cf-why-title-line {
+    white-space: normal;
   }
 }
 
@@ -1471,27 +1514,6 @@
 .cf-landing-page .cf-vs-card li {
   font-size: 15.5px;
 }
-.cf-landing-page .cf-how-callout {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  max-width: 720px;
-  margin: 34px auto 0;
-  padding: 15px 18px;
-  border: 1px solid rgba(226, 165, 69, 0.16);
-  border-radius: 12px;
-  background: rgba(226, 165, 69, 0.035);
-  color: var(--text-1);
-  text-align: center;
-  font-size: 14px;
-}
-.cf-landing-page .cf-how-callout p {
-  margin: 0;
-}
-.cf-landing-page .cf-how-callout b {
-  color: var(--text-0);
-}
 .cf-landing-page .cf-proof-section,
 .cf-landing-page .cf-plans-section,
 .cf-landing-page .cf-faq-section {
@@ -1699,15 +1721,34 @@
 }
 .cf-landing-page .cf-feat-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(260px, auto));
   max-width: 1080px;
   gap: 16px;
 }
 .cf-landing-page .cf-feat {
-  min-height: 242px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   padding: 27px 25px;
 }
+.cf-landing-page .cf-tools-head {
+  max-width: none;
+  margin-bottom: 46px;
+}
+.cf-landing-page .cf-tools-head h2 {
+  margin: 0;
+  color: var(--text-0);
+  font-size: clamp(38px, 4.2vw, 56px);
+  font-weight: 800;
+  line-height: 1.1;
+}
+.cf-landing-page .cf-feat-span2 {
+  grid-column: span 1;
+}
 .cf-landing-page .cf-feat-featured {
-  min-height: 280px;
+  min-height: 0;
   background: linear-gradient(145deg, rgba(226, 165, 69, 0.17), rgba(23, 18, 12, 0.82) 70%);
   border-color: rgba(226, 165, 69, 0.38);
   box-shadow: 0 28px 62px -36px rgba(226, 165, 69, 0.45);
@@ -1721,6 +1762,7 @@
 }
 .cf-landing-page .cf-feat p {
   font-size: 14.5px;
+  overflow-wrap: anywhere;
 }
 .cf-landing-page .cf-feature-metric {
   display: flex;
@@ -1891,16 +1933,6 @@
 .cf-landing-page .cf-category-rail-glow::after,
 .cf-landing-page .cf-category-rail-item.is-category-active {
   animation: cf-category-rail-pulse 2.2s ease-in-out infinite;
-}
-.cf-landing-page .cf-how-section {
-  background: linear-gradient(180deg, rgba(34, 26, 17, 0.15), transparent);
-}
-.cf-landing-page .cf-how-callout {
-  margin-top: 48px;
-}
-.cf-landing-page .cf-how-callout span {
-  color: var(--accent);
-  font-size: 20px;
 }
 .cf-landing-page .cf-plans-section {
   padding-top: 120px;
@@ -2125,6 +2157,7 @@
   }
   .cf-landing-page .cf-feat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
   }
   .cf-landing-page .cf-feat-span2 {
     grid-column: span 2;
@@ -2226,6 +2259,7 @@
   }
   .cf-landing-page .cf-feat-grid {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
   }
   .cf-landing-page .cf-feat-span2 {
     grid-column: span 1;
