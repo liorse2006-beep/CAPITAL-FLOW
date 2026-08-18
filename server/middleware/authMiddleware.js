@@ -3,6 +3,7 @@ const db = require('../db');
 const { reserveScan, quotaFor, freeTrialActive } = require('../services/scanQuota');
 const { ADMIN_EMAIL, SESSION_SECRET } = require('../config');
 const crypto = require('crypto');
+const { publish, subscribe } = require('../services/clusterBus');
 
 // EventSource cannot send Authorization headers. Use short-lived, opaque
 // tickets instead of putting a seven-day JWT in the stream URL. Tickets are
@@ -103,8 +104,7 @@ function dropCachedToken(token) {
   if (tokens.size === 0) sessionIndex.delete(entry.sessionKey);
 }
 
-/** Called from auth.js the instant one session (device) is revoked. */
-function invalidateSession(userId, sessionId) {
+function applyLocalInvalidateSession(userId, sessionId) {
   const key = sessionKeyFor(userId, sessionId);
   const tokens = sessionIndex.get(key);
   if (!tokens) return;
@@ -112,14 +112,39 @@ function invalidateSession(userId, sessionId) {
   sessionIndex.delete(key);
 }
 
-/** Called from auth.js the instant every session for an account is revoked. */
-function invalidateUserSessions(userId) {
+function applyLocalInvalidateUserSessions(userId) {
   const prefix = `${userId}:`;
   for (const key of sessionIndex.keys()) {
     if (!key.startsWith(prefix)) continue;
     for (const token of sessionIndex.get(key)) resolveCache.delete(token);
     sessionIndex.delete(key);
   }
+}
+
+// publish() always delivers to THIS process first (bus.emit, synchronous)
+// before forwarding to any other worker — so subscribing to the same
+// channel this module publishes on is enough to cover both the local and
+// cross-worker case with one code path, not two. In a single process
+// (today's actual deployment — see clusterBus.js) that local emit is the
+// entire effect: zero behavior change from before this existed. Under
+// CLUSTER_WORKERS > 1, resolveCache/sessionIndex are per-process — a
+// session revoked (logout, force-logout, password reset, block) on the
+// worker that handled the request would otherwise leave every OTHER
+// worker's cache still answering for it until RESOLVE_CACHE_TTL_MS passed.
+// Publishing the revocation lets every worker drop its own copy the instant
+// it happens, the same way SSE broadcast and the scan-scheduler trigger
+// already do.
+subscribe('auth:session-revoked', ({ userId, sessionId }) => applyLocalInvalidateSession(userId, sessionId));
+subscribe('auth:user-sessions-revoked', ({ userId }) => applyLocalInvalidateUserSessions(userId));
+
+/** Called from auth.js the instant one session (device) is revoked. */
+function invalidateSession(userId, sessionId) {
+  publish('auth:session-revoked', { userId, sessionId });
+}
+
+/** Called from auth.js the instant every session for an account is revoked. */
+function invalidateUserSessions(userId) {
+  publish('auth:user-sessions-revoked', { userId });
 }
 
 /** Resolve a JWT string → verified DB user, or null on failure */
