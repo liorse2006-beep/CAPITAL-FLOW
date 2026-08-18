@@ -2044,6 +2044,7 @@ body {
   padding: 32px;
   border-radius: var(--radius);
   background: rgba(5, 5, 5, 0.84);
+  -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
 }
 .scan-guest-card {
@@ -3929,6 +3930,7 @@ td {
   inset: 0;
   z-index: 1000;
   background: rgba(0, 0, 0, 0.7);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -4932,6 +4934,7 @@ html.a11y-highlight-links a {
 /* ── Trial-complete conversion experience ── */
 .trial-ended-overlay {
   background: rgba(4, 5, 7, 0.84);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
 }
 .trial-ended-modal {
@@ -5807,6 +5810,7 @@ html.a11y-highlight-links a {
   inset: 0;
   z-index: 1000;
   background: rgba(0, 0, 0, 0.65);
+  -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   display: flex;
@@ -6016,6 +6020,7 @@ html.a11y-highlight-links a {
     0 18px 48px rgba(0, 0, 0, 0.58),
     0 0 0 1px rgba(245, 158, 11, 0.08),
     0 0 28px rgba(245, 158, 11, 0.1);
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   display: flex;
@@ -6125,6 +6130,7 @@ html.a11y-highlight-links a {
   background: rgba(18, 14, 5, 0.96);
   border: 1px solid rgba(245, 158, 11, 0.25);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   font-family: var(--font);
@@ -7230,6 +7236,7 @@ html.a11y-highlight-links a {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.75);
+  -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   display: flex;
@@ -7618,6 +7625,7 @@ html.a11y-highlight-links a {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.82);
+  -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   z-index: 1000;
   display: flex;
@@ -7873,6 +7881,7 @@ html.a11y-highlight-links a {
   padding: 20px;
   overflow-y: auto;
   background: rgba(0, 0, 0, 0.78);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 .news-modal {
@@ -8905,6 +8914,7 @@ html.a11y-highlight-links a {
   padding: 24px;
   border-radius: inherit;
   background: rgba(5, 5, 5, 0.78);
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
 }
 .ma-guest-card {
