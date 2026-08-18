@@ -58,6 +58,26 @@ const spaCsp = helmet.contentSecurityPolicy({
       'https://*.whop.com',
       'https://whop.tw',
       'https://*.whop.tw',
+      // posthog-js (src/analytics.js) is bundled into our own JS (covered by
+      // 'self'), but once initialized it dynamically injects ADDITIONAL
+      // <script> tags of its own for sub-features (web-vitals, session
+      // recording, dead-clicks autocapture, surveys) fetched from this host.
+      // connectSrc already allow-listed it for XHR/fetch, but that does
+      // nothing for actual <script> loads — without this, every one of
+      // those sub-scripts is silently CSP-blocked and PostHog effectively
+      // never captures anything in production. Verified live: all five
+      // sub-script loads were blocked with this origin missing.
+      'https://us-assets.i.posthog.com',
+      // Hash of the exact inline <script> in index.html that captures
+      // `beforeinstallprompt` before React mounts (see that file's own
+      // comment for why it must run inline and this early). Without this,
+      // the script is silently CSP-blocked — verified live, same failure
+      // mode as the PostHog gap above: no visible error to the user, the
+      // install-prompt capture this session specifically added to fix a
+      // reported bug just never ran. Recompute with:
+      //   node -e "console.log('sha256-'+require('crypto').createHash('sha256').update(require('fs').readFileSync('index.html','utf8').match(/<script>([\s\S]*?)<\/script>/)[1]).digest('base64'))"
+      // if that inline script's content ever changes.
+      "'sha256-sJ744oqRX0m55C3zjyb/M1k15+4S7R0y/0tdCXb5Nj8='",
     ],
     // React sets inline styles via the CSSOM (style.setProperty), which CSP
     // treats the same as a literal style="" attribute — 'unsafe-inline' is
