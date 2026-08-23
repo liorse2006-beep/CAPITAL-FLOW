@@ -6,17 +6,20 @@
 // and the monitoring worker. It never imports the main application server or
 // frontend. In production, STATUS_TURSO_DB_URL is required so a failure or
 // redeploy of the main application's database cannot take status storage down
-// with it.
+// with it. A file-backed status database is also supported for the current
+// no-cost Render deployment; libSQL does not need an auth token for a local
+// file, and the database adapter deliberately ignores one in that mode.
 const path = require('path');
 
 if (process.env.NODE_ENV === 'production') {
   const statusDbUrl = String(process.env.STATUS_TURSO_DB_URL || '').trim();
   const statusDbAuthToken = String(process.env.STATUS_TURSO_AUTH_TOKEN || '').trim();
+  const isFileBackedStatusDb = /^file:/i.test(statusDbUrl);
   if (!statusDbUrl) {
     console.error('[status-service] STATUS_TURSO_DB_URL is required in production.');
     process.exit(1);
   }
-  if (!statusDbAuthToken) {
+  if (!statusDbAuthToken && !isFileBackedStatusDb) {
     console.error('[status-service] STATUS_TURSO_AUTH_TOKEN is required in production.');
     process.exit(1);
   }
@@ -28,6 +31,7 @@ if (process.env.NODE_ENV === 'production') {
   }
   process.env.TURSO_DB_URL = statusDbUrl;
   process.env.TURSO_AUTH_TOKEN = statusDbAuthToken;
+  process.env.STATUS_ALLOW_FILE_DB = isFileBackedStatusDb ? 'true' : '';
 }
 
 // The independent status host must never try to authenticate against the

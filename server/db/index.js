@@ -17,7 +17,10 @@ function makeUrl() {
 const databaseUrl = makeUrl();
 const client = createClient({
   url: databaseUrl,
-  authToken: process.env.TURSO_AUTH_TOKEN || undefined,
+  // Local/file-backed SQLite does not use a Turso token. Keeping the token
+  // out of this client also prevents a stale production secret from being
+  // treated as a credential for a local status database.
+  authToken: /^file:/i.test(databaseUrl) ? undefined : process.env.TURSO_AUTH_TOKEN || undefined,
 });
 
 // ── Async wrapper API ──────────────────────────────────────────────────────

@@ -216,9 +216,18 @@ if (process.env.NODE_ENV === 'production' && !module.exports.STATUS_INTERNAL_TOK
 
 // Production must never silently fall back to the local SQLite file. That
 // fallback is useful for development, but on a redeploy or a fresh container
-// it would create an apparently healthy application with a new empty database
-// and no durable user data. Require both Turso coordinates before booting.
-if (process.env.NODE_ENV === 'production' && (!module.exports.TURSO_DB_URL || !module.exports.TURSO_AUTH_TOKEN)) {
+// it would create an apparently healthy main application with a new empty
+// database and no durable user data. Require both Turso coordinates for the
+// main application; the independent status service may explicitly opt into
+// its currently configured file-backed store without weakening the main app.
+const statusFileDatabaseAllowed =
+  process.env.INDEPENDENT_STATUS_SERVICE === 'true' &&
+  process.env.STATUS_ALLOW_FILE_DB === 'true' &&
+  /^file:/i.test(String(module.exports.TURSO_DB_URL || ''));
+if (
+  process.env.NODE_ENV === 'production' &&
+  (!module.exports.TURSO_DB_URL || (!module.exports.TURSO_AUTH_TOKEN && !statusFileDatabaseAllowed))
+) {
   console.error(
     '\n[FATAL] TURSO_DB_URL and TURSO_AUTH_TOKEN are required in production. ' +
       'Refusing to start against a local SQLite database; configure the durable production database first.\n'
