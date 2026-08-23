@@ -17,6 +17,7 @@ const {
   saveOTP,
   verifyOTP,
   verifyToken,
+  MAX_PASSWORD_BYTES,
 } = require('../services/auth');
 const {
   sendOTPEmail,
@@ -24,7 +25,7 @@ const {
   sendWelcomeEmail,
   sendNewSignupAdminAlert,
 } = require('../services/email');
-const { requireAuth } = require('../middleware/authMiddleware');
+const { requireAuth, invalidateUserSessions } = require('../middleware/authMiddleware');
 const { eliteAccess } = require('../services/scanQuota');
 const { authLimiter, otpLimiter, sessionLimiter } = require('../middleware/rateLimiters');
 const crypto = require('crypto');
@@ -46,6 +47,11 @@ const {
 // never be stored as an "email" and later rendered unescaped elsewhere
 // (the admin panel renders emails via template strings, not React).
 const EMAIL_RE = /^[^\s@<>"'`]+@[^\s@<>"'`]+\.[^\s@<>"'`]+$/;
+const MAX_EMAIL_BYTES = 254;
+
+function isValidEmailShape(email) {
+  return Buffer.byteLength(email, 'utf8') <= MAX_EMAIL_BYTES && EMAIL_RE.test(email);
+}
 
 // A real bcrypt hash of an arbitrary, unguessable string — never a valid
 // password for any account. /login compares against this when the email
@@ -203,9 +209,12 @@ router.post('/signup', authLimiter, async (req, res) => {
   try {
     const { password, captchaToken, inviteCode } = req.body;
     const email = normalizeEmail(req.body.email);
-    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
-    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Please enter a valid email address' });
+    if (!email || typeof password !== 'string' || !password)
+      return res.status(400).json({ error: 'Email and password are required' });
+    if (!isValidEmailShape(email)) return res.status(400).json({ error: 'Please enter a valid email address' });
     if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    if (Buffer.byteLength(password, 'utf8') > MAX_PASSWORD_BYTES)
+      return res.status(400).json({ error: `Password must be at most ${MAX_PASSWORD_BYTES} UTF-8 bytes` });
 
     const captchaOk = await verifyTurnstile(captchaToken);
     if (!captchaOk) return res.status(400).json({ error: 'CAPTCHA verification failed' });
@@ -246,7 +255,9 @@ router.post('/verify-otp', otpLimiter, async (req, res) => {
   try {
     const { code } = req.body;
     const email = normalizeEmail(req.body.email);
-    if (!email || !code) return res.status(400).json({ error: 'Missing fields' });
+    if (!email || !isValidEmailShape(email) || typeof code !== 'string' || !/^\d{6}$/.test(code)) {
+      return res.status(400).json({ error: 'Invalid verification details' });
+    }
 
     const result = await verifyOTP(email, code, 'verify_email');
     if (!result.valid) return res.status(400).json({ error: result.reason });
@@ -287,7 +298,7 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
   try {
     const { type } = req.body;
     const email = normalizeEmail(req.body.email);
-    if (!email) return res.status(400).json({ error: 'Email required' });
+    if (!email || !isValidEmailShape(email)) return res.status(400).json({ error: 'Invalid email address' });
     const otpType = type === 'reset_password' ? 'reset_password' : 'verify_email';
     // Only send to addresses with an actual account — otherwise this endpoint
     // is an open relay for spamming/email-bombing arbitrary inboxes. Still
@@ -314,7 +325,14 @@ router.post('/login', authLimiter, async (req, res) => {
   try {
     const { password } = req.body;
     const email = normalizeEmail(req.body.email);
-    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+    if (!email || typeof password !== 'string' || !password)
+      return res.status(400).json({ error: 'Email and password are required' });
+    if (!isValidEmailShape(email)) return res.status(401).json({ error: 'Invalid email or password' });
+    // Do not run bcrypt on inputs it can never match. Return the same generic
+    // authentication error used for a wrong password to avoid exposing policy
+    // details or an account-existence oracle.
+    if (Buffer.byteLength(password, 'utf8') > MAX_PASSWORD_BYTES)
+      return res.status(401).json({ error: 'Invalid email or password' });
 
     let user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
     // Always run bcrypt.compare, even for an unknown email or a Google-only
@@ -355,7 +373,7 @@ router.post('/login', authLimiter, async (req, res) => {
 router.post('/forgot-password', authLimiter, async (req, res) => {
   try {
     const email = normalizeEmail(req.body.email);
-    if (!email) return res.status(400).json({ error: 'Email required' });
+    if (!email || !isValidEmailShape(email)) return res.status(400).json({ error: 'Invalid email address' });
 
     const user = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
     // Always respond success to avoid email enumeration
@@ -376,8 +394,18 @@ router.post('/reset-password', otpLimiter, async (req, res) => {
   try {
     const { code, newPassword } = req.body;
     const email = normalizeEmail(req.body.email);
-    if (!email || !code || !newPassword) return res.status(400).json({ error: 'Missing fields' });
+    if (
+      !email ||
+      !isValidEmailShape(email) ||
+      typeof code !== 'string' ||
+      !/^\d{6}$/.test(code) ||
+      typeof newPassword !== 'string' ||
+      !newPassword
+    )
+      return res.status(400).json({ error: 'Missing fields' });
     if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    if (Buffer.byteLength(newPassword, 'utf8') > MAX_PASSWORD_BYTES)
+      return res.status(400).json({ error: `Password must be at most ${MAX_PASSWORD_BYTES} UTF-8 bytes` });
 
     const result = await verifyOTP(email, code, 'reset_password');
     if (!result.valid) return res.status(400).json({ error: result.reason });
@@ -486,10 +514,16 @@ router.delete('/account', requireAuth, async (req, res) => {
       'scheduled_scans',
       'notifications',
       'chat_messages',
+      'ai_usage',
     ].map((table) => ({ sql: `DELETE FROM ${table} WHERE user_id = ?`, args: [userId] }));
     if (email) statements.push({ sql: 'DELETE FROM otp_codes WHERE email = ?', args: [email] });
     statements.push({ sql: 'DELETE FROM users WHERE id = ?', args: [userId] });
     await db.transaction(statements);
+
+    // The transaction removes the durable rows; this invalidates any cached
+    // JWT resolution immediately and clears this browser's refresh cookie.
+    invalidateUserSessions(userId);
+    clearRefreshCookie(res);
 
     res.json({ ok: true });
   } catch (err) {
@@ -510,6 +544,7 @@ router.post('/apply-invite', authLimiter, requireAuth, async (req, res) => {
     const { inviteCode } = req.body;
     const supplied = Buffer.from(String(inviteCode || ''));
     const expected = Buffer.from(String(PILOT_INVITE_CODE || ''));
+    if (supplied.length > 128 || expected.length > 128) return res.status(400).json({ error: 'Invalid invite code' });
     const matches =
       !!PILOT_INVITE_CODE && supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
     if (!matches) return res.status(400).json({ error: 'Invalid invite code' });

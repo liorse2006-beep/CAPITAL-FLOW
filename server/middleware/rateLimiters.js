@@ -64,8 +64,8 @@ function userOrIpKey(req, _res) {
 // budget instead, the same fix userOrIpKey already applies everywhere a
 // bearer token is available.
 function ticketOrIpKey(req, _res) {
-  const userId = resolveSseTicket(req.query.ticket);
-  if (userId) return 'user:' + userId;
+  const ticket = resolveSseTicket(req.query.ticket);
+  if (ticket) return 'user:' + ticket.userId;
   return ipKeyGenerator(realIp(req));
 }
 
@@ -202,6 +202,18 @@ const sessionLimiter = rateLimit({
   message: { error: 'Too many requests. Please slow down.' },
 });
 
+// Creating a hosted checkout session invokes a paid third-party API. Keep it
+// separate from the broad API floor so a client cannot spend provider budget
+// by repeatedly opening sessions, while still allowing normal retries.
+const checkoutLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userOrIpKey,
+  message: { error: 'Too many checkout attempts. Please wait before trying again.' },
+});
+
 module.exports = {
   authLimiter,
   otpLimiter,
@@ -213,4 +225,5 @@ module.exports = {
   publicDataLimiter,
   sessionLimiter,
   sseStreamLimiter,
+  checkoutLimiter,
 };

@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { requireEliteOrTrial, requirePremiumSSE, issueSseTicket } = require('../middleware/authMiddleware');
+const { verifyToken } = require('../services/auth');
 const { sseStreamLimiter } = require('../middleware/rateLimiters');
 const clusterBus = require('../services/clusterBus');
 
@@ -52,7 +53,11 @@ function deliverToUser(userId, event, data) {
 // is safe to place in a URL because it expires quickly and carries no claims.
 router.get('/stream-ticket', requireEliteOrTrial, (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.json({ ticket: issueSseTicket(req.user.id), expiresIn: 600 });
+  const payload = verifyToken(req.headers.authorization.slice(7));
+  if (!Number.isSafeInteger(Number(payload.sid)) || Number(payload.sid) <= 0) {
+    return res.status(401).json({ error: 'Invalid session' });
+  }
+  res.json({ ticket: issueSseTicket(req.user.id, Number(payload.sid)), expiresIn: 600 });
 });
 
 router.get('/stream', sseStreamLimiter, requirePremiumSSE, (req, res) => {
@@ -128,16 +133,20 @@ if (process.env.NODE_ENV === 'test') {
   });
 
   // The cluster integration test uses a direct signed ticket after seeding.
-  // The real /stream-ticket route is covered separately; keeping this test
-  // helper session-free avoids making the local SQLite file stand in for the
-  // remote Turso consistency model while the test is exercising SSE relay.
+  // The helper still binds that ticket to the session created by the actual
+  // issueToken path, so the integration test exercises the same revocation
+  // boundary as production without exposing the helper in real deployments.
   router.post('/stream/_test-issue-ticket', require('express').json(), async (req, res) => {
     const userId = Number(req.body && req.body.userId);
     if (!Number.isInteger(userId)) return res.status(400).json({ error: 'userId is required' });
     const db = require('../db');
     const user = await db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
     if (!user) return res.status(404).json({ error: 'user not found' });
-    res.json({ ticket: issueSseTicket(user.id) });
+    const session = await db
+      .prepare('SELECT id FROM user_sessions WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+      .get(user.id);
+    if (!session) return res.status(409).json({ error: 'user has no active session' });
+    res.json({ ticket: issueSseTicket(user.id, Number(session.id)) });
   });
 
   router.get('/stream/_test-worker-pid', (req, res) => {

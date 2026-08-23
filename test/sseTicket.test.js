@@ -10,22 +10,31 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { issueSseTicket, resolveSseTicket } = require('../server/middleware/authMiddleware');
 
-test('a freshly issued ticket resolves back to the same userId', () => {
-  const ticket = issueSseTicket(42);
-  assert.strictEqual(resolveSseTicket(ticket), 42);
+test('a freshly issued ticket resolves to the same user and session', () => {
+  const ticket = issueSseTicket(42, 9);
+  assert.deepStrictEqual(resolveSseTicket(ticket), { userId: 42, sessionId: 9 });
 });
 
 test('a ticket is reusable — resolving it twice both succeed (no delete-on-first-use)', () => {
-  const ticket = issueSseTicket(7);
-  assert.strictEqual(resolveSseTicket(ticket), 7);
-  assert.strictEqual(resolveSseTicket(ticket), 7, 'a second reconnect with the same ticket must not be rejected');
+  const ticket = issueSseTicket(7, 11);
+  assert.deepStrictEqual(resolveSseTicket(ticket), { userId: 7, sessionId: 11 });
+  assert.deepStrictEqual(
+    resolveSseTicket(ticket),
+    { userId: 7, sessionId: 11 },
+    'a second reconnect with the same ticket must not be rejected'
+  );
 });
 
 test('tickets for different users never collide', () => {
-  const a = issueSseTicket(1);
-  const b = issueSseTicket(2);
-  assert.strictEqual(resolveSseTicket(a), 1);
-  assert.strictEqual(resolveSseTicket(b), 2);
+  const a = issueSseTicket(1, 101);
+  const b = issueSseTicket(2, 202);
+  assert.deepStrictEqual(resolveSseTicket(a), { userId: 1, sessionId: 101 });
+  assert.deepStrictEqual(resolveSseTicket(b), { userId: 2, sessionId: 202 });
+});
+
+test('a ticket cannot be created without a positive active session id', () => {
+  assert.throws(() => issueSseTicket(42), /session id/i);
+  assert.throws(() => issueSseTicket(42, 0), /session id/i);
 });
 
 test('an expired ticket is rejected', () => {
@@ -35,23 +44,27 @@ test('an expired ticket is rejected', () => {
   const crypto = require('crypto');
   const { SESSION_SECRET } = require('../server/config');
   const userId = 99;
+  const sessionId = 199;
   const expiresAt = Date.now() - 1000;
-  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(`${userId}.${expiresAt}`).digest('base64url');
-  const expiredTicket = `${userId}.${expiresAt}.${sig}`;
+  const sig = crypto
+    .createHmac('sha256', SESSION_SECRET)
+    .update(`${userId}.${sessionId}.${expiresAt}`)
+    .digest('base64url');
+  const expiredTicket = `${userId}.${sessionId}.${expiresAt}.${sig}`;
   assert.strictEqual(resolveSseTicket(expiredTicket), null);
 });
 
 test('a tampered ticket (different userId, same signature) is rejected', () => {
-  const ticket = issueSseTicket(5);
-  const [, expiresAt, sig] = ticket.split('.');
-  const tampered = `999.${expiresAt}.${sig}`;
+  const ticket = issueSseTicket(5, 55);
+  const [, sessionId, expiresAt, sig] = ticket.split('.');
+  const tampered = `999.${sessionId}.${expiresAt}.${sig}`;
   assert.strictEqual(resolveSseTicket(tampered), null);
 });
 
 test('a tampered ticket (different expiry, same signature) is rejected', () => {
-  const ticket = issueSseTicket(5);
-  const [userId, expiresAt, sig] = ticket.split('.');
-  const tampered = `${userId}.${Number(expiresAt) + 100000}.${sig}`;
+  const ticket = issueSseTicket(5, 55);
+  const [userId, sessionId, expiresAt, sig] = ticket.split('.');
+  const tampered = `${userId}.${sessionId}.${Number(expiresAt) + 100000}.${sig}`;
   assert.strictEqual(resolveSseTicket(tampered), null);
 });
 

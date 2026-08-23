@@ -171,9 +171,9 @@ async function readHttpCheck(component) {
     success = false;
     errorMessage = 'Known-symbol market-data response was not structurally valid.';
   }
-  if (success && component.type === 'news-sample' && response.status !== 401) {
+  if (success && component.type === 'news-sample' && (!json || json.ok !== true || !json.sample)) {
     success = false;
-    errorMessage = 'News route returned an unexpected anonymous response.';
+    errorMessage = 'News provider response was not structurally valid.';
   }
 
   return {

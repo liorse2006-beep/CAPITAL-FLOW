@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { identify, reset as resetAnalytics } from '../analytics';
 
 const AuthContext = createContext(null);
@@ -9,6 +9,15 @@ export function AuthProvider({ children }) {
   const [authError, setAuthError] = useState(null);
   const [authLoadError, setAuthLoadError] = useState(false);
   const [pendingGoogleToken, setPendingGoogleToken] = useState(null);
+  // Access tokens are deliberately memory-only. The refresh token remains in
+  // the server-issued httpOnly cookie, while a bearer token copied into
+  // localStorage would be readable by any script that ever crossed the site's
+  // XSS boundary. A page reload silently obtains a new access token instead.
+  const accessTokenRef = useRef(null);
+
+  function setAccessToken(token) {
+    accessTokenRef.current = token || null;
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -27,7 +36,7 @@ export function AuthProvider({ children }) {
     }
 
     if (tokenFromUrl) {
-      localStorage.setItem('vs_token', tokenFromUrl);
+      setAccessToken(tokenFromUrl);
       window.history.replaceState({}, '', window.location.pathname);
     }
 
@@ -42,7 +51,11 @@ export function AuthProvider({ children }) {
       window.history.replaceState({}, '', window.location.pathname);
     }
 
+    // Migrate old sessions once, without preserving the bearer token in
+    // browser storage. The value is used only for this boot if the refresh
+    // cookie is unavailable, then is removed immediately.
     const stored = localStorage.getItem('vs_token');
+    if (stored) localStorage.removeItem('vs_token');
     // Try the httpOnly refresh cookie first, even before looking at whatever
     // access token localStorage has — this is what makes a device stay
     // signed in across the 1h access token's expiry (including after the
@@ -52,7 +65,7 @@ export function AuthProvider({ children }) {
     // two, so this is a real, not just theoretical, recovery path).
     silentRefresh()
       .then((refreshed) => {
-        const tokenToUse = refreshed || stored;
+        const tokenToUse = refreshed || tokenFromUrl || stored;
         if (tokenToUse) return fetchMe(tokenToUse);
         setAuthLoadError(false);
       })
@@ -76,7 +89,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!user) return;
     function recheck() {
-      const token = localStorage.getItem('vs_token');
+      const token = accessTokenRef.current;
       if (token) fetchMe(token, true);
     }
     // The access token itself only lives 1h — proactively trading it in for
@@ -100,15 +113,15 @@ export function AuthProvider({ children }) {
 
   // Exchanges the httpOnly refresh cookie for a fresh access token. Returns
   // the new token on success, or null (no active session, or the cookie is
-  // missing/blocked) — callers fall back to whatever's already in
-  // localStorage in that case, same as before this existed.
+  // missing/blocked). The returned bearer is never persisted in browser
+  // storage.
   async function silentRefresh() {
     try {
       const res = await fetch('/api/auth/refresh', { method: 'POST' });
       if (!res.ok) return null;
       const data = await res.json();
       if (!data.token) return null;
-      localStorage.setItem('vs_token', data.token);
+      setAccessToken(data.token);
       return data.token;
     } catch {
       return null;
@@ -135,6 +148,7 @@ export function AuthProvider({ children }) {
         clearTimeout(timeout);
         if (res.ok) {
           const data = await res.json();
+          setAccessToken(token);
           setUser(data.user);
           setAuthLoadError(false);
           return;
@@ -142,7 +156,7 @@ export function AuthProvider({ children }) {
         // A real auth failure — the token is genuinely no longer valid
         // (expired, or this account signed in on another device). This is
         // the ONLY path that signs the user out.
-        localStorage.removeItem('vs_token');
+        setAccessToken(null);
         setUser(null);
         if (isRevalidation) setAuthError('session_replaced');
         return;
@@ -165,13 +179,13 @@ export function AuthProvider({ children }) {
   }
 
   function login(token, userData) {
-    localStorage.setItem('vs_token', token);
+    setAccessToken(token);
     setUser(userData);
   }
 
   async function logout() {
-    const token = localStorage.getItem('vs_token');
-    localStorage.removeItem('vs_token');
+    const token = accessTokenRef.current;
+    setAccessToken(null);
     // vs_quiz_done is intentionally left alone here — it should show exactly
     // once per device, ever, not once per login session. Clearing it on
     // logout made it reappear for the same person every time they signed
@@ -193,9 +207,7 @@ export function AuthProvider({ children }) {
     window.location.reload();
   }
 
-  function getToken() {
-    return localStorage.getItem('vs_token');
-  }
+  const getToken = useCallback(() => accessTokenRef.current, []);
 
   function clearAuthError() {
     setAuthError(null);
@@ -204,7 +216,7 @@ export function AuthProvider({ children }) {
   function confirmGoogleLogin() {
     if (!pendingGoogleToken) return Promise.resolve();
     const token = pendingGoogleToken;
-    localStorage.setItem('vs_token', token);
+    setAccessToken(token);
     const invite = localStorage.getItem('vs_pilot_invite');
     const afterLogin = invite
       ? fetch('/api/auth/apply-invite', {

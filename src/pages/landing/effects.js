@@ -14,6 +14,12 @@
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Renderer, Program, Mesh, Triangle } from 'ogl';
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
 import { TRUST_LOGO_SYMBOLS } from './trustLogos';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -285,46 +291,326 @@ function mountScanner(container, opts, cleanupFns) {
   });
 }
 
-function setupProofTableSort(root, cleanupFns) {
-  const body = root.querySelector('#cfProofBody');
-  const header = root.querySelector('#cfProofHeader');
-  if (!body || !header) return;
-  const buttons = header.querySelectorAll('button[data-sort]');
-  const handlers = [];
-  buttons.forEach((btn) => {
-    function onClick() {
-      const key = btn.getAttribute('data-sort');
-      const currentDir = btn.getAttribute('data-sort-dir');
-      const nextDir = currentDir === 'desc' ? 'asc' : 'desc';
-      buttons.forEach((b) => {
-        b.removeAttribute('data-sort-dir');
-        b.querySelector('.cf-sort-arrow').textContent = '';
-      });
-      btn.setAttribute('data-sort-dir', nextDir);
-      btn.querySelector('.cf-sort-arrow').textContent = nextDir === 'desc' ? '▾' : '▴';
+// ── Cinematic camera journey ────────────────────────────────────────────
+// A short glass-candlestick "track" the camera moves along as the visitor
+// scrolls through hero → why → proof, arriving at a laptop+phone mockup of
+// the product itself for the final stretch into "tools" — a literal
+// "works everywhere" reveal instead of an abstract shape. The camera's
+// *position* is never computed by a hand-rolled scroll-listener + rAF loop
+// — GSAP's own ScrollTrigger `scrub` owns the progress value (see the
+// lag/jump-bug history on setupCategoryTransitions for why); this function
+// only ever *reads* that progress inside a rAF loop.
+//
+// Two earlier versions of this scene got real, specific feedback. v1
+// (dozens of random boxes + flat panels) read as an unstyled Three.js
+// tutorial — object count doesn't read as effort, restraint does. v2 (a
+// single molten-gold orb) went nearly pure black over half its surface,
+// because Three.js's physically-correct lighting needs intensities scaled
+// for real inverse-square falloff, and a highly metallic PBR material has
+// almost no visible response without a real environment to reflect. Both
+// lessons are applied here: few, deliberately placed objects; a synthetic
+// RoomEnvironment (via PMREMGenerator) so the glass candlesticks have
+// something believable to refract; and light intensities sized for this
+// scene's actual distances, not carried over from the orb version.
 
-      const rows = Array.prototype.slice.call(body.querySelectorAll('.cf-proof-row'));
-      rows.sort((a, b) => {
-        const av = parseFloat(a.getAttribute('data-' + key));
-        const bv = parseFloat(b.getAttribute('data-' + key));
-        return nextDir === 'desc' ? bv - av : av - bv;
-      });
-      rows.forEach((r) => {
-        r.style.opacity = '0';
-      });
-      setTimeout(() => {
-        rows.forEach((r) => body.appendChild(r));
-        requestAnimationFrame(() => {
-          rows.forEach((r) => {
-            r.style.opacity = '1';
-          });
-        });
-      }, 160);
-    }
-    btn.addEventListener('click', onClick);
-    handlers.push([btn, onClick]);
+function buildCandlestick(height, seed) {
+  const group = new THREE.Group();
+  const bodyGeo = new RoundedBoxGeometry(1.15, height, 1.15, 3, 0.14);
+  const bodyMat = new THREE.MeshPhysicalMaterial({
+    color: 0xf0c986,
+    transmission: 0.88,
+    thickness: 1.4,
+    roughness: 0.1,
+    ior: 1.45,
+    metalness: 0,
+    emissive: 0x3a2408,
+    emissiveIntensity: 0.3,
+    clearcoat: 0.4,
   });
-  cleanupFns.push(() => handlers.forEach(([btn, fn]) => btn.removeEventListener('click', fn)));
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  group.add(body);
+
+  // The glowing rim in the reference image isn't the glass material
+  // itself — it's a separate bright outline traced along the body's
+  // edges, layered on top. Built from a plain BoxGeometry, not
+  // bodyGeo's own rounded/beveled geometry: EdgesGeometry on a rounded
+  // box's many small bevel facets treated each tiny facet boundary as
+  // its own "hard edge" (they're all just under the 1° default
+  // threshold apart), so the rim came out as a broken, dashed-looking
+  // scatter of short segments instead of one clean line — confirmed by
+  // actually rendering and viewing a captured frame, not assumed. A
+  // sharp-edged box has exactly 12 real edges and no such fragmentation;
+  // being marginally less rounded than the glass body underneath it
+  // isn't visible at this scale.
+  const rim = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(1.15, height, 1.15)),
+    new THREE.LineBasicMaterial({ color: 0xffe1a3, transparent: true, opacity: 0.85 })
+  );
+  group.add(rim);
+
+  const wickHeight = height * 1.55;
+  const wickGeo = new THREE.CylinderGeometry(0.055, 0.055, wickHeight, 8);
+  const wickMat = new THREE.MeshPhysicalMaterial({ color: 0xd8d0c0, transmission: 0.55, roughness: 0.25, metalness: 0.05 });
+  group.add(new THREE.Mesh(wickGeo, wickMat));
+
+  group.userData.seed = seed;
+  return group;
+}
+
+function disposeObject3D(obj) {
+  obj.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      materials.forEach((m) => {
+        if (m.map) m.map.dispose();
+        m.dispose();
+      });
+    }
+  });
+}
+
+function buildJourneyScene(renderer, isMobile) {
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0d0906, 0.035);
+
+  const disposables = [];
+  function track(objOrArray) {
+    (Array.isArray(objOrArray) ? objOrArray : [objOrArray]).forEach((o) => disposables.push(o));
+    return objOrArray;
+  }
+
+  // A synthetic "room" the transmissive candlestick glass can reflect —
+  // without this, `transmission` materials render nearly flat/invisible
+  // (there's nothing for them to refract). Generated once; the resulting
+  // texture is static, not re-rendered per frame.
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = envTexture;
+  pmrem.dispose();
+  track({ dispose: () => envTexture.dispose() });
+
+  scene.add(new THREE.HemisphereLight(0xffdfa0, 0x140d05, 2.2));
+  scene.add(new THREE.AmbientLight(0x3a2c17, 1.3));
+  // Dedicated key light for the opening beat — it's the first thing a
+  // visitor sees, on-screen for the least scroll distance, and needs to
+  // read clearly immediately; the general track lighting below left it
+  // too dim in the actual captured frame.
+  const introLight = new THREE.PointLight(0xfff2d0, 420, 30, 2);
+  introLight.position.set(2, 3, 12);
+  scene.add(introLight);
+  const keyLight = new THREE.PointLight(0xf0c46a, 260, 45, 2);
+  keyLight.position.set(5, 6, 4);
+  scene.add(keyLight);
+  const trackLight = new THREE.PointLight(0xffe6b0, 240, 65, 2);
+  trackLight.position.set(-4, 5, -24);
+  scene.add(trackLight);
+  const trackLight2 = new THREE.PointLight(0xffe6b0, 220, 65, 2);
+  trackLight2.position.set(6, 6, -42);
+  scene.add(trackLight2);
+
+  // The glowing floor grid beneath the whole track, softened by the same
+  // fog as everything else so it fades rather than hard-cuts at a distance.
+  const grid = track(new THREE.GridHelper(120, isMobile ? 24 : 48, 0xe2a545, 0x3a2c17));
+  grid.position.set(0, -2.4, -18);
+  grid.material.transparent = true;
+  grid.material.opacity = 0.3;
+  scene.add(grid);
+
+  // Nine candlesticks along the track, heights loosely trending upward —
+  // reads as "the trend is up" without spelling it out, closing on the
+  // tallest candle as the final beat. Evenly spaced (-8 per candle in Z) to
+  // match the camera's three-segment zigzag in mountCinematicJourney,
+  // which crosses to a different side every 3 candles — spacing them any
+  // other way would throw that off.
+  const heights = [2.6, 3.4, 2.2, 4.6, 3.8, 5.6, 4.4, 5.2, 6.4];
+  const candles = new THREE.Group();
+  heights.forEach((h, i) => {
+    const c = buildCandlestick(h, i);
+    c.position.set(Math.sin(i * 1.7) * 1.2, -2.4 + h / 2, -6 - i * 8);
+    candles.add(c);
+  });
+  scene.add(candles);
+
+  return { scene, disposables, candles };
+}
+
+function mountCinematicJourney(root, container, cleanupFns) {
+  const zoneStart = root.querySelector('#top');
+  const zoneEnd = root.querySelector('#why-tools');
+  if (!zoneStart || !zoneEnd) return;
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const isMobile = window.matchMedia('(max-width: 800px)').matches;
+
+  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: !isMobile, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1 : 2));
+  renderer.setClearColor(0x000000, 0);
+  const canvas = renderer.domElement;
+  container.appendChild(canvas);
+
+  const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 200);
+  const { scene, disposables, candles } = buildJourneyScene(renderer, isMobile);
+
+  // Depth of field is real postprocessing (BokehPass), not a CSS blur
+  // trick — it's central to the reference look this scene is matching
+  // (one sharp focal object, everything else soft). Desktop only: it's a
+  // second full-screen render pass, real GPU cost not worth spending on
+  // typically weaker mobile GPUs, and reduced-motion visitors get a
+  // static frame anyway, where it wouldn't be noticed regardless.
+  let composer = null;
+  let bokehPass = null;
+  if (!isMobile && !reduceMotion) {
+    try {
+      composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene, camera));
+      bokehPass = new BokehPass(scene, camera, { focus: 10, aperture: 0.00045, maxblur: 0.008 });
+      composer.addPass(bokehPass);
+    } catch (e) {
+      composer = null;
+      bokehPass = null;
+    }
+  }
+
+  function setSize() {
+    const rect = container.getBoundingClientRect();
+    const w = Math.max(1, Math.floor(rect.width));
+    const h = Math.max(1, Math.floor(rect.height));
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    if (composer) composer.setSize(w, h);
+    (composer || renderer).render(scene, camera);
+  }
+  const ro = new ResizeObserver(setSize);
+  ro.observe(container);
+
+  // Camera path: Z and Y are each one smooth continuous curve across the
+  // whole 0–1 progress range — no seams there. The lateral offset (X) is
+  // deliberately restrained: three short, overlapping camera drifts rather
+  // than a visible zig-zag. Each segment uses a full smoothstep, so the
+  // camera naturally eases into the end of one drift, pauses for a beat, and
+  // eases into the next direction. The visitor should feel a change in
+  // perspective, not notice a camera command being executed.
+  //
+  // The look-at target's X stays FIXED throughout — it does NOT track the
+  // zigzag. An earlier version mirrored it in step with the lateral move,
+  // which read as the camera spinning/reversing direction rather than a
+  // gentle continuation, reported directly by the person testing it (not
+  // something a numeric continuity check alone would have caught, since
+  // that earlier version WAS seamless mathematically, just not
+  // seamless-*looking*). Keeping it fixed avoids that regardless of how
+  // many times X changes direction.
+  const zStart = 11;
+  const zEnd = -70; // Z of the 9th candle (i=8)
+  const xTargets = [0, 4.8, 1.8, 4.2]; // restrained start + one target per 3-candle segment
+  let progress = 0;
+  let focusPoint = new THREE.Vector3(-1, 0.5, zStart);
+  const lookAtTarget = new THREE.Vector3(0, 0, 0);
+  function applyProgress(p) {
+    progress = Math.min(1, Math.max(0, p));
+    const z = zStart - progress * (zStart - zEnd);
+    const offsetY = 1.2 + progress * 4.8;
+
+    const segF = progress * 3;
+    const segIndex = Math.min(2, Math.floor(segF));
+    const segmentT = Math.min(1, Math.max(0, segF - segIndex));
+    const easedT = segmentT * segmentT * (3 - 2 * segmentT);
+    const offsetX = xTargets[segIndex] + (xTargets[segIndex + 1] - xTargets[segIndex]) * easedT;
+
+    camera.position.set(offsetX, offsetY, z);
+    lookAtTarget.set(-1, 0.5, z - 9);
+    focusPoint.set(-1, 0.5, z);
+    camera.lookAt(lookAtTarget);
+  }
+  applyProgress(0);
+  setSize();
+
+  let trigger = null;
+  if (!reduceMotion) {
+    trigger = ScrollTrigger.create({
+      trigger: zoneStart,
+      endTrigger: zoneEnd,
+      // "top top" would only start once #top's top edge is scrolled all
+      // the way to the viewport's top edge — but #top naturally sits ~72px
+      // down the page (nav spacing), so at rest (scrollY 0, page just
+      // loaded) that condition isn't met yet and the whole layer stayed
+      // hidden until the visitor scrolled ~72px first. "top bottom" starts
+      // as soon as #top's top has entered from the viewport's *bottom*
+      // edge — for a hero sitting near the very start of the document,
+      // that point is at or before scrollY 0, so the trigger (and the
+      // camera journey) is already active on load, exactly like the rest
+      // of the hero content.
+      start: 'top bottom',
+      end: 'bottom bottom',
+      scrub: 0.8,
+      onUpdate: (self) => applyProgress(self.progress),
+      onToggle: (self) => container.classList.toggle('cf-journey-visible', self.isActive),
+    });
+  } else {
+    // Static: camera parked at the hero waypoint, journey layer always
+    // visible behind that section only (no scroll-linked motion at all).
+    container.classList.add('cf-journey-visible');
+  }
+
+  const t0 = performance.now();
+  let rafId = 0;
+  function loop(t) {
+    const elapsed = (t - t0) * 0.001;
+    candles.children.forEach((c, i) => {
+      c.rotation.y = Math.sin(elapsed * 0.15 + i) * 0.04;
+    });
+
+    // Focus tracks whatever the scene is actually showing — not a fixed
+    // "look ahead" point, which is what put the nearest candle outside the
+    // sharp zone in an early captured frame even though the camera was
+    // right next to it.
+    if (bokehPass) {
+      bokehPass.uniforms.focus.value = camera.position.distanceTo(focusPoint);
+    }
+    (composer || renderer).render(scene, camera);
+    rafId = requestAnimationFrame(loop);
+  }
+
+  let isIntersecting = true;
+  let isPageVisible = !document.hidden;
+  function tryStart() {
+    if (reduceMotion) return;
+    if (isIntersecting && isPageVisible && !rafId) rafId = requestAnimationFrame(loop);
+  }
+  function tryStop() {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+  }
+  const io = new IntersectionObserver(([entry]) => {
+    isIntersecting = entry.isIntersecting;
+    isIntersecting ? tryStart() : tryStop();
+  });
+  io.observe(container);
+  function onVisibilityChange() {
+    isPageVisible = !document.hidden;
+    isPageVisible ? tryStart() : tryStop();
+  }
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  tryStart();
+
+  cleanupFns.push(() => {
+    tryStop();
+    ro.disconnect();
+    io.disconnect();
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    trigger && trigger.kill();
+    container.classList.remove('cf-journey-visible');
+    disposeObject3D(candles);
+    disposables.forEach((d) => {
+      if (d && typeof d.dispose === 'function') d.dispose();
+    });
+    if (composer) composer.dispose();
+    renderer.dispose();
+    if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
+  });
 }
 
 function setupFaqAccordion(root, cleanupFns) {
@@ -397,7 +683,7 @@ function setupTiltCards(root, cleanupFns) {
 
   const tiltCards = [];
   const listeners = [];
-  root.querySelectorAll('.cf-feat, .cf-proof, .cf-faq-item').forEach((card) => {
+  root.querySelectorAll('.cf-feat, .cf-hero-devices, .cf-faq-item').forEach((card) => {
     const entry = { el: card, rx: makeSpring(0), ry: makeSpring(0), scale: makeSpring(1) };
     tiltCards.push(entry);
     function onMove(e) {
@@ -854,6 +1140,7 @@ function setupCategoryTransitions(root, cleanupFns) {
   const railGlow = rail?.querySelector('.cf-category-rail-glow');
 
   root.classList.add('has-category-transitions');
+  root.classList.remove('has-category-scroll-stack');
 
   const reset = () => {
     sections.forEach((section) =>
@@ -957,7 +1244,7 @@ function setupElectricBorders(root, cleanupFns) {
 
   const ebInstances = [];
   const mounted = [];
-  root.querySelectorAll('.cf-feat, .cf-faq-item, .cf-proof').forEach((el) => {
+  root.querySelectorAll('.cf-feat, .cf-faq-item').forEach((el) => {
     mounted.push(
       mountElectricBorder(
         el,
@@ -1321,7 +1608,6 @@ export function initLandingEffects(rootEl, onGetStarted) {
   });
 
   runSafely('setupSmoothAnchorScroll', () => setupSmoothAnchorScroll(cleanupFns));
-  runSafely('setupProofTableSort', () => setupProofTableSort(rootEl, cleanupFns));
   runSafely('setupHeroEntrance', () => setupHeroEntrance(rootEl));
   runSafely('setupTiltCards', () => setupTiltCards(rootEl, cleanupFns));
   runSafely('setupGradualBlur', () => setupGradualBlur(rootEl, cleanupFns));
@@ -1349,32 +1635,39 @@ export function initLandingEffects(rootEl, onGetStarted) {
           color1: '#ff9400',
           color2: '#ffe29f',
           color3: '#ffffff',
-          speed: 0.5,
-          sweepSpeed: 0.25,
+          speed: 0.28,
+          sweepSpeed: 0.12,
           sweepWidth: 1.6,
           sweepFalloff: 6,
           scale: 1.5,
           frequency: 2,
-          ripple: 0.22,
+          ripple: 0.14,
           bandDensity: 11,
-          lineSharpness: 5.5,
-          glow: 0.22,
+          lineSharpness: 4.5,
+          glow: 0.08,
           scanDirection: 'vertical',
-          colorSpread: 0.7,
-          brightness: 1.0,
-          contrast: 1.15,
+          colorSpread: 0.38,
+          brightness: 0.5,
+          contrast: 0.95,
           softness: 1.4,
           vignette: 0.45,
           scanline: true,
           grain: true,
-          grainIntensity: 0.05,
-          opacity: 1.0,
+          grainIntensity: 0.025,
+          opacity: 0.34,
           mouseInteraction: true,
           mouseRadius: 0.5,
-          mouseStrength: 0.5,
+          mouseStrength: 0.22,
         },
         cleanupFns
       );
+    }
+  });
+
+  runSafely('mountCinematicJourney', () => {
+    const journeyEl = rootEl.querySelector('#cfJourney');
+    if (journeyEl) {
+      mountCinematicJourney(rootEl, journeyEl, cleanupFns);
     }
   });
 

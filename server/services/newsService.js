@@ -5,6 +5,8 @@ const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
 
 const newsCache = new Map();
 const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
+const newsProbeCache = new Map();
+const NEWS_PROBE_TTL_MS = 5 * 60 * 1000;
 
 // Quality over quantity: a wall of 8 headlines nobody reads is worse than
 // the 4 most recent from a single trustworthy provider — also keeps the
@@ -244,6 +246,39 @@ async function fetchNewsForSymbol(symbol) {
   return { articles: articles || [], fetchTime: fetchTime, source: source };
 }
 
+// A status check must verify that at least one configured provider can return
+// real, linkable news — not run the full user path (URL resolution and Gemini
+// enrichment would be unnecessarily expensive every five minutes). Results
+// are cached for one monitoring interval and never include provider keys.
+async function probeNewsProviders(symbol) {
+  const key = String(symbol || '')
+    .trim()
+    .toUpperCase();
+  const cached = newsProbeCache.get(key);
+  if (cached && Date.now() - cached.checkedAt < NEWS_PROBE_TTL_MS) return cached.result;
+
+  const providers = [
+    { name: 'finnhub', fn: fetchFromFinnhub },
+    { name: 'massive', fn: fetchFromMassive },
+    { name: 'marketaux', fn: fetchFromMarketaux },
+    { name: 'newsdata', fn: fetchFromNewsdata },
+  ];
+  for (const provider of providers) {
+    const articles = await provider.fn(key);
+    const usable = Array.isArray(articles)
+      ? articles.filter((article) => article && typeof article.url === 'string' && article.url)
+      : [];
+    if (usable.length) {
+      const result = { ok: true, provider: provider.name, sample: { symbol: key, articleCount: usable.length } };
+      newsProbeCache.set(key, { checkedAt: Date.now(), result });
+      return result;
+    }
+  }
+  const result = { ok: false, provider: null, sample: null };
+  newsProbeCache.set(key, { checkedAt: Date.now(), result });
+  return result;
+}
+
 // Blocks the server from ever HEAD-fetching a private/internal address.
 // Today the only caller (routes/news.js) already restricts `url` to one this
 // server itself returned from a real news provider, so this is defense in
@@ -334,4 +369,12 @@ async function resolveFinalUrl(url) {
   }
 }
 
-module.exports = { newsCache, NEWS_CACHE_TTL_MS, fetchNewsForSymbol, resolveFinalUrl };
+module.exports = {
+  newsCache,
+  newsProbeCache,
+  NEWS_CACHE_TTL_MS,
+  NEWS_PROBE_TTL_MS,
+  fetchNewsForSymbol,
+  probeNewsProviders,
+  resolveFinalUrl,
+};

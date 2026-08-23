@@ -6,7 +6,7 @@
 // never leaves the browser either way. See routes/auth.js for the redirect
 // side of this fix.
 import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { AuthProvider, useAuth } from './AuthContext';
 
 afterEach(() => {
@@ -17,6 +17,15 @@ afterEach(() => {
 function Probe() {
   const { pendingGoogleToken } = useAuth();
   return <div data-testid="probe">{pendingGoogleToken || 'none'}</div>;
+}
+
+function TokenProbe() {
+  const { login, getToken } = useAuth();
+  return (
+    <button onClick={() => login('memory-token', { id: 1, email: 'admin@example.com' })}>
+      {getToken() || 'empty'}
+    </button>
+  );
 }
 
 function setUrl(pathname, hash) {
@@ -55,5 +64,16 @@ describe('AuthContext — Google OAuth pending-token handoff', () => {
       </AuthProvider>
     );
     expect(await screen.findByTestId('probe')).toHaveTextContent('none');
+  });
+
+  it('keeps access tokens in memory instead of persisting them in localStorage', () => {
+    render(
+      <AuthProvider>
+        <TokenProbe />
+      </AuthProvider>
+    );
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByRole('button')).toHaveTextContent('memory-token');
+    expect(localStorage.getItem('vs_token')).toBeNull();
   });
 });

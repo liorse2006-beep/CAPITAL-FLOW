@@ -94,6 +94,7 @@ jobs:
               print(response.read().decode())
           PY
       - name: Send one external recovery email
+        id: recovery-email
         if: steps.incident-state.outputs.send_recovery == 'true'
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
@@ -101,7 +102,8 @@ jobs:
           STATUS_ALERT_RECIPIENTS: ${{ secrets.STATUS_ALERT_RECIPIENTS }}
         run: |
           if [ -z "$RESEND_API_KEY" ] || [ -z "$RESEND_FROM_EMAIL" ] || [ -z "$STATUS_ALERT_RECIPIENTS" ]; then
-            echo 'External recovery email skipped: one or more repository secrets are not configured.'
+            echo 'External recovery email failed: one or more repository secrets are not configured.' >&2
+            exit 1
           else
             python - <<'PY'
             import json, os, urllib.request
@@ -121,7 +123,7 @@ jobs:
             PY
           fi
       - name: Close the external watchdog incident after recovery
-        if: steps.incident-state.outputs.send_recovery == 'true'
+        if: steps.incident-state.outputs.send_recovery == 'true' && steps.recovery-email.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}

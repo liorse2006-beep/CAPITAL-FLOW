@@ -68,9 +68,34 @@ push-failure and backup-delivery-failure tests passed as part of the 295 backend
   the next scheduled check, current history coverage, and sanitized component boundaries.
   Unauthenticated admin requests returned `401`; the internal market-data endpoint returned
   `503` without its shared probe token rather than exposing data publicly.
-- The safe local 500-user run completed with **0/500 failures**, **0% error rate**, and
-  **1,077 ms p95** across `/health` and `/status/api/summary`. Production was intentionally
-  not stress-tested; the repository workflow requires an explicitly approved staging target.
+- The full application was run in an isolated local staging process with a separate file-backed
+  database, production mail disabled, and one process. The warmed 500-request run completed
+  with **0/500 failures**, **0% error rate**, **255.7 requests/second**, and **1,908 ms p95**
+  against the application's `/health` route. Production was intentionally not stress-tested;
+  the hosted Free-plan result is recorded below as a separate capacity gate.
+- Two controlled real alert messages were sent through Resend to the configured administrator
+  recipient: one incident notification and one recovery notification. Resend accepted both and
+  returned provider message IDs. Inbox receipt was not marked as independently verified because
+  the available signed-in Gmail account is not the configured alert recipient.
+- A hosted Render staging run was completed on a separate **Free** service
+  (`capital-flow-staging-loadtest-20260817.onrender.com`, 0.1 CPU / 512 MB, no additional
+  charge). The guarded 500-user run produced **94/500 HTTP 200 responses**, **406 network
+  timeouts** (**81.2% error rate**, p95 **10,015 ms**). A second warmed run across `/health`
+  and `/status/api/summary` produced **31/500 HTTP 200 responses** and **469 connection
+  timeouts** (**93.8% error rate**, p95 **10,551 ms**). A 100-user boundary run still produced
+  **11/100 HTTP 200 responses** and **89 timeouts**. A single health check returned 200 with
+  the database healthy after the runs, so the service recovered; the result identifies the
+  Render Free instance's parallel-capacity ceiling rather than a production outage. The
+  staging service was suspended immediately after testing and production was never loaded.
+- A free GitHub Actions standard runner was then used as a second isolated alternative. The
+  workflow at [.github/workflows/ephemeral-load-test.yml](.github/workflows/ephemeral-load-test.yml)
+  built the application on a clean Ubuntu runner, started it with a disposable SQLite database,
+  and exercised `/health` plus `/status/api/summary`. After a 500-user warm-up (**0/500
+  failures**, p95 **1,668 ms**), the steady-state 500-user measurement completed with
+  **500/500 HTTP 200 responses**, **0% error rate**, **283.65 requests/second**, and p95
+  **1,704 ms** (p99 **1,704 ms**), under the 2,000 ms threshold. This is the strongest free
+  application/container capacity evidence available without loading production; it does not
+  claim the same network/CPU behavior as Render's paid runtime.
 - The read-only wallet readiness probe passed the Apple verification file, production origin,
   Google Pay CSP, Whop checkout CSP and scanner route checks. No payment or wallet transaction
   was performed.
@@ -80,12 +105,16 @@ push-failure and backup-delivery-failure tests passed as part of the 295 backend
 
 ### External gates still required before a “100% launch” declaration
 
-The repository and deployment now contain the controls and verification paths. Final
-sign-off still needs only: one approved staging run of the 500-user workflow, real Resend
-delivery plus failure-retry observation, an Apple Pay device authorization, a Google Pay
-device authorization, and a low-risk Whop payment plus webhook reconciliation. These require
-external devices, a safe staging target, or a real inbox/payment session and were not
-performed automatically.
+The repository and deployment now contain the controls and verification paths. The 500-user
+workflow has now been measured against the complete application in both isolated local staging
+and hosted Render Free staging. The hosted run is **not a passing capacity gate**: the Free
+instance cannot sustain the requested parallel load, even though it returns to a healthy state
+afterward. Passing this gate requires a higher-capacity staging host or a different approved
+capacity-test environment; it must not be simulated against production. Resend API acceptance
+has also been verified for both incident and recovery messages, while inbox receipt and
+failure-retry observation still require the configured mailbox/provider session. Apple Pay
+device authorization, Google Pay device authorization, and a low-risk Whop payment plus
+webhook reconciliation remain external payment gates.
 
 ## Implementation pass — 2026-08-12
 

@@ -1,6 +1,14 @@
 const router = require('express').Router();
 const { requireEliteOrTrial } = require('../middleware/authMiddleware');
-const { getWatchlistAlerts, setAlert, removeAlert, clearAlerts } = require('../services/watchlistAlerts');
+const {
+  getWatchlistAlerts,
+  setAlert,
+  removeAlert,
+  clearAlerts,
+  SYMBOL_RE,
+  MAX_VOLUME_RATIO,
+  MAX_PRICE,
+} = require('../services/watchlistAlerts');
 const quoteCache = require('../services/quoteCache');
 const { reportError } = require('../utils/reportError');
 
@@ -15,14 +23,21 @@ router.get('/watchlist-alerts', requireEliteOrTrial, async (req, res) => {
 
 router.post('/watchlist-alerts/:symbol', requireEliteOrTrial, async (req, res) => {
   try {
-    const symbol = req.params.symbol.toUpperCase();
+    const symbol = String(req.params.symbol || '').toUpperCase();
     const type = req.body.type === 'price' ? 'price' : 'volume';
-    if (!symbol) return res.status(400).json({ error: 'symbol required' });
+    if (!SYMBOL_RE.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
 
     if (type === 'price') {
-      const targetPrice = parseFloat(req.body.targetPrice);
-      const clientReferencePrice = parseFloat(req.body.referencePrice);
-      if (isNaN(targetPrice) || targetPrice <= 0 || isNaN(clientReferencePrice) || clientReferencePrice <= 0)
+      const targetPrice = Number(req.body.targetPrice);
+      const clientReferencePrice = Number(req.body.referencePrice);
+      if (
+        !Number.isFinite(targetPrice) ||
+        targetPrice <= 0 ||
+        targetPrice > MAX_PRICE ||
+        !Number.isFinite(clientReferencePrice) ||
+        clientReferencePrice <= 0 ||
+        clientReferencePrice > MAX_PRICE
+      )
         return res.status(400).json({ error: 'targetPrice and referencePrice (> 0) required' });
 
       // Which side of targetPrice the stock is on right now decides whether
@@ -48,11 +63,15 @@ router.post('/watchlist-alerts/:symbol', requireEliteOrTrial, async (req, res) =
       return res.json({ ok: true, symbol, type, targetPrice, startingSide });
     }
 
-    const minRatio = parseFloat(req.body.minRatio);
-    if (isNaN(minRatio) || minRatio <= 0) return res.status(400).json({ error: 'minRatio (> 0) required' });
+    const minRatio = Number(req.body.minRatio);
+    if (!Number.isFinite(minRatio) || minRatio <= 0 || minRatio > MAX_VOLUME_RATIO)
+      return res.status(400).json({ error: 'minRatio must be finite and within the supported range' });
     await setAlert(req.user.id, symbol, { type: 'volume', minRatio });
     res.json({ ok: true, symbol, type, minRatio });
   } catch (err) {
+    if (err && (err.code === 'ALERT_LIMIT' || err.code === 'INVALID_ALERT')) {
+      return res.status(400).json({ error: err.message });
+    }
     reportError(err, '[watchlist-alerts POST]');
     res.status(500).json({ error: 'Server error' });
   }
@@ -60,7 +79,9 @@ router.post('/watchlist-alerts/:symbol', requireEliteOrTrial, async (req, res) =
 
 router.delete('/watchlist-alerts/:symbol', requireEliteOrTrial, async (req, res) => {
   try {
-    await removeAlert(req.user.id, req.params.symbol.toUpperCase());
+    const symbol = String(req.params.symbol || '').toUpperCase();
+    if (!SYMBOL_RE.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
+    await removeAlert(req.user.id, symbol);
     res.json({ ok: true });
   } catch (err) {
     reportError(err, '[watchlist-alerts DELETE symbol]');

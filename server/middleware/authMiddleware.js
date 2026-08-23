@@ -21,39 +21,51 @@ const { publish, subscribe } = require('../services/clusterBus');
 // reproduced in test/cluster.integration.test.js.
 //
 // The actual fix is to not need shared state at all: the ticket is its own
-// proof, HMAC-signed with SESSION_SECRET, carrying the userId and expiry
-// right in it. Any worker can verify it alone, instantly, with zero
-// coordination — same principle as the session-cookie switch in
-// server/index.js (a signed token beats a shared store that has to somehow
-// stay in sync).
+// proof, HMAC-signed with SESSION_SECRET, carrying the userId, the active
+// session id and expiry right in it. The session id is checked against
+// user_sessions when the stream opens, so logout, password reset, admin
+// force-logout, and device eviction revoke an already-issued ticket too.
+// Any worker can verify it alone, instantly, with zero coordination — same
+// principle as the session-cookie switch in server/index.js (a signed token
+// beats a shared store that has to somehow stay in sync).
 const SSE_TICKET_TTL_MS = 10 * 60 * 1000;
 
-function signSseTicket(userId, expiresAt) {
-  return crypto.createHmac('sha256', SESSION_SECRET).update(`${userId}.${expiresAt}`).digest('base64url');
+function signSseTicket(userId, sessionId, expiresAt) {
+  return crypto.createHmac('sha256', SESSION_SECRET).update(`${userId}.${sessionId}.${expiresAt}`).digest('base64url');
 }
 
-function issueSseTicket(userId) {
+function issueSseTicket(userId, sessionId) {
+  if (!Number.isSafeInteger(Number(userId)) || Number(userId) <= 0) throw new Error('Invalid SSE user id');
+  if (!Number.isSafeInteger(Number(sessionId)) || Number(sessionId) <= 0) throw new Error('Invalid SSE session id');
   const expiresAt = Date.now() + SSE_TICKET_TTL_MS;
-  const sig = signSseTicket(userId, expiresAt);
-  return `${userId}.${expiresAt}.${sig}`;
+  const sig = signSseTicket(Number(userId), Number(sessionId), expiresAt);
+  return `${Number(userId)}.${Number(sessionId)}.${expiresAt}.${sig}`;
 }
 
 function resolveSseTicket(ticket) {
   if (!ticket || typeof ticket !== 'string') return null;
   const parts = ticket.split('.');
-  if (parts.length !== 3) return null;
-  const [userIdStr, expiresAtStr, sig] = parts;
+  if (parts.length !== 4) return null;
+  const [userIdStr, sessionIdStr, expiresAtStr, sig] = parts;
   const userId = Number(userIdStr);
+  const sessionId = Number(sessionIdStr);
   const expiresAt = Number(expiresAtStr);
-  if (!Number.isInteger(userId) || !Number.isFinite(expiresAt)) return null;
+  if (
+    !Number.isSafeInteger(userId) ||
+    userId <= 0 ||
+    !Number.isSafeInteger(sessionId) ||
+    sessionId <= 0 ||
+    !Number.isSafeInteger(expiresAt)
+  )
+    return null;
   if (expiresAt <= Date.now()) return null;
 
-  const expected = signSseTicket(userId, expiresAt);
+  const expected = signSseTicket(userId, sessionId, expiresAt);
   const expectedBuf = Buffer.from(expected);
   const sigBuf = Buffer.from(sig || '');
   if (expectedBuf.length !== sigBuf.length || !crypto.timingSafeEqual(expectedBuf, sigBuf)) return null;
 
-  return userId;
+  return { userId, sessionId };
 }
 
 // Every call to resolveToken() was two sequential round trips to the remote
@@ -108,7 +120,7 @@ function applyLocalInvalidateSession(userId, sessionId) {
   const key = sessionKeyFor(userId, sessionId);
   const tokens = sessionIndex.get(key);
   if (!tokens) return;
-  for (const token of tokens) resolveCache.delete(token);
+  for (const token of tokens) dropCachedToken(token);
   sessionIndex.delete(key);
 }
 
@@ -116,8 +128,7 @@ function applyLocalInvalidateUserSessions(userId) {
   const prefix = `${userId}:`;
   for (const key of sessionIndex.keys()) {
     if (!key.startsWith(prefix)) continue;
-    for (const token of sessionIndex.get(key)) resolveCache.delete(token);
-    sessionIndex.delete(key);
+    for (const token of sessionIndex.get(key)) dropCachedToken(token);
   }
 }
 
@@ -315,8 +326,11 @@ async function requireEliteOrTrial(req, res, next) {
  * Used for SSE (EventSource cannot set Authorization headers).
  */
 async function requirePremiumSSE(req, res, next) {
-  const ticketUserId = resolveSseTicket(req.query.ticket);
-  const user = ticketUserId
+  const ticket = resolveSseTicket(req.query.ticket);
+  const session = ticket
+    ? await db.prepare('SELECT id FROM user_sessions WHERE id = ? AND user_id = ?').get(ticket.sessionId, ticket.userId)
+    : null;
+  const user = session
     ? await db
         .prepare(
           `SELECT id, email, is_verified, is_premium, is_blocked, free_scan_count,
@@ -325,22 +339,26 @@ async function requirePremiumSSE(req, res, next) {
                   premium_scan_count, premium_scan_window_start
            FROM users WHERE id = ?`
         )
-        .get(ticketUserId)
+        .get(ticket.userId)
     : null;
-  if (!user) {
-    // SSE: respond with a plain-text error event instead of JSON
+  function rejectSse(code, status) {
+    // EventSource still exposes the HTTP status before it receives the
+    // stream body. Set it explicitly; calling flushHeaders() without a
+    // status would turn an invalid/revoked ticket into HTTP 200 with an
+    // auth-error event, which makes clients and monitors treat the endpoint
+    // as healthy and can trigger reconnect loops.
+    res.status(status);
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.flushHeaders();
-    res.write('event: auth-error\ndata: {"code":"NOT_AUTHENTICATED"}\n\n');
+    res.write(`event: auth-error\ndata: {"code":"${code}"}\n\n`);
     return res.end();
   }
+  if (!user) {
+    return rejectSse('NOT_AUTHENTICATED', 401);
+  }
   if (user.is_blocked) {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.flushHeaders();
-    res.write('event: auth-error\ndata: {"code":"NOT_AUTHENTICATED"}\n\n');
-    return res.end();
+    return rejectSse('NOT_AUTHENTICATED', 401);
   }
   const effectiveUser =
     user.is_pilot || (!!ADMIN_EMAIL && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase())
@@ -348,11 +366,7 @@ async function requirePremiumSSE(req, res, next) {
       : { ...user, is_premium: user.tier !== 'free' ? 1 : 0 };
   const trialActive = effectiveUser.tier === 'free' && freeTrialActive(effectiveUser);
   if (effectiveUser.tier !== 'elite' && !trialActive) {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.flushHeaders();
-    res.write('event: auth-error\ndata: {"code":"NOT_ELITE"}\n\n');
-    return res.end();
+    return rejectSse('NOT_ELITE', 403);
   }
   req.user = effectiveUser;
   next();

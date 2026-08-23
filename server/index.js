@@ -187,10 +187,12 @@ app.use(
   cookieSession({
     name: 'vs.sess',
     keys: [SESSION_SECRET],
-    // Omitting `secure` (rather than hardcoding true) makes the underlying
-    // cookies library infer it from the request's own protocol/
-    // x-forwarded-proto (respecting 'trust proxy' above) — Secure only when
-    // actually HTTPS, so this still works over plain HTTP in local dev.
+    // Explicitly mark the OAuth session cookie Secure in production. The
+    // cookie-session package does not reliably infer this from a reverse proxy
+    // in every deployment mode; an explicit flag avoids sending the signed
+    // OAuth state over an accidental HTTP hop while keeping local HTTP dev
+    // usable.
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: 1000 * 60 * 10, // 10 min — only for the OAuth dance
   })

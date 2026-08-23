@@ -18,6 +18,7 @@ const {
 const { getFullAdminUrl, getStatusPublicUrl } = require('../services/statusConfig');
 const { reportError } = require('../utils/reportError');
 const { runStatusBackup } = require('../services/statusDbBackup');
+const { probeNewsProviders } = require('../services/newsService');
 
 const statusAdminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -37,6 +38,7 @@ const statusProbeLimiter = rateLimit({
 
 router.use('/status/api/admin', statusAdminLimiter);
 router.use('/status/internal/market-data', statusProbeLimiter);
+router.use('/status/internal/news-data', statusProbeLimiter);
 
 function asyncRoute(fn) {
   return function statusAsyncRoute(req, res, next) {
@@ -54,6 +56,13 @@ function unixNow() {
 function asNumber(value, fallback = null) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parsePositiveId(value) {
+  const text = String(value ?? '');
+  if (!/^\d+$/.test(text)) return null;
+  const parsed = Number(text);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 function parseAffected(value) {
@@ -481,7 +490,7 @@ function renderPage(admin, pageNonce) {
     <section class="section" aria-labelledby="active-incidents-title"><div class="section-head"><h2 id="active-incidents-title">Active incidents</h2><p>Confirmed incidents only</p></div><div class="card" id="active-incidents"><div class="empty">No active incidents.</div></div></section>
     <section class="section" aria-labelledby="previous-incidents-title"><div class="section-head"><h2 id="previous-incidents-title">Previous incidents</h2><p>Resolved incidents from monitoring history</p></div><div class="card" id="previous-incidents"><div class="empty">No incidents have been recorded yet.</div></div></section>
      <div class="admin-area${admin ? ' show' : ''}" id="admin-area">
-      <section class="section"><div class="section-head"><h2>Operations console</h2><p>Private monitoring controls</p></div><div class="card admin-panel"><h3>Admin authentication</h3><p>Use the existing admin token or sign in as the configured administrator. A static token is stored in this tab only and is sent in a request header.</p><div class="admin-auth"><input class="admin-input" id="admin-token" type="password" autocomplete="off" placeholder="Static admin token"><button class="admin-button" id="save-token" type="button">Use token</button><button class="admin-button secondary" id="refresh-admin-page" type="button">Refresh admin</button><button class="admin-button secondary" id="check-now" type="button">Run check now</button><a class="nav-link" href="${getFullAdminUrl()}">Full user admin</a></div><div class="admin-help" id="admin-auth-status"></div></div></section>
+       <section class="section"><div class="section-head"><h2>Operations console</h2><p>Private monitoring controls</p></div><div class="card admin-panel"><h3>Admin authentication</h3><p>Use the existing admin token. It is kept only in this page's memory and cleared when the page is reloaded.</p><div class="admin-auth"><input class="admin-input" id="admin-token" type="password" autocomplete="off" placeholder="Static admin token"><button class="admin-button" id="save-token" type="button">Use token</button><button class="admin-button secondary" id="refresh-admin-page" type="button">Refresh admin</button><button class="admin-button secondary" id="check-now" type="button">Run check now</button><a class="nav-link" href="${getFullAdminUrl()}">Full user admin</a></div><div class="admin-help" id="admin-auth-status"></div></div></section>
       <section class="section admin-only" id="admin-controls"><div class="section-head"><h2>Monitoring controls</h2><p id="admin-meta">—</p></div><div class="card admin-panel"><div class="admin-toolbar"><button class="admin-button secondary" id="refresh-admin" type="button">Refresh diagnostics</button><span class="admin-help">Manual checks are rate-limited and never depend on this dashboard remaining open.</span></div></div><div class="card admin-panel"><h3>Scheduled maintenance</h3><p>Maintenance suppresses normal outage alerts only for the selected components and time window. The monitor continues recording checks.</p><form class="maintenance-form" id="maintenance-form"><input class="admin-input" name="title" required maxlength="120" placeholder="Maintenance title"><input class="admin-input" name="startsAt" required type="datetime-local"><input class="admin-input" name="endsAt" required type="datetime-local"><input class="admin-input" name="components" required placeholder="Components: website,backend or *"><textarea class="admin-textarea wide" name="description" required maxlength="1000" placeholder="What is changing and what users should expect?"></textarea><div class="wide"><button class="admin-button" type="submit">Schedule maintenance</button></div></form></div><div class="card admin-panel"><h3>Alert recipients</h3><p>Environment recipients are cached into the status store. Additional recipients can be managed here.</p><form class="admin-toolbar" id="recipient-form"><input class="admin-input" name="email" required type="email" placeholder="admin@example.com"><button class="admin-button" type="submit">Add recipient</button></form><div class="admin-table-wrap" id="recipients-table"><div class="empty">No recipients loaded.</div></div></div><div class="card admin-panel"><h3>Incidents and diagnostics</h3><div class="admin-table-wrap" id="admin-incidents"><div class="empty">Authenticate to load private diagnostics.</div></div></div><div class="card admin-panel"><h3>Recent monitoring checks</h3><div class="admin-table-wrap" id="admin-checks"><div class="empty">Authenticate to load private checks.</div></div></div><div class="card admin-panel"><h3>Maintenance history</h3><div class="admin-table-wrap" id="admin-maintenance"><div class="empty">Authenticate to load maintenance.</div></div></div></section>
     </div>
   </main>
@@ -493,7 +502,7 @@ function renderPage(admin, pageNonce) {
   var ADMIN_PAGE=${adminFlag};
   var summary=null;
   var adminData=null;
-  var tokenKey='capital-flow-admin-token';
+  var transientAdminToken='';
   var statusLabels={operational:'Operational',degraded:'Degraded Performance',partial:'Partial Outage',major:'Major Outage',maintenance:'Maintenance',unknown:'Checking'};
   function byId(id){return document.getElementById(id)}
   function escapeHtml(value){return String(value==null?'':value).replace(/[&<>'"]/g,function(char){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]})}
@@ -503,9 +512,7 @@ function renderPage(admin, pageNonce) {
   function fmtUptime(value){return value==null?'—':Number(value).toFixed(2)+'%'}
   function statusClass(status){var map={operational:'ok',degraded:'warn',partial:'partial',major:'down',maintenance:'maintenance',unknown:'unknown'};return map[status]||'unknown'}
   function toast(message){var el=byId('toast');el.textContent=message;el.classList.add('show');setTimeout(function(){el.classList.remove('show')},2600)}
-  function readSessionValue(key){try{return window.sessionStorage.getItem(key)||''}catch(error){return ''}}
-  function writeSessionValue(key,value){try{window.sessionStorage.setItem(key,value)}catch(error){}}
-  function authHeaders(){var headers={};var token=readSessionValue(tokenKey);var jwt=localStorage.getItem('vs_token');if(token)headers['x-admin-token']=token;else if(jwt)headers.Authorization='Bearer '+jwt;return headers}
+  function authHeaders(){var headers={};if(transientAdminToken)headers['x-admin-token']=transientAdminToken;return headers}
   function jsonHeaders(){var headers=authHeaders();headers['Content-Type']='application/json';return headers}
   function renderBadge(status){var badge=byId('overall-badge');badge.className='status-dot '+statusClass(status);badge.textContent=statusLabels[status]||'Checking'}
   function renderComponent(component){
@@ -538,7 +545,7 @@ function renderPage(admin, pageNonce) {
   var adminControls=byId('admin-controls');if(adminControls&&window.MutationObserver){new MutationObserver(installBackupButton).observe(adminControls,{childList:true,subtree:true})}
   async function loadAdmin(){if(!ADMIN_PAGE)return;try{var response=await fetch('/status/api/admin/overview',{headers:authHeaders(),cache:'no-store'});if(!response.ok){byId('admin-auth-status').textContent=response.status===401?'Enter an admin token or sign in as the configured admin.':'Admin access is not configured.';byId('admin-controls').classList.remove('show');return}renderAdmin(await response.json());installBackupButton()}catch(error){byId('admin-auth-status').textContent='Could not load private diagnostics.'}}
   async function adminRequest(url,options){var response=await fetch(url,Object.assign({},options||{}, {headers:Object.assign({},jsonHeaders(),(options&&options.headers)||{})}));var data=await response.json().catch(function(){return {}});if(!response.ok)throw new Error(data.error||'Request failed');return data}
-  byId('save-token').addEventListener('click',function(){var value=byId('admin-token').value.trim();if(value)writeSessionValue(tokenKey,value);loadAdmin()});
+  byId('save-token').addEventListener('click',function(){var value=byId('admin-token').value.trim();if(value)transientAdminToken=value;byId('admin-token').value='';loadAdmin()});
   byId('check-now').addEventListener('click',async function(){try{await adminRequest('/status/api/admin/check-now',{method:'POST'});toast('Monitoring cycle started');setTimeout(function(){loadSummary();loadAdmin()},1200)}catch(error){toast(error.message)}});
   async function refreshAdminView(button){var label=button&&button.textContent;if(button){button.disabled=true;button.textContent='Refreshing…'}try{await Promise.all([loadAdmin(),loadSummary()]);markPageUpdated();toast('Admin refreshed')}finally{if(button){button.disabled=false;button.textContent=label}}}
   byId('refresh-admin').addEventListener('click',function(){refreshAdminView(this)});
@@ -625,6 +632,18 @@ router.get(
 );
 
 router.get(
+  '/status/internal/news-data',
+  asyncRoute(async (req, res) => {
+    if (!STATUS_INTERNAL_TOKEN) return res.status(503).json({ error: 'Internal news probe is not configured.' });
+    if (req.headers['x-status-check-token'] !== STATUS_INTERNAL_TOKEN)
+      return res.status(401).json({ error: 'Unauthorized' });
+    const result = await probeNewsProviders('AAPL');
+    if (!result.ok) return res.status(503).json({ ok: false, error: 'News providers unavailable' });
+    res.json(result);
+  })
+);
+
+router.get(
   '/status/api/admin/overview',
   asyncRoute(async (req, res) => {
     if (!(await checkAdminToken(req, res))) return;
@@ -696,6 +715,13 @@ router.post(
       endsAt <= startsAt
     )
       return res.status(400).json({ error: 'Valid title, description, components and time window are required.' });
+    if (
+      title.length > 120 ||
+      description.length > 1000 ||
+      affected.length > 20 ||
+      affected.some((item) => item.length > 80)
+    )
+      return res.status(400).json({ error: 'Maintenance fields exceed the allowed limits.' });
     if (endsAt - startsAt > 90 * 86400)
       return res.status(400).json({ error: 'Maintenance windows cannot exceed 90 days.' });
     await db
@@ -712,7 +738,9 @@ router.delete(
   asyncRoute(async (req, res) => {
     const actor = await checkAdminToken(req, res);
     if (!actor) return;
-    await db.prepare('DELETE FROM status_maintenance WHERE id = ?').run(req.params.id);
+    const id = parsePositiveId(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid maintenance id.' });
+    await db.prepare('DELETE FROM status_maintenance WHERE id = ?').run(id);
     res.json({ ok: true });
   })
 );
@@ -722,13 +750,15 @@ router.post(
   asyncRoute(async (req, res) => {
     const actor = await checkAdminToken(req, res);
     if (!actor) return;
+    const incidentId = parsePositiveId(req.params.id);
+    if (!incidentId) return res.status(400).json({ error: 'Invalid incident id.' });
     const message = String(req.body?.message || '').trim();
     const status = ['investigating', 'identified', 'monitoring'].includes(req.body?.status)
       ? req.body.status
       : 'identified';
     if (!message || message.length > 2000)
       return res.status(400).json({ error: 'Incident update must contain 1-2000 characters.' });
-    const incident = await db.prepare('SELECT id FROM status_incidents WHERE id = ?').get(req.params.id);
+    const incident = await db.prepare('SELECT id FROM status_incidents WHERE id = ?').get(incidentId);
     if (!incident) return res.status(404).json({ error: 'Incident not found.' });
     await db
       .prepare("UPDATE status_incidents SET status = ?, updated_at = ? WHERE id = ? AND status != 'resolved'")
@@ -745,7 +775,9 @@ router.post(
   asyncRoute(async (req, res) => {
     const actor = await checkAdminToken(req, res);
     if (!actor) return;
-    const incident = await db.prepare('SELECT * FROM status_incidents WHERE id = ?').get(req.params.id);
+    const incidentId = parsePositiveId(req.params.id);
+    if (!incidentId) return res.status(400).json({ error: 'Invalid incident id.' });
+    const incident = await db.prepare('SELECT * FROM status_incidents WHERE id = ?').get(incidentId);
     if (!incident) return res.status(404).json({ error: 'Incident not found.' });
     if (incident.status === 'resolved') return res.json({ ok: true, alreadyResolved: true });
     const resolvedAt = unixNow();
@@ -774,7 +806,7 @@ router.post(
     const email = String(req.body?.email || '')
       .trim()
       .toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    if (Buffer.byteLength(email, 'utf8') > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       return res.status(400).json({ error: 'Enter a valid email address.' });
     await db
       .prepare(

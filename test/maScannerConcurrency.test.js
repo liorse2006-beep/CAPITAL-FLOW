@@ -190,3 +190,25 @@ test('a joining subscriber sees live shared progress via its own /ma-progress po
     server.close();
   }
 });
+
+test('MA scan rejects unknown markets and unbounded/unknown sector filters', async () => {
+  const user = await makeEliteUser('ma-invalid-filters@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  const headers = { Authorization: 'Bearer ' + user.token };
+  try {
+    const badMarket = await fetch(`http://localhost:${port}/api/scan-ma?market=not-a-market`, { headers });
+    assert.strictEqual(badMarket.status, 400);
+    const badSector = await fetch(`http://localhost:${port}/api/scan-ma?market=sectors&sectors=not-a-sector`, {
+      headers,
+    });
+    assert.strictEqual(badSector.status, 400);
+    const tooMany = Array.from({ length: 21 }, (_, i) => `sector-${i}`).join(',');
+    const tooManyRes = await fetch(`http://localhost:${port}/api/scan-ma?sectors=${encodeURIComponent(tooMany)}`, {
+      headers,
+    });
+    assert.strictEqual(tooManyRes.status, 400);
+  } finally {
+    server.close();
+  }
+});

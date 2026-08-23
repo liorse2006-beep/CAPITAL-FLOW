@@ -24,7 +24,7 @@ const originalFinnhubFetch = finnhubModule.finnhubFetch;
 finnhubModule.finnhubFetch = async () => null;
 
 delete require.cache[require.resolve('../server/services/newsService')];
-const { fetchNewsForSymbol } = require('../server/services/newsService');
+const { fetchNewsForSymbol, probeNewsProviders, newsProbeCache } = require('../server/services/newsService');
 
 const originalFetch = global.fetch;
 after(() => {
@@ -75,6 +75,30 @@ test('falls back to Massive when Finnhub has nothing', async () => {
   assert.strictEqual(result.source, 'massive');
   assert.strictEqual(result.articles.length, 1);
   assert.strictEqual(result.articles[0].headline, 'Massive headline');
+});
+
+test('lightweight news probe verifies a real provider without running enrichment', async () => {
+  let calls = 0;
+  newsProbeCache.delete('PROB');
+  global.fetch = async (url) => {
+    calls++;
+    assert.match(url, /api\.massive\.com/);
+    return jsonResponse({
+      results: [
+        {
+          title: 'Probe headline',
+          publisher: { name: 'Probe Wire' },
+          published_utc: '2026-01-01T00:00:00Z',
+          article_url: 'https://example.com/probe',
+        },
+      ],
+    });
+  };
+  const first = await probeNewsProviders('PROB');
+  const second = await probeNewsProviders('PROB');
+  assert.deepStrictEqual(first, { ok: true, provider: 'massive', sample: { symbol: 'PROB', articleCount: 1 } });
+  assert.deepStrictEqual(second, first);
+  assert.equal(calls, 1, 'the probe must be cached for one monitoring interval');
 });
 
 test('falls back to MarketAux when both Finnhub and Massive have nothing', async () => {

@@ -36,10 +36,11 @@ global.fetch = async function (url) {
   }
   if (value.endsWith('/health'))
     return jsonResponse(healthFails ? 503 : 200, healthFails ? { status: 'error' } : { status: 'ok' });
-  if (value.endsWith('/api/auth/login') || value.endsWith('/api/news/AAPL'))
-    return jsonResponse(401, { error: 'Unauthorized' });
+  if (value.endsWith('/api/auth/login')) return jsonResponse(401, { error: 'Unauthorized' });
   if (value.endsWith('/status/internal/market-data'))
     return jsonResponse(200, { ok: true, provider: 'test', sample: { symbol: 'AAPL' } });
+  if (value.endsWith('/status/internal/news-data'))
+    return jsonResponse(200, { ok: true, provider: 'test', sample: { symbol: 'AAPL', articleCount: 1 } });
   return new Response('<html><title>Capital Flow</title><body>Capital Flow</body></html>', { status: 200 });
 };
 

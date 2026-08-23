@@ -12,6 +12,11 @@ function timingSafeStringEqual(a, b) {
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
+function parsePositiveUserId(value) {
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
 const DB_ENV = TURSO_DB_URL ? 'PRODUCTION (Turso)' : 'LOCAL (SQLite)';
 const { resolveToken, invalidateUserSessions } = require('../middleware/authMiddleware');
 
@@ -94,12 +99,16 @@ router.post(
   asyncRoute(async (req, res) => {
     const actor = await checkToken(req, res);
     if (!actor) return;
+    const userId = parsePositiveUserId(req.params.id);
+    if (!userId) return res.status(400).json({ error: 'Invalid user id' });
     // Deletes every row in user_sessions for this account — every device's
     // access token is checked against this table on its very next request
     // (see authMiddleware.resolveToken), so this takes effect immediately,
     // not just once each device's token happens to hit its own 1h expiry.
-    await revokeAllSessions(req.params.id);
-    logAction(actor, 'force_logout', req.params.id);
+    const target = await db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    await revokeAllSessions(userId);
+    logAction(actor, 'force_logout', userId);
     res.json({ ok: true });
   })
 );
@@ -112,12 +121,15 @@ router.post(
   asyncRoute(async (req, res) => {
     const actor = await checkToken(req, res);
     if (!actor) return;
+    const userId = parsePositiveUserId(req.params.id);
+    if (!userId) return res.status(400).json({ error: 'Invalid user id' });
     const { tier } = req.body;
     if (!VALID_TIERS.has(tier)) return res.status(400).json({ error: 'tier must be free, premium, or elite' });
     await db
       .prepare('UPDATE users SET tier = ?, is_premium = ? WHERE id = ?')
-      .run(tier, tier !== 'free' ? 1 : 0, req.params.id);
-    logAction(actor, 'set_tier', req.params.id, tier);
+      .run(tier, tier !== 'free' ? 1 : 0, userId);
+    invalidateUserSessions(userId);
+    logAction(actor, 'set_tier', userId, tier);
     res.json({ ok: true, tier });
   })
 );
@@ -128,13 +140,15 @@ router.post(
   asyncRoute(async (req, res) => {
     const actor = await checkToken(req, res);
     if (!actor) return;
+    const userId = parsePositiveUserId(req.params.id);
+    if (!userId) return res.status(400).json({ error: 'Invalid user id' });
     const { value } = req.body; // 1 or 0
-    await db.prepare('UPDATE users SET is_blocked = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
+    await db.prepare('UPDATE users SET is_blocked = ? WHERE id = ?').run(value ? 1 : 0, userId);
     // is_blocked doesn't delete the user's sessions, so a blocked account's
     // cached resolveToken() result (see authMiddleware.js) would otherwise
     // keep working until it ages out on its own.
-    if (value) invalidateUserSessions(Number(req.params.id));
-    logAction(actor, value ? 'block_user' : 'unblock_user', req.params.id);
+    invalidateUserSessions(userId);
+    logAction(actor, value ? 'block_user' : 'unblock_user', userId);
     res.json({ ok: true });
   })
 );
@@ -145,9 +159,31 @@ router.delete(
   asyncRoute(async (req, res) => {
     const actor = await checkToken(req, res);
     if (!actor) return;
-    const target = await db.prepare('SELECT email FROM users WHERE id = ?').get(req.params.id);
-    await db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
-    logAction(actor, 'delete_user', req.params.id, target?.email);
+    const userId = parsePositiveUserId(req.params.id);
+    if (!userId) return res.status(400).json({ error: 'Invalid user id' });
+    const target = await db.prepare('SELECT id, email FROM users WHERE id = ?').get(userId);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    // The user tables intentionally predate foreign-key constraints and do
+    // not all have ON DELETE CASCADE. Clean every user-owned row explicitly
+    // so an admin deletion cannot leave live sessions, push endpoints,
+    // conversations, usage counters, or private data orphaned behind.
+    const statements = [
+      'user_sessions',
+      'watchlist_alerts',
+      'watchlist',
+      'push_subscriptions',
+      'feedback',
+      'scheduled_scans',
+      'notifications',
+      'chat_messages',
+      'ai_usage',
+    ].map((table) => ({ sql: `DELETE FROM ${table} WHERE user_id = ?`, args: [userId] }));
+    if (target.email) statements.push({ sql: 'DELETE FROM otp_codes WHERE email = ?', args: [target.email] });
+    statements.push({ sql: 'DELETE FROM users WHERE id = ?', args: [userId] });
+    await db.transaction(statements);
+    invalidateUserSessions(userId);
+    logAction(actor, 'delete_user', userId, target.email);
     res.json({ ok: true });
   })
 );
@@ -158,9 +194,12 @@ router.post(
   asyncRoute(async (req, res) => {
     const actor = await checkToken(req, res);
     if (!actor) return;
+    const userId = parsePositiveUserId(req.params.id);
+    if (!userId) return res.status(400).json({ error: 'Invalid user id' });
     const { value } = req.body; // 1 or 0
-    await db.prepare('UPDATE users SET is_pilot = ? WHERE id = ?').run(value ? 1 : 0, req.params.id);
-    logAction(actor, value ? 'grant_pilot' : 'revoke_pilot', req.params.id);
+    await db.prepare('UPDATE users SET is_pilot = ? WHERE id = ?').run(value ? 1 : 0, userId);
+    invalidateUserSessions(userId);
+    logAction(actor, value ? 'grant_pilot' : 'revoke_pilot', userId);
     res.json({ ok: true });
   })
 );
@@ -217,8 +256,15 @@ router.post(
   '/admin/api/users/:id/push-test',
   asyncRoute(async (req, res) => {
     if (!(await checkToken(req, res))) return;
-    const userId = Number(req.params.id);
-    const { title = 'Capital Flow — Test', body = 'Push notifications are working! 🎉' } = req.body || {};
+    const userId = parsePositiveUserId(req.params.id);
+    if (!userId) return res.status(400).json({ error: 'Invalid user id' });
+    const input = req.body || {};
+    const title =
+      typeof input.title === 'string' && input.title.trim() ? input.title.trim().slice(0, 120) : 'Capital Flow — Test';
+    const body =
+      typeof input.body === 'string' && input.body.trim()
+        ? input.body.trim().slice(0, 500)
+        : 'Push notifications are working! 🎉';
     try {
       const { sendPushToUser, configured } = require('../services/webPush');
       if (!configured) return res.status(503).json({ error: 'VAPID keys not configured' });
@@ -253,11 +299,11 @@ router.post(
   asyncRoute(async (req, res) => {
     const actor = await checkToken(req, res);
     if (!actor) return;
-    const { GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_EMAIL } = require('../config');
-    if (!GMAIL_USER || !GMAIL_APP_PASSWORD || !ADMIN_EMAIL) {
+    const { GMAIL_USER, GMAIL_APP_PASSWORD, RESEND_API_KEY, ADMIN_EMAIL } = require('../config');
+    if (((!GMAIL_USER || !GMAIL_APP_PASSWORD) && !RESEND_API_KEY) || !ADMIN_EMAIL) {
       return res
         .status(400)
-        .json({ error: 'Backup email is not configured (GMAIL_USER / GMAIL_APP_PASSWORD / ADMIN_EMAIL).' });
+        .json({ error: 'Backup email is not configured (Gmail or Resend plus ADMIN_EMAIL required).' });
     }
     try {
       await require('../services/dbBackup').runBackupTick();
@@ -295,6 +341,7 @@ router.get(
 );
 
 const VALID_APPLIES_TO = new Set(['both', 'premium', 'elite']);
+const COUPON_CODE_RE = /^[A-Z0-9][A-Z0-9_-]{2,31}$/;
 
 router.post(
   '/admin/api/coupons',
@@ -306,7 +353,9 @@ router.post(
       .trim()
       .toUpperCase();
     const pct = Number(discountPercent);
-    if (!normalizedCode) return res.status(400).json({ error: 'Code is required' });
+    if (!COUPON_CODE_RE.test(normalizedCode)) {
+      return res.status(400).json({ error: 'Code must be 3-32 characters: letters, numbers, _ or -' });
+    }
     if (!Number.isInteger(pct) || pct < 1 || pct > 100) {
       return res.status(400).json({ error: 'Discount percent must be a whole number from 1-100' });
     }
@@ -366,7 +415,8 @@ router.get(
   asyncRoute(async (req, res) => {
     // The page shell is public — no server-side auth here.
     // Every data API call (/admin/api/*) still enforces checkToken.
-    // Auth headers are built in the browser from localStorage (always fresh).
+    // Auth headers are built in the browser from a short-lived in-memory token
+    // obtained through the httpOnly refresh cookie (or the operator's token).
     // Credentials are read from request headers by the page script. Never copy
     // a static admin secret into this HTML response or accept it in the URL.
 
@@ -596,19 +646,35 @@ window.addEventListener('error', function (e) {
   if (typeof toast === 'function') toast('Script error: ' + (e.message || 'see console'), true);
 });
 
-// Static ADMIN_TOKEN is retained only in this page's JavaScript memory for
-// the current open admin page. It is intentionally never persisted in
-// localStorage/sessionStorage, where an unrelated page or later browser use
-// could retrieve it. Otherwise use the live JWT, which is always refreshed
-// through the normal application session flow.
+// Admin credentials are retained only in this page's JavaScript memory. They
+// are intentionally never persisted in localStorage/sessionStorage, where an
+// unrelated page or later browser use could retrieve them. A normal signed-in
+// admin receives a short-lived JWT from the httpOnly refresh cookie; a static
+// ADMIN_TOKEN remains available as a deliberate operator fallback.
 let transientAdminToken = '';
+let transientSessionToken = '';
 function authHeaders() {
   return transientAdminToken
     ? { 'x-admin-token': transientAdminToken }
-    : { 'Authorization': 'Bearer ' + (localStorage.getItem('vs_token') || '') };
+    : transientSessionToken
+      ? { Authorization: 'Bearer ' + transientSessionToken }
+      : {};
 }
 let AUTH_HEADERS = authHeaders();
-function refreshAuthHeaders() { AUTH_HEADERS = authHeaders(); return AUTH_HEADERS; }
+async function refreshAuthHeaders(force) {
+  if (!transientAdminToken && (force || !transientSessionToken)) {
+    try {
+      const r = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'same-origin', cache: 'no-store' });
+      const data = r.ok ? await r.json() : {};
+      if (data.token) transientSessionToken = data.token;
+    } catch (e) {
+      // The API request below will show the normal unauthorized state. A
+      // transient network failure must not turn into a destructive logout.
+    }
+  }
+  AUTH_HEADERS = authHeaders();
+  return AUTH_HEADERS;
+}
 
 // One element missing/renamed used to throw and silently abort every
 // addEventListener call still queued after it in this script — so a typo
@@ -630,12 +696,13 @@ safeOn('admin-token-save', 'click', function () {
   if (!value) return;
   transientAdminToken = value;
   document.getElementById('admin-token-input').value = '';
-  refreshAuthHeaders();
-  load();
-  loadAuditLog();
-  loadVisits();
-  loadBackupStatus();
-  loadCoupons();
+  refreshAuthHeaders().then(function () {
+    load();
+    loadAuditLog();
+    loadVisits();
+    loadBackupStatus();
+    loadCoupons();
+  });
 });
 
 let allUsers = [];
@@ -649,6 +716,7 @@ function escapeHtml(s) {
 async function load() {
   document.getElementById('last-refresh').textContent = 'Refreshing…';
   try {
+    await refreshAuthHeaders(true);
     const r = await fetch('/admin/api/users', { headers: AUTH_HEADERS });
     if (!r.ok) { document.getElementById('table-wrap').innerHTML = '<div class="loader">Error loading users.</div>'; return false; }
     allUsers = await r.json();
@@ -1078,11 +1146,13 @@ safeOn('backup-run-now', 'click', function (e) {
   runBackupNow();
 });
 
-load();
-loadAuditLog();
-loadBackupStatus();
-loadVisits();
-loadCoupons();
+// Bootstrap authentication before any parallel data load. The refresh cookie
+// is same-origin and httpOnly; only the resulting short-lived bearer remains
+// in this page's memory.
+(async function bootstrapAdmin() {
+  await refreshAuthHeaders(true);
+  await Promise.all([load(), loadAuditLog(), loadBackupStatus(), loadVisits(), loadCoupons()]);
+})();
 setInterval(load, 60000);
 setInterval(loadAuditLog, 60000);
 setInterval(loadBackupStatus, 60000);

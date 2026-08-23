@@ -46,6 +46,12 @@ function withEffectivePremium(user) {
 // MAX_ACTIVE_SESSIONS cap) without needing to invalidate every other device.
 const ACCESS_TOKEN_TTL = '1h';
 
+// bcrypt only uses the first 72 UTF-8 bytes of a password. Enforce that
+// boundary at every HTTP entry point so two apparently different passwords
+// cannot silently hash to the same credential and oversized inputs cannot
+// waste CPU in bcrypt before being discarded.
+const MAX_PASSWORD_BYTES = 72;
+
 // Caps how many devices can be logged into one account at once. Logging in
 // on a (MAX_ACTIVE_SESSIONS + 1)th device evicts only the least-recently-used
 // existing session — the account's other devices stay signed in, unlike the
@@ -114,7 +120,7 @@ async function issueToken(user) {
   await db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').run(now, user.id);
   const { refreshToken, sessionId } = await createSession(user.id);
   const accessToken = generateToken(withEffectivePremium(user), sessionId);
-  return { accessToken, refreshToken };
+  return { accessToken, refreshToken, sessionId };
 }
 
 /**
@@ -187,13 +193,21 @@ async function verifyOTP(email, code, type) {
     .get(email, type);
 
   if (!row) return { valid: false, reason: 'No code found' };
-  if (Math.floor(Date.now() / 1000) > row.expires_at) return { valid: false, reason: 'Code expired' };
+  const now = Math.floor(Date.now() / 1000);
+  if (now >= row.expires_at) return { valid: false, reason: 'Code expired' };
   const stored = Buffer.from(String(row.code));
   const supplied = Buffer.from(String(code || ''));
   const codeMatches = stored.length === supplied.length && crypto.timingSafeEqual(stored, supplied);
   if (!codeMatches) return { valid: false, reason: 'Invalid code' };
 
-  await db.prepare(`UPDATE otp_codes SET used = 1 WHERE id = ?`).run(row.id);
+  // The SELECT + compare happens before this write, so the write itself must
+  // be the one-time gate. Without `used = 0` in the WHERE clause, two correct
+  // requests arriving concurrently could both pass the SELECT and both issue
+  // a verified session from the same OTP.
+  const consumed = await db
+    .prepare(`UPDATE otp_codes SET used = 1 WHERE id = ? AND used = 0 AND expires_at >= ?`)
+    .run(row.id, now);
+  if (!consumed || consumed.changes !== 1) return { valid: false, reason: 'Code already used' };
   return { valid: true };
 }
 
@@ -213,4 +227,5 @@ module.exports = {
   saveOTP,
   verifyOTP,
   MAX_ACTIVE_SESSIONS,
+  MAX_PASSWORD_BYTES,
 };

@@ -145,8 +145,8 @@ test('sseStreamLimiter gives each ticket-holding account its own budget, even fr
   const server = await startGetTestApp(sseStreamLimiter);
   const port = server.address().port;
   try {
-    const ticketA = issueSseTicket(333);
-    const ticketB = issueSseTicket(444);
+    const ticketA = issueSseTicket(333, 3331);
+    const ticketB = issueSseTicket(444, 4441);
 
     const aCodes = await hitWithTicket(port, 60, ticketA);
     assert.ok(

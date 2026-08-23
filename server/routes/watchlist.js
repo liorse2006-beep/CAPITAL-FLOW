@@ -35,7 +35,9 @@ router.post('/watchlist/:symbol', requireAuth, async (req, res) => {
 
 router.delete('/watchlist/:symbol', requireAuth, async (req, res) => {
   try {
-    await removeFromWatchlist(req.user.id, req.params.symbol.toUpperCase());
+    const symbol = req.params.symbol.toUpperCase();
+    if (!SYMBOL_RE.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
+    await removeFromWatchlist(req.user.id, symbol);
     res.json({ ok: true });
   } catch (err) {
     reportError(err, '[watchlist DELETE]');

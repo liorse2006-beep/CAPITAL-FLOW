@@ -141,3 +141,66 @@ test('POST /api/scheduled-scans rejects a malformed scan_date', async () => {
     server.close();
   }
 });
+
+test('POST /api/scheduled-scans rejects impossible times and calendar dates', async () => {
+  const userId = await makeEliteUser('sched-route-invalid-values@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    const badTime = await fetch(`http://127.0.0.1:${port}/api/scheduled-scans`, {
+      method: 'POST',
+      headers: await authHeaders(userId),
+      body: JSON.stringify({ scan_type: 'capitalFlow', scan_time: '99:99' }),
+    });
+    assert.strictEqual(badTime.status, 400);
+
+    const badDate = await fetch(`http://127.0.0.1:${port}/api/scheduled-scans`, {
+      method: 'POST',
+      headers: await authHeaders(userId),
+      body: JSON.stringify({ scan_type: 'capitalFlow', scan_time: '09:00', scan_date: '2026-02-30' }),
+    });
+    assert.strictEqual(badDate.status, 400);
+  } finally {
+    server.close();
+  }
+});
+
+test('PUT /api/scheduled-scans cannot reactivate a schedule beyond the active cap', async () => {
+  const userId = await makeEliteUser('sched-route-reactivation-cap@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  const headers = await authHeaders(userId);
+  try {
+    const ids = [];
+    for (let i = 0; i < 3; i += 1) {
+      const created = await fetch(`http://127.0.0.1:${port}/api/scheduled-scans`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ scan_type: 'capitalFlow', scan_time: `1${i}:00` }),
+      });
+      assert.strictEqual(created.status, 200);
+      ids.push((await created.json()).id);
+    }
+    const disabled = await fetch(`http://127.0.0.1:${port}/api/scheduled-scans/${ids[0]}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ active: false }),
+    });
+    assert.strictEqual(disabled.status, 200);
+    const replacement = await fetch(`http://127.0.0.1:${port}/api/scheduled-scans`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ scan_type: 'capitalFlow', scan_time: '15:00' }),
+    });
+    assert.strictEqual(replacement.status, 200);
+    const reactivated = await fetch(`http://127.0.0.1:${port}/api/scheduled-scans/${ids[0]}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ active: true }),
+    });
+    assert.strictEqual(reactivated.status, 400);
+    assert.match(await reactivated.text(), /Maximum 3 active schedules/);
+  } finally {
+    server.close();
+  }
+});

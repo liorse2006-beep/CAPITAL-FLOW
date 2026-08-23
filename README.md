@@ -34,7 +34,7 @@ Full list with setup instructions for each provider lives in [.env.example](.env
 - **Market data:** `FINNHUB_API_KEY` (+ optional `FINNHUB_API_KEY_POOL_1..4` for rotation)
 - **News:** `MASSIVE_API_KEY`, `MARKETAUX_API_KEY`, `NEWSDATA_API_KEY`
 - **AI (Capi + news):** `GOOGLE_AI_STUDIO_KEY`
-- **Email:** `RESEND_API_KEY`/`RESEND_FROM_EMAIL` (transactional), `GMAIL_USER`/`GMAIL_APP_PASSWORD` (daily DB backup only)
+- **Email:** `RESEND_API_KEY`/`RESEND_FROM_EMAIL` (transactional and backup fallback), `GMAIL_USER`/`GMAIL_APP_PASSWORD` (optional preferred daily app-DB backup sender)
 - **Auth:** `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_CALLBACK_URL`, `TURNSTILE_SECRET`/`VITE_TURNSTILE_SITE_KEY`
 - **Push:** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`
 - **Admin panel:** `ADMIN_TOKEN` and/or `ADMIN_EMAIL` (panel is disabled if both are unset)

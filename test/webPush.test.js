@@ -40,6 +40,17 @@ test('saveSubscription upserts by endpoint, keeping only the latest keys', async
   assert.strictEqual(row.user_id, u);
 });
 
+test('push subscriptions reject non-HTTPS and private endpoints before any outbound send', () => {
+  assert.strictEqual(webPush.isValidPushEndpoint('http://push.example/1'), false);
+  assert.strictEqual(webPush.isValidPushEndpoint('https://127.0.0.1/1'), false);
+  assert.strictEqual(webPush.isValidPushEndpoint('https://[::1]/1'), false);
+  assert.strictEqual(webPush.isValidPushEndpoint('https://push.example/1'), true);
+  assert.strictEqual(
+    webPush.isValidSubscription({ endpoint: 'https://push.example/1', keys: { p256dh: 'p', auth: 'a' } }),
+    true
+  );
+});
+
 test('sendPushToUser calls sendNotification once per subscription owned by that user', async () => {
   const u = await makeUser('push-b@test.local');
   await webPush.saveSubscription(u, { endpoint: 'https://push.example/2', keys: { p256dh: 'p', auth: 'a' } });

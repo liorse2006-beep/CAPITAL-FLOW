@@ -262,6 +262,41 @@ async function sendStatusBackupEmail({ recipient, filename, content, tableCount,
   });
 }
 
+async function sendApplicationBackupEmail({ recipient, filename, content, tableCount, createdAt }) {
+  if (!resend) {
+    requireDevEmailFallback('Application database backup', recipient, filename);
+    return;
+  }
+  await send({
+    from: RESEND_FROM_EMAIL,
+    to: recipient,
+    subject: '[Capital Flow] Application database backup — ' + createdAt.slice(0, 10),
+    text: [
+      'Automated backup of the Capital Flow application database.',
+      '',
+      'Created: ' + createdAt,
+      'Tables: ' + tableCount,
+      'File: ' + filename,
+      '',
+      'Restore only against a verified application database target and run restoreDb.js in dry-run mode first.',
+    ].join('\n'),
+    attachments: [{ filename, content: content.toString('base64') }],
+  });
+}
+
+async function sendApplicationBackupFailureEmail({ recipient, date, bytes, maxBytes }) {
+  if (!resend) {
+    requireDevEmailFallback('Application database backup failure', recipient, `${bytes} bytes`);
+    return;
+  }
+  await send({
+    from: RESEND_FROM_EMAIL,
+    to: recipient,
+    subject: `⚠️ Capital Flow — DB backup ${date} FAILED (too large to email)`,
+    text: `The gzipped application backup is ${(bytes / 1024 / 1024).toFixed(1)}MB, over the ${(maxBytes / 1024 / 1024).toFixed(0)}MB safety threshold. No backup was sent. Move application backups to a durable object-storage destination before the database outgrows email delivery.`,
+  });
+}
+
 module.exports = {
   sendOTPEmail,
   sendPasswordResetEmail,
@@ -271,5 +306,7 @@ module.exports = {
   sendStatusIncidentAlert,
   sendStatusRecoveryAlert,
   sendStatusBackupEmail,
+  sendApplicationBackupEmail,
+  sendApplicationBackupFailureEmail,
   statusIncidentText,
 };

@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { requireAuth } = require('../middleware/authMiddleware');
+const { checkoutLimiter } = require('../middleware/rateLimiters');
 const { validateCoupon } = require('../services/coupons');
 const whop = require('../services/whop');
 const { WHOP_PREMIUM_PLAN_ID, WHOP_ELITE_PLAN_ID, WHOP_ELITE_UPGRADE_PLAN_ID, FRONTEND_URL } = require('../config');
@@ -35,7 +36,7 @@ function isDuplicateCheckout(key) {
 // directly in Whop, not something this app can apply on its own) but still
 // grants the normal 'elite' tier once paid — see the webhook, which only
 // ever reads metadata.tier, never which plan was actually charged.
-router.post('/checkout/transaction', requireAuth, async (req, res) => {
+router.post('/checkout/transaction', checkoutLimiter, requireAuth, async (req, res) => {
   if (!whop.enabled) return res.status(503).json({ error: 'Checkout is not configured yet' });
 
   const { tier, couponCode } = req.body;

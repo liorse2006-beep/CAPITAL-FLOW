@@ -1,17 +1,19 @@
 const zlib = require('zlib');
 const nodemailer = require('nodemailer');
 const db = require('../db');
-const { GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_EMAIL } = require('../config');
+const { GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_EMAIL, RESEND_API_KEY } = require('../config');
 const { reportError } = require('../utils/reportError');
+const { sendApplicationBackupEmail, sendApplicationBackupFailureEmail } = require('./email');
 
 // Render's filesystem is ephemeral — anything written to disk there is gone
 // on the next deploy or restart, so a backup can only be useful if it leaves
 // the container. There's no cloud-storage account configured for this app,
 // so daily backups are gzipped and emailed to the admin's own inbox as an
-// attachment via a plain Gmail SMTP account instead of standing up a new
-// service. This is a SEPARATE set of credentials from RESEND_API_KEY (used
-// for OTP/welcome emails in server/services/email.js) — GMAIL_USER and
-// GMAIL_APP_PASSWORD must be set on their own for this feature to work.
+// attachment. Gmail SMTP is preferred when configured; the transactional
+// Resend sender is a safe fallback, so backup delivery does not silently
+// disappear just because the operator did not create a second mail account.
+// GMAIL_USER/GMAIL_APP_PASSWORD are therefore optional when RESEND_API_KEY
+// and ADMIN_EMAIL are present.
 // otp_codes is deliberately excluded — every row expires within 15 minutes
 // (see services/auth.js), so a backed-up copy is always stale garbage by
 // the time anyone would ever restore it. Every other user-facing or
@@ -61,7 +63,7 @@ async function dumpTables() {
 async function runBackupTick() {
   const transport = createTransport();
   const to = ADMIN_EMAIL;
-  if (!transport || !to) return; // not configured — nothing to send to
+  if ((!transport && !RESEND_API_KEY) || !to) return; // not configured — nothing to send to
 
   const dump = await dumpTables();
   const json = JSON.stringify(dump, null, 2);
@@ -72,27 +74,42 @@ async function runBackupTick() {
     // Send a loud failure notice instead of letting sendMail reject the
     // oversized attachment silently — an admin who never gets an email at
     // all has no way to know backups quietly stopped working.
-    await transport.sendMail({
-      from: `"Capital Flow" <${GMAIL_USER}>`,
-      to,
-      subject: `⚠️ Capital Flow — DB backup ${dateStr} FAILED (too large to email)`,
-      text: `The gzipped backup is ${(gzipped.length / 1024 / 1024).toFixed(1)}MB, over the ${(MAX_ATTACHMENT_BYTES / 1024 / 1024).toFixed(0)}MB safety threshold this app enforces (Gmail itself caps attachments at 25MB). No backup was sent today. This app needs a real backup destination (cloud storage) now that the database has outgrown email-based backups — restoreDb.js and the email flow can no longer be the whole story.`,
-    });
+    if (transport) {
+      await transport.sendMail({
+        from: `"Capital Flow" <${GMAIL_USER}>`,
+        to,
+        subject: `⚠️ Capital Flow — DB backup ${dateStr} FAILED (too large to email)`,
+        text: `The gzipped backup is ${(gzipped.length / 1024 / 1024).toFixed(1)}MB, over the ${(MAX_ATTACHMENT_BYTES / 1024 / 1024).toFixed(0)}MB safety threshold this app enforces (Gmail itself caps attachments at 25MB). No backup was sent today. This app needs a real backup destination (cloud storage) now that the database has outgrown email-based backups — restoreDb.js and the email flow can no longer be the whole story.`,
+      });
+    } else {
+      await sendApplicationBackupFailureEmail({
+        recipient: to,
+        date: dateStr,
+        bytes: gzipped.length,
+        maxBytes: MAX_ATTACHMENT_BYTES,
+      });
+    }
     throw new Error(`Backup too large to email: ${gzipped.length} bytes`);
   }
 
-  await transport.sendMail({
-    from: `"Capital Flow" <${GMAIL_USER}>`,
-    to,
-    subject: `Capital Flow — DB backup ${dateStr}`,
-    text: `Automated daily backup. ${TABLES.length} tables, ${gzipped.length} bytes gzipped. Restore with: node restoreDb.js capital-flow-backup-${dateStr}.json.gz --confirm`,
-    attachments: [
-      {
-        filename: `capital-flow-backup-${dateStr}.json.gz`,
-        content: gzipped,
-      },
-    ],
-  });
+  const filename = `capital-flow-backup-${dateStr}.json.gz`;
+  if (transport) {
+    await transport.sendMail({
+      from: `"Capital Flow" <${GMAIL_USER}>`,
+      to,
+      subject: `Capital Flow — DB backup ${dateStr}`,
+      text: `Automated daily backup. ${TABLES.length} tables, ${gzipped.length} bytes gzipped. Restore with: node restoreDb.js ${filename} --confirm`,
+      attachments: [{ filename, content: gzipped }],
+    });
+  } else {
+    await sendApplicationBackupEmail({
+      recipient: to,
+      filename,
+      content: gzipped,
+      tableCount: TABLES.length,
+      createdAt: dump.createdAt,
+    });
+  }
 
   // Only reached once the email actually sent — a failed send (bad creds,
   // Gmail rate limit, etc.) leaves the previous timestamp in place, so the

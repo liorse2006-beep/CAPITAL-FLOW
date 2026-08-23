@@ -79,8 +79,17 @@ async function verifyJwtHS256(token, secret) {
   const [headerB64, payloadB64, sigB64] = parts;
 
   try {
-    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
-    if (!payload || typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now()) return null;
+    const decodeJson = (value) => JSON.parse(atob(value.replace(/-/g, '+').replace(/_/g, '/')));
+    const header = decodeJson(headerB64);
+    const payload = decodeJson(payloadB64);
+    // Refuse algorithm confusion and malformed claims before doing any cache
+    // work. The origin still performs the authoritative session/quota check;
+    // these edge checks only decide whether a request may reach that path.
+    if (!header || header.alg !== 'HS256' || header.typ !== 'JWT') return null;
+    if (!payload || !Number.isSafeInteger(payload.id) || payload.id < 1) return null;
+    if (!payload.sid || typeof payload.sid !== 'number' || !Number.isSafeInteger(payload.sid)) return null;
+    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp) || payload.exp * 1000 <= Date.now())
+      return null;
 
     const key = await crypto.subtle.importKey(
       'raw',

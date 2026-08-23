@@ -1,4 +1,5 @@
 const webpush = require('web-push');
+const net = require('net');
 const db = require('../db');
 const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT } = require('../config');
 const { reportError } = require('../utils/reportError');
@@ -17,7 +18,70 @@ if (configured) {
   }
 }
 
+function isPrivateIp(hostname) {
+  const value = String(hostname || '')
+    .replace(/^\[|\]$/g, '')
+    .toLowerCase();
+  const version = net.isIP(value);
+  if (version === 4) {
+    const octets = value.split('.').map(Number);
+    return (
+      octets[0] === 0 ||
+      octets[0] === 10 ||
+      octets[0] === 127 ||
+      (octets[0] === 169 && octets[1] === 254) ||
+      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+      (octets[0] === 192 && octets[1] === 168) ||
+      (octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127) ||
+      (octets[0] === 198 && (octets[1] === 18 || octets[1] === 19)) ||
+      octets[0] >= 224
+    );
+  }
+  if (version === 6) {
+    return (
+      value === '::' ||
+      value === '::1' ||
+      value.startsWith('fc') ||
+      value.startsWith('fd') ||
+      value.startsWith('fe8') ||
+      value.startsWith('fe9') ||
+      value.startsWith('fea') ||
+      value.startsWith('feb')
+    );
+  }
+  return false;
+}
+
+function isValidPushEndpoint(endpoint) {
+  if (typeof endpoint !== 'string' || endpoint.length === 0 || endpoint.length > 2048) return false;
+  try {
+    const url = new URL(endpoint);
+    const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    if (url.protocol !== 'https:' || url.username || url.password || !host) return false;
+    if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || isPrivateIp(host))
+      return false;
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function isValidSubscription(sub) {
+  return !!(
+    sub &&
+    isValidPushEndpoint(sub.endpoint) &&
+    sub.keys &&
+    typeof sub.keys.p256dh === 'string' &&
+    sub.keys.p256dh.length > 0 &&
+    sub.keys.p256dh.length <= 256 &&
+    typeof sub.keys.auth === 'string' &&
+    sub.keys.auth.length > 0 &&
+    sub.keys.auth.length <= 256
+  );
+}
+
 async function saveSubscription(userId, sub) {
+  if (!isValidSubscription(sub)) throw new Error('Invalid push subscription');
   await db
     .prepare(
       `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)
@@ -27,6 +91,7 @@ async function saveSubscription(userId, sub) {
 }
 
 async function removeSubscription(endpoint, userId) {
+  if (typeof endpoint !== 'string' || endpoint.length === 0 || endpoint.length > 2048) return;
   if (userId != null) {
     await db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?').run(endpoint, userId);
   } else {
@@ -48,10 +113,17 @@ async function removeSubscription(endpoint, userId) {
 async function sendPushToUser(userId, payload) {
   if (!configured) return { configured: false, devices: 0, delivered: 0, removed: 0, results: [] };
   const rows = await db.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?').all(userId);
+  const validRows = rows.filter((row) =>
+    isValidSubscription({ endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } })
+  );
+  const invalidRows = rows.filter(
+    (row) => !isValidSubscription({ endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } })
+  );
+  await Promise.all(invalidRows.map((row) => removeSubscription(row.endpoint)));
   const body = JSON.stringify(payload);
 
   const results = await Promise.all(
-    rows.map(async (row) => {
+    validRows.map(async (row) => {
       const sub = { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } };
       try {
         // web-push has no default timeout — a push service that hangs would
@@ -73,7 +145,14 @@ async function sendPushToUser(userId, payload) {
 
   const delivered = results.filter((r) => r.statusCode && r.statusCode >= 200 && r.statusCode < 300).length;
   const removed = results.filter((r) => r.error === 'expired-removed').length;
-  return { configured: true, devices: rows.length, delivered, removed, results };
+  return { configured: true, devices: validRows.length, delivered, removed: removed + invalidRows.length, results };
 }
 
-module.exports = { configured, saveSubscription, removeSubscription, sendPushToUser };
+module.exports = {
+  configured,
+  saveSubscription,
+  removeSubscription,
+  sendPushToUser,
+  isValidPushEndpoint,
+  isValidSubscription,
+};

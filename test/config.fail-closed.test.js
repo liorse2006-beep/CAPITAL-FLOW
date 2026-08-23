@@ -50,6 +50,8 @@ const STRONG_SECRETS = {
   JWT_SECRET: 'a'.repeat(48),
   SESSION_SECRET: 'b'.repeat(48),
   STATUS_INTERNAL_TOKEN: 'status-probe-test-token-which-is-long-enough',
+  TURSO_DB_URL: 'libsql://production-test.example',
+  TURSO_AUTH_TOKEN: 'turso-test-token',
 };
 
 test('refuses to boot in production without the protected status probe credential', () => {
@@ -59,6 +61,8 @@ test('refuses to boot in production without the protected status probe credentia
     NODE_ENV: 'production',
     RESEND_API_KEY: 'test-resend-key',
     STATUS_INTERNAL_TOKEN: '',
+    TURSO_DB_URL: 'libsql://production-test.example',
+    TURSO_AUTH_TOKEN: 'turso-test-token',
     GOOGLE_CLIENT_ID: '',
     GOOGLE_CLIENT_SECRET: '',
   });
@@ -146,6 +150,32 @@ test('boots normally in production when RESEND_API_KEY is set', () => {
   assert.strictEqual(exitCode, 0);
 });
 
+test('refuses to boot in production without the durable application database URL', () => {
+  const { exitCode, stderr } = tryBootWith({
+    ...STRONG_SECRETS,
+    NODE_ENV: 'production',
+    RESEND_API_KEY: 'test-resend-key',
+    TURSO_DB_URL: '',
+    GOOGLE_CLIENT_ID: '',
+    GOOGLE_CLIENT_SECRET: '',
+  });
+  assert.strictEqual(exitCode, 1);
+  assert.match(stderr, /TURSO_DB_URL/);
+});
+
+test('refuses to boot in production without the durable application database token', () => {
+  const { exitCode, stderr } = tryBootWith({
+    ...STRONG_SECRETS,
+    NODE_ENV: 'production',
+    RESEND_API_KEY: 'test-resend-key',
+    TURSO_AUTH_TOKEN: '',
+    GOOGLE_CLIENT_ID: '',
+    GOOGLE_CLIENT_SECRET: '',
+  });
+  assert.strictEqual(exitCode, 1);
+  assert.match(stderr, /TURSO_AUTH_TOKEN/);
+});
+
 test('does not enforce RESEND_API_KEY outside production (dev may log OTPs to console)', () => {
   const { exitCode } = tryBootWith({
     ...STRONG_SECRETS,
@@ -153,4 +183,20 @@ test('does not enforce RESEND_API_KEY outside production (dev may log OTPs to co
     RESEND_API_KEY: '',
   });
   assert.strictEqual(exitCode, 0);
+});
+
+test('independent status service does not require application JWT/session secrets', () => {
+  const { exitCode, stderr } = tryBootWith({
+    NODE_ENV: 'production',
+    INDEPENDENT_STATUS_SERVICE: 'true',
+    JWT_SECRET: '',
+    SESSION_SECRET: '',
+    RESEND_API_KEY: 'test-resend-key',
+    STATUS_INTERNAL_TOKEN: 'status-probe-test-token-which-is-long-enough',
+    TURSO_DB_URL: 'libsql://status-test.example',
+    TURSO_AUTH_TOKEN: 'status-turso-test-token',
+    GOOGLE_CLIENT_ID: '',
+    GOOGLE_CLIENT_SECRET: '',
+  });
+  assert.strictEqual(exitCode, 0, stderr);
 });

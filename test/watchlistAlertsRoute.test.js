@@ -121,3 +121,44 @@ test('price alert falls back when the live quote has no usable price for the sym
     server.close();
   }
 });
+
+test('watchlist alerts reject invalid symbols, non-finite values, and more than the per-user cap', async () => {
+  const user = await makeEliteUser('alert-validation@test.local');
+  const token = (await issueToken(user)).accessToken;
+  const server = await startTestApp();
+  const port = server.address().port;
+  const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token };
+  try {
+    const badSymbol = await fetch(`http://127.0.0.1:${port}/api/watchlist-alerts/../../etc`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ minRatio: 2 }),
+    });
+    assert.ok([400, 404].includes(badSymbol.status));
+
+    const badValue = await fetch(`http://127.0.0.1:${port}/api/watchlist-alerts/AAPL`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ minRatio: 'Infinity' }),
+    });
+    assert.strictEqual(badValue.status, 400);
+
+    for (let i = 0; i < 50; i++) {
+      const symbol = `AA${String(i).padStart(2, '0')}`;
+      const res = await fetch(`http://127.0.0.1:${port}/api/watchlist-alerts/${symbol}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ minRatio: 2 }),
+      });
+      assert.strictEqual(res.status, 200, `alert ${symbol} should fit within the cap`);
+    }
+    const overCap = await fetch(`http://127.0.0.1:${port}/api/watchlist-alerts/ZZZZ`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ minRatio: 2 }),
+    });
+    assert.strictEqual(overCap.status, 400);
+  } finally {
+    server.close();
+  }
+});

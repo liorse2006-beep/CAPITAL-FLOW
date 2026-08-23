@@ -41,11 +41,36 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
   const MA_VALID = [9, 20, 50, 150];
   const DIST_VALID = [1, 2];
 
-  const ma = MA_VALID.includes(Number(req.query.ma)) ? Number(req.query.ma) : 20;
-  const distance = DIST_VALID.includes(Number(req.query.distance)) ? Number(req.query.distance) : 2;
-  const interval = req.query.interval === '1wk' ? '1wk' : '1d';
-  const market = req.query.market || 'all';
-  const sectors = req.query.sectors ? req.query.sectors.split(',').filter(Boolean) : [];
+  const ma = req.query.ma == null || req.query.ma === '' ? 20 : Number(req.query.ma);
+  const distance = req.query.distance == null || req.query.distance === '' ? 2 : Number(req.query.distance);
+  const interval = req.query.interval == null || req.query.interval === '' ? '1d' : req.query.interval;
+  const market = req.query.market == null || req.query.market === '' ? 'all' : req.query.market;
+  const sectors =
+    req.query.sectors == null
+      ? []
+      : typeof req.query.sectors === 'string'
+        ? [
+            ...new Set(
+              req.query.sectors
+                .split(',')
+                .map((value) => value.trim())
+                .filter(Boolean)
+            ),
+          ]
+        : null;
+
+  if (
+    !MA_VALID.includes(ma) ||
+    !DIST_VALID.includes(distance) ||
+    !['1d', '1wk'].includes(interval) ||
+    !['all', 'nasdaq100', 'sp500', 'sectors'].includes(market) ||
+    !Array.isArray(sectors) ||
+    sectors.length > 20 ||
+    sectors.some((sector) => !Object.prototype.hasOwnProperty.call(SECTOR_TICKERS, sector)) ||
+    (market === 'sectors' && sectors.length === 0)
+  ) {
+    return res.status(400).json({ error: 'Invalid moving-average scan filters' });
+  }
 
   const cacheKey = cacheKeyFor(ma, distance, interval, market, sectors);
   const cached = resultCache.get(cacheKey);

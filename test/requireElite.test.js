@@ -161,12 +161,33 @@ test('requireEliteOrTrial allows elite through as normal', async () => {
 
 test('SSE authentication gives a free trial the same Elite access as normal HTTP routes', async () => {
   const user = await makeUser('trial-sse-fresh@test.local', 'free');
+  const { sessionId } = await issueToken(user);
   const server = await startTestApp();
   const port = server.address().port;
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/probe-sse?ticket=${encodeURIComponent(issueSseTicket(user.id))}`);
+    const res = await fetch(
+      `http://127.0.0.1:${port}/probe-sse?ticket=${encodeURIComponent(issueSseTicket(user.id, sessionId))}`
+    );
     assert.strictEqual(res.status, 200);
     assert.deepStrictEqual(await res.json(), { ok: true, tier: 'free' });
+  } finally {
+    server.close();
+  }
+});
+
+test('SSE tickets stop working immediately when their backing session is revoked', async () => {
+  const user = await makeUser('trial-sse-revoked@test.local', 'free');
+  const { sessionId } = await issueToken(user);
+  const ticket = issueSseTicket(user.id, sessionId);
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    const before = await fetch(`http://127.0.0.1:${port}/probe-sse?ticket=${encodeURIComponent(ticket)}`);
+    assert.strictEqual(before.status, 200);
+    await db.prepare('DELETE FROM user_sessions WHERE id = ? AND user_id = ?').run(sessionId, user.id);
+    const after = await fetch(`http://127.0.0.1:${port}/probe-sse?ticket=${encodeURIComponent(ticket)}`);
+    assert.strictEqual(after.status, 401);
+    assert.match(await after.text(), /NOT_AUTHENTICATED/);
   } finally {
     server.close();
   }

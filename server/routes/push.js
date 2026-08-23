@@ -1,7 +1,12 @@
 const router = require('express').Router();
 const { requireEliteOrTrial } = require('../middleware/authMiddleware');
 const { VAPID_PUBLIC_KEY } = require('../config');
-const { saveSubscription, removeSubscription } = require('../services/webPush');
+const {
+  saveSubscription,
+  removeSubscription,
+  isValidSubscription,
+  isValidPushEndpoint,
+} = require('../services/webPush');
 const db = require('../db');
 const { reportError } = require('../utils/reportError');
 
@@ -12,7 +17,7 @@ router.get('/push/vapid-public-key', (req, res) => res.json({ key: VAPID_PUBLIC_
 router.post('/push/subscribe', requireEliteOrTrial, async (req, res) => {
   try {
     const sub = req.body;
-    if (!sub || !sub.endpoint || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) {
+    if (!isValidSubscription(sub)) {
       return res.status(400).json({ error: 'Invalid subscription object' });
     }
     await saveSubscription(req.user.id, sub);
@@ -26,7 +31,7 @@ router.post('/push/subscribe', requireEliteOrTrial, async (req, res) => {
 router.post('/push/unsubscribe', requireEliteOrTrial, async (req, res) => {
   try {
     const endpoint = req.body && req.body.endpoint;
-    if (!endpoint) return res.status(400).json({ error: 'endpoint required' });
+    if (!isValidPushEndpoint(endpoint)) return res.status(400).json({ error: 'Invalid endpoint' });
     await removeSubscription(endpoint, req.user.id);
     res.json({ ok: true });
   } catch (err) {

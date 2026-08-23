@@ -5,6 +5,8 @@ const { publicWriteLimiter } = require('../middleware/rateLimiters');
 const { reportError } = require('../utils/reportError');
 
 const MAX_MESSAGE_LEN = 2000;
+const EMAIL_RE = /^[^\s@<>"'`]+@[^\s@<>"'`]+\.[^\s@<>"'`]+$/;
+const MAX_EMAIL_BYTES = 254;
 
 // Signed-in or signed-out visitors can both send feedback — auth is read
 // opportunistically (to attach a user_id) but never required.
@@ -22,6 +24,9 @@ router.post('/feedback', publicWriteLimiter, async (req, res) => {
       : String(req.body.email || '')
           .trim()
           .slice(0, 254) || null;
+    if (email && (Buffer.byteLength(email, 'utf8') > MAX_EMAIL_BYTES || !EMAIL_RE.test(email))) {
+      return res.status(400).json({ error: 'Invalid email address' });
+    }
     const page =
       String(req.body.page || '')
         .trim()

@@ -50,3 +50,16 @@ test('malformed JWT input is rejected without throwing', async () => {
   assert.strictEqual(response.status, 401);
   assert.deepStrictEqual(await response.json(), { error: 'Unauthorized' });
 });
+
+test('JWT algorithm confusion and incomplete identity claims are rejected at the edge', async () => {
+  const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' })).replace(/=/g, '');
+  const payload = btoa(JSON.stringify({ id: 1, exp: Math.floor(Date.now() / 1000) + 60 })).replace(/=/g, '');
+  const response = await worker.fetch(
+    new Request('https://worker.example/api/scan', {
+      headers: { Authorization: `Bearer ${header}.${payload}.ignored` },
+    }),
+    { JWT_SECRET: 'test-secret', ORIGIN: 'https://origin.example' },
+    {}
+  );
+  assert.strictEqual(response.status, 401);
+});

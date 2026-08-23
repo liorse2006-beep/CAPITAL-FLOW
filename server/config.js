@@ -28,6 +28,14 @@ function requireSecret(name) {
   return val;
 }
 
+// The independent status service deliberately has no user-authentication
+// surface and stores no application users. Do not make it depend on the main
+// app's JWT/session secrets just to load the shared configuration module.
+// The main application still fails closed for both secrets.
+function appSecret(name) {
+  return process.env.INDEPENDENT_STATUS_SERVICE === 'true' ? env(name) : requireSecret(name);
+}
+
 // ADMIN_TOKEN is optional (the admin panel just stays disabled without it),
 // but if it IS set it grants full admin power — view every user's email,
 // grant/revoke premium, block, and permanently delete accounts. A weak value
@@ -79,7 +87,7 @@ module.exports = {
   VAPID_PUBLIC_KEY: env('VAPID_PUBLIC_KEY'),
   VAPID_PRIVATE_KEY: env('VAPID_PRIVATE_KEY'),
   VAPID_SUBJECT: env('VAPID_SUBJECT'),
-  JWT_SECRET: requireSecret('JWT_SECRET'),
+  JWT_SECRET: appSecret('JWT_SECRET'),
   GMAIL_USER: env('GMAIL_USER'),
   GMAIL_APP_PASSWORD: env('GMAIL_APP_PASSWORD'),
   // Resend — the transactional email provider for everything user-facing
@@ -135,7 +143,7 @@ module.exports = {
     1024 * 1024,
     parseInt(env('STATUS_BACKUP_MAX_BYTES', String(20 * 1024 * 1024)), 10) || 20 * 1024 * 1024
   ),
-  SESSION_SECRET: requireSecret('SESSION_SECRET'),
+  SESSION_SECRET: appSecret('SESSION_SECRET'),
   ADMIN_TOKEN: env('ADMIN_TOKEN'),
   ADMIN_EMAIL: env('ADMIN_EMAIL'),
   SENTRY_DSN: env('SENTRY_DSN'),
@@ -202,6 +210,18 @@ if (process.env.NODE_ENV === 'production' && !module.exports.STATUS_INTERNAL_TOK
   console.error(
     '\n[FATAL] STATUS_INTERNAL_TOKEN is not set — the protected market-data probe would fail and create a false ' +
       'status incident. Set one strong identical value on the main app and independent status service before starting.\n'
+  );
+  process.exit(1);
+}
+
+// Production must never silently fall back to the local SQLite file. That
+// fallback is useful for development, but on a redeploy or a fresh container
+// it would create an apparently healthy application with a new empty database
+// and no durable user data. Require both Turso coordinates before booting.
+if (process.env.NODE_ENV === 'production' && (!module.exports.TURSO_DB_URL || !module.exports.TURSO_AUTH_TOKEN)) {
+  console.error(
+    '\n[FATAL] TURSO_DB_URL and TURSO_AUTH_TOKEN are required in production. ' +
+      'Refusing to start against a local SQLite database; configure the durable production database first.\n'
   );
   process.exit(1);
 }

@@ -10,8 +10,14 @@
 const path = require('path');
 
 if (process.env.NODE_ENV === 'production') {
-  if (!process.env.STATUS_TURSO_DB_URL) {
+  const statusDbUrl = String(process.env.STATUS_TURSO_DB_URL || '').trim();
+  const statusDbAuthToken = String(process.env.STATUS_TURSO_AUTH_TOKEN || '').trim();
+  if (!statusDbUrl) {
     console.error('[status-service] STATUS_TURSO_DB_URL is required in production.');
+    process.exit(1);
+  }
+  if (!statusDbAuthToken) {
+    console.error('[status-service] STATUS_TURSO_AUTH_TOKEN is required in production.');
     process.exit(1);
   }
   if (!process.env.STATUS_INTERNAL_TOKEN || process.env.STATUS_INTERNAL_TOKEN.trim().length < 32) {
@@ -20,9 +26,15 @@ if (process.env.NODE_ENV === 'production') {
     );
     process.exit(1);
   }
-  process.env.TURSO_DB_URL = process.env.STATUS_TURSO_DB_URL;
-  if (process.env.STATUS_TURSO_AUTH_TOKEN) process.env.TURSO_AUTH_TOKEN = process.env.STATUS_TURSO_AUTH_TOKEN;
+  process.env.TURSO_DB_URL = statusDbUrl;
+  process.env.TURSO_AUTH_TOKEN = statusDbAuthToken;
 }
+
+// The independent status host must never try to authenticate against the
+// application's user/session database. Its status operations console uses
+// only the separately configured static status-admin credential; the full
+// user-admin page remains on the main application.
+process.env.INDEPENDENT_STATUS_SERVICE = 'true';
 
 const express = require('express');
 const helmet = require('helmet');

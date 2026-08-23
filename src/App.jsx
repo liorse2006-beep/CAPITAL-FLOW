@@ -154,7 +154,7 @@ function App() {
       return undefined;
     }
     const fetchTicket = () => {
-      fetch('/api/stream-ticket', { headers: { Authorization: 'Bearer ' + (localStorage.getItem('vs_token') || '') } })
+      fetch('/api/stream-ticket', { headers: { Authorization: 'Bearer ' + (getToken() || '') } })
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
           if (cancelled || !d?.ticket) return;
@@ -170,7 +170,7 @@ function App() {
       cancelled = true;
       clearTimeout(refreshTimer);
     };
-  }, [eliteAccess]);
+  }, [eliteAccess, getToken]);
   useSSE(
     sseTicket ? '/api/stream?ticket=' + encodeURIComponent(sseTicket) : null,
     {

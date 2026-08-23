@@ -169,6 +169,11 @@
   isolation: isolate;
   font-variant-numeric: tabular-nums;
 }
+.cf-landing-page .cf-root > .cf-nav,
+.cf-landing-page .cf-root > main {
+  position: relative;
+  z-index: 1;
+}
 .cf-landing-page .cf-root h1,
 .cf-landing-page .cf-root h2,
 .cf-landing-page .cf-root h3 {
@@ -417,138 +422,149 @@
   background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%);
   filter: blur(6px);
 }
-.cf-landing-page .cf-proof {
-  background: linear-gradient(180deg, var(--bg-1), var(--bg-0));
-  border: 1px solid color-mix(in srgb, var(--accent) 14%, transparent);
-  border-radius: var(--radius);
-  overflow: hidden;
-  box-shadow:
-    0 40px 80px -30px rgba(0, 0, 0, 0.7),
-    0 0 0 1px color-mix(in srgb, var(--accent) 5%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  transform-style: preserve-3d;
-  transition: transform 0.2s ease-out;
+/* Hero device mockups (laptop + phone), replacing the old sample-data
+   table. `direction: ltr` is deliberate: the page is RTL so "phone to the
+   laptop's right" would otherwise mirror to its left — this keeps the
+   layout math (and the "right" in every rule below) meaning actual visual
+   right regardless of page direction. */
+.cf-landing-page .cf-hero-devices {
+  position: relative;
+  direction: ltr;
+  isolation: isolate;
+  padding: 10px 58px 26px 0;
 }
-.cf-landing-page .cf-proof-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--text-2);
-  letter-spacing: 0.04em;
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 14%, transparent);
+/* Fixed, not var(--bg-0): matches the screenshot's own near-black
+   background so it stays consistent regardless of the site's light/dark
+   theme toggle. */
+.cf-landing-page .cf-device-screen {
+  background: #0a0705;
 }
-.cf-landing-page .cf-proof-live {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--up);
-}
-.cf-landing-page .cf-proof-live-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--up);
-  animation: cf-proof-live-pulse 1.6s infinite;
-}
-@keyframes cf-proof-live-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.3;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .cf-landing-page .cf-proof-live-dot {
-    animation: none;
-  }
-}
-.cf-landing-page .cf-proof-col-header {
-  display: grid;
-  grid-template-columns: 1.3fr 0.8fr 0.8fr 0.75fr;
-  gap: 10px;
-  padding: 10px 18px;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 14%, transparent);
-}
-.cf-landing-page .cf-proof-col-header button {
-  all: unset;
-  cursor: pointer;
-  text-align: center;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  transition: color 0.15s;
-}
-.cf-landing-page .cf-proof-col-header button:hover,
-.cf-landing-page .cf-proof-col-header button[data-sort-dir] {
-  color: var(--accent);
-}
-.cf-landing-page .cf-sort-arrow {
-  font-size: 8px;
-  display: inline-block;
-  width: 8px;
-}
-.cf-landing-page .cf-proof-row {
-  display: grid;
-  grid-template-columns: 1.3fr 0.8fr 0.8fr 0.75fr;
-  gap: 10px;
-  align-items: center;
-  padding: 13px 18px;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 6%, transparent);
-  transition:
-    opacity 0.25s ease,
-    background 0.15s ease;
-}
-.cf-landing-page .cf-proof-row:last-child {
-  border-bottom: none;
-}
-.cf-landing-page .cf-proof-row:hover {
-  background: color-mix(in srgb, var(--accent) 4%, transparent);
-}
-.cf-landing-page .cf-proof-sym {
-  font-weight: 700;
-  color: var(--text-0);
-}
-.cf-landing-page .cf-proof-name {
-  color: var(--text-3);
-  font-size: 10px;
+.cf-landing-page .cf-device-screen img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   display: block;
-  font-family: var(--font-body);
 }
-.cf-landing-page .cf-up {
-  color: var(--up);
+
+.cf-landing-page .cf-device-laptop {
+  position: relative;
+  width: min(100%, 440px);
+  filter: drop-shadow(0 46px 54px rgba(0, 0, 0, 0.55));
 }
-.cf-landing-page .cf-down {
-  color: var(--down);
+.cf-landing-page .cf-device-laptop-lid {
+  position: relative;
+  padding: 10px 10px 0;
+  background: linear-gradient(155deg, #332818, #120d08 65%);
+  border-radius: 16px 16px 5px 5px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
-.cf-landing-page .cf-ratio {
-  font-weight: 700;
-  color: var(--accent);
+.cf-landing-page .cf-device-laptop-cam {
+  position: absolute;
+  top: 4.5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #010101;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.09);
 }
-.cf-landing-page .cf-proof-foot {
-  padding: 12px 18px;
-  font-size: 11px;
-  color: var(--text-3);
-  text-align: center;
-  letter-spacing: 0.04em;
+.cf-landing-page .cf-device-laptop .cf-device-screen {
+  border-radius: 6px 6px 2px 2px;
+  overflow: hidden;
+  aspect-ratio: 1265 / 712;
 }
+.cf-landing-page .cf-device-laptop-base {
+  height: 15px;
+  margin: 0 -16px;
+  background: linear-gradient(180deg, #241c12, #100c07);
+  border-radius: 0 0 9px 9px;
+  position: relative;
+  box-shadow: 0 14px 26px -10px rgba(0, 0, 0, 0.65);
+}
+.cf-landing-page .cf-device-laptop-base::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  width: 64px;
+  height: 5px;
+  background: linear-gradient(180deg, #4a3b24, #1c150c);
+  border-radius: 0 0 7px 7px;
+}
+
+.cf-landing-page .cf-device-phone {
+  position: absolute;
+  right: -14px;
+  bottom: -4px;
+  width: 116px;
+  padding: 9px 7px;
+  background: linear-gradient(160deg, #332818, #110c07);
+  border-radius: 25px;
+  box-shadow:
+    0 30px 46px -16px rgba(0, 0, 0, 0.65),
+    0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.cf-landing-page .cf-device-phone-notch {
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 6px;
+  border-radius: 4px;
+  background: #030201;
+  z-index: 2;
+}
+.cf-landing-page .cf-device-phone-home {
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.22);
+  z-index: 2;
+}
+.cf-landing-page .cf-device-phone .cf-device-screen {
+  border-radius: 17px;
+  overflow: hidden;
+  aspect-ratio: 9 / 19.5;
+}
+/* The phone reuses the same (landscape) screenshot as the laptop rather
+   than a separate mobile asset — `contain` on a background that's already
+   near-black lets the full frame show letterboxed without visible bars,
+   instead of `cover` cropping it down to an illegible sliver. Swap this to
+   `cover` once the phone gets its own native-portrait screenshot. */
+.cf-landing-page .cf-device-phone .cf-device-screen img {
+  object-fit: contain;
+}
+
+@media (max-width: 1060px) {
+  .cf-landing-page .cf-hero-devices {
+    padding-right: 50px;
+  }
+  .cf-landing-page .cf-device-laptop {
+    width: min(100%, 400px);
+  }
+  .cf-landing-page .cf-device-phone {
+    width: 104px;
+  }
+}
+@media (max-width: 800px) {
+  .cf-landing-page .cf-hero-devices {
+    max-width: 380px;
+    margin: 0 auto;
+    padding: 10px 46px 22px 0;
+  }
+}
+
 .cf-landing-page .cf-blk {
   padding: 100px 0;
 }
@@ -889,9 +905,55 @@
   height: 100%;
   display: block;
 }
+/* The cinematic camera journey (mountCinematicJourney in effects.js) —
+   layered above .cf-bg, below every real content section. It only ever
+   shows opacity:1 while scroll is within the hero→tools zone; a GSAP
+   ScrollTrigger toggles .cf-journey-visible at the zone's edges (a
+   discrete state change, not a per-frame value, so the eased opacity
+   transition here is safe — see the transform-vs-transition comment
+   earlier in this file for why per-frame values never get a transition). */
+.cf-landing-page .cf-journey {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+  filter: saturate(0.9) contrast(1);
+  /* The DOF post-processing pass (BokehPass) doesn't preserve the
+     renderer's alpha channel, so empty scene space composites as opaque
+     black instead of the transparent void it's meant to be — which wiped
+     out .cf-bg's ambient shader entirely whenever the journey was active.
+     `screen` blending sidesteps that: black contributes nothing to the
+     blend (screen(0,x)=x) so .cf-bg shows straight through it regardless
+     of the canvas's real alpha, while the warm glowing objects blend
+     additively on top — the journey reads as an accent layer over the
+     existing background, not a replacement for it.
+     Must sit HERE, on .cf-journey itself, not on the inner canvas: the
+     `filter` above already puts .cf-journey in its own stacking context,
+     so a blend-mode on a child would only blend within that isolated
+     context (nothing to blend against) instead of against .cf-bg outside
+     it — which is why an earlier attempt on the canvas had no effect. */
+  mix-blend-mode: screen;
+}
+.cf-landing-page .cf-journey.cf-journey-visible {
+  opacity: 0.18;
+}
+.cf-landing-page .cf-journey canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cf-landing-page .cf-journey {
+    transition: none;
+  }
+}
 .cf-landing-page .cf-feat,
 .cf-landing-page .cf-faq-item,
-.cf-landing-page .cf-proof {
+.cf-landing-page .cf-hero-devices {
   transform-origin: top center;
   will-change: transform;
 }
@@ -1406,43 +1468,6 @@
   color: var(--accent);
   font-size: 15px;
 }
-.cf-landing-page .cf-live-demo {
-  position: relative;
-  border-color: rgba(226, 165, 69, 0.32);
-  box-shadow:
-    0 40px 90px -36px rgba(0, 0, 0, 0.9),
-    0 0 0 1px rgba(226, 165, 69, 0.05),
-    0 0 70px -26px rgba(226, 165, 69, 0.32);
-}
-.cf-landing-page .cf-demo-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  padding: 12px 18px;
-  border-bottom: 1px solid rgba(226, 165, 69, 0.1);
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-}
-.cf-landing-page .cf-demo-filter-active {
-  color: var(--accent);
-}
-.cf-landing-page .cf-proof-col-header,
-.cf-landing-page .cf-proof-row {
-  grid-template-columns: 1.46fr 0.82fr 0.82fr 0.62fr;
-}
-.cf-landing-page .cf-proof-col-header {
-  padding-top: 12px;
-  padding-bottom: 12px;
-}
-.cf-landing-page .cf-proof-row {
-  padding-top: 15px;
-  padding-bottom: 15px;
-}
-.cf-landing-page .cf-proof-name {
-  color: #736958;
-}
 .cf-landing-page .cf-demo-insight {
   display: flex;
   align-items: flex-start;
@@ -1469,37 +1494,6 @@
   box-shadow:
     0 0 0 4px rgba(76, 191, 138, 0.1),
     0 0 14px rgba(76, 191, 138, 0.85);
-}
-.cf-landing-page .cf-demo-float {
-  position: absolute;
-  z-index: 3;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 12px;
-  border: 1px solid rgba(226, 165, 69, 0.22);
-  border-radius: 999px;
-  background: rgba(23, 18, 12, 0.86);
-  box-shadow: 0 14px 28px -18px #000;
-  color: var(--text-1);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  white-space: nowrap;
-  backdrop-filter: blur(10px);
-}
-.cf-landing-page .cf-demo-float span {
-  color: var(--up);
-}
-.cf-landing-page .cf-demo-float-bottom span {
-  color: var(--accent);
-}
-.cf-landing-page .cf-demo-float-top {
-  top: -22px;
-  right: -28px;
-}
-.cf-landing-page .cf-demo-float-bottom {
-  bottom: -20px;
-  left: -28px;
 }
 .cf-landing-page .cf-card-kicker {
   display: block;
@@ -2209,33 +2203,6 @@
     justify-content: center;
     gap: 7px 14px;
     font-size: 12px;
-  }
-  .cf-landing-page .cf-proof-col-header,
-  .cf-landing-page .cf-proof-row {
-    grid-template-columns: 1.36fr 0.84fr 0.84fr 0.6fr;
-    gap: 6px;
-  }
-  .cf-landing-page .cf-proof-row {
-    padding-left: 12px;
-    padding-right: 12px;
-    font-size: 10px;
-  }
-  .cf-landing-page .cf-proof-col-header {
-    padding-left: 12px;
-    padding-right: 12px;
-    font-size: 8px;
-  }
-  .cf-landing-page .cf-proof-name {
-    font-size: 8px;
-  }
-  .cf-landing-page .cf-demo-toolbar {
-    gap: 6px 10px;
-    padding-left: 12px;
-    padding-right: 12px;
-    font-size: 8px;
-  }
-  .cf-landing-page .cf-demo-float {
-    display: none;
   }
   .cf-landing-page .cf-demo-insight {
     margin-left: 10px;
