@@ -359,6 +359,7 @@ function App() {
   var eliteAccess = hasEliteAccess(user, scanMeta);
   var premiumFeatureAccess = hasPremiumFeatureAccess(user, scanMeta);
   var canNotify = eliteAccess;
+  var trialEnded = !!(user && userTier === 'free' && scanMeta && scanMeta.free && !scanMeta.free.trialActive);
 
   /* ── Trial-ended popup — auto-shown once per site visit the first time a
         free-tier user's scanMeta confirms the 7-day trial has ended, and
@@ -1257,10 +1258,12 @@ function App() {
           <ChatWidget
             user={user}
             isElite={eliteAccess}
+            trialEnded={trialEnded}
             getToken={getToken}
             externalPrompt={capiExternalPrompt}
             onExternalPromptSent={() => setCapiExternalPrompt(null)}
             onRequireAuth={() => setShowAuthModal(true)}
+            onTrialEnded={onTrialEnded}
           />
         </Suspense>
       )}

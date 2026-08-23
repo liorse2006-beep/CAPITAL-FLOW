@@ -213,11 +213,12 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
           <h2 className="upgrade-title">
             {trialEnded ? 'Keep your edge after the trial.' : 'Choose the workflow that fits your trading.'}
           </h2>
-          <p className="upgrade-desc">
-            {trialEnded
-              ? 'You have already felt the full Elite workflow. Choose the level of access that matches how you trade — one payment, lifetime access.'
-              : 'Free gives you the full product for your first 7 days. News remains available to every signed-in account; choose the plan that fits how you trade.'}
-          </p>
+          {trialEnded && (
+            <p className="upgrade-desc">
+              You have already felt the full Elite workflow. Choose the level of access that matches how you trade — one
+              payment, lifetime access.
+            </p>
+          )}
         </div>
         {trialEnded && (
           <div className="upgrade-proof-strip" aria-label="Membership highlights">

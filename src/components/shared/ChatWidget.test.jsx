@@ -41,12 +41,32 @@ describe('ChatWidget', () => {
     expect(screen.getByText(/Hi, I.m Capi/)).toBeInTheDocument();
   });
 
-  it('renders nothing for a logged-in user who is not Elite', () => {
-    const { container } = render(<ChatWidget user={USER} isElite={false} getToken={() => 't'} />);
+  it('renders nothing for a logged-in Premium user who is not Elite', () => {
+    const { container } = render(
+      <ChatWidget user={{ ...USER, tier: 'premium' }} isElite={false} trialEnded={false} getToken={() => 't'} />
+    );
     act(() => {
       vi.advanceTimersByTime(1500);
     });
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('keeps Capi visible after a free trial ends and opens the trial message on tap', () => {
+    const onTrialEnded = vi.fn();
+    const { container } = render(
+      <ChatWidget
+        user={{ ...USER, tier: 'free' }}
+        isElite={false}
+        trialEnded
+        getToken={() => 't'}
+        onTrialEnded={onTrialEnded}
+      />
+    );
+
+    expect(container.querySelector('.chat-fab')).toBeInTheDocument();
+    fireEvent.click(container.querySelector('.chat-fab'));
+    expect(onTrialEnded).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('.chat-panel')).not.toBeInTheDocument();
   });
 
   it('does not show the teaser immediately on mount', () => {

@@ -38,7 +38,16 @@ function renderCapiMessage(text) {
 // forever the way the old localStorage flag did.
 var TEASER_READY_DELAY_MS = 1500;
 
-export default function ChatWidget({ user, isElite, getToken, externalPrompt, onExternalPromptSent, onRequireAuth }) {
+export default function ChatWidget({
+  user,
+  isElite,
+  trialEnded,
+  getToken,
+  externalPrompt,
+  onExternalPromptSent,
+  onRequireAuth,
+  onTrialEnded,
+}) {
   const [open, setOpen] = useState(false);
   const [teaserReady, setTeaserReady] = useState(false);
   const [teaserDismissed, setTeaserDismissed] = useState(false);
@@ -74,6 +83,10 @@ export default function ChatWidget({ user, isElite, getToken, externalPrompt, on
   function toggleOpen() {
     if (!user) {
       if (onRequireAuth) onRequireAuth();
+      return;
+    }
+    if (trialEnded && !isElite) {
+      if (onTrialEnded) onTrialEnded();
       return;
     }
     setOpen((o) => !o);
@@ -160,11 +173,11 @@ export default function ChatWidget({ user, isElite, getToken, externalPrompt, on
   }
 
   // Capi is an Elite feature, gated server-side too (requireEliteOrTrial on
-  // every /chat route) — a signed-in Free/Premium account without trial access
-  // still never sees the launcher. A GUEST, though, still sees it: tapping
-  // it just asks them to sign in first (toggleOpen above) instead of hiding
-  // the feature's existence entirely.
-  if (user && !isElite) return null;
+  // every /chat route). Premium users still do not get the launcher, while a
+  // signed-in Free user whose trial ended keeps the launcher visible so a tap
+  // can reopen the existing trial-ended upgrade message. A GUEST still sees
+  // it and is asked to sign in when tapping the launcher.
+  if (user && !isElite && !trialEnded) return null;
 
   return (
     <div className="chat-widget">

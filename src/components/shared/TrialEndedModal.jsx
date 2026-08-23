@@ -111,10 +111,6 @@ export default function TrialEndedModal({ onClose, onUpgrade }) {
         <div className="trial-ended-hero">
           <div className="trial-ended-eyebrow">Your market workspace is still here</div>
           <h2 className="trial-ended-title">Keep your edge after day seven.</h2>
-          <p className="trial-ended-description">
-            You have already experienced the full Elite workflow: faster scans, clearer context, and alerts that keep
-            working when you are away from the screen. Choose the level of access that matches how you trade.
-          </p>
         </div>
 
         <div className="trial-ended-proof" aria-label="What your trial included">

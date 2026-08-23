@@ -5045,14 +5045,6 @@ html.a11y-highlight-links a {
   letter-spacing: -0.035em;
   line-height: 1.05;
 }
-.trial-ended-description {
-  max-width: 540px;
-  margin: 0 auto;
-  color: var(--text-1);
-  font-family: var(--font);
-  font-size: 13px;
-  line-height: 1.65;
-}
 .trial-ended-proof {
   padding: 14px 16px 15px;
   background: rgba(255, 255, 255, 0.025);
@@ -5404,9 +5396,6 @@ html.a11y-highlight-links a {
 @media (max-width: 480px) {
   .trial-ended-title {
     font-size: 28px;
-  }
-  .trial-ended-description {
-    font-size: 12px;
   }
   .trial-ended-trust,
   .upgrade-trust-row {
@@ -8842,7 +8831,17 @@ html.a11y-highlight-links a {
   /* Stays in normal flow directly under the topbar — same row order as
      desktop — instead of pinning to the bottom of the viewport. */
   .nav-tabs {
+    flex-wrap: nowrap;
     overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: none;
+    touch-action: pan-x;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .nav-tabs::-webkit-scrollbar {
+    display: none;
   }
 
   .chart-modal-backdrop {
