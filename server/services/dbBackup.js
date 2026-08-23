@@ -8,7 +8,7 @@ const { sendApplicationBackupEmail, sendApplicationBackupFailureEmail } = requir
 // Render's filesystem is ephemeral — anything written to disk there is gone
 // on the next deploy or restart, so a backup can only be useful if it leaves
 // the container. There's no cloud-storage account configured for this app,
-// so daily backups are gzipped and emailed to the admin's own inbox as an
+// so the weekly backup is gzipped and emailed to the admin's own inbox as an
 // attachment. Gmail SMTP is preferred when configured; the transactional
 // Resend sender is a safe fallback, so backup delivery does not silently
 // disappear just because the operator did not create a second mail account.
@@ -98,7 +98,7 @@ async function runBackupTick() {
       from: `"Capital Flow" <${GMAIL_USER}>`,
       to,
       subject: `Capital Flow — DB backup ${dateStr}`,
-      text: `Automated daily backup. ${TABLES.length} tables, ${gzipped.length} bytes gzipped. Restore with: node restoreDb.js ${filename} --confirm`,
+      text: `Automated weekly backup. ${TABLES.length} tables, ${gzipped.length} bytes gzipped. Restore with: node restoreDb.js ${filename} --confirm`,
       attachments: [{ filename, content: gzipped }],
     });
   } else {

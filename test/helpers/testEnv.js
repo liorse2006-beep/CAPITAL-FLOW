@@ -24,3 +24,7 @@ if (process.env.RESEND_API_KEY === undefined) process.env.RESEND_API_KEY = '';
 // value BEFORE requiring this file (dotenv never overrides what's set here).
 if (process.env.TURNSTILE_SECRET === undefined) process.env.TURNSTILE_SECRET = '';
 if (process.env.HCAPTCHA_SECRET === undefined) process.env.HCAPTCHA_SECRET = '';
+// Status-backup behavior is tested explicitly in statusDbBackup.test.js;
+// keep those tests enabled without enabling backup email scheduling in local
+// development or production defaults.
+if (process.env.STATUS_BACKUP_ENABLED === undefined) process.env.STATUS_BACKUP_ENABLED = 'true';

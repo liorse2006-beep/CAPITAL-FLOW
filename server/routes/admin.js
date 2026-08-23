@@ -290,7 +290,7 @@ router.get(
   })
 );
 
-// Runs the same backup email the daily scheduler runs, on demand — lets the
+// Runs the same backup email the weekly scheduler runs, on demand — lets the
 // admin panel tell "not configured" apart from "actually failing to send"
 // instead of just waiting up to 24h to find out, and gives a real error
 // message (bad Gmail app password, etc.) instead of a silent no-op.

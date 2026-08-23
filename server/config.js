@@ -92,7 +92,7 @@ module.exports = {
   GMAIL_APP_PASSWORD: env('GMAIL_APP_PASSWORD'),
   // Resend — the transactional email provider for everything user-facing
   // (OTP, password reset, welcome, admin signup alerts). Gmail SMTP above
-  // stays wired up only for the daily DB backup, which has its own sender.
+  // stays wired up only for the weekly DB backup, which has its own sender.
   RESEND_API_KEY: env('RESEND_API_KEY'),
   RESEND_FROM_EMAIL: env('RESEND_FROM_EMAIL', 'Capital Flow <onboarding@resend.dev>'),
   GOOGLE_CLIENT_ID: env('GOOGLE_CLIENT_ID'),
@@ -133,7 +133,10 @@ module.exports = {
   // advancing even when its process and database are still reachable.
   STATUS_HEARTBEAT_STALE_MULTIPLIER: Math.max(1.5, parseFloat(env('STATUS_HEARTBEAT_STALE_MULTIPLIER', '2')) || 2),
   STATUS_WATCHDOG_INTERVAL_MS: Math.max(15 * 1000, parseInt(env('STATUS_WATCHDOG_INTERVAL_MS', '60000'), 10) || 60000),
-  STATUS_BACKUP_ENABLED: env('STATUS_BACKUP_ENABLED', 'true').toLowerCase() !== 'false',
+  // Status backups are disabled by default. The primary application backup
+  // is the only scheduled email backup; enabling this opt-in would create a
+  // second operational backup stream for the independent status database.
+  STATUS_BACKUP_ENABLED: env('STATUS_BACKUP_ENABLED', 'false').toLowerCase() !== 'false',
   STATUS_BACKUP_INTERVAL_MS: Math.max(
     60 * 60 * 1000,
     parseInt(env('STATUS_BACKUP_INTERVAL_MS', String(24 * 60 * 60 * 1000)), 10) || 24 * 60 * 60 * 1000

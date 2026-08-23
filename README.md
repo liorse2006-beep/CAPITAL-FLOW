@@ -34,7 +34,7 @@ Full list with setup instructions for each provider lives in [.env.example](.env
 - **Market data:** `FINNHUB_API_KEY` (+ optional `FINNHUB_API_KEY_POOL_1..4` for rotation)
 - **News:** `MASSIVE_API_KEY`, `MARKETAUX_API_KEY`, `NEWSDATA_API_KEY`
 - **AI (Capi + news):** `GOOGLE_AI_STUDIO_KEY`
-- **Email:** `RESEND_API_KEY`/`RESEND_FROM_EMAIL` (transactional and backup fallback), `GMAIL_USER`/`GMAIL_APP_PASSWORD` (optional preferred daily app-DB backup sender)
+- **Email:** `RESEND_API_KEY`/`RESEND_FROM_EMAIL` (transactional and backup fallback), `GMAIL_USER`/`GMAIL_APP_PASSWORD` (optional preferred weekly app-DB backup sender)
 - **Auth:** `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_CALLBACK_URL`, `TURNSTILE_SECRET`/`VITE_TURNSTILE_SITE_KEY`
 - **Push:** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`
 - **Admin panel:** `ADMIN_TOKEN` and/or `ADMIN_EMAIL` (panel is disabled if both are unset)
@@ -81,7 +81,7 @@ For outage resilience, run `status-service.js` (or `npm run start:status`) with 
 
 The status worker now has a database-backed lease so two replicas cannot run duplicate cycles, a heartbeat watchdog that exposes stale monitoring as a degraded component, and an external GitHub Actions watchdog in `.github/workflows/keepalive.yml` for the case where the status process itself is unreachable. That external path uses a durable GitHub issue marker so repeated scheduler runs do not send repeated outage emails, then sends one recovery email and closes the marker. Configure the repository secrets `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `STATUS_ALERT_RECIPIENTS` for that external email path. The internal market-data probe fails closed in production when `STATUS_INTERNAL_TOKEN` is missing; it is never a public data endpoint.
 
-The independent status database is backed up as a gzip JSON attachment on the configured schedule. The backup contains only status tables and never application users or credentials. Raw checks are retained for the configured window and rolled into durable daily aggregates before pruning, so long-term availability history does not depend on unbounded logs. Run `node restoreStatusDb.js <backup.json.gz>` for a dry run; add `--confirm` only after verifying the target database and backup source. The status admin console also exposes a guarded “Backup status DB” action.
+The independent status database backup is disabled by default (`STATUS_BACKUP_ENABLED=false`) so it does not create a second email stream. If explicitly enabled, it is a gzip JSON attachment on the configured schedule, containing only status tables and never application users or credentials. Raw checks are retained for the configured window and rolled into durable daily aggregates before pruning, so long-term availability history does not depend on unbounded logs. Run `node restoreStatusDb.js <backup.json.gz>` for a dry run; add `--confirm` only after verifying the target database and backup source. The status admin console also exposes a guarded “Backup status DB” action.
 
 Two safe verification tools are included:
 
