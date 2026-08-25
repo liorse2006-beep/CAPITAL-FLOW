@@ -39,9 +39,9 @@ function Stat({ label, value, detail }) {
   );
 }
 
-function Section({ eyebrow, title, children }) {
+function Section({ eyebrow, title, children, id }) {
   return (
-    <section className="profile-modal-section">
+    <section className="profile-modal-section" id={id}>
       <div className="profile-modal-section-head">
         <span className="profile-modal-section-eyebrow">{eyebrow}</span>
         <h3>{title}</h3>
@@ -54,6 +54,7 @@ function Section({ eyebrow, title, children }) {
 export default function ProfileModal({
   user,
   getToken,
+  initialSection,
   onClose,
   onPasswordChanged,
   onAccountDeleted,
@@ -110,6 +111,17 @@ export default function ProfileModal({
       cancelled = true;
     };
   }, [getToken, user]);
+
+  useEffect(() => {
+    if (!initialSection) return undefined;
+    const timer = window.setTimeout(() => {
+      const target = document.getElementById('profile-section-' + initialSection);
+      if (target && typeof target.scrollIntoView === 'function') {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [initialSection]);
 
   function updatePasswordField(field, value) {
     setPassword((previous) => ({ ...previous, [field]: value }));
@@ -261,7 +273,7 @@ export default function ProfileModal({
           </div>
 
           <div className="profile-modal-body">
-            <Section eyebrow="ACCOUNT" title="Overview">
+            <Section eyebrow="ACCOUNT" title="Overview" id="profile-section-overview">
               <div className="profile-stat-grid profile-stat-grid--four">
                 <Stat label="Access" value={accessLabel(account)} detail={plan.access || '—'} />
                 <Stat label="Verification" value={account.is_verified ? 'Verified' : 'Pending'} detail="Email status" />
@@ -274,7 +286,7 @@ export default function ProfileModal({
               </div>
             </Section>
 
-            <Section eyebrow="PLAN" title="Your access">
+            <Section eyebrow="PLAN" title="Your access" id="profile-section-plan">
               <div className="profile-modal-detail-list">
                 <div className="profile-modal-detail">
                   <span className="profile-modal-label">Current level</span>
@@ -293,7 +305,7 @@ export default function ProfileModal({
               </div>
             </Section>
 
-            <Section eyebrow="USAGE" title="Your workspace">
+            <Section eyebrow="USAGE" title="Your workspace" id="profile-section-usage">
               {summaryState === 'loading' ? (
                 <div className="profile-modal-loading">Loading current usage…</div>
               ) : summaryState === 'error' ? (
@@ -320,7 +332,7 @@ export default function ProfileModal({
               )}
             </Section>
 
-            <Section eyebrow="SECURITY" title="Protect your account">
+            <Section eyebrow="SECURITY" title="Protect your account" id="profile-section-security">
               <div className="profile-modal-detail-list">
                 <div className="profile-modal-detail">
                   <span className="profile-modal-label">Last sign-in</span>
@@ -387,7 +399,7 @@ export default function ProfileModal({
               </button>
             </Section>
 
-            <Section eyebrow="PREFERENCES" title="Two controls, clearly defined">
+            <Section eyebrow="PREFERENCES" title="Two controls, clearly defined" id="profile-section-preferences">
               <div className="profile-preference-list">
                 <div className="profile-preference-row">
                   <div>
@@ -416,7 +428,7 @@ export default function ProfileModal({
               </div>
             </Section>
 
-            <Section eyebrow="PRIVACY" title="Your data">
+            <Section eyebrow="PRIVACY" title="Your data" id="profile-section-privacy">
               <div className="profile-privacy-actions">
                 <button
                   className="profile-secondary-btn"

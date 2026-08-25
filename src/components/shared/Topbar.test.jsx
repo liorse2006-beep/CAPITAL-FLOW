@@ -98,6 +98,33 @@ describe('Topbar tier badge', () => {
     expect(screen.getByText('user@example.com')).toBeInTheDocument();
   });
 
+  it('exposes direct destinations for every profile area', () => {
+    const onOpenScheduling = vi.fn();
+    render(<Topbar {...baseProps({ user: { id: 1, email: 'user@example.com' }, onOpenScheduling })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
+    for (const label of [
+      'Profile',
+      'Plan & access',
+      'Workspace usage',
+      'Security',
+      'Schedule scans',
+      'Notifications',
+      'Privacy & data',
+    ]) {
+      expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument();
+    }
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Plan & access' }));
+    expect(screen.getByRole('dialog', { name: 'Your Profile' })).toBeInTheDocument();
+    expect(screen.getByText('Your access')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close profile' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Schedule scans' }));
+    expect(onOpenScheduling).toHaveBeenCalledOnce();
+  });
+
   it('uses the Google profile image when the account provides one', () => {
     render(
       <Topbar

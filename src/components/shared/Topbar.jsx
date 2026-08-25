@@ -92,6 +92,7 @@ export default function Topbar({
   const isAdmin = !!(user && user.is_admin);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileModalSection, setProfileModalSection] = useState('overview');
   const profileMenuRef = useRef(null);
 
   useEffect(() => {
@@ -112,10 +113,44 @@ export default function Topbar({
     };
   }, [profileMenuOpen]);
 
-  function openProfile() {
+  function openProfile(section = 'overview') {
     setProfileMenuOpen(false);
+    setProfileModalSection(section);
     setProfileModalOpen(true);
   }
+
+  function openSchedulingFromMenu() {
+    setProfileMenuOpen(false);
+    setProfileModalOpen(false);
+    setProfileModalSection(null);
+    onOpenScheduling?.();
+  }
+
+  const profileMenuSections = [
+    {
+      label: 'ACCOUNT',
+      items: [
+        { label: 'Profile', hint: 'Account overview', section: 'overview' },
+        { label: 'Plan & access', hint: 'Tier and trial', section: 'plan' },
+        { label: 'Workspace usage', hint: 'Scans and alerts', section: 'usage' },
+      ],
+    },
+    {
+      label: 'SECURITY',
+      items: [{ label: 'Security', hint: 'Password and sessions', section: 'security' }],
+    },
+    {
+      label: 'PREFERENCES',
+      items: [
+        { label: 'Schedule scans', hint: 'Choose scan times', action: 'schedule' },
+        { label: 'Notifications', hint: 'Push access', section: 'preferences' },
+      ],
+    },
+    {
+      label: 'PRIVACY',
+      items: [{ label: 'Privacy & data', hint: 'Export or delete', section: 'privacy' }],
+    },
+  ];
 
   return (
     <>
@@ -183,12 +218,41 @@ export default function Topbar({
               </button>
               {profileMenuOpen && (
                 <div className="topbar-profile-menu" role="menu" aria-label="Profile menu">
-                  <div className="topbar-profile-menu-email" title={user.email}>
-                    {user.email}
+                  <div className="topbar-profile-menu-head">
+                    <div className="topbar-profile-menu-email" title={user.email}>
+                      {user.email}
+                    </div>
+                    <span className="topbar-profile-menu-tier">
+                      {isElite ? 'ELITE' : isPremium ? 'PREMIUM' : isTrial ? 'FREE TRIAL' : 'FREE'}
+                    </span>
                   </div>
-                  <button className="topbar-profile-menu-item" type="button" role="menuitem" onClick={openProfile}>
-                    Profile
-                  </button>
+                  <div className="topbar-profile-menu-links">
+                    {profileMenuSections.map((group) => (
+                      <div className="topbar-profile-menu-group" key={group.label}>
+                        <div className="topbar-profile-menu-group-label">{group.label}</div>
+                        {group.items.map((item) => (
+                          <button
+                            className="topbar-profile-menu-item"
+                            type="button"
+                            role="menuitem"
+                            key={item.label}
+                            aria-label={item.label}
+                            onClick={() =>
+                              item.action === 'schedule' ? openSchedulingFromMenu() : openProfile(item.section)
+                            }
+                          >
+                            <span className="topbar-profile-menu-item-copy">
+                              <strong>{item.label}</strong>
+                              <small>{item.hint}</small>
+                            </span>
+                            <span className="topbar-profile-menu-arrow" aria-hidden="true">
+                              →
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -215,11 +279,16 @@ export default function Topbar({
         <ProfileModal
           user={user}
           getToken={getToken}
-          onClose={() => setProfileModalOpen(false)}
+          initialSection={profileModalSection}
+          onClose={() => {
+            setProfileModalOpen(false);
+            setProfileModalSection(null);
+          }}
           onPasswordChanged={onPasswordChanged}
           onAccountDeleted={onAccountDeleted}
           onOpenScheduling={() => {
             setProfileModalOpen(false);
+            setProfileModalSection(null);
             onOpenScheduling?.();
           }}
           canNotify={canNotify}
