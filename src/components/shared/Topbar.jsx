@@ -8,7 +8,9 @@ function TierBadgeOrUpgrade({ isElite, isPremium, isTrial, user, onUpgrade, onSi
   if (isPremium) {
     return (
       <>
-        <span className="topbar-premium-badge tier-premium">PREMIUM</span>
+        <button className="topbar-premium-badge tier-premium" onClick={onUpgrade} aria-label="Open upgrade plans">
+          PREMIUM
+        </button>
         <button className="topbar-upgrade-btn" onClick={onUpgrade}>
           Upgrade to Elite
         </button>
@@ -16,7 +18,11 @@ function TierBadgeOrUpgrade({ isElite, isPremium, isTrial, user, onUpgrade, onSi
     );
   }
   if (isTrial) {
-    return <span className="topbar-premium-badge tier-trial">FREE TRIAL</span>;
+    return (
+      <button className="topbar-premium-badge tier-trial" onClick={onUpgrade} aria-label="Open upgrade plans">
+        FREE TRIAL
+      </button>
+    );
   }
   const rocket = (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">

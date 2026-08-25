@@ -358,6 +358,18 @@ body {
   text-transform: uppercase;
   box-shadow: 0 0 12px rgba(163, 230, 53, 0.3);
 }
+button.topbar-premium-badge {
+  font: inherit;
+  cursor: pointer;
+  appearance: none;
+  transition:
+    filter 0.15s,
+    transform 0.15s;
+}
+button.topbar-premium-badge:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
 .topbar-premium-badge.tier-elite {
   background: linear-gradient(135deg, var(--accent-vivid) 0%, var(--accent-vivid-2) 100%);
   color: #1a1200;

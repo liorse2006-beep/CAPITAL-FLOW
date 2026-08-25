@@ -43,9 +43,22 @@ describe('Topbar tier badge', () => {
   });
 
   it('shows a PREMIUM badge and Upgrade to Elite button for premium users', () => {
-    render(<Topbar {...baseProps({ user: { id: 1, email: 'a@b.com' }, isPremium: true })} />);
-    expect(screen.getByText('PREMIUM')).toBeInTheDocument();
+    const onUpgrade = vi.fn();
+    render(<Topbar {...baseProps({ user: { id: 1, email: 'a@b.com' }, isPremium: true, onUpgrade })} />);
+    expect(screen.getByRole('button', { name: 'Open upgrade plans' })).toBeInTheDocument();
     expect(screen.getByText(/upgrade to elite/i)).toBeInTheDocument();
+    screen.getByRole('button', { name: 'Open upgrade plans' }).click();
+    expect(onUpgrade).toHaveBeenCalledOnce();
+  });
+
+  it('makes the FREE TRIAL tier badge open the upgrade table', () => {
+    const onUpgrade = vi.fn();
+    render(<Topbar {...baseProps({ user: { id: 1, email: 'a@b.com' }, isTrial: true, onUpgrade })} />);
+
+    const trialBadge = screen.getByRole('button', { name: 'Open upgrade plans' });
+    expect(trialBadge).toHaveTextContent('FREE TRIAL');
+    trialBadge.click();
+    expect(onUpgrade).toHaveBeenCalledOnce();
   });
 
   it('shows an ELITE EDITION badge with no upgrade button for elite users', () => {
