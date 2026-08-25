@@ -48,9 +48,12 @@ jobs:
       - name: Check formatting for changed files
         shell: bash
         run: |
-          git diff --name-only -z "${{ github.event.before }}" "${{ github.sha }}" -- \
-            '*.js' '*.jsx' '*.mjs' '*.cjs' '*.css' '*.html' \
-            | xargs -0 -r npx prettier --check
+          changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" | grep -E '\\.(js|jsx|mjs|cjs|css|html)$' || true)"
+          if [ -n "$changed_files" ]; then
+            printf '%s\\n' "$changed_files" | xargs npx prettier --check
+          else
+            echo "No changed source files require a formatting check."
+          fi
 
       - name: Build frontend
         run: npm run build
