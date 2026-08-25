@@ -1,0 +1,681 @@
+// Capital Flow Radar persistence and event dispatch.
+//
+// The Radar consumes one shared Capital Flow scan for each selected schedule
+// window. It does not start a private scan per user, which keeps provider/API
+// usage bounded as the user base grows. The database stores both the recipe and each
+// symbol's last known state so a process restart cannot turn one ongoing
+// signal into a stream of duplicate notifications.
+
+const db = require('../db');
+const { SP500, NASDAQ100, SECTOR_TICKERS } = require('../../tickers');
+const { ADMIN_EMAIL } = require('../config');
+const { freeTrialActive } = require('./scanQuota');
+const { reportError } = require('../utils/reportError');
+const {
+  REARM_AFTER_MISSED_SCANS,
+  parseVolumeInput,
+  resultMatchesRadar,
+  evaluateRadarTransitions,
+} = require('./radarLogic');
+
+const RADAR_TIMEZONE = 'Asia/Jerusalem';
+const MAX_RADAR_SCANS_PER_DAY = 2;
+const MIN_VOLUME_RATIO = 1.5;
+const MIN_MARKET_CAP = 500_000_000;
+const MAX_MARKET_CAP = 100_000_000_000_000;
+const MAX_RADARS_PER_USER = 3;
+const MAX_EVENTS_PER_RADAR = 50;
+const DATA_UNAVAILABLE_MESSAGE = 'Data is not available right now. Try again in a few minutes.';
+const PARTIAL_DATA_MESSAGE = 'Some market data is unavailable right now. Try again in a few minutes.';
+const RADAR_SCHEDULE_MESSAGE = 'Choose one or two scan times and an expiry date before activating this Radar.';
+const RADAR_TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+const UNIVERSE = {
+  sp500: new Set(SP500),
+  nasdaq100: new Set(NASDAQ100),
+};
+
+function cleanName(value) {
+  const safeText = Array.from(String(value == null ? '' : value))
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code >= 32 && code !== 127;
+    })
+    .join('');
+  const name = safeText.replace(/\s+/g, ' ').trim();
+  return (name || 'Capital Flow Radar').slice(0, 60);
+}
+
+function parseSectors(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map((item) => String(item || '').trim()).filter(Boolean))];
+}
+
+function zonedToday(timeZone = RADAR_TIMEZONE, now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const map = {};
+  parts.forEach((part) => {
+    map[part.type] = part.value;
+  });
+  return `${map.year}-${map.month}-${map.day}`;
+}
+
+function validIsoDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+function scheduleValue(input, camel, snake) {
+  return input[camel] ?? input[snake] ?? null;
+}
+
+function numberOr(value, fallback) {
+  if (value == null || value === '') return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Normalize and validate both HTTP input and existing DB rows. */
+function normalizeRadarInput(input, base, options = {}) {
+  const source = { ...(base || {}), ...(input || {}) };
+  const requireSchedule = options.requireSchedule !== false;
+  const mode = String(source.mode || 'all');
+  if (!['all', 'sp500', 'nasdaq100', 'sectors'].includes(mode)) {
+    const error = new Error('Invalid Radar universe');
+    error.code = 'INVALID_RADAR';
+    throw error;
+  }
+
+  const selectedSectors = parseSectors(source.selectedSectors ?? source.selected_sectors);
+  if (
+    selectedSectors.length > 12 ||
+    selectedSectors.some((sector) => !Object.prototype.hasOwnProperty.call(SECTOR_TICKERS, sector))
+  ) {
+    const error = new Error('Invalid Radar sectors');
+    error.code = 'INVALID_RADAR';
+    throw error;
+  }
+  if (mode === 'sectors' && selectedSectors.length === 0) {
+    const error = new Error('Select at least one sector or use Full Scan');
+    error.code = 'INVALID_RADAR';
+    throw error;
+  }
+
+  const minVolumeRatio = numberOr(source.minVolumeRatio ?? source.min_volume_ratio, MIN_VOLUME_RATIO);
+  const minMarketCap = numberOr(source.minMarketCap ?? source.min_market_cap, MIN_MARKET_CAP);
+  const minPrice = numberOr(source.minPrice ?? source.min_price, 0);
+  const maxPrice = numberOr(source.maxPrice ?? source.max_price, 0);
+  const minVolume = parseVolumeInput(source.minVolRaw ?? source.minVolume ?? source.min_volume ?? '');
+
+  const scheduleTime1 = scheduleValue(source, 'scheduleTime1', 'schedule_time_1');
+  const scheduleTime2 = scheduleValue(source, 'scheduleTime2', 'schedule_time_2');
+  const expiresOn = scheduleValue(source, 'expiresOn', 'expires_on');
+  const hasSchedule = typeof scheduleTime1 === 'string' && RADAR_TIME_RE.test(scheduleTime1);
+  const hasSecondSchedule = scheduleTime2 !== null && scheduleTime2 !== '';
+  if (requireSchedule && (!hasSchedule || !validIsoDate(expiresOn))) {
+    const error = new Error(RADAR_SCHEDULE_MESSAGE);
+    error.code = 'INVALID_RADAR_SCHEDULE';
+    throw error;
+  }
+  if (scheduleTime1 !== null && scheduleTime1 !== '' && !RADAR_TIME_RE.test(scheduleTime1)) {
+    const error = new Error('The first Radar time must use HH:MM.');
+    error.code = 'INVALID_RADAR_SCHEDULE';
+    throw error;
+  }
+  if (hasSecondSchedule && !RADAR_TIME_RE.test(scheduleTime2)) {
+    const error = new Error('The second Radar time must use HH:MM.');
+    error.code = 'INVALID_RADAR_SCHEDULE';
+    throw error;
+  }
+  if (hasSecondSchedule && scheduleTime1 === scheduleTime2) {
+    const error = new Error('Choose two different Radar times.');
+    error.code = 'INVALID_RADAR_SCHEDULE';
+    throw error;
+  }
+  if (expiresOn !== null && expiresOn !== '' && !validIsoDate(expiresOn)) {
+    const error = new Error('The Radar expiry date must use YYYY-MM-DD.');
+    error.code = 'INVALID_RADAR_SCHEDULE';
+    throw error;
+  }
+  if (expiresOn && expiresOn < zonedToday()) {
+    const error = new Error('The Radar expiry date cannot be in the past.');
+    error.code = 'INVALID_RADAR_SCHEDULE';
+    throw error;
+  }
+
+  if (
+    minVolumeRatio == null ||
+    minVolumeRatio < MIN_VOLUME_RATIO ||
+    minVolumeRatio > 100 ||
+    minMarketCap == null ||
+    minMarketCap < MIN_MARKET_CAP ||
+    minMarketCap > MAX_MARKET_CAP ||
+    minVolume == null ||
+    minVolume < 0 ||
+    minVolume > 100_000_000_000_000 ||
+    minPrice == null ||
+    minPrice < 0 ||
+    minPrice > 10_000_000 ||
+    maxPrice == null ||
+    maxPrice < 0 ||
+    maxPrice > 10_000_000 ||
+    (maxPrice > 0 && minPrice > maxPrice)
+  ) {
+    const error = new Error(`Radar supports Min Ratio ≥ ${MIN_VOLUME_RATIO} and Min Cap ≥ $${MIN_MARKET_CAP / 1e9}B`);
+    error.code = 'INVALID_RADAR_FILTERS';
+    throw error;
+  }
+
+  return {
+    name: cleanName(source.name),
+    mode,
+    selectedSectors,
+    minVolumeRatio,
+    minMarketCap,
+    minVolume,
+    minPrice,
+    maxPrice,
+    scheduleTime1: hasSchedule ? scheduleTime1 : null,
+    scheduleTime2: hasSecondSchedule ? scheduleTime2 : null,
+    expiresOn: expiresOn || null,
+  };
+}
+
+function parseSelectedSectors(row) {
+  try {
+    const parsed = JSON.parse(row.selected_sectors_json || '[]');
+    return parseSectors(parsed);
+  } catch (_) {
+    return [];
+  }
+}
+
+function statusForRow(row) {
+  if (row.expires_on && row.expires_on < zonedToday()) {
+    return { state: 'expired', message: 'This Radar expired. Choose a new expiry date to activate it again.' };
+  }
+  if (!row.schedule_time_1 || !row.expires_on) {
+    return { state: 'needs_schedule', message: RADAR_SCHEDULE_MESSAGE };
+  }
+  const hasSuccess = !!row.last_success_at;
+  const partial = Number(row.last_partial_count || 0) > 0;
+  if (row.last_error === 'SCAN_UNAVAILABLE') {
+    return { state: 'unavailable', message: DATA_UNAVAILABLE_MESSAGE };
+  }
+  if (!hasSuccess && row.last_error) {
+    return { state: 'unavailable', message: DATA_UNAVAILABLE_MESSAGE };
+  }
+  if (!hasSuccess) {
+    return { state: 'waiting', message: 'Waiting for the first completed market scan.' };
+  }
+  if (partial) {
+    return { state: 'partial', message: PARTIAL_DATA_MESSAGE };
+  }
+  return { state: 'ready', message: null };
+}
+
+function serializeRadar(row, events) {
+  const status = statusForRow(row);
+  return {
+    id: Number(row.id),
+    name: row.name,
+    mode: row.mode,
+    selectedSectors: parseSelectedSectors(row),
+    minVolumeRatio: Number(row.min_volume_ratio),
+    minMarketCap: Number(row.min_market_cap),
+    minVolume: Number(row.min_volume || 0),
+    minPrice: Number(row.min_price || 0),
+    maxPrice: Number(row.max_price || 0),
+    scheduleTime1: row.schedule_time_1 || null,
+    scheduleTime2: row.schedule_time_2 || null,
+    expiresOn: row.expires_on || null,
+    active: !!row.active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lastCheckAt: row.last_check_at || null,
+    lastSuccessAt: row.last_success_at || null,
+    nextCheckAt: null,
+    partialCount: Number(row.last_partial_count || 0),
+    dataStatus: status.state,
+    statusMessage: status.message,
+    maxScansPerDay: MAX_RADAR_SCANS_PER_DAY,
+    scheduleTimezone: RADAR_TIMEZONE,
+    events: events || [],
+  };
+}
+
+function rowToConfig(row) {
+  return {
+    id: Number(row.id),
+    user_id: Number(row.user_id),
+    name: row.name,
+    mode: row.mode,
+    selectedSectors: parseSelectedSectors(row),
+    minVolumeRatio: Number(row.min_volume_ratio),
+    minMarketCap: Number(row.min_market_cap),
+    minVolume: Number(row.min_volume || 0),
+    minPrice: Number(row.min_price || 0),
+    maxPrice: Number(row.max_price || 0),
+    scheduleTime1: row.schedule_time_1 || null,
+    scheduleTime2: row.schedule_time_2 || null,
+    expiresOn: row.expires_on || null,
+    active: !!row.active,
+  };
+}
+
+function serializeEvent(row) {
+  let payload = null;
+  try {
+    payload = JSON.parse(row.payload_json || 'null');
+  } catch (_) {}
+  return {
+    id: Number(row.id),
+    symbol: row.symbol,
+    scanTime: row.scan_time,
+    createdAt: row.created_at,
+    delivered: !!row.notified_at,
+    data: payload,
+  };
+}
+
+async function getEventRows(userId, radarId) {
+  const rows = await db
+    .prepare(
+      `SELECT id, symbol, scan_time, payload_json, created_at, notified_at
+         FROM radar_events
+        WHERE user_id = ? AND radar_id = ?
+        ORDER BY created_at DESC
+        LIMIT ?`
+    )
+    .all(userId, radarId, MAX_EVENTS_PER_RADAR);
+  return rows.map(serializeEvent);
+}
+
+async function getRadarRowForUser(userId, radarId) {
+  return db.prepare('SELECT * FROM capital_flow_radars WHERE id = ? AND user_id = ?').get(radarId, userId);
+}
+
+async function getRadarBundle(userId) {
+  const rows = await db
+    .prepare('SELECT * FROM capital_flow_radars WHERE user_id = ? ORDER BY created_at DESC')
+    .all(userId);
+  const events = await db
+    .prepare(
+      `SELECT id, radar_id, symbol, scan_time, payload_json, created_at, notified_at
+         FROM radar_events
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT ?`
+    )
+    .all(userId, MAX_RADARS_PER_USER * MAX_EVENTS_PER_RADAR);
+  const grouped = new Map();
+  events.forEach((event) => {
+    const key = Number(event.radar_id);
+    if (!grouped.has(key)) grouped.set(key, []);
+    const list = grouped.get(key);
+    if (list.length < MAX_EVENTS_PER_RADAR) list.push(serializeEvent(event));
+  });
+  return rows.map((row) => serializeRadar(row, grouped.get(Number(row.id)) || []));
+}
+
+async function createRadar(userId, input) {
+  const config = normalizeRadarInput(input);
+  const result = await db
+    .prepare(
+      `INSERT INTO capital_flow_radars
+        (user_id, name, mode, selected_sectors_json, min_volume_ratio, min_market_cap,
+         min_volume, min_price, max_price, schedule_time_1, schedule_time_2, expires_on, active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
+    )
+    .run(
+      userId,
+      config.name,
+      config.mode,
+      JSON.stringify(config.selectedSectors),
+      config.minVolumeRatio,
+      config.minMarketCap,
+      config.minVolume,
+      config.minPrice,
+      config.maxPrice,
+      config.scheduleTime1,
+      config.scheduleTime2,
+      config.expiresOn
+    );
+  return getRadarRowForUser(userId, result.lastInsertRowid);
+}
+
+async function updateRadar(userId, radarId, input) {
+  const existing = await getRadarRowForUser(userId, radarId);
+  if (!existing) return null;
+  const base = {
+    name: existing.name,
+    mode: existing.mode,
+    selectedSectors: parseSelectedSectors(existing),
+    minVolumeRatio: existing.min_volume_ratio,
+    minMarketCap: existing.min_market_cap,
+    minVolume: existing.min_volume,
+    minPrice: existing.min_price,
+    maxPrice: existing.max_price,
+    scheduleTime1: existing.schedule_time_1,
+    scheduleTime2: existing.schedule_time_2,
+    expiresOn: existing.expires_on,
+  };
+  const config = normalizeRadarInput(input, base, { requireSchedule: input.active !== false });
+  const active = typeof input.active === 'boolean' ? (input.active ? 1 : 0) : Number(existing.active) ? 1 : 0;
+  await db
+    .prepare(
+      `UPDATE capital_flow_radars
+          SET name = ?, mode = ?, selected_sectors_json = ?, min_volume_ratio = ?, min_market_cap = ?,
+              min_volume = ?, min_price = ?, max_price = ?, schedule_time_1 = ?, schedule_time_2 = ?,
+              expires_on = ?, active = ?, updated_at = unixepoch()
+        WHERE id = ? AND user_id = ?`
+    )
+    .run(
+      config.name,
+      config.mode,
+      JSON.stringify(config.selectedSectors),
+      config.minVolumeRatio,
+      config.minMarketCap,
+      config.minVolume,
+      config.minPrice,
+      config.maxPrice,
+      config.scheduleTime1,
+      config.scheduleTime2,
+      config.expiresOn,
+      active,
+      radarId,
+      userId
+    );
+  return getRadarRowForUser(userId, radarId);
+}
+
+async function deleteRadar(userId, radarId) {
+  const result = await db.transaction([
+    { sql: 'DELETE FROM radar_events WHERE radar_id = ? AND user_id = ?', args: [radarId, userId] },
+    { sql: 'DELETE FROM radar_states WHERE radar_id = ?', args: [radarId] },
+    { sql: 'DELETE FROM radar_schedule_runs WHERE radar_id = ?', args: [radarId] },
+    { sql: 'DELETE FROM capital_flow_radars WHERE id = ? AND user_id = ?', args: [radarId, userId] },
+  ]);
+  const last = Array.isArray(result) ? result[result.length - 1] : null;
+  return !!(last && Number(last.rowsAffected) > 0);
+}
+
+function eventPayload(row, scanTime) {
+  const numeric = (value) => (Number.isFinite(Number(value)) ? Number(value) : null);
+  return {
+    symbol: String(row.symbol || '').toUpperCase(),
+    name: String(row.name || row.symbol || '').slice(0, 120),
+    price: numeric(row.price),
+    change: numeric(row.change),
+    volumeRatio: numeric(row.volumeRatio),
+    rvol: numeric(row.rvol),
+    marketCap: numeric(row.marketCap),
+    volume: numeric(row.volume),
+    avgVolume: numeric(row.avgVolume),
+    sector: row.sector ? String(row.sector).slice(0, 80) : null,
+    exchange: row.exchange ? String(row.exchange).slice(0, 40) : null,
+    scanTime,
+  };
+}
+
+function eventBody(payload, reentry) {
+  const ratio = Number.isFinite(payload.volumeRatio) ? payload.volumeRatio.toFixed(2) + 'x RVOL' : 'volume signal';
+  const price = Number.isFinite(payload.price) ? '$' + payload.price.toFixed(2) : 'price unavailable';
+  return `${reentry ? 'Re-entry' : 'New entry'}: ${payload.symbol} meets your Capital Flow Radar · ${ratio} · ${price}`;
+}
+
+async function dispatchRadarEvent(radar, event) {
+  const payload = eventPayload(event.row, event.scanTime);
+  const title = `Capital Flow Radar · ${payload.symbol}`;
+  const body = eventBody(payload, event.reentry);
+  const eventRow = await db
+    .prepare('SELECT id, notified_at FROM radar_events WHERE radar_id = ? AND symbol = ? AND scan_time = ?')
+    .get(radar.id, payload.symbol, event.scanTime);
+  if (!eventRow || eventRow.notified_at) return;
+
+  // Persist the in-app notification first. This is the durable source of
+  // truth even when a browser has no active push subscription.
+  try {
+    const notificationId = await require('./notifications').addNotification(radar.user_id, {
+      symbol: payload.symbol,
+      title,
+      body,
+      scanType: 'capitalFlowRadar',
+      results: [payload],
+    });
+
+    try {
+      require('../routes/stream').broadcastToUser(radar.user_id, 'radar-event', {
+        id: eventRow.id,
+        notificationId,
+        radarId: radar.id,
+        title,
+        body,
+        symbol: payload.symbol,
+        data: payload,
+      });
+    } catch (err) {
+      reportError(err, '[Radar SSE]');
+    }
+
+    try {
+      await require('./webPush').sendPushToUser(radar.user_id, {
+        symbol: payload.symbol,
+        title,
+        body,
+        radarId: radar.id,
+        scanTime: event.scanTime,
+      });
+    } catch (err) {
+      // Push failure is recorded but never turns a valid Radar event into a
+      // failed scan. The in-app notification remains available.
+      await db
+        .prepare('UPDATE radar_events SET notification_error = ? WHERE id = ?')
+        .run('push_delivery_failed', eventRow.id)
+        .catch(() => {});
+      reportError(err, '[Radar push]');
+    }
+
+    await db.prepare('UPDATE radar_events SET notified_at = unixepoch() WHERE id = ?').run(eventRow.id);
+  } catch (err) {
+    // A notification persistence error must not stop other Radars from being
+    // evaluated. Leave the event unmarked so an operator can retry safely,
+    // while the unique event row still prevents duplicate creation.
+    reportError(err, '[Radar notification]');
+  }
+}
+
+async function getStates(radarId) {
+  const rows = await db
+    .prepare(
+      `SELECT symbol, matches, entered_at, last_seen_at, missed_checks
+         FROM radar_states WHERE radar_id = ?`
+    )
+    .all(radarId);
+  const states = new Map();
+  rows.forEach((row) => {
+    states.set(String(row.symbol).toUpperCase(), {
+      matches: Number(row.matches) === 1,
+      enteredAt: row.entered_at || null,
+      lastSeenAt: row.last_seen_at || null,
+      missedChecks: Number(row.missed_checks || 0),
+    });
+  });
+  return states;
+}
+
+/**
+ * Evaluate the explicitly scheduled Radars against one completed scan. The
+ * caller supplies the due ids for this time slot; no provider is called here
+ * and no AI analysis is generated in the alert path.
+ */
+async function processRadarScan(results, scanTime, meta) {
+  const radarIds = [
+    ...new Set(
+      (meta && meta.radarIds ? meta.radarIds : []).map(Number).filter((id) => Number.isSafeInteger(id) && id > 0)
+    ),
+  ];
+  // Regular background scans must not evaluate Radar recipes. Only the
+  // scheduled worker supplies explicit ids, so Radar never falls back to
+  // continuous processing.
+  if (radarIds.length === 0) return [];
+  if (!Array.isArray(results) || !scanTime || Number.isNaN(new Date(scanTime).getTime())) {
+    await markRadarsUnavailable(radarIds);
+    return [];
+  }
+
+  const idPlaceholders = radarIds.map(() => '?').join(',');
+  const activeRows = await db
+    .prepare(
+      `SELECT r.*, u.email AS owner_email, u.is_pilot AS owner_is_pilot, u.tier AS owner_tier, u.created_at AS owner_created_at
+         FROM capital_flow_radars r
+         JOIN users u ON u.id = r.user_id
+        WHERE r.active = 1
+          AND r.id IN (${idPlaceholders})
+          AND r.expires_on >= ?
+        ORDER BY r.id`
+    )
+    .all(...radarIds, zonedToday());
+  const activeRadars = activeRows.filter((row) => {
+    const isConfiguredAdmin =
+      !!ADMIN_EMAIL && String(row.owner_email || '').toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    return (
+      !!row.owner_is_pilot ||
+      isConfiguredAdmin ||
+      row.owner_tier === 'elite' ||
+      (row.owner_tier === 'free' && freeTrialActive({ created_at: row.owner_created_at }))
+    );
+  });
+  const unavailableSymbols = Array.isArray(meta && meta.errors) ? meta.errors : [];
+  const emitted = [];
+
+  for (const radar of activeRadars) {
+    try {
+      const config = rowToConfig(radar);
+      const states = await getStates(config.id);
+      const evaluation = evaluateRadarTransitions(config, results, states, {
+        scanTime,
+        unavailableSymbols,
+        universe: UNIVERSE,
+      });
+      const matchedRows = new Map();
+      results.forEach((row) => {
+        const symbol = String(row && row.symbol ? row.symbol : '')
+          .trim()
+          .toUpperCase();
+        if (symbol && resultMatchesRadar(row, config, UNIVERSE)) matchedRows.set(symbol, row);
+      });
+
+      const statements = [];
+      matchedRows.forEach((row, symbol) => {
+        statements.push({
+          sql: `INSERT INTO radar_states
+                  (radar_id, symbol, matches, entered_at, last_seen_at, missed_checks)
+                VALUES (?, ?, 1, ?, ?, 0)
+                ON CONFLICT(radar_id, symbol) DO UPDATE SET
+                  matches = 1,
+                  entered_at = CASE WHEN radar_states.matches = 1 THEN radar_states.entered_at ELSE excluded.entered_at END,
+                  last_seen_at = excluded.last_seen_at,
+                  missed_checks = 0`,
+          args: [radar.id, symbol, evaluation.nextStates.get(symbol).enteredAt, evaluation.scanTime],
+        });
+      });
+
+      const exclusions = [...matchedRows.keys(), ...unavailableSymbols.map((value) => String(value).toUpperCase())];
+      const missingArgs = [REARM_AFTER_MISSED_SCANS, radar.id];
+      let missingSql = `UPDATE radar_states
+                           SET missed_checks = missed_checks + 1,
+                               matches = CASE WHEN missed_checks + 1 >= ? THEN 0 ELSE matches END
+                         WHERE radar_id = ? AND matches = 1`;
+      if (exclusions.length > 0) {
+        missingSql += ` AND symbol NOT IN (${exclusions.map(() => '?').join(',')})`;
+        missingArgs.push(...exclusions);
+      }
+      statements.push({ sql: missingSql, args: missingArgs });
+
+      const partialCount = unavailableSymbols.length;
+      statements.push({
+        sql: `UPDATE capital_flow_radars
+                 SET last_check_at = ?, last_success_at = ?, last_error = ?, last_partial_count = ?, updated_at = unixepoch()
+               WHERE id = ?`,
+        args: [
+          evaluation.scanTime,
+          evaluation.scanTime,
+          partialCount > 0 ? 'PARTIAL_DATA' : null,
+          partialCount,
+          radar.id,
+        ],
+      });
+
+      evaluation.events.forEach((event) => {
+        const payload = eventPayload(event.row, evaluation.scanTime);
+        statements.push({
+          sql: `INSERT OR IGNORE INTO radar_events
+                  (radar_id, user_id, symbol, scan_time, payload_json)
+                VALUES (?, ?, ?, ?, ?)`,
+          args: [radar.id, radar.user_id, payload.symbol, evaluation.scanTime, JSON.stringify(payload)],
+        });
+      });
+
+      await db.transaction(statements);
+      for (const event of evaluation.events) {
+        emitted.push({ radarId: config.id, userId: config.user_id, symbol: event.symbol, scanTime: event.scanTime });
+        await dispatchRadarEvent(config, event);
+      }
+    } catch (err) {
+      // One malformed user recipe or one transient DB error cannot disable
+      // every other user's Radar.
+      reportError(err, `[Radar ${radar.id}]`);
+      await db
+        .prepare(
+          `UPDATE capital_flow_radars
+              SET last_check_at = ?, last_error = 'SCAN_UNAVAILABLE', updated_at = unixepoch()
+            WHERE id = ?`
+        )
+        .run(new Date().toISOString(), radar.id)
+        .catch(() => {});
+    }
+  }
+  return emitted;
+}
+
+async function markRadarsUnavailable(radarIds) {
+  const ids = [...new Set((radarIds || []).map(Number).filter((id) => Number.isSafeInteger(id) && id > 0))];
+  if (ids.length === 0) return;
+  const placeholders = ids.map(() => '?').join(',');
+  await db
+    .prepare(
+      `UPDATE capital_flow_radars
+          SET last_check_at = ?, last_error = 'SCAN_UNAVAILABLE', last_partial_count = 0, updated_at = unixepoch()
+        WHERE active = 1 AND id IN (${placeholders})`
+    )
+    .run(new Date().toISOString(), ...ids);
+}
+
+module.exports = {
+  RADAR_TIMEZONE,
+  MAX_RADAR_SCANS_PER_DAY,
+  MIN_VOLUME_RATIO,
+  MIN_MARKET_CAP,
+  MAX_RADARS_PER_USER,
+  DATA_UNAVAILABLE_MESSAGE,
+  PARTIAL_DATA_MESSAGE,
+  normalizeRadarInput,
+  getRadarBundle,
+  getRadarRowForUser,
+  getEventRows,
+  createRadar,
+  updateRadar,
+  deleteRadar,
+  processRadarScan,
+  markRadarsUnavailable,
+  serializeRadar,
+  zonedToday,
+};

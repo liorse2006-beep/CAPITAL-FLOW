@@ -49,6 +49,7 @@ LANGUAGE — critical: automatically detect whichever language the user writes t
 
 What Capital Flow (the app) does:
 - Capital Flow: scans S&P 500 / NASDAQ 100 / by-sector for unusual trading volume (a stock trading well above its average volume).
+- Capital Flow Radar (Elite/trial): saves a Capital Flow scan recipe, runs it only at up to two user-selected times per trading day until a user-chosen expiry date, and alerts only on a verified new entry or re-entry. Missing market data must be described as unavailable, never filled in.
 - Hot Sectors: a sector-by-sector money-flow heatmap showing which sectors are seeing inflow/outflow.
 - MA Scanner: finds stocks trading near a chosen moving average (SMA9/20/50/150), daily or weekly.
 - Watchlist: users star tickers to track them, can set a volume-ratio alert threshold per ticker, and (Elite) get push notifications and a daily scheduled scan summary.

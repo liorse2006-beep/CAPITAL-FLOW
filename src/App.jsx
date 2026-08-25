@@ -142,6 +142,7 @@ function App() {
 
   /* ── SSE — real-time background scan updates ── */
   const [liveAlert, setLiveAlert] = useState(null);
+  const [radarEvent, setRadarEvent] = useState(null);
 
   // EventSource cannot send Authorization headers. Exchange the normal bearer
   // token for a short-lived opaque ticket instead of putting the user's JWT in
@@ -191,6 +192,12 @@ function App() {
         // — mirror that locally so the bell/badge stops showing it as armed
         // without waiting for a refetch.
         clearAlertLevelLocal(d.symbol);
+      },
+      'radar-event': (d) => {
+        addAlertToHistory(d.symbol, d.title, d.body);
+        setRadarEvent(d);
+        setLiveAlert(d);
+        setTimeout(() => setLiveAlert(null), 6000);
       },
     },
     eliteAccess
@@ -1460,6 +1467,7 @@ function App() {
                   onUpgrade={() => openUpgradeModal()}
                   onSignIn={() => setShowAuthModal(true)}
                   onCreateAccount={() => openAuthModal('signup')}
+                  radarEvent={radarEvent}
                 />
               }
             />

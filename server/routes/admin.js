@@ -179,6 +179,18 @@ router.delete(
       'chat_messages',
       'ai_usage',
     ].map((table) => ({ sql: `DELETE FROM ${table} WHERE user_id = ?`, args: [userId] }));
+    statements.push(
+      {
+        sql: 'DELETE FROM radar_schedule_runs WHERE radar_id IN (SELECT id FROM capital_flow_radars WHERE user_id = ?)',
+        args: [userId],
+      },
+      { sql: 'DELETE FROM radar_events WHERE user_id = ?', args: [userId] },
+      {
+        sql: 'DELETE FROM radar_states WHERE radar_id IN (SELECT id FROM capital_flow_radars WHERE user_id = ?)',
+        args: [userId],
+      },
+      { sql: 'DELETE FROM capital_flow_radars WHERE user_id = ?', args: [userId] }
+    );
     if (target.email) statements.push({ sql: 'DELETE FROM otp_codes WHERE email = ?', args: [target.email] });
     statements.push({ sql: 'DELETE FROM users WHERE id = ?', args: [userId] });
     await db.transaction(statements);

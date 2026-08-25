@@ -1,5 +1,6 @@
 const db = require('../db');
 const { reportError } = require('../utils/reportError');
+const { isMarketOpen } = require('./backgroundScan');
 
 // Runs `worker` over every item with at most `limit` in flight at once — a
 // bounded fan-out. Used so that when hundreds of users are all scheduled for
@@ -27,13 +28,13 @@ async function mapWithConcurrency(items, limit, worker) {
 // user's daily push silently never went out.
 const FIRE_WINDOW_MIN = 3;
 
-function israelNowMinutes() {
+function israelNowMinutes(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Jerusalem',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-  }).formatToParts(new Date());
+  }).formatToParts(now);
   const map = {};
   parts.forEach((p) => {
     map[p.type] = p.value;
@@ -41,13 +42,13 @@ function israelNowMinutes() {
   return Number(map.hour) * 60 + Number(map.minute);
 }
 
-function israelToday() {
+function israelToday(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Jerusalem',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).formatToParts(new Date());
+  }).formatToParts(now);
   const map = {};
   parts.forEach((p) => {
     map[p.type] = p.value;
@@ -67,6 +68,119 @@ function isDue(hhmm, nowMinutes) {
   if (t === null) return false;
   const sinceScheduled = (nowMinutes - t + 1440) % 1440;
   return sinceScheduled <= FIRE_WINDOW_MIN;
+}
+
+async function claimRadarRun(radarId, runDate, scheduledTime, nowSeconds) {
+  const result = await db
+    .prepare(
+      `INSERT OR IGNORE INTO radar_schedule_runs
+        (radar_id, run_date, scheduled_time, started_at, status)
+       VALUES (?, ?, ?, ?, 'pending')`
+    )
+    .run(radarId, runDate, scheduledTime, nowSeconds);
+  return Number(result && (result.rowsAffected ?? result.changes ?? 0)) > 0;
+}
+
+async function finishRadarRuns(runs, status, resultCount, errorCode) {
+  const completedAt = Math.floor(Date.now() / 1000);
+  await Promise.all(
+    runs.map((run) =>
+      db
+        .prepare(
+          `UPDATE radar_schedule_runs
+              SET status = ?, completed_at = ?, result_count = ?, error_code = ?
+            WHERE radar_id = ? AND run_date = ? AND scheduled_time = ?`
+        )
+        .run(
+          status,
+          completedAt,
+          resultCount == null ? null : resultCount,
+          errorCode || null,
+          run.radarId,
+          run.runDate,
+          run.scheduledTime
+        )
+    )
+  );
+}
+
+/**
+ * Runs Capital Flow Radar only at the two user-selected slots. The scan is
+ * shared for every Radar due in the same scheduler tick, while each slot is
+ * claimed idempotently in the database so restarts cannot duplicate it.
+ */
+async function runRadarScheduledScans(now = new Date(), options = {}) {
+  if (!options.ignoreMarketHours && !isMarketOpen(now)) return;
+
+  const nowMinutes = israelNowMinutes(now);
+  const runDate = israelToday(now);
+  let rows;
+  try {
+    rows = await db
+      .prepare(
+        `SELECT id, schedule_time_1, schedule_time_2, expires_on
+           FROM capital_flow_radars
+          WHERE active = 1
+            AND expires_on >= ?`
+      )
+      .all(runDate);
+  } catch (err) {
+    reportError(err, '[Radar scheduler] DB error');
+    return;
+  }
+
+  const dueRuns = [];
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  for (const row of rows) {
+    for (const scheduledTime of [row.schedule_time_1, row.schedule_time_2]) {
+      if (!scheduledTime || !isDue(scheduledTime, nowMinutes)) continue;
+      try {
+        if (await claimRadarRun(row.id, runDate, scheduledTime, nowSeconds)) {
+          dueRuns.push({ radarId: Number(row.id), runDate, scheduledTime });
+        }
+      } catch (err) {
+        reportError(err, `[Radar scheduler] claim failed for ${row.id}`);
+      }
+    }
+  }
+  if (dueRuns.length === 0) return;
+
+  const radarIds = [...new Set(dueRuns.map((run) => run.radarId))];
+  let scanResult;
+  try {
+    const { ALL_TICKERS } = require('../../tickers');
+    const { scanTickers } = require('./scanner');
+    scanResult = await scanTickers(ALL_TICKERS, {
+      minVolumeRatio: 1.5,
+      minMarketCap: 500_000_000,
+    });
+  } catch (err) {
+    reportError(err, '[Radar scheduler] scan failed');
+    try {
+      await require('./radar').markRadarsUnavailable(radarIds);
+      await finishRadarRuns(dueRuns, 'failed', null, 'SCAN_UNAVAILABLE');
+    } catch (stateError) {
+      reportError(stateError, '[Radar scheduler] failed to persist unavailable state');
+    }
+    return;
+  }
+
+  const scanTime = new Date().toISOString();
+  try {
+    await require('./radar').processRadarScan(scanResult.results || [], scanTime, {
+      errors: scanResult.errors || [],
+      radarIds,
+    });
+    await finishRadarRuns(dueRuns, 'completed', (scanResult.results || []).length, null);
+  } catch (err) {
+    reportError(err, '[Radar scheduler] processing failed');
+    try {
+      await require('./radar').markRadarsUnavailable(radarIds);
+      await finishRadarRuns(dueRuns, 'failed', null, 'PROCESSING_FAILED');
+    } catch (stateError) {
+      reportError(stateError, '[Radar scheduler] failed to persist processing failure');
+    }
+  }
 }
 
 // One scan per scan_type per tick, shared by every user scheduled for that
@@ -173,6 +287,7 @@ async function notifyScheduledUser(sched, results) {
 }
 
 async function runScheduledScans() {
+  await runRadarScheduledScans();
   const nowMinutes = israelNowMinutes();
   const oneHourAgo = Math.floor(Date.now() / 1000) - 3600;
 
@@ -223,4 +338,12 @@ function startScheduledScanRunner() {
   setInterval(runScheduledScans, 60 * 1000).unref();
 }
 
-module.exports = { startScheduledScanRunner, runScheduledScans, isDue, FIRE_WINDOW_MIN, israelToday };
+module.exports = {
+  startScheduledScanRunner,
+  runScheduledScans,
+  runRadarScheduledScans,
+  isDue,
+  FIRE_WINDOW_MIN,
+  israelToday,
+  israelNowMinutes,
+};

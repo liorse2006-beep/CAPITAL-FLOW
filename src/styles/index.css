@@ -7196,9 +7196,7 @@ html.a11y-highlight-links a {
 .auth-overlay {
   position: fixed;
   inset: 0;
-  background:
-    radial-gradient(circle at 50% 34%, rgba(245, 158, 11, 0.08), transparent 34%),
-    rgba(3, 3, 3, 0.82);
+  background: radial-gradient(circle at 50% 34%, rgba(245, 158, 11, 0.08), transparent 34%), rgba(3, 3, 3, 0.82);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(10px);
   display: flex;
@@ -8278,6 +8276,8 @@ html.a11y-highlight-links a {
    Scanner and Watchlist) — terminal readout style. ── */
 .alert-modal {
   width: 340px;
+  direction: rtl;
+  text-align: right;
 }
 .alert-modal-header {
   display: flex;
@@ -8285,6 +8285,7 @@ html.a11y-highlight-links a {
   justify-content: center;
   gap: 8px;
   margin-bottom: 14px;
+  direction: ltr;
 }
 .alert-modal-dot {
   width: 7px;
@@ -8303,24 +8304,32 @@ html.a11y-highlight-links a {
   text-transform: uppercase;
   color: var(--text-0);
   margin: 0;
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 .alert-modal-desc {
   font-size: 12px;
   color: var(--text-2);
   line-height: 1.6;
   margin: 0 0 14px;
+  direction: rtl;
+  text-align: right;
 }
 .alert-modal-sublabel {
   display: block;
   font-size: 12px;
   color: var(--text-1);
   margin-bottom: 8px;
+  direction: rtl;
+  text-align: right;
 }
 .alert-modal-current-price {
   font-size: 11.5px;
   color: var(--text-2);
   text-align: center;
   margin: -4px 0 14px;
+  direction: rtl;
+  unicode-bidi: plaintext;
 }
 .alert-modal-back {
   display: block;
@@ -8332,6 +8341,8 @@ html.a11y-highlight-links a {
   padding: 0;
   margin-bottom: 12px;
   transition: color var(--transition);
+  direction: rtl;
+  text-align: right;
 }
 .alert-modal-back:hover {
   color: var(--accent);
@@ -8391,6 +8402,8 @@ html.a11y-highlight-links a {
   font-weight: 700;
   color: var(--accent);
   line-height: 1;
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 .alert-readout-lbl {
   font-family: var(--mono);
@@ -8430,15 +8443,27 @@ html.a11y-highlight-links a {
 .alert-input-wrap {
   position: relative;
   margin-bottom: 14px;
+  direction: ltr;
+}
+.alert-number-input {
+  direction: ltr;
+  padding: 10px 12px 10px 44px;
 }
 .alert-input-suffix {
   position: absolute;
-  right: 12px;
+  left: 12px;
   top: 50%;
   transform: translateY(-50%);
   font-size: 13px;
   color: var(--text-2);
   pointer-events: none;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.alert-symbol,
+.alert-modal bdi {
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
 .news-terminal-header {
@@ -11020,5 +11045,949 @@ html.a11y-highlight-links a {
 @media (prefers-reduced-motion: reduce) {
   .tier-matrix-cta {
     transition: none;
+  }
+}
+
+/* ── Scanner result direction: Signal Rail × Terminal Ledger ──────────────
+   The result content stays unchanged. These rules only give the Capital Flow
+   and MA Scanner result surfaces the selected row-card hierarchy: a compact
+   terminal palette, a quiet amber rail, and a stronger visual read for the
+   values users scan first. The class is intentionally opt-in so Watchlist,
+   Fundamentals, scheduled-result modals, and other tables keep their own UI. */
+.signal-rail-results {
+  background: var(--bg-0);
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border-strong));
+  border-radius: 10px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2);
+}
+
+.signal-rail-results .table-bar {
+  padding: 14px 18px 13px;
+  background: linear-gradient(180deg, var(--accent-dim), transparent 85%);
+  border-bottom-color: color-mix(in srgb, var(--accent) 18%, var(--border));
+}
+
+.signal-rail-results .table-bar h2 {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.signal-rail-results .table-bar-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.01em;
+}
+
+.signal-rail-results .table-new-scan-btn {
+  height: 30px;
+  min-width: 94px;
+  border: 1px solid var(--accent-vivid);
+  border-radius: 4px;
+  background: var(--accent-vivid);
+  color: #1a1200;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition:
+    filter var(--transition),
+    transform var(--transition);
+}
+
+.signal-rail-results .table-new-scan-btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.signal-rail-results .table-wrap {
+  padding: 0 12px 12px;
+}
+
+.signal-rail-results .table-wrap table {
+  border-collapse: separate;
+  border-spacing: 0 6px;
+}
+
+.signal-rail-results .table-wrap thead th {
+  padding: 10px 12px 8px;
+  background: var(--bg-0);
+  border-bottom-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+}
+
+.signal-rail-results .table-wrap tbody tr {
+  background: var(--bg-1);
+  border-bottom: 0;
+}
+
+.signal-rail-results .table-wrap tbody tr:hover {
+  background: transparent;
+}
+
+.signal-rail-results .table-wrap tbody td {
+  padding: 12px 12px;
+  background: var(--bg-1);
+  border-top: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.signal-rail-results .table-wrap tbody td:first-child {
+  border-left: 3px solid var(--accent);
+  border-top-left-radius: 7px;
+  border-bottom-left-radius: 7px;
+  padding-left: 9px;
+}
+
+.signal-rail-results .table-wrap tbody td:last-child {
+  border-right: 1px solid var(--border-strong);
+  border-top-right-radius: 7px;
+  border-bottom-right-radius: 7px;
+}
+
+.signal-rail-results .table-wrap tbody tr:hover td {
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg-1));
+  border-top-color: color-mix(in srgb, var(--accent) 30%, var(--border-strong));
+  border-bottom-color: color-mix(in srgb, var(--accent) 30%, var(--border-strong));
+}
+
+.signal-rail-results .col-rank {
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.signal-rail-results .col-ticker {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+
+.signal-rail-results .col-name {
+  font-size: 11px;
+}
+
+.signal-rail-results .col-pos,
+.signal-rail-results .col-neg {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.signal-rail-results .vol-hero,
+.signal-rail-results .vol-ratio-pill {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.signal-rail-results .sector-chip {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: var(--accent-dim);
+  color: var(--text-2);
+}
+
+.signal-rail-results .mobile-cards {
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-0);
+}
+
+.signal-rail-results .mobile-card {
+  background: var(--bg-1);
+  border-color: var(--border-strong);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.14);
+  padding: 13px 14px;
+}
+
+.signal-rail-results .mobile-card.ratio-hot,
+.signal-rail-results .mobile-card.ratio-warm,
+.signal-rail-results .mobile-card.ratio-ok {
+  border-left-color: var(--accent);
+}
+
+.signal-rail-results .mobile-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong));
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg-1));
+}
+
+.signal-rail-results .mobile-card-mid {
+  margin: 10px 0 11px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.signal-rail-results .mobile-card-price {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.signal-rail-results .mobile-card-change {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.signal-rail-results .mobile-card-bottom {
+  gap: 11px 18px;
+}
+
+.signal-rail-results .mobile-card-stat-label {
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.signal-rail-results .mobile-card-ticker {
+  font-family: var(--mono);
+  letter-spacing: 0.06em;
+}
+
+@media (max-width: 768px) {
+  .signal-rail-results {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .signal-rail-results .table-bar {
+    padding: 14px;
+  }
+
+  .signal-rail-results .table-new-scan-btn {
+    min-width: 88px;
+  }
+
+  .signal-rail-results .mobile-cards {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 8px;
+  }
+
+  .signal-rail-results .mobile-card {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .signal-rail-results .mobile-card-top {
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .signal-rail-results .mobile-card-top > div:first-child {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  .signal-rail-results .mobile-card-top > div:last-child {
+    flex: 0 0 auto;
+    gap: 2px !important;
+  }
+
+  .signal-rail-results .mobile-card-name {
+    min-width: 0;
+  }
+
+  .signal-rail-results .mobile-card-bottom {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+    gap: 10px 14px;
+  }
+
+  .signal-rail-results .mobile-card-stat,
+  .signal-rail-results .mobile-card-stat-value,
+  .signal-rail-results .mobile-card-vol,
+  .signal-rail-results .mobile-card-sector {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .signal-rail-results .mobile-card-stat-value,
+  .signal-rail-results .mobile-card-vol {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .signal-rail-results .mobile-card-sector {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .signal-rail-results .table-bar {
+    gap: 10px;
+    padding-inline: 12px;
+  }
+
+  .signal-rail-results .table-bar h2 {
+    font-size: 12px;
+  }
+
+  .signal-rail-results .table-new-scan-btn {
+    min-width: 80px;
+    padding-inline: 9px;
+    font-size: 9px;
+  }
+
+  .signal-rail-results .mobile-card {
+    padding-inline: 12px;
+  }
+}
+
+/* ── Capital Flow Radar ────────────────────────────────────────────────────
+   A restrained signal surface: one warm accent, clear state language, and
+   no card-wall treatment. The component is intentionally self-contained so
+   it remains legible on the scanner's compact mobile layout as well. */
+.cfr-radar-panel {
+  position: relative;
+  overflow: hidden;
+  margin: 24px 0 28px;
+  padding: 22px 24px 20px;
+  border: 1px solid rgba(245, 158, 11, 0.26);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(245, 158, 11, 0.09), transparent 34%),
+    linear-gradient(135deg, rgba(19, 16, 12, 0.96), rgba(15, 15, 15, 0.98));
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.18),
+    inset 0 1px rgba(255, 255, 255, 0.035);
+}
+
+.cfr-radar-panel::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 220px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.65));
+  content: '';
+}
+
+.cfr-radar-topline,
+.cfr-radar-item-head,
+.cfr-radar-meta,
+.cfr-radar-controls,
+.cfr-radar-proof,
+.cfr-radar-locked,
+.cfr-radar-setup-actions {
+  display: flex;
+  align-items: center;
+}
+
+.cfr-radar-topline {
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.cfr-radar-brand {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 13px;
+}
+
+.cfr-radar-icon {
+  display: grid;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid rgba(245, 158, 11, 0.38);
+  border-radius: 12px;
+  color: var(--accent, #f59e0b);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.cfr-radar-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.cfr-radar-kicker,
+.cfr-radar-setup-label,
+.cfr-radar-events-label {
+  display: block;
+  color: var(--accent, #f59e0b);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  line-height: 1.3;
+}
+
+.cfr-radar-brand h3 {
+  margin: 4px 0 0;
+  color: var(--text, #f5f5f5);
+  font-size: clamp(18px, 2.1vw, 24px);
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+.cfr-radar-state,
+.cfr-radar-data-status {
+  flex: 0 0 auto;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: var(--accent, #f59e0b);
+  background: rgba(245, 158, 11, 0.08);
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.cfr-radar-state.on,
+.cfr-radar-data-status.ready {
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #4ade80;
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.cfr-radar-state.locked,
+.cfr-radar-data-status.unavailable,
+.cfr-radar-data-status.partial {
+  border-color: rgba(248, 113, 113, 0.32);
+  color: #fca5a5;
+  background: rgba(248, 113, 113, 0.06);
+}
+
+.cfr-radar-copy {
+  max-width: 720px;
+  margin: 14px 0 16px 53px;
+  color: var(--text-2, #a1a1aa);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.cfr-radar-proof {
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 0 0 18px 53px;
+  color: var(--text-3, #71717a);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.cfr-radar-proof b {
+  color: var(--text-2, #a1a1aa);
+  font-weight: 700;
+}
+
+.cfr-radar-locked {
+  justify-content: space-between;
+  gap: 16px;
+  margin-left: 53px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-2, #a1a1aa);
+  font-size: 12px;
+}
+
+.cfr-radar-cta,
+.cfr-radar-activate,
+.cfr-radar-refresh,
+.cfr-radar-cancel,
+.cfr-radar-controls button {
+  cursor: pointer;
+  border: 1px solid rgba(245, 158, 11, 0.38);
+  border-radius: 9px;
+  font-family: inherit;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.cfr-radar-cta {
+  min-height: 38px;
+  padding: 0 16px;
+  color: #17120a;
+  background: var(--accent, #f59e0b);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.cfr-radar-cta:hover,
+.cfr-radar-activate:hover {
+  transform: translateY(-1px);
+}
+
+.cfr-radar-item {
+  margin-top: 12px;
+  padding: 14px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.cfr-radar-item-head {
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.cfr-radar-item-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text, #f5f5f5);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cfr-radar-dot,
+.cfr-radar-live-pulse {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #71717a;
+}
+
+.cfr-radar-dot.active,
+.cfr-radar-live-pulse {
+  background: #22c55e;
+  box-shadow:
+    0 0 0 4px rgba(34, 197, 94, 0.11),
+    0 0 12px rgba(34, 197, 94, 0.5);
+}
+
+.cfr-radar-dot.paused {
+  background: #71717a;
+}
+
+.cfr-radar-recipe {
+  margin: 5px 0 0 15px;
+  color: var(--text-3, #71717a);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+}
+
+.cfr-radar-recipe span,
+.cfr-radar-current-recipe span {
+  margin: 0 5px;
+  color: rgba(245, 158, 11, 0.75);
+}
+
+.cfr-radar-data-status {
+  border: 0;
+  padding: 0;
+  color: var(--text-3, #71717a);
+  background: transparent;
+  font-size: 8px;
+}
+
+.cfr-radar-data-status.ready {
+  color: #4ade80;
+  background: transparent;
+}
+
+.cfr-radar-data-status.waiting {
+  color: var(--accent, #f59e0b);
+  background: transparent;
+}
+
+.cfr-radar-data-status.expired,
+.cfr-radar-data-status.needs_schedule {
+  color: var(--accent, #f59e0b);
+  background: transparent;
+}
+
+.cfr-radar-meta {
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  margin: 14px 0 0;
+  color: var(--text-3, #71717a);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+}
+
+.cfr-radar-meta b {
+  margin-left: 5px;
+  color: var(--text-2, #a1a1aa);
+  font-weight: 500;
+}
+
+.cfr-radar-data-note,
+.cfr-radar-form-error,
+.cfr-radar-error {
+  margin-top: 12px;
+  color: #fca5a5;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.cfr-radar-data-note span {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  margin-right: 5px;
+  place-items: center;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  border-radius: 50%;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+}
+
+.cfr-radar-data-note.partial {
+  color: var(--accent, #f59e0b);
+}
+
+.cfr-radar-events {
+  margin-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 11px;
+}
+
+.cfr-radar-events-label {
+  margin-bottom: 6px;
+  color: var(--text-3, #71717a);
+  font-size: 8px;
+}
+
+.cfr-radar-event {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+  color: var(--text-3, #71717a);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+}
+
+.cfr-radar-event:last-child {
+  border-bottom: 0;
+}
+
+.cfr-radar-event-symbol {
+  color: var(--text, #f5f5f5);
+  font-weight: 700;
+}
+
+.cfr-radar-event-data {
+  overflow: hidden;
+  color: var(--accent, #f59e0b);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cfr-radar-event time {
+  color: var(--text-3, #71717a);
+}
+
+.cfr-radar-controls {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.cfr-radar-controls button,
+.cfr-radar-refresh,
+.cfr-radar-cancel {
+  min-height: 29px;
+  padding: 0 10px;
+  color: var(--text-2, #a1a1aa);
+  background: transparent;
+  font-size: 10px;
+}
+
+.cfr-radar-controls button:hover,
+.cfr-radar-refresh:hover,
+.cfr-radar-cancel:hover {
+  border-color: rgba(245, 158, 11, 0.55);
+  color: var(--accent, #f59e0b);
+}
+
+.cfr-radar-controls button.danger:hover {
+  border-color: rgba(248, 113, 113, 0.55);
+  color: #fca5a5;
+}
+
+.cfr-radar-activate {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 14px;
+  color: var(--accent, #f59e0b);
+  background: rgba(245, 158, 11, 0.055);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.cfr-radar-activate:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.cfr-radar-plus {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid rgba(245, 158, 11, 0.42);
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.cfr-radar-setup {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.045);
+}
+
+.cfr-radar-setup input {
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 10px 11px;
+  color: var(--text, #f5f5f5);
+  background: rgba(0, 0, 0, 0.25);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.cfr-radar-setup input:focus {
+  border-color: rgba(245, 158, 11, 0.65);
+}
+
+.cfr-radar-schedule-picker {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cfr-radar-schedule-heading {
+  color: var(--text-2, #a1a1aa);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cfr-radar-schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 8px;
+}
+
+.cfr-radar-schedule-grid label {
+  display: block;
+  min-width: 0;
+  color: var(--text-3, #71717a);
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+}
+
+.cfr-radar-schedule-grid label span {
+  display: block;
+}
+
+.cfr-radar-schedule-grid label em {
+  color: var(--text-3, #71717a);
+  font-style: normal;
+  opacity: 0.8;
+}
+
+.cfr-radar-schedule-grid input {
+  margin-top: 6px;
+  color-scheme: dark;
+}
+
+.cfr-radar-schedule-note {
+  margin: 9px 0 0;
+  color: var(--text-3, #71717a);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.cfr-radar-current-recipe {
+  margin-top: 9px;
+  color: var(--text-3, #71717a);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+}
+
+.cfr-radar-setup-actions {
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.cfr-radar-live-event {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 12px;
+  color: #86efac;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+}
+
+.cfr-radar-refresh {
+  display: block;
+  margin: 12px 0 0 auto;
+  border-color: transparent;
+  padding-inline: 5px;
+  font-size: 9px;
+}
+
+.cfr-radar-refresh:disabled,
+.cfr-radar-cta:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+@media (max-width: 640px) {
+  .cfr-radar-panel {
+    margin: 18px 0 22px;
+    padding: 17px 14px 15px;
+    border-radius: 14px;
+  }
+
+  .cfr-radar-topline {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .cfr-radar-brand {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .cfr-radar-icon {
+    flex-basis: 34px;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .cfr-radar-icon svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .cfr-radar-kicker {
+    font-size: 8px;
+    letter-spacing: 0.13em;
+  }
+
+  .cfr-radar-brand h3 {
+    font-size: 17px;
+    line-height: 1.2;
+  }
+
+  .cfr-radar-state {
+    padding: 6px 7px;
+    font-size: 7px;
+    letter-spacing: 0.08em;
+  }
+
+  .cfr-radar-copy,
+  .cfr-radar-proof,
+  .cfr-radar-locked {
+    margin-left: 0;
+  }
+
+  .cfr-radar-copy {
+    margin-top: 13px;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .cfr-radar-proof {
+    gap: 7px 12px;
+    font-size: 9px;
+  }
+
+  .cfr-radar-locked {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-top: 13px;
+    font-size: 11px;
+  }
+
+  .cfr-radar-locked .cfr-radar-cta {
+    width: 100%;
+  }
+
+  .cfr-radar-item {
+    padding: 12px;
+  }
+
+  .cfr-radar-item-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .cfr-radar-data-status {
+    margin-left: 15px;
+  }
+
+  .cfr-radar-meta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 9px;
+  }
+
+  .cfr-radar-event {
+    grid-template-columns: 58px minmax(0, 1fr);
+    padding: 3px 0;
+  }
+
+  .cfr-radar-event time {
+    grid-column: 2;
+    font-size: 8px;
+  }
+
+  .cfr-radar-controls {
+    justify-content: flex-start;
+  }
+
+  .cfr-radar-setup-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .cfr-radar-setup-actions .cfr-radar-cta,
+  .cfr-radar-setup-actions .cfr-radar-cancel {
+    width: 100%;
+  }
+
+  .cfr-radar-schedule-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cfr-radar-expiry-field {
+    grid-column: 1 / -1;
   }
 }

@@ -4,6 +4,7 @@ import ScheduleScan from '../shared/ScheduleScan';
 import NewsModal from '../shared/NewsModal';
 import ElectricBorder from '../shared/ElectricBorder';
 import SectorPickerModal from './SectorPickerModal';
+import CapitalFlowRadar from './CapitalFlowRadar';
 import useSmoothProgress from '../../hooks/useSmoothProgress';
 import { fmt, friendlyError, alertLevelLabel } from '../../utils/format';
 
@@ -193,6 +194,7 @@ export default function ScannerPage({
   onSignIn,
   openChart,
   onCreateAccount,
+  radarEvent,
 }) {
   const [currentTime, setCurrentTime] = useState(null);
   const [showSectorModal, setShowSectorModal] = useState(false);
@@ -465,6 +467,21 @@ export default function ScannerPage({
             )}
           </div>
 
+          <CapitalFlowRadar
+            user={user}
+            getToken={getToken}
+            isElite={isElite}
+            trialActive={trialActive}
+            onUpgrade={onUpgrade}
+            onSignIn={onSignIn}
+            scanMode={scanMode}
+            selectedSectors={selectedSectors}
+            minRatio={minRatio}
+            minCap={minCap}
+            minVol={minVol}
+            radarEvent={radarEvent}
+          />
+
           <div className="scan-mode-options-head">
             <span>Available universes</span>
             <span>{SCAN_MODE_OPTIONS.length + ' scan modes'}</span>
@@ -613,6 +630,23 @@ export default function ScannerPage({
         </div>
       )}
 
+      {results && !scanning && (
+        <CapitalFlowRadar
+          user={user}
+          getToken={getToken}
+          isElite={isElite}
+          trialActive={trialActive}
+          onUpgrade={onUpgrade}
+          onSignIn={onSignIn}
+          scanMode={scanMode}
+          selectedSectors={selectedSectors}
+          minRatio={minRatio}
+          minCap={minCap}
+          minVol={minVol}
+          radarEvent={radarEvent}
+        />
+      )}
+
       {/* Preset panel */}
       {filtersUnlocked && showPresetPanel && (
         <div className="preset-panel">
@@ -670,7 +704,7 @@ export default function ScannerPage({
             </ElectricBorder>
             <span className="scanner-brand-word">CAPITAL FLOW</span>
           </div>
-          <div className="table-card">
+          <div className="table-card signal-rail-results">
             <div className="table-bar">
               <div>
                 <h2>{sorted.length + ' Result' + (sorted.length !== 1 ? 's' : '')}</h2>

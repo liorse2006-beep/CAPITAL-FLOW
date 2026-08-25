@@ -271,6 +271,7 @@ app.use('/api', require('./routes/fundamentals'));
 app.use('/api', require('./routes/scanQuota'));
 app.use('/api', require('./routes/push'));
 app.use('/api', require('./routes/scheduledScans'));
+app.use('/api', require('./routes/radar'));
 app.use('/api', require('./routes/visits'));
 app.use('/api', require('./routes/feedback'));
 app.use('/api', require('./routes/coupons'));

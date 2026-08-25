@@ -203,6 +203,87 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_scheduled_scans_user ON scheduled_scans(user_id);
     CREATE INDEX IF NOT EXISTS idx_scheduled_scans_time ON scheduled_scans(scan_time, active);
 
+    -- Capital Flow Radar recipes are durable, per-user monitoring rules. The
+    -- worker evaluates them against the shared market scan and never needs a
+    -- browser tab or a user-specific provider request to remain active.
+    CREATE TABLE IF NOT EXISTS capital_flow_radars (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id             INTEGER NOT NULL,
+      name                TEXT    NOT NULL,
+      mode                TEXT    NOT NULL CHECK(mode IN ('all','sp500','nasdaq100','sectors')),
+      selected_sectors_json TEXT NOT NULL DEFAULT '[]',
+      min_volume_ratio    REAL    NOT NULL,
+      min_market_cap      REAL    NOT NULL,
+      min_volume          REAL    NOT NULL DEFAULT 0,
+      min_price           REAL    NOT NULL DEFAULT 0,
+      max_price           REAL    NOT NULL DEFAULT 0,
+      schedule_time_1     TEXT,
+      schedule_time_2     TEXT,
+      expires_on          TEXT,
+      active              INTEGER NOT NULL DEFAULT 1,
+      last_check_at       TEXT,
+      last_success_at     TEXT,
+      last_error          TEXT,
+      last_partial_count  INTEGER NOT NULL DEFAULT 0,
+      created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_capital_flow_radars_user ON capital_flow_radars(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_capital_flow_radars_active ON capital_flow_radars(active, updated_at);
+
+    -- One state row per Radar/symbol. missed_checks prevents an intermittent
+    -- quote gap from immediately re-arming a signal.
+    CREATE TABLE IF NOT EXISTS radar_states (
+      radar_id      INTEGER NOT NULL,
+      symbol        TEXT    NOT NULL,
+      matches       INTEGER NOT NULL DEFAULT 0,
+      entered_at    TEXT,
+      last_seen_at  TEXT,
+      missed_checks INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (radar_id, symbol)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_radar_states_radar ON radar_states(radar_id, matches);
+
+    -- The unique key makes event creation idempotent for a scan cycle. The
+    -- payload contains only the validated, non-secret market fields needed
+    -- to explain the alert later and no raw provider response is stored.
+    CREATE TABLE IF NOT EXISTS radar_events (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      radar_id            INTEGER NOT NULL,
+      user_id             INTEGER NOT NULL,
+      symbol              TEXT    NOT NULL,
+      scan_time           TEXT    NOT NULL,
+      payload_json        TEXT    NOT NULL,
+      created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+      notified_at         INTEGER,
+      notification_error  TEXT,
+      UNIQUE (radar_id, symbol, scan_time)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_radar_events_user ON radar_events(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_radar_events_radar ON radar_events(radar_id, created_at);
+
+    -- Each selected daily slot is claimed once per Jerusalem calendar date.
+    -- This prevents the one-minute scheduler from running the same Radar
+    -- twice inside the delivery window, including after a process restart.
+    CREATE TABLE IF NOT EXISTS radar_schedule_runs (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      radar_id        INTEGER NOT NULL,
+      run_date        TEXT    NOT NULL,
+      scheduled_time  TEXT    NOT NULL,
+      started_at      INTEGER NOT NULL DEFAULT (unixepoch()),
+      completed_at    INTEGER,
+      status          TEXT    NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','completed','failed')),
+      result_count    INTEGER,
+      error_code      TEXT,
+      UNIQUE (radar_id, run_date, scheduled_time)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_radar_schedule_runs_due ON radar_schedule_runs(run_date, status, scheduled_time);
+    CREATE INDEX IF NOT EXISTS idx_radar_schedule_runs_radar ON radar_schedule_runs(radar_id, run_date);
+
     CREATE TABLE IF NOT EXISTS processed_webhook_events (
       event_id     TEXT    PRIMARY KEY,
       processed_at INTEGER NOT NULL DEFAULT (unixepoch()),
@@ -540,6 +621,9 @@ async function initDb() {
     `ALTER TABLE processed_webhook_events ADD COLUMN completed_at INTEGER`,
     `ALTER TABLE status_checks ADD COLUMN cycle_id TEXT`,
     `ALTER TABLE status_checks ADD COLUMN final_result INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE capital_flow_radars ADD COLUMN schedule_time_1 TEXT`,
+    `ALTER TABLE capital_flow_radars ADD COLUMN schedule_time_2 TEXT`,
+    `ALTER TABLE capital_flow_radars ADD COLUMN expires_on TEXT`,
   ];
 
   for (const sql of migrations) {

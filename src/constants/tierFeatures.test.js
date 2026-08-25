@@ -25,9 +25,19 @@ describe('tier entitlement matrix', () => {
   it('retains explicit excluded values for the post-purchase checklist', () => {
     const premium = tierFeatureChecklist('premium');
     expect(premium.find((row) => row.label === 'Capi — your AI market mentor')).toMatchObject({ included: false });
+    expect(premium.find((row) => row.label === 'Capital Flow Radar')).toMatchObject({ included: false });
     expect(premium.find((row) => row.label === 'News & AI summaries')).toMatchObject({
       included: true,
       value: 'Signed-in access',
+    });
+  });
+
+  it('keeps Capital Flow Radar limited to the trial and Elite', () => {
+    expect(TIER_ROWS.find((row) => row.label === 'Capital Flow Radar')).toEqual({
+      label: 'Capital Flow Radar',
+      free: '7-day trial',
+      premium: false,
+      elite: 'Included',
     });
   });
 });

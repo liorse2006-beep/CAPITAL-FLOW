@@ -58,6 +58,7 @@ describe('WelcomeTierModal', () => {
       'Real-time alert stream',
       'Daily scheduled scan',
       'Custom watchlist alerts',
+      'Capital Flow Radar',
     ]);
     expect(screen.getByText('Also included with Elite')).toBeInTheDocument();
   });
@@ -70,7 +71,7 @@ describe('WelcomeTierModal', () => {
     expect(screen.getByText('Push notifications')).toBeInTheDocument();
     expect(container.querySelector('.welcome-tier-features-excluded')).toBeNull();
     expect(screen.queryByText('Also included with Elite')).not.toBeInTheDocument();
-    expect(container.querySelectorAll('.welcome-tier-features li').length).toBe(11);
+    expect(container.querySelectorAll('.welcome-tier-features li').length).toBe(12);
   });
 
   it('shows a "confirming" indicator when not yet confirmed, and hides it once confirmed', () => {
