@@ -125,6 +125,20 @@ describe('Topbar tier badge', () => {
     expect(onOpenScheduling).toHaveBeenCalledOnce();
   });
 
+  it('places the red Log Out action inside the profile menu', () => {
+    const logout = vi.fn();
+    render(<Topbar {...baseProps({ user: { id: 1, email: 'user@example.com' }, logout })} />);
+
+    expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
+    const logoutItem = screen.getByRole('menuitem', { name: 'Log Out' });
+    expect(logoutItem).toHaveClass('topbar-profile-menu-item--danger');
+
+    fireEvent.click(logoutItem);
+    expect(logout).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('menu', { name: 'Profile menu' })).not.toBeInTheDocument();
+  });
+
   it('uses the Google profile image when the account provides one', () => {
     render(
       <Topbar

@@ -594,6 +594,11 @@ button.topbar-premium-badge:hover {
   gap: 7px;
   padding-top: 3px;
 }
+.topbar-profile-menu-divider {
+  height: 1px;
+  margin: 8px 5px 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
 .topbar-profile-menu-group {
   display: grid;
   gap: 2px;
@@ -662,6 +667,22 @@ button.topbar-premium-badge:hover {
 .topbar-profile-menu-item:focus-visible .topbar-profile-menu-arrow {
   color: var(--accent);
   transform: translateX(2px);
+}
+.topbar-profile-menu-item--danger {
+  color: #f87171;
+}
+.topbar-profile-menu-item--danger .topbar-profile-menu-arrow {
+  color: rgba(248, 113, 113, 0.68);
+}
+.topbar-profile-menu-item--danger:hover,
+.topbar-profile-menu-item--danger:focus-visible {
+  border-color: rgba(248, 113, 113, 0.34);
+  background: rgba(248, 113, 113, 0.1);
+  color: #ff8b8b;
+}
+.topbar-profile-menu-item--danger:hover .topbar-profile-menu-arrow,
+.topbar-profile-menu-item--danger:focus-visible .topbar-profile-menu-arrow {
+  color: #ff8b8b;
 }
 
 /* ── Profile modal ── */

@@ -199,11 +199,6 @@ export default function Topbar({
             </>
           )}
           {user && (
-            <button className="topbar-logout-btn" onClick={logout} title="Sign out">
-              Log Out
-            </button>
-          )}
-          {user && (
             <div className="topbar-profile-wrap" ref={profileMenuRef}>
               <button
                 className="topbar-profile-trigger"
@@ -253,6 +248,24 @@ export default function Topbar({
                       </div>
                     ))}
                   </div>
+                  <div className="topbar-profile-menu-divider" />
+                  <button
+                    className="topbar-profile-menu-item topbar-profile-menu-item--danger"
+                    type="button"
+                    role="menuitem"
+                    aria-label="Log Out"
+                    onClick={() => {
+                      setProfileMenuOpen(false);
+                      logout();
+                    }}
+                  >
+                    <span className="topbar-profile-menu-item-copy">
+                      <strong>Log Out</strong>
+                    </span>
+                    <span className="topbar-profile-menu-arrow" aria-hidden="true">
+                      ↗
+                    </span>
+                  </button>
                 </div>
               )}
             </div>
