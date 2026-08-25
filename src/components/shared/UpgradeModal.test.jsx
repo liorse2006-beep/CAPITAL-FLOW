@@ -49,6 +49,10 @@ describe('UpgradeModal', () => {
     renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
     expect(screen.getByText('$14.90')).toBeInTheDocument();
     expect(screen.getByText('$29.90')).toBeInTheDocument();
+    expect(screen.queryByText('Free', { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText('Have a coupon code?', { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('COUPON CODE')).not.toBeInTheDocument();
+    expect(screen.getAllByText('One-time purchase · Lifetime access')).toHaveLength(2);
   });
 
   it('shows the post-trial value proposition with only the paid paths', () => {

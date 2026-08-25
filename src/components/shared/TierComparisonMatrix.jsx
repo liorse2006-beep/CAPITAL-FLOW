@@ -2,6 +2,7 @@ import React from 'react';
 import { TIER_COLUMNS, TIER_ROWS } from '../../constants/tierFeatures';
 
 const TIER_RANK = { free: 0, premium: 1, elite: 2 };
+const UPGRADE_COLUMNS = TIER_COLUMNS.filter((column) => column.key !== 'free');
 
 function CheckIcon() {
   return (
@@ -75,10 +76,10 @@ export default function TierComparisonMatrix({ userTier = 'free', trialEnded = f
   return (
     <div className="tier-matrix-scroll">
       <table className="tier-matrix">
-        <caption className="sr-only">Free, Premium, and Elite feature comparison</caption>
+        <caption className="sr-only">Premium and Elite feature comparison</caption>
         <colgroup>
           <col className="tier-matrix-feature-col" />
-          {TIER_COLUMNS.map((column) => (
+          {UPGRADE_COLUMNS.map((column) => (
             <col key={column.key} />
           ))}
         </colgroup>
@@ -87,7 +88,7 @@ export default function TierComparisonMatrix({ userTier = 'free', trialEnded = f
             <th scope="col" className="tier-matrix-feature-heading">
               What&apos;s included
             </th>
-            {TIER_COLUMNS.map((column) => (
+            {UPGRADE_COLUMNS.map((column) => (
               <th
                 key={column.key}
                 scope="col"
@@ -96,9 +97,7 @@ export default function TierComparisonMatrix({ userTier = 'free', trialEnded = f
                 {column.featured && <span className="tier-matrix-popular">Most popular</span>}
                 <span className="tier-matrix-plan-name">{column.label}</span>
                 <strong className="tier-matrix-plan-price">{column.price}</strong>
-                <span className={'tier-matrix-plan-details ' + (column.key === 'free' ? 'is-trial' : 'is-lifetime')}>
-                  {column.details}
-                </span>
+                <span className="tier-matrix-plan-details is-lifetime">{column.details}</span>
               </th>
             ))}
           </tr>
@@ -109,7 +108,7 @@ export default function TierComparisonMatrix({ userTier = 'free', trialEnded = f
               <th scope="row" className="tier-matrix-feature-name">
                 {row.label}
               </th>
-              {TIER_COLUMNS.map((column) => (
+              {UPGRADE_COLUMNS.map((column) => (
                 <td key={column.key} className={column.featured ? 'is-featured' : ''}>
                   <AccessCell value={row[column.key]} />
                 </td>
@@ -122,7 +121,7 @@ export default function TierComparisonMatrix({ userTier = 'free', trialEnded = f
             <th scope="row" className="tier-matrix-action-label">
               Access
             </th>
-            {TIER_COLUMNS.map((column) => (
+            {UPGRADE_COLUMNS.map((column) => (
               <td key={column.key} className={column.featured ? 'is-featured' : ''}>
                 <PlanAction
                   column={column}

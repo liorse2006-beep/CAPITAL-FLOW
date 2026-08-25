@@ -19,18 +19,16 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
   const panelRef = useModalA11y(onClose);
   const [payingTier, setPayingTier] = useState(null);
   const [payError, setPayError] = useState('');
-  const [couponCode, setCouponCode] = useState('');
   const [checkoutSession, setCheckoutSession] = useState(null); // { sessionId, tierKey, promoCode, discountPercent } | null
 
   async function goToCheckout(tierKey) {
     setPayError('');
     setPayingTier(tierKey);
     try {
-      const trimmedCoupon = couponCode.trim();
       const res = await fetch('/api/checkout/transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
-        body: JSON.stringify({ tier: tierKey, ...(trimmedCoupon ? { couponCode: trimmedCoupon } : {}) }),
+        body: JSON.stringify({ tier: tierKey }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not start checkout');
@@ -94,9 +92,7 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
             {TIER_LABEL[checkoutSession.tierKey]} checkout
           </h2>
           <p className="checkout-embed-promo-hint">
-            {checkoutSession.promoCode
-              ? `Coupon "${checkoutSession.promoCode}" applied — if it doesn't show as active below, you can also re-enter it directly in the secure checkout.`
-              : 'If you have a promo code, a field for it will appear inside the secure checkout below — it only shows up while a promo is actually active, so don’t worry if you don’t see one.'}
+            Promo codes can be entered directly inside the secure Whop checkout below.
           </p>
           <EmbeddedCheckout
             sessionId={checkoutSession.sessionId}
@@ -168,20 +164,6 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
           payingTier={payingTier}
           onCheckout={goToCheckout}
         />
-        <div className="coupon-input-row">
-          <label htmlFor="upgrade-coupon-input" className="coupon-input-label">
-            Have a coupon code?
-          </label>
-          <input
-            id="upgrade-coupon-input"
-            className="coupon-input"
-            type="text"
-            placeholder="COUPON CODE"
-            value={couponCode}
-            onChange={(e) => setCouponCode(e.target.value)}
-            autoCapitalize="characters"
-          />
-        </div>
         <div className="upgrade-trust-row">
           <span>Secure checkout</span>
           <span className="upgrade-trust-separator" />
@@ -190,7 +172,7 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
           <span>No recurring billing</span>
         </div>
         {payError && (
-          <p className="coupon-apply-msg coupon-apply-error" style={{ textAlign: 'center', marginTop: 12 }}>
+          <p className="upgrade-payment-error" role="alert">
             {payError}
           </p>
         )}
