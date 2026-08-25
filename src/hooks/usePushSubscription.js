@@ -16,14 +16,23 @@ function urlBase64ToUint8Array(base64String) {
 export default function usePushSubscription() {
   const { getToken } = useAuth();
   var pushSupported = typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window;
+  var notificationApiSupported = typeof window !== 'undefined' && 'Notification' in window;
 
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushError, setPushError] = useState(null);
+  const [notificationPermission, setNotificationPermission] = useState(function () {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
+    return Notification.permission;
+  });
 
   const checkSubscribed = useCallback(
     function () {
-      if (!pushSupported) return Promise.resolve(false);
+      if (notificationApiSupported) setNotificationPermission(Notification.permission);
+      if (!pushSupported) {
+        setPushEnabled(false);
+        return Promise.resolve(false);
+      }
       return navigator.serviceWorker.ready
         .then(function (reg) {
           return reg.pushManager.getSubscription();
@@ -36,19 +45,26 @@ export default function usePushSubscription() {
           return false;
         });
     },
-    [pushSupported]
+    [notificationApiSupported, pushSupported]
   );
 
   const enablePush = useCallback(
     function () {
+      if (!notificationApiSupported) {
+        const error = new Error('Notifications are not supported in this browser');
+        setPushError(error.message);
+        return Promise.reject(error);
+      }
       setPushBusy(true);
       setPushError(null);
       return Notification.requestPermission()
         .then(function (perm) {
+          setNotificationPermission(perm);
           if (perm !== 'granted') throw new Error('Notification permission denied');
           return fetch('/api/push/vapid-public-key');
         })
         .then(function (r) {
+          if (!r.ok) throw new Error('Could not load notification settings');
           return r.json();
         })
         .then(function (d) {
@@ -64,6 +80,9 @@ export default function usePushSubscription() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
             body: JSON.stringify(sub),
+          }).then(function (r) {
+            if (!r.ok) throw new Error('Could not save notification access');
+            return r;
           });
         })
         .then(function () {
@@ -77,7 +96,7 @@ export default function usePushSubscription() {
           setPushBusy(false);
         });
     },
-    [getToken]
+    [getToken, notificationApiSupported]
   );
 
   const disablePush = useCallback(
@@ -88,19 +107,26 @@ export default function usePushSubscription() {
           return reg.pushManager.getSubscription();
         })
         .then(function (sub) {
-          if (!sub) return;
+          if (!sub) {
+            setPushEnabled(false);
+            return;
+          }
           return fetch('/api/push/unsubscribe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
             body: JSON.stringify({ endpoint: sub.endpoint }),
-          }).then(function () {
+          }).then(function (r) {
+            if (!r.ok) throw new Error('Could not disable notifications');
             return sub.unsubscribe();
           });
         })
         .then(function () {
           setPushEnabled(false);
         })
-        .catch(function () {})
+        .catch(function (e) {
+          setPushError(e.message || 'Could not disable notifications');
+          throw e;
+        })
         .finally(function () {
           setPushBusy(false);
         });
@@ -108,5 +134,15 @@ export default function usePushSubscription() {
     [getToken]
   );
 
-  return { pushSupported, pushEnabled, pushBusy, pushError, checkSubscribed, enablePush, disablePush };
+  return {
+    pushSupported,
+    notificationApiSupported,
+    notificationPermission,
+    pushEnabled,
+    pushBusy,
+    pushError,
+    checkSubscribed,
+    enablePush,
+    disablePush,
+  };
 }

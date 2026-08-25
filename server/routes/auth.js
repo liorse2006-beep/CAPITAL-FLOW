@@ -85,6 +85,37 @@ function isConfiguredAdmin(email) {
   return !!ADMIN_EMAIL && String(email || '').toLowerCase() === ADMIN_EMAIL.toLowerCase();
 }
 
+// Keep the browser-facing user object deliberately allow-listed. The auth
+// middleware reads the complete database row because server-side feature
+// gates need it, but password hashes, provider identifiers and internal
+// conversation/session fields must never cross the API boundary.
+function serializePublicUser(user) {
+  const effective = withEffectivePremium(user || {});
+  return {
+    id: effective.id,
+    email: effective.email,
+    avatar_url: effective.avatar_url || null,
+    auth_provider: effective.google_id ? 'Google' : effective.password_hash ? 'Email and password' : 'Unknown',
+    created_at: effective.created_at || null,
+    last_login_at: effective.last_login_at || null,
+    is_verified: !!effective.is_verified,
+    is_premium: !!effective.is_premium,
+    is_pilot: !!effective.is_pilot,
+    is_admin: isConfiguredAdmin(effective.email),
+    tier: effective.tier || 'free',
+    is_elite: effective.tier === 'elite',
+    elite_access: eliteAccess(effective),
+    pilot_terms_accepted_at: effective.pilot_terms_accepted_at || null,
+    notification_time: effective.notification_time || null,
+    free_scan_count: effective.free_scan_count || 0,
+    free_scan_used_capital_flow: effective.free_scan_used_capital_flow || 0,
+    free_scan_used_ma_scanner: effective.free_scan_used_ma_scanner || 0,
+    free_scan_used_sector_moving: effective.free_scan_used_sector_moving || 0,
+    premium_scan_count: effective.premium_scan_count || 0,
+    premium_scan_window_start: effective.premium_scan_window_start || null,
+  };
+}
+
 // Google profile photos are the only external avatar source accepted here.
 // Keep the value constrained to Google's HTTPS image hosts so a profile row
 // can never turn into an arbitrary remote URL that the client would render.
@@ -302,15 +333,7 @@ router.post('/verify-otp', otpLimiter, async (req, res) => {
     res.json({
       success: true,
       token: accessToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        avatar_url: user.avatar_url || null,
-        is_premium: user.is_premium,
-        is_pilot: !!user.is_pilot,
-        is_admin: isConfiguredAdmin(user.email),
-        tier: user.tier || 'free',
-      },
+      user: serializePublicUser(user),
     });
   } catch (err) {
     reportError(err, '[verify-otp]');
@@ -379,15 +402,7 @@ router.post('/login', authLimiter, async (req, res) => {
     res.json({
       success: true,
       token: accessToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        avatar_url: user.avatar_url || null,
-        is_premium: user.is_premium,
-        is_pilot: !!user.is_pilot,
-        is_admin: isConfiguredAdmin(user.email),
-        tier: user.tier || 'free',
-      },
+      user: serializePublicUser(user),
     });
   } catch (err) {
     reportError(err, '[login]');
@@ -450,15 +465,7 @@ router.post('/reset-password', otpLimiter, async (req, res) => {
     res.json({
       success: true,
       token: accessToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        avatar_url: user.avatar_url || null,
-        is_premium: user.is_premium,
-        is_pilot: !!user.is_pilot,
-        is_admin: isConfiguredAdmin(user.email),
-        tier: user.tier || 'free',
-      },
+      user: serializePublicUser(user),
     });
   } catch (err) {
     reportError(err, '[reset-password]');
@@ -500,27 +507,7 @@ router.post('/logout', sessionLimiter, requireAuth, async (req, res) => {
 
 /* ── Get current user ── */
 router.get('/me', requireAuth, (req, res) => {
-  const { session_version: _sessionVersion, ...safeUser } = req.user; // internal-only, never sent to the client
-  const user = {
-    ...safeUser,
-    // SQLite stores these as 0/1 integers — coerce to real booleans so the
-    // client never has to guard against a falsy-but-truthy-looking 0
-    // leaking into a `value && <Component/>` JSX expression (React renders
-    // a bare 0 as the literal text "0").
-    is_verified: !!safeUser.is_verified,
-    is_premium: !!safeUser.is_premium,
-    is_blocked: !!safeUser.is_blocked,
-    is_pilot: !!safeUser.is_pilot,
-    is_admin: isConfiguredAdmin(req.user.email),
-    tier: safeUser.tier || 'free',
-    is_elite: safeUser.tier === 'elite',
-    // True for Elite AND for any free account still inside its 7-day trial —
-    // the trial grants the complete Elite feature set (Capi, push, alerts,
-    // scheduled scans). The single flag every client-side Elite-feature gate
-    // reads, so trial access can't drift between features.
-    elite_access: eliteAccess(req.user),
-  };
-  res.json({ user });
+  res.json({ user: serializePublicUser(req.user) });
 });
 
 /* ── Delete account — irreversible, cascades every table that stores data
@@ -610,3 +597,6 @@ router.post('/accept-pilot-terms', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.setRefreshCookie = setRefreshCookie;
+module.exports.clearRefreshCookie = clearRefreshCookie;
+module.exports.serializePublicUser = serializePublicUser;

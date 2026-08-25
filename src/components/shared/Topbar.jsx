@@ -74,6 +74,19 @@ export default function Topbar({
   onRemoveAlert,
   onOpenNotification,
   onToggleNotifications,
+  getToken,
+  onPasswordChanged,
+  onAccountDeleted,
+  onOpenScheduling,
+  canNotify,
+  pushSupported,
+  notificationApiSupported,
+  notificationPermission,
+  pushEnabled,
+  pushBusy,
+  pushError,
+  onEnablePush,
+  onDisablePush,
   setPage,
 }) {
   const isAdmin = !!(user && user.is_admin);
@@ -198,7 +211,29 @@ export default function Topbar({
         </div>
       </header>
 
-      {profileModalOpen && <ProfileModal user={user} onClose={() => setProfileModalOpen(false)} />}
+      {profileModalOpen && (
+        <ProfileModal
+          user={user}
+          getToken={getToken}
+          onClose={() => setProfileModalOpen(false)}
+          onPasswordChanged={onPasswordChanged}
+          onAccountDeleted={onAccountDeleted}
+          onOpenScheduling={() => {
+            setProfileModalOpen(false);
+            onOpenScheduling?.();
+          }}
+          canNotify={canNotify}
+          pushSupported={pushSupported}
+          notificationApiSupported={notificationApiSupported}
+          notificationPermission={notificationPermission}
+          pushEnabled={pushEnabled}
+          pushBusy={pushBusy}
+          pushError={pushError}
+          onEnablePush={onEnablePush}
+          onDisablePush={onDisablePush}
+          onUpgrade={onUpgrade}
+        />
+      )}
 
       <nav className="nav-tabs">
         <button className={'nav-tab ' + (page === 'scanner' ? 'active' : '')} onClick={() => setPage('scanner')}>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import useScheduledScans from '../../hooks/useScheduledScans';
 
 const SCAN_LABELS = {
@@ -40,6 +40,19 @@ export default function ScheduleScan({ scanType, user, onUpgrade, onSignIn }) {
   const [repeatMode, setRepeatMode] = useState('once');
   const [dateInput, setDateInput] = useState(todayLocalDate());
   const [adding, setAdding] = useState(false);
+
+  // The profile's single "Scan Scheduling" action opens the scheduler that
+  // already belongs to the active scanner. A DOM event keeps this component
+  // reusable across the three scanner pages without duplicating its API/UI.
+  useEffect(() => {
+    function openFromProfile(event) {
+      const requestedType = event.detail && event.detail.scanType;
+      if (requestedType && requestedType !== scanType) return;
+      if (user) setOpen(true);
+    }
+    window.addEventListener('capital-flow:open-schedule', openFromProfile);
+    return () => window.removeEventListener('capital-flow:open-schedule', openFromProfile);
+  }, [scanType, user]);
 
   async function handleAdd(e) {
     e.preventDefault();

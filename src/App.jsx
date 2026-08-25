@@ -37,8 +37,17 @@ const LandingPage = lazy(() => import('./pages/LandingPage'));
 
 /* ── Main App ── */
 function App() {
-  const { user, logout, getToken, authError, clearAuthError, pendingGoogleToken, acceptPilotTerms, refreshUser } =
-    useAuth();
+  const {
+    user,
+    logout,
+    login,
+    getToken,
+    authError,
+    clearAuthError,
+    pendingGoogleToken,
+    acceptPilotTerms,
+    refreshUser,
+  } = useAuth();
   const storageScope = user ? String(user.id) : 'guest';
   function scopedStorageKey(name) {
     return name + ':' + storageScope;
@@ -60,6 +69,28 @@ function App() {
   function setPage(p) {
     navigate(p === 'scanner' ? '/' : '/' + p);
   }
+
+  // Profile has one scheduling action, but the product already owns a real
+  // scheduler beside each scanner. Navigate to the relevant scanner and ask
+  // its mounted ScheduleScan component to open its existing modal.
+  const [profileScheduleRequest, setProfileScheduleRequest] = useState(null);
+  function openSchedulingFromProfile() {
+    const target = page === 'ma' ? 'ma' : page === 'flow' ? 'flow' : 'scanner';
+    const scanType = target === 'ma' ? 'maScanner' : target === 'flow' ? 'sectorMoving' : 'capitalFlow';
+    setProfileScheduleRequest({ target, scanType, id: Date.now() });
+    if (page !== target) setPage(target);
+  }
+
+  useEffect(() => {
+    if (!profileScheduleRequest || page !== profileScheduleRequest.target) return undefined;
+    const timer = window.setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent('capital-flow:open-schedule', { detail: { scanType: profileScheduleRequest.scanType } })
+      );
+      setProfileScheduleRequest(null);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [page, profileScheduleRequest]);
 
   // Manual pageview tracking — capture_pageview is off in src/analytics.js
   // specifically so this is the one place it happens, on every route change.
@@ -585,8 +616,17 @@ function App() {
      closed. Delivery is driven server-side (server/services/webPush.js)
      against the same thresholds set above. Subscribing is opened up during
      the free trial (canNotify). ── */
-  var { pushSupported, pushEnabled, pushBusy, pushError, checkSubscribed, enablePush, disablePush } =
-    usePushSubscription();
+  var {
+    pushSupported,
+    notificationApiSupported,
+    notificationPermission,
+    pushEnabled,
+    pushBusy,
+    pushError,
+    checkSubscribed,
+    enablePush,
+    disablePush,
+  } = usePushSubscription();
 
   useEffect(
     function () {
@@ -1324,6 +1364,19 @@ function App() {
             onRemoveAlert={removeAlertFromHistory}
             onOpenNotification={openScheduledNotification}
             onToggleNotifications={toggleNotifications}
+            getToken={getToken}
+            onPasswordChanged={(token, userData) => login(token, userData)}
+            onAccountDeleted={logout}
+            onOpenScheduling={openSchedulingFromProfile}
+            canNotify={canNotify}
+            pushSupported={pushSupported}
+            notificationApiSupported={notificationApiSupported}
+            notificationPermission={notificationPermission}
+            pushEnabled={pushEnabled}
+            pushBusy={pushBusy}
+            pushError={pushError}
+            onEnablePush={enablePush}
+            onDisablePush={disablePush}
             setPage={setPage}
           />
 

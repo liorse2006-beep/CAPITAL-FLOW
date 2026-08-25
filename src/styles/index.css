@@ -669,6 +669,334 @@ button.topbar-premium-badge:hover {
   justify-content: center;
 }
 
+/* ── Profile workspace ── */
+.profile-overlay {
+  padding: 16px;
+}
+.profile-modal {
+  width: min(680px, calc(100vw - 24px));
+  max-width: 680px;
+  max-height: min(92vh, 820px);
+  padding: 28px 24px 20px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.profile-modal-identity {
+  flex: 0 0 auto;
+  padding: 0 28px 18px;
+  text-align: center;
+}
+.profile-modal-identity .profile-modal-avatar {
+  margin: 0 auto 12px;
+}
+.profile-modal-email-head {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 4px 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.profile-modal-section {
+  padding: 18px 0;
+  border-top: 1px solid var(--border);
+}
+.profile-modal-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.profile-modal-section-eyebrow {
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 800;
+  font-family: var(--mono);
+  letter-spacing: 0.16em;
+}
+.profile-modal-section-head h3 {
+  margin: 0;
+  color: var(--text-1);
+  font-size: 14px;
+  font-weight: 800;
+  font-family: var(--font);
+}
+.profile-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+.profile-stat {
+  min-width: 0;
+  min-height: 70px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.018);
+}
+.profile-stat .profile-modal-label {
+  display: block;
+  margin-bottom: 8px;
+}
+.profile-stat strong {
+  display: block;
+  color: var(--text-1);
+  font-size: 13px;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-stat small {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-3);
+  font-size: 9px;
+  line-height: 1.3;
+}
+.profile-modal-detail-list {
+  display: grid;
+  gap: 7px;
+}
+.profile-modal-detail-list .profile-modal-detail {
+  min-height: 42px;
+  padding: 9px 11px;
+}
+.profile-modal-loading,
+.profile-modal-inline-error,
+.profile-modal-info-box {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.profile-modal-inline-error,
+.profile-modal-form-message.error {
+  color: #fca5a5;
+}
+.profile-modal-info-box {
+  display: grid;
+  gap: 4px;
+}
+.profile-modal-info-box strong {
+  color: var(--text-1);
+  font-size: 11px;
+}
+.profile-modal-form-message {
+  margin: 8px 0 0;
+  font-size: 10px;
+  line-height: 1.4;
+}
+.profile-modal-form-message.success {
+  color: #4ade80;
+}
+.profile-password-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.015);
+}
+.profile-form-heading {
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 800;
+}
+.profile-password-input {
+  width: 100%;
+  min-height: 40px;
+  margin: 0;
+  padding: 0 11px;
+  font-size: 12px;
+}
+.profile-preference-list {
+  display: grid;
+  gap: 8px;
+}
+.profile-preference-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.015);
+}
+.profile-preference-row > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.profile-preference-row strong {
+  color: var(--text-1);
+  font-size: 12px;
+}
+.profile-preference-row span {
+  color: var(--text-3);
+  font-size: 10px;
+  line-height: 1.4;
+}
+.profile-preference-row small {
+  color: #fca5a5;
+  font-size: 10px;
+}
+.profile-secondary-btn,
+.profile-primary-btn,
+.profile-danger-btn {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: var(--radius-xs);
+  font-size: 10px;
+  font-weight: 800;
+  font-family: var(--font);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    color 0.15s,
+    opacity 0.15s;
+}
+.profile-secondary-btn {
+  border: 1px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text-1);
+}
+.profile-secondary-btn:hover,
+.profile-secondary-btn:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+.profile-secondary-btn--active {
+  border-color: rgba(74, 222, 128, 0.5);
+  color: #4ade80;
+}
+.profile-primary-btn {
+  border: 1px solid var(--accent-vivid);
+  background: var(--accent-vivid);
+  color: #1a1200;
+}
+.profile-danger-btn {
+  border: 1px solid rgba(239, 68, 68, 0.55);
+  background: rgba(239, 68, 68, 0.08);
+  color: #fca5a5;
+}
+.profile-danger-btn:hover,
+.profile-danger-btn:focus-visible {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fecaca;
+}
+.profile-secondary-btn:disabled,
+.profile-primary-btn:disabled,
+.profile-danger-btn:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+.profile-danger-link {
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fca5a5;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.profile-danger-link:hover,
+.profile-danger-link:focus-visible {
+  color: #fecaca;
+  text-decoration: underline;
+}
+.profile-privacy-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.profile-confirm-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.78);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+.profile-confirm-dialog {
+  width: min(100%, 390px);
+  padding: 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-1);
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.64);
+}
+.profile-confirm-dialog h3 {
+  margin: 8px 0;
+  color: var(--text-0);
+  font-size: 17px;
+}
+.profile-confirm-dialog p {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.profile-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+@media (max-width: 640px) {
+  .profile-overlay {
+    align-items: flex-start;
+    padding: 10px;
+  }
+  .profile-modal {
+    width: 100%;
+    max-width: none;
+    max-height: calc(100vh - 20px);
+    padding: 24px 14px 14px;
+  }
+  .profile-modal-identity {
+    padding-inline: 20px;
+  }
+  .profile-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .profile-preference-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .profile-preference-row .profile-secondary-btn {
+    width: 100%;
+  }
+  .profile-privacy-actions > button {
+    flex: 1 1 150px;
+  }
+}
+
 /* The single primary action on each scanner page (Run Scan, Re-scan,
    Refresh Flow) — solid fill, matching the app-wide rule that solid gold
    is reserved for the one primary action per view; everything secondary

@@ -264,6 +264,7 @@ app.use('/', require('./routes/status'));
 // API routes (all mounted at /api)
 app.use('/api', apiLimiter); // floor: every API route is throttled, not just the ones tuned individually
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api', require('./routes/account'));
 app.use('/api/scan', scanLimiter); // throttle the expensive volume scan
 app.use('/api', require('./routes/scan'));
 app.use('/api', require('./routes/sectors'));
