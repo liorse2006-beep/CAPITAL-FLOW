@@ -359,7 +359,12 @@ body {
   box-shadow: 0 0 12px rgba(163, 230, 53, 0.3);
 }
 button.topbar-premium-badge {
-  font: inherit;
+  /* Keep the original badge typography after changing the span into a button. */
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
   cursor: pointer;
   appearance: none;
   transition:
