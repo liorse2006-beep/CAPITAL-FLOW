@@ -1824,6 +1824,7 @@ button.topbar-premium-badge:hover {
   transition: all 0.25s ease;
   overflow: hidden;
   text-align: center;
+  min-width: 0;
 }
 .sector-card-glow {
   position: absolute;
@@ -1875,22 +1876,21 @@ button.topbar-premium-badge:hover {
   color: var(--text-1);
 }
 .sector-card-name {
-  /* .sector-card is a column flexbox with align-items:center — without an
-     explicit width, a flex child shrink-wraps to its own content's natural
-     (unwrapped) size instead of the card's actual width, so a long name
-     like "Communication Services" never wraps at all; it just overflows the
-     card equally on both sides and gets clipped by .sector-card's own
-     overflow:hidden, chopping off the first/last letters. */
+  /* Keep the label inside the card even when a sector name is long. The
+     modal grid is responsive, while this block is allowed to grow vertically
+     instead of clipping or forcing a horizontal overflow. */
   width: 100%;
+  min-width: 0;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.2px;
   line-height: 1.2;
   min-height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 .sector-hint {
   font-size: 11px;
@@ -1971,7 +1971,7 @@ button.topbar-premium-badge:hover {
 }
 .sector-modal-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr));
   gap: 10px;
 }
 .sector-modal-grid .sector-card {
@@ -2029,7 +2029,7 @@ button.topbar-premium-badge:hover {
 }
 @media (max-width: 700px) {
   .sector-modal-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
   }
 }
 @media (prefers-reduced-motion: reduce) {
