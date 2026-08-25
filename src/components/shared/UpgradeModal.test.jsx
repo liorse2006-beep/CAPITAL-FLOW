@@ -53,6 +53,8 @@ describe('UpgradeModal', () => {
     expect(screen.queryByText('Have a coupon code?', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText('COUPON CODE')).not.toBeInTheDocument();
     expect(screen.getAllByText('One-time purchase · Lifetime access')).toHaveLength(2);
+    expect(screen.getAllByText('Full market scans')).toHaveLength(2);
+    expect(screen.getAllByText('Capi — your AI market mentor')).toHaveLength(2);
   });
 
   it('shows the post-trial value proposition with only the paid paths', () => {

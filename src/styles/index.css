@@ -10618,11 +10618,9 @@ html.a11y-highlight-links a {
 }
 
 /* ── Compact plan comparison matrix ──────────────────────────────────────
-   The plan selector is deliberately a table rather than three independent
-   cards: every feature stays on one aligned row and every tier gets an
-   explicit check/cross state. The scroll wrapper is the only horizontal
-   overflow on small screens, so the document itself never becomes wider than
-   the viewport. */
+   Each paid tier is a self-contained card. Every card repeats the complete
+   feature list so users can evaluate one plan without looking across a
+   separate feature column. */
 .pricing-cards-modal {
   width: min(1040px, 96vw);
   max-width: 96vw;
@@ -10634,103 +10632,48 @@ html.a11y-highlight-links a {
 .tier-matrix-scroll {
   width: 100%;
   margin-top: 20px;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
   border: 1px solid var(--border-strong);
   border-radius: 9px;
   background: rgba(5, 5, 5, 0.48);
-  scrollbar-color: var(--border-strong) transparent;
+  padding: 14px;
 }
 .tier-matrix {
   width: 100%;
-  min-width: 820px;
-  table-layout: fixed;
-  border-collapse: separate;
-  border-spacing: 0;
-  text-align: left;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
-.tier-matrix-feature-col {
-  width: 28%;
+.tier-matrix-plan {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.012);
 }
-.tier-matrix th,
-.tier-matrix td {
-  border-bottom: 1px solid var(--border);
-}
-.tier-matrix thead th {
-  border-bottom-color: var(--border-strong);
-}
-.tier-matrix tbody tr:last-child th,
-.tier-matrix tbody tr:last-child td {
-  border-bottom: 1px solid var(--border-strong);
-}
-.tier-matrix-feature-heading,
-.tier-matrix-feature-name,
-.tier-matrix-action-label {
-  padding: 13px 15px;
-  color: var(--text-2);
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.tier-matrix-feature-heading {
-  color: var(--text-3);
-  vertical-align: bottom;
-}
-.tier-matrix-feature-name {
-  color: var(--text-1);
-  font-family: var(--font);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0;
-  line-height: 1.35;
-  text-transform: none;
-}
-.tier-matrix-plan-heading,
-.tier-matrix td {
-  border-left: 1px solid var(--border);
+.tier-matrix-plan.is-featured {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.025));
+  box-shadow: 0 0 22px rgba(245, 158, 11, 0.08);
 }
 .tier-matrix-plan-heading {
   position: relative;
-  min-height: 150px;
-  padding: 17px 14px 15px;
-  vertical-align: top;
+  min-height: 146px;
+  padding: 18px 16px 16px;
+  border-bottom: 1px solid var(--border-strong);
   background: rgba(255, 255, 255, 0.012);
 }
-.tier-matrix-plan-heading.is-featured,
-.tier-matrix td.is-featured {
-  background: linear-gradient(180deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.025));
-}
-.tier-matrix-plan-heading.is-featured {
-  border-left-color: rgba(245, 158, 11, 0.45);
-  border-right: 1px solid rgba(245, 158, 11, 0.45);
-}
-.tier-matrix td.is-featured {
-  border-left-color: rgba(245, 158, 11, 0.22);
-  border-right: 1px solid rgba(245, 158, 11, 0.22);
-}
-.tier-matrix-plan-name,
-.tier-matrix-plan-price,
-.tier-matrix-plan-access,
-.tier-matrix-plan-billing {
-  display: block;
-}
 .tier-matrix-plan-name {
-  color: var(--text-1);
+  margin: 0;
+  color: var(--tier-premium);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.tier-matrix-plan-heading:nth-child(2) .tier-matrix-plan-name {
-  color: var(--tier-premium);
-}
-.tier-matrix-plan-heading:nth-child(3) .tier-matrix-plan-name {
-  color: var(--accent);
-}
-.tier-matrix-plan-heading.is-featured .tier-matrix-plan-name {
+.tier-matrix-plan.is-featured .tier-matrix-plan-name {
   color: var(--accent);
 }
 .tier-matrix-plan-price {
@@ -10773,28 +10716,46 @@ html.a11y-highlight-links a {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.tier-matrix tbody th,
-.tier-matrix tbody td {
-  height: 48px;
-  vertical-align: middle;
+.tier-matrix-feature-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
-.tier-matrix tbody tr:nth-child(even) th,
-.tier-matrix tbody tr:nth-child(even) td {
-  background-color: rgba(255, 255, 255, 0.012);
-}
-.tier-matrix tbody tr:nth-child(even) td.is-featured {
-  background-color: rgba(245, 158, 11, 0.045);
-}
-.tier-matrix td {
-  padding: 9px 12px;
-  color: var(--text-1);
-}
-.tier-matrix-access {
+.tier-matrix-feature {
   display: flex;
   align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 54px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.tier-matrix-feature:nth-child(even) {
+  background: rgba(255, 255, 255, 0.012);
+}
+.tier-matrix-plan.is-featured .tier-matrix-feature:nth-child(even) {
+  background: rgba(245, 158, 11, 0.045);
+}
+.tier-matrix-feature-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-1);
+  font-family: var(--font);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.35;
+  text-transform: none;
+}
+.tier-matrix-access {
+  display: inline-flex;
+  flex: 0 1 44%;
+  align-items: flex-start;
+  justify-content: flex-end;
   gap: 7px;
   min-width: 0;
   line-height: 1.25;
+  text-align: right;
 }
 .tier-matrix-status {
   display: inline-flex;
@@ -10808,7 +10769,7 @@ html.a11y-highlight-links a {
 .tier-matrix-access.is-included .tier-matrix-status {
   color: var(--green);
 }
-.tier-matrix td.is-featured .tier-matrix-access.is-included .tier-matrix-status {
+.tier-matrix-plan.is-featured .tier-matrix-access.is-included .tier-matrix-status {
   color: var(--accent);
 }
 .tier-matrix-access.is-excluded {
@@ -10824,15 +10785,13 @@ html.a11y-highlight-links a {
   font-size: 9.5px;
   overflow-wrap: anywhere;
 }
-.tier-matrix-action-label {
-  color: var(--text-3);
-  border-bottom: none;
-}
-.tier-matrix tfoot th,
-.tier-matrix tfoot td {
-  padding: 13px 12px 14px;
-  border-bottom: none;
-  vertical-align: middle;
+.tier-matrix-plan-footer {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  margin-top: auto;
+  padding: 13px 14px 14px;
+  border-top: 1px solid var(--border-strong);
 }
 .tier-matrix-current {
   display: inline-flex;
@@ -10874,20 +10833,29 @@ html.a11y-highlight-links a {
   }
   .tier-matrix-scroll {
     margin-top: 16px;
+    padding: 10px;
   }
   .tier-matrix {
-    min-width: 790px;
-  }
-  .tier-matrix-feature-col {
-    width: 25%;
-  }
-  .tier-matrix-feature-heading,
-  .tier-matrix-feature-name,
-  .tier-matrix-action-label {
-    padding-inline: 11px;
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
   .tier-matrix-plan-heading {
-    padding-inline: 11px;
+    min-height: 136px;
+    padding: 16px 13px 14px;
+  }
+  .tier-matrix-feature {
+    gap: 10px;
+    padding-inline: 12px;
+  }
+  .tier-matrix-feature-name {
+    font-size: 11px;
+  }
+  .tier-matrix-access {
+    flex-basis: 48%;
+  }
+  .tier-matrix-plan-details {
+    white-space: normal;
+    text-align: center;
   }
 }
 

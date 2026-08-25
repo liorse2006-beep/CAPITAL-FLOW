@@ -72,69 +72,57 @@ function PlanAction({ column, userTier, trialEnded, payingTier, onCheckout }) {
   );
 }
 
+function PlanCard({ column, userTier, trialEnded, payingTier, onCheckout }) {
+  const headingId = 'tier-matrix-' + column.key + '-heading';
+
+  return (
+    <article className={'tier-matrix-plan ' + (column.featured ? 'is-featured' : '')} aria-labelledby={headingId}>
+      <header className="tier-matrix-plan-heading">
+        {column.featured && <span className="tier-matrix-popular">Most popular</span>}
+        <h3 id={headingId} className="tier-matrix-plan-name">
+          {column.label}
+        </h3>
+        <strong className="tier-matrix-plan-price">{column.price}</strong>
+        <span className="tier-matrix-plan-details">{column.details}</span>
+      </header>
+
+      <ul className="tier-matrix-feature-list">
+        {TIER_ROWS.map((row) => (
+          <li key={row.label} className="tier-matrix-feature">
+            <span className="tier-matrix-feature-name">{row.label}</span>
+            <AccessCell value={row[column.key]} />
+          </li>
+        ))}
+      </ul>
+
+      <footer className="tier-matrix-plan-footer">
+        <PlanAction
+          column={column}
+          userTier={userTier}
+          trialEnded={trialEnded}
+          payingTier={payingTier}
+          onCheckout={onCheckout}
+        />
+      </footer>
+    </article>
+  );
+}
+
 export default function TierComparisonMatrix({ userTier = 'free', trialEnded = false, payingTier, onCheckout }) {
   return (
     <div className="tier-matrix-scroll">
-      <table className="tier-matrix">
-        <caption className="sr-only">Premium and Elite feature comparison</caption>
-        <colgroup>
-          <col className="tier-matrix-feature-col" />
-          {UPGRADE_COLUMNS.map((column) => (
-            <col key={column.key} />
-          ))}
-        </colgroup>
-        <thead>
-          <tr>
-            <th scope="col" className="tier-matrix-feature-heading">
-              What&apos;s included
-            </th>
-            {UPGRADE_COLUMNS.map((column) => (
-              <th
-                key={column.key}
-                scope="col"
-                className={'tier-matrix-plan-heading ' + (column.featured ? 'is-featured' : '')}
-              >
-                {column.featured && <span className="tier-matrix-popular">Most popular</span>}
-                <span className="tier-matrix-plan-name">{column.label}</span>
-                <strong className="tier-matrix-plan-price">{column.price}</strong>
-                <span className="tier-matrix-plan-details is-lifetime">{column.details}</span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {TIER_ROWS.map((row) => (
-            <tr key={row.label}>
-              <th scope="row" className="tier-matrix-feature-name">
-                {row.label}
-              </th>
-              {UPGRADE_COLUMNS.map((column) => (
-                <td key={column.key} className={column.featured ? 'is-featured' : ''}>
-                  <AccessCell value={row[column.key]} />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr>
-            <th scope="row" className="tier-matrix-action-label">
-              Access
-            </th>
-            {UPGRADE_COLUMNS.map((column) => (
-              <td key={column.key} className={column.featured ? 'is-featured' : ''}>
-                <PlanAction
-                  column={column}
-                  userTier={userTier}
-                  trialEnded={trialEnded}
-                  payingTier={payingTier}
-                  onCheckout={onCheckout}
-                />
-              </td>
-            ))}
-          </tr>
-        </tfoot>
-      </table>
+      <div className="tier-matrix" role="group" aria-label="Premium and Elite feature comparison">
+        {UPGRADE_COLUMNS.map((column) => (
+          <PlanCard
+            key={column.key}
+            column={column}
+            userTier={userTier}
+            trialEnded={trialEnded}
+            payingTier={payingTier}
+            onCheckout={onCheckout}
+          />
+        ))}
+      </div>
     </div>
   );
 }
