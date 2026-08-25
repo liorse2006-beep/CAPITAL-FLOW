@@ -1566,13 +1566,33 @@ function App() {
       )}
 
       {liveAlert && (
-        <div className="live-alert-toast">
-          <span className="live-alert-icon">🔔</span>
+        <div className="live-alert-toast" role="status" aria-live="polite">
+          <span className="live-alert-icon" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              width="17"
+              height="17"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+          </span>
           <div className="live-alert-body">
+            <span className="live-alert-kicker">LIVE ALERT</span>
             <strong>{liveAlert.title}</strong>
             <span>{liveAlert.body}</span>
           </div>
-          <button className="live-alert-close" onClick={() => setLiveAlert(null)}>
+          <button
+            className="live-alert-close"
+            type="button"
+            aria-label="Dismiss live alert"
+            onClick={() => setLiveAlert(null)}
+          >
             ✕
           </button>
         </div>
