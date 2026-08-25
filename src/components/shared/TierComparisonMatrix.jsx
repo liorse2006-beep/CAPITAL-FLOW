@@ -96,8 +96,9 @@ export default function TierComparisonMatrix({ userTier = 'free', trialEnded = f
                 {column.featured && <span className="tier-matrix-popular">Most popular</span>}
                 <span className="tier-matrix-plan-name">{column.label}</span>
                 <strong className="tier-matrix-plan-price">{column.price}</strong>
-                <span className="tier-matrix-plan-access">{column.access}</span>
-                <span className="tier-matrix-plan-billing">{column.billing}</span>
+                <span className={'tier-matrix-plan-details ' + (column.key === 'free' ? 'is-trial' : 'is-lifetime')}>
+                  {column.details}
+                </span>
               </th>
             ))}
           </tr>

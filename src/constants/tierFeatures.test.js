@@ -16,9 +16,9 @@ describe('tier entitlement matrix', () => {
 
   it('keeps the currently configured price and one-time lifetime copy in one place', () => {
     expect(TIER_COLUMNS).toMatchObject([
-      { key: 'free', price: '$0', access: '7-day trial', billing: 'No card required' },
-      { key: 'premium', price: '$14.90', access: 'One-time payment', billing: 'Lifetime access' },
-      { key: 'elite', price: '$29.90', access: 'One-time payment', billing: 'Lifetime access' },
+      { key: 'free', price: '$0', details: '7-day trial · No card required' },
+      { key: 'premium', price: '$14.90', details: 'One-time purchase · Lifetime access' },
+      { key: 'elite', price: '$29.90', details: 'One-time purchase · Lifetime access' },
     ]);
   });
 
