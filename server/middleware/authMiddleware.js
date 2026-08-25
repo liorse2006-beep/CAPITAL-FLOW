@@ -187,7 +187,7 @@ async function resolveToken(token) {
         `SELECT id, email, is_verified, is_premium, is_blocked, free_scan_count,
                 is_pilot, pilot_terms_accepted_at, tier, created_at,
                 free_scan_used_capital_flow, free_scan_used_ma_scanner, free_scan_used_sector_moving,
-                premium_scan_count, premium_scan_window_start
+                premium_scan_count, premium_scan_window_start, avatar_url
          FROM users WHERE id = ?`
       )
       .get(payload.id);

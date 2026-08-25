@@ -504,6 +504,171 @@ button.topbar-premium-badge:hover {
   color: var(--text-2);
 }
 
+.topbar-profile-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: 0;
+  z-index: 210;
+}
+.topbar-profile-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--bg-1);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    transform 0.15s;
+}
+.topbar-profile-trigger:hover,
+.topbar-profile-trigger[aria-expanded='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.22);
+  transform: translateY(-1px);
+}
+.topbar-profile-avatar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.topbar-profile-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(240px, calc(100vw - 24px));
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-1);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  animation: fadeIn 0.12s ease;
+}
+.topbar-profile-menu-email {
+  min-width: 0;
+  padding: 8px 10px 10px;
+  color: var(--text-3);
+  font-size: 10px;
+  font-family: var(--mono);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+.topbar-profile-menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 38px;
+  margin-top: 6px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-1);
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    color 0.15s;
+}
+.topbar-profile-menu-item:hover,
+.topbar-profile-menu-item:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+/* ── Profile modal ── */
+.profile-modal {
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  padding: 30px 26px 24px;
+  text-align: center;
+}
+.profile-modal-avatar-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.profile-modal-avatar {
+  display: block;
+  width: 72px;
+  height: 72px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.2);
+}
+.profile-modal-kicker {
+  margin-bottom: 8px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  font-family: var(--mono);
+  letter-spacing: 0.18em;
+}
+.profile-modal-subtitle {
+  margin: 0 0 20px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.profile-modal-details {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 22px;
+  text-align: left;
+}
+.profile-modal-detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+}
+.profile-modal-label {
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.profile-modal-value {
+  min-width: 0;
+  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+.profile-modal-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.upgrade-cta.profile-modal-close {
+  width: 100%;
+  justify-content: center;
+}
+
 /* The single primary action on each scanner page (Run Scan, Re-scan,
    Refresh Flow) — solid fill, matching the app-wide rule that solid gold
    is reserved for the one primary action per view; everything secondary

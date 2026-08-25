@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import Topbar from './Topbar';
 
 function baseProps(overrides = {}) {
@@ -80,6 +80,37 @@ describe('Topbar tier badge', () => {
     render(<Topbar {...baseProps({ user: { id: 1, email: 'user@example.com' } })} />);
     expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Status' })).not.toBeInTheDocument();
+  });
+
+  it('shows the default logo avatar and opens the profile entry point', () => {
+    render(<Topbar {...baseProps({ user: { id: 1, email: 'user@example.com' } })} />);
+
+    expect(screen.getByRole('img', { name: 'user@example.com profile picture' })).toHaveAttribute(
+      'src',
+      '/icon-192.png'
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
+    expect(screen.getByRole('menu', { name: 'Profile menu' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Profile' }));
+    expect(screen.getByRole('dialog', { name: 'Your Profile' })).toBeInTheDocument();
+    expect(screen.getByText('user@example.com')).toBeInTheDocument();
+  });
+
+  it('uses the Google profile image when the account provides one', () => {
+    render(
+      <Topbar
+        {...baseProps({
+          user: { id: 1, email: 'google@example.com', avatar_url: 'https://lh3.googleusercontent.com/avatar' },
+        })}
+      />
+    );
+
+    expect(screen.getByRole('img', { name: 'google@example.com profile picture' })).toHaveAttribute(
+      'src',
+      'https://lh3.googleusercontent.com/avatar'
+    );
   });
 });
 

@@ -89,7 +89,17 @@ const spaCsp = helmet.contentSecurityPolicy({
     // Ticker logos are fetched client-side from Parqet's public logo CDN
     // (see the `ticker-logo` <img> in ScannerPage/WatchlistPage) — without
     // this, every logo silently fails to load in production.
-    imgSrc: ["'self'", 'data:', 'https://assets.parqet.com', 'https://whop.com', 'https://*.whop.com'],
+    imgSrc: [
+      "'self'",
+      'data:',
+      'https://assets.parqet.com',
+      'https://lh3.googleusercontent.com',
+      'https://lh4.googleusercontent.com',
+      'https://lh5.googleusercontent.com',
+      'https://lh6.googleusercontent.com',
+      'https://whop.com',
+      'https://*.whop.com',
+    ],
     // Sentry and PostHog are both opt-in (no-op without their respective
     // VITE_ env vars — see src/sentry.js and src/analytics.js), but the CSP
     // is baked in at server startup regardless of whether a key is set, so

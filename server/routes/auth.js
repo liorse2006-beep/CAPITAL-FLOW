@@ -85,6 +85,21 @@ function isConfiguredAdmin(email) {
   return !!ADMIN_EMAIL && String(email || '').toLowerCase() === ADMIN_EMAIL.toLowerCase();
 }
 
+// Google profile photos are the only external avatar source accepted here.
+// Keep the value constrained to Google's HTTPS image hosts so a profile row
+// can never turn into an arbitrary remote URL that the client would render.
+function getGoogleAvatarUrl(profile) {
+  const raw = profile && profile.photos && profile.photos[0] && profile.photos[0].value;
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:' || !/^lh\d+\.googleusercontent\.com$/i.test(url.hostname)) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 function clearRefreshCookie(res) {
   res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth' });
 }
@@ -127,27 +142,36 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
         try {
           const email = normalizeEmail(profile.emails && profile.emails[0] && profile.emails[0].value);
           if (!email) return done(new Error('No email from Google'));
+          const avatarUrl = getGoogleAvatarUrl(profile);
 
           let user = await db.prepare('SELECT * FROM users WHERE google_id = ?').get(profile.id);
           if (!user) {
             user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
             if (user) {
               await db
-                .prepare('UPDATE users SET google_id = ?, google_email = ?, is_verified = 1 WHERE id = ?')
-                .run(profile.id, email, user.id);
+                .prepare(
+                  'UPDATE users SET google_id = ?, google_email = ?, avatar_url = COALESCE(?, avatar_url), is_verified = 1 WHERE id = ?'
+                )
+                .run(profile.id, email, avatarUrl, user.id);
               user = await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
             } else {
               const isPilot = (await pilotAllowlist.isAllowed(email)) ? 1 : 0;
               const tierForGoogle = isPilot ? 'elite' : 'free';
               const result = await db
                 .prepare(
-                  'INSERT INTO users (email, google_id, google_email, is_verified, is_pilot, tier) VALUES (?, ?, ?, 1, ?, ?)'
+                  'INSERT INTO users (email, google_id, google_email, avatar_url, is_verified, is_pilot, tier) VALUES (?, ?, ?, ?, 1, ?, ?)'
                 )
-                .run(email, profile.id, email, isPilot, tierForGoogle);
+                .run(email, profile.id, email, avatarUrl, isPilot, tierForGoogle);
               user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
               sendWelcomeEmail(email).catch((err) => reportError(err, '[welcome-email]'));
               sendNewSignupAdminAlert(email, 'Google').catch((err) => reportError(err, '[admin-alert]'));
             }
+          }
+          // Refresh the image when Google changes it, while preserving the
+          // last known image if Google temporarily omits a photo.
+          if (user && avatarUrl && user.avatar_url !== avatarUrl) {
+            await db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(avatarUrl, user.id);
+            user = await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
           }
           return done(null, user);
         } catch (err) {
@@ -281,6 +305,7 @@ router.post('/verify-otp', otpLimiter, async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
+        avatar_url: user.avatar_url || null,
         is_premium: user.is_premium,
         is_pilot: !!user.is_pilot,
         is_admin: isConfiguredAdmin(user.email),
@@ -357,6 +382,7 @@ router.post('/login', authLimiter, async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
+        avatar_url: user.avatar_url || null,
         is_premium: user.is_premium,
         is_pilot: !!user.is_pilot,
         is_admin: isConfiguredAdmin(user.email),
@@ -427,6 +453,7 @@ router.post('/reset-password', otpLimiter, async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
+        avatar_url: user.avatar_url || null,
         is_premium: user.is_premium,
         is_pilot: !!user.is_pilot,
         is_admin: isConfiguredAdmin(user.email),

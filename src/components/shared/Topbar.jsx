@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import AlertBell from './AlertBell';
+import ProfileModal from './ProfileModal';
+import UserAvatar from './UserAvatar';
 
 function TierBadgeOrUpgrade({ isElite, isPremium, isTrial, user, onUpgrade, onSignIn }) {
   if (isElite) {
@@ -75,6 +77,32 @@ export default function Topbar({
   setPage,
 }) {
   const isAdmin = !!(user && user.is_admin);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const profileMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!profileMenuOpen) return undefined;
+
+    function closeOnOutsideClick(event) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) setProfileMenuOpen(false);
+    }
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') setProfileMenuOpen(false);
+    }
+
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [profileMenuOpen]);
+
+  function openProfile() {
+    setProfileMenuOpen(false);
+    setProfileModalOpen(true);
+  }
 
   return (
     <>
@@ -127,6 +155,31 @@ export default function Topbar({
               Log Out
             </button>
           )}
+          {user && (
+            <div className="topbar-profile-wrap" ref={profileMenuRef}>
+              <button
+                className="topbar-profile-trigger"
+                type="button"
+                onClick={() => setProfileMenuOpen((open) => !open)}
+                aria-label="Open profile menu"
+                aria-haspopup="menu"
+                aria-expanded={profileMenuOpen}
+                title="Open profile"
+              >
+                <UserAvatar user={user} className="topbar-profile-avatar" />
+              </button>
+              {profileMenuOpen && (
+                <div className="topbar-profile-menu" role="menu" aria-label="Profile menu">
+                  <div className="topbar-profile-menu-email" title={user.email}>
+                    {user.email}
+                  </div>
+                  <button className="topbar-profile-menu-item" type="button" role="menuitem" onClick={openProfile}>
+                    Profile
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           <AlertBell
             notificationsEnabled={notificationsEnabled}
             showAlertPanel={showAlertPanel}
@@ -144,6 +197,8 @@ export default function Topbar({
           )}
         </div>
       </header>
+
+      {profileModalOpen && <ProfileModal user={user} onClose={() => setProfileModalOpen(false)} />}
 
       <nav className="nav-tabs">
         <button className={'nav-tab ' + (page === 'scanner' ? 'active' : '')} onClick={() => setPage('scanner')}>
