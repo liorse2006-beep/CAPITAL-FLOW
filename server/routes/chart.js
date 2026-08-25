@@ -1,11 +1,11 @@
 const router = require('express').Router();
-const { requirePremium } = require('../middleware/authMiddleware');
+const { requirePremiumOrTrial } = require('../middleware/authMiddleware');
 const yahooFinance = require('../services/yahoo');
 const { finnhubFetch } = require('../services/finnhub');
 const { reportError } = require('../utils/reportError');
 const { createTTLCache } = require('../utils/ttlCache');
 
-// Every premium user opening the same popular ticker's chart within the
+// Every premium or in-trial free user opening the same popular ticker's chart within the
 // same window previously re-fetched from Yahoo + Finnhub independently —
 // this route had zero caching. 45s is short enough that the live price
 // stays reasonably current, but long enough to absorb the common case of
@@ -32,7 +32,7 @@ function computeMA(closes, window) {
   });
 }
 
-router.get('/chart/:symbol', requirePremium, async (req, res) => {
+router.get('/chart/:symbol', requirePremiumOrTrial, async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
   if (!SYMBOL_RE.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
   const period = PERIODS[req.query.period] ? req.query.period : '1M';

@@ -2,62 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useModalA11y from '../../hooks/useModalA11y';
 import { useAuth } from '../../context/AuthContext';
-import { TIER_ROWS, tierFeatureChecklist } from '../../constants/tierFeatures';
 import EmbeddedCheckout from './EmbeddedCheckout';
+import TierComparisonMatrix from './TierComparisonMatrix';
 
-function Check() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="13"
-      height="13"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
-const TIER_RANK = { free: 0, premium: 1, elite: 2 };
 const TIER_LABEL = { premium: 'Premium', elite: 'Elite' };
-
-const PRICE_ROW = TIER_ROWS.find((row) => row.isPrice);
-const SCANS_ROW = TIER_ROWS.find((row) => row.label === 'Scans');
-const FUNDAMENTALS_ROW = TIER_ROWS.find((row) => row.label === 'Fundamentals lookups');
-
-// One card per tier — everything a card needs to render itself, so the JSX
-// below is just a .map() instead of three near-identical blocks that drift
-// out of sync every time a tier's copy changes.
-const CARD_TIERS = [
-  { key: 'free', label: 'Free', accentClass: '' },
-  { key: 'premium', label: 'Premium', accentClass: 'pricing-card-premium', featured: false },
-  { key: 'elite', label: 'Elite', accentClass: 'pricing-card-elite', featured: true },
-];
-
-const TIER_POSITIONING = {
-  free: {
-    eyebrow: 'Explore the basics',
-    copy: 'Keep your account ready for the next setup.',
-  },
-  premium: {
-    eyebrow: 'Focused scanning',
-    copy: 'The essential toolkit for deliberate, repeatable scans.',
-  },
-  elite: {
-    eyebrow: 'Active trader workflow',
-    copy: 'The complete signal loop: speed, alerts, and Capi in one place.',
-  },
-};
-
-// Full Free/Premium/Elite feature comparison — one table, every row a
-// feature, checkmark/dash (or a value like "5 / 24h") per tier, price as
-// the last row right above the CTA buttons. The user's current tier gets a
-// "Your plan" badge instead of a CTA button; only tiers above the current
-// one show a Get-<tier> button.
 //
 // Clicking "Get <tier>" swaps this same modal over to Whop's checkout
 // embed, mounted inline (an iframe scoped to the payment form) — the user
@@ -73,7 +21,6 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
   const [payError, setPayError] = useState('');
   const [couponCode, setCouponCode] = useState('');
   const [checkoutSession, setCheckoutSession] = useState(null); // { sessionId, tierKey, promoCode, discountPercent } | null
-  const visibleCardTiers = trialEnded ? CARD_TIERS.filter((t) => t.key !== 'free') : CARD_TIERS;
 
   async function goToCheckout(tierKey) {
     setPayError('');
@@ -117,28 +64,6 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
     setPayError((error && error.message) || 'Payment failed — please try again.');
     setCheckoutSession(null);
     localStorage.removeItem('vs_pending_tier');
-  }
-
-  function ctaOrBadge(tierKey, tierLabel, ctaClass) {
-    if (userTier === tierKey) {
-      return <span className="pricing-card-current">Your plan</span>;
-    }
-    if (TIER_RANK[userTier] > TIER_RANK[tierKey]) return null; // already above this tier
-    return (
-      <button
-        className={'upgrade-cta pricing-card-cta ' + ctaClass}
-        onClick={() => goToCheckout(tierKey)}
-        disabled={payingTier === tierKey}
-      >
-        {payingTier === tierKey
-          ? 'Loading…'
-          : trialEnded
-            ? tierKey === 'elite'
-              ? 'Unlock Elite'
-              : 'Keep scanning with Premium'
-            : 'Get ' + tierLabel}
-      </button>
-    );
   }
 
   if (checkoutSession) {
@@ -237,63 +162,12 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
           </div>
         )}
 
-        <div className={'pricing-cards' + (trialEnded ? ' pricing-cards-paid' : '')}>
-          {visibleCardTiers.map((t) => {
-            const checklist = tierFeatureChecklist(t.key);
-            const positioning = TIER_POSITIONING[t.key];
-            return (
-              <div
-                key={t.key}
-                className={'pricing-card ' + t.accentClass + (t.featured ? ' pricing-card-featured' : '')}
-              >
-                {t.featured && <div className="pricing-card-ribbon">Most Popular</div>}
-
-                <div className="pricing-card-topline">
-                  <div className="pricing-card-tier">{t.label}</div>
-                  <span className="pricing-card-positioning">{positioning.eyebrow}</span>
-                </div>
-                <div className="pricing-card-price">{PRICE_ROW[t.key]}</div>
-                {t.key === 'free' ? (
-                  <div className="pricing-card-subprice">Full access, 7 days</div>
-                ) : (
-                  <div className="pricing-card-subprice pricing-card-subprice-onetime">
-                    One-time payment · Lifetime access
-                  </div>
-                )}
-                <p className="pricing-card-pitch">{positioning.copy}</p>
-
-                <div className="pricing-card-scans">{SCANS_ROW[t.key]}</div>
-                <div className="pricing-card-scans pricing-card-fundamentals">
-                  Fundamentals: {FUNDAMENTALS_ROW[t.key]}
-                </div>
-
-                <ul className="pricing-card-features">
-                  {checklist.map((f) => (
-                    <li key={f.label} className={f.included ? '' : 'pricing-card-feature-off'}>
-                      {f.included ? (
-                        <span className="pricing-card-feature-icon pricing-card-feature-yes">
-                          <Check />
-                        </span>
-                      ) : (
-                        <span className="pricing-card-feature-icon pricing-card-feature-no">–</span>
-                      )}
-                      <span className="pricing-card-feature-copy">
-                        <span>{f.label}</span>
-                        {f.value && f.value !== 'Included' && <small>{f.value}</small>}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="pricing-card-cta-slot">
-                  {t.key === 'free'
-                    ? ctaOrBadge('free', 'Free', '')
-                    : ctaOrBadge(t.key, t.label, 'pricing-card-cta-' + t.key)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <TierComparisonMatrix
+          userTier={userTier}
+          trialEnded={trialEnded}
+          payingTier={payingTier}
+          onCheckout={goToCheckout}
+        />
         <div className="coupon-input-row">
           <label htmlFor="upgrade-coupon-input" className="coupon-input-label">
             Have a coupon code?

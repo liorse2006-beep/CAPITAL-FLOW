@@ -264,8 +264,8 @@ async function requirePremium(req, res, next) {
 
 /**
  * Same as requirePremium, but a free-tier account still inside its 7-day
- * trial window is let through too — used for Fundamentals, which the free
- * trial explicitly includes at full (unlimited) access, not just the
+ * trial window is let through too — used for Fundamentals and price charts,
+ * which the free trial explicitly includes at full access, not just the
  * scan-count features gated by scanQuota's own free-trial handling.
  */
 async function requirePremiumOrTrial(req, res, next) {
