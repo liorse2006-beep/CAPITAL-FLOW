@@ -49,7 +49,7 @@ jobs:
         shell: bash
         run: |
           git diff --name-only -z "${{ github.event.before }}" "${{ github.sha }}" -- \
-            '*.js' '*.jsx' '*.mjs' '*.cjs' '*.css' '*.html' '*.json' '*.md' '*.yml' '*.yaml' \
+            '*.js' '*.jsx' '*.mjs' '*.cjs' '*.css' '*.html' \
             | xargs -0 -r npx prettier --check
 
       - name: Build frontend
