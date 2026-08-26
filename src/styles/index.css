@@ -1414,6 +1414,123 @@ button.topbar-premium-badge:hover {
   color: #fca5a5;
   font-size: 10px;
 }
+.account-center-schedule-state,
+.account-center-schedule-empty {
+  display: grid;
+  justify-items: start;
+  gap: 9px;
+  padding: 24px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255, 178, 0, 0.08), rgba(255, 255, 255, 0.025));
+}
+.account-center-schedule-state {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.account-center-schedule-state--error {
+  color: #fecaca;
+}
+.account-center-schedule-state--error strong {
+  color: #fca5a5;
+  font-size: 13px;
+}
+.account-center-schedule-state--error span {
+  color: var(--text-2);
+  font-size: 11px;
+}
+.account-center-schedule-state--error button {
+  margin-top: 4px;
+}
+.account-center-schedule-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 3px;
+  border: 1px solid rgba(255, 178, 0, 0.42);
+  border-radius: 50%;
+  color: var(--accent-2);
+  font-size: 23px;
+  line-height: 1;
+  background: rgba(255, 178, 0, 0.08);
+}
+.account-center-schedule-empty strong {
+  color: var(--text-0);
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+.account-center-schedule-empty > span {
+  max-width: 430px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.account-center-schedule-empty button {
+  margin-top: 6px;
+}
+.account-center-schedule-list {
+  display: grid;
+  gap: 8px;
+}
+.account-center-schedule-item {
+  display: grid;
+  min-width: 0;
+  padding: 14px 15px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.022);
+}
+.account-center-schedule-item-copy {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+.account-center-schedule-item-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.account-center-schedule-item-heading strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-0);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-center-schedule-status {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  color: var(--text-2);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.account-center-schedule-status.is-active {
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.08);
+}
+.account-center-schedule-item-time {
+  color: var(--accent-2);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.account-center-schedule-item-copy small {
+  color: var(--text-2);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.account-center-schedule-cta {
+  margin-top: 12px;
+}
 .account-center-footer {
   display: flex;
   align-items: center;
@@ -1578,6 +1695,13 @@ button.topbar-premium-badge:hover {
   }
   .account-center-action-card button {
     width: 100%;
+  }
+  .account-center-schedule-empty,
+  .account-center-schedule-state {
+    padding: 20px;
+  }
+  .account-center-schedule-item {
+    padding: 13px;
   }
   .account-center-footer {
     min-height: 54px;

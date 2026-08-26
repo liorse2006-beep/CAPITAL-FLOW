@@ -94,7 +94,51 @@ describe('ProfileModal preferences', () => {
 
     expect(await screen.findByRole('heading', { name: 'Account overview' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Scan scheduling' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Schedule scans' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Schedule scans' }));
     expect(props.onOpenScheduling).toHaveBeenCalledOnce();
+  });
+
+  it('shows every existing scheduled scan with a follow-up CTA', async () => {
+    const fetchMock = vi.fn().mockImplementation((url) =>
+      url === '/api/scheduled-scans'
+        ? Promise.resolve({
+            ok: true,
+            json: async () => ({
+              schedules: [
+                {
+                  id: 11,
+                  scan_type: 'capitalFlow',
+                  scan_time: '09:30',
+                  scan_date: null,
+                  active: 1,
+                  last_run_at: null,
+                },
+                {
+                  id: 12,
+                  scan_type: 'maScanner',
+                  scan_time: '14:15',
+                  scan_date: '2026-08-27',
+                  active: 0,
+                  last_run_at: 1756200000,
+                },
+              ],
+            }),
+          })
+        : Promise.resolve(summaryResponse())
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { props } = renderProfile();
+
+    expect(await screen.findByRole('heading', { name: 'Account overview' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Scan scheduling' }));
+
+    expect(await screen.findByText('09:30 · Every day')).toBeInTheDocument();
+    expect(screen.getByText('MA Scanner')).toBeInTheDocument();
+    expect(screen.getByText('Aug 27, 2026 · 14:15')).toBeInTheDocument();
+    expect(screen.getByText('Active')).toBeInTheDocument();
+    expect(screen.getByText('Paused')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Schedule another scan' }));
+    expect(props.onOpenScheduling).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith('/api/scheduled-scans', expect.any(Object));
   });
 });

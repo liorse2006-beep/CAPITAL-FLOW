@@ -98,8 +98,9 @@ describe('Topbar tier badge', () => {
     expect(screen.getByText('user@example.com')).toBeInTheDocument();
   });
 
-  it('exposes direct destinations for every profile area', () => {
+  it('exposes direct destinations for every profile area', async () => {
     const onOpenScheduling = vi.fn();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
     render(<Topbar {...baseProps({ user: { id: 1, email: 'user@example.com' }, onOpenScheduling })} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
@@ -123,7 +124,7 @@ describe('Topbar tier badge', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Schedule scans' }));
     expect(screen.getByRole('dialog', { name: 'Account Center' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Schedule scans' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Schedule scans' }));
     expect(onOpenScheduling).toHaveBeenCalledOnce();
   });
 

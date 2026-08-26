@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import useModalA11y from '../../hooks/useModalA11y';
 import DeleteAccountModal from './DeleteAccountModal';
 import UserAvatar from './UserAvatar';
@@ -27,6 +27,25 @@ function formatDateTime(value) {
 
 function number(value) {
   return Number(value || 0).toLocaleString();
+}
+
+const SCHEDULE_SCAN_LABELS = {
+  capitalFlow: 'Capital Flow',
+  maScanner: 'MA Scanner',
+  sectorMoving: 'Hot Sectors',
+};
+
+function formatScheduleDate(value) {
+  if (!value) return '';
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+}
+
+function scheduleTiming(schedule) {
+  const time = schedule.scan_time || '—';
+  if (schedule.scan_date) return `${formatScheduleDate(schedule.scan_date)} · ${time}`;
+  return `${time} · Every day`;
 }
 
 function Stat({ label, value, detail }) {
@@ -125,6 +144,9 @@ export default function ProfileModal({
   const [summary, setSummary] = useState(null);
   const [summaryState, setSummaryState] = useState(() => (getToken && user ? 'loading' : 'ready'));
   const [summaryError, setSummaryError] = useState('');
+  const [scheduledScans, setScheduledScans] = useState([]);
+  const [scheduledScansState, setScheduledScansState] = useState('idle');
+  const [scheduledScansError, setScheduledScansError] = useState('');
   const [password, setPassword] = useState({ current: '', next: '', confirm: '' });
   const [passwordState, setPasswordState] = useState({ status: 'idle', message: '' });
   const [downloadState, setDownloadState] = useState('idle');
@@ -162,6 +184,30 @@ export default function ProfileModal({
       cancelled = true;
     };
   }, [getToken, user]);
+
+  const loadScheduledScans = useCallback(async () => {
+    if (!getToken || !user) return;
+    setScheduledScansState('loading');
+    setScheduledScansError('');
+    try {
+      const response = await fetch('/api/scheduled-scans', {
+        headers: { Authorization: 'Bearer ' + getToken() },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Could not load scheduled scans');
+      setScheduledScans(Array.isArray(data.schedules) ? data.schedules : []);
+      setScheduledScansState('ready');
+    } catch (error) {
+      setScheduledScansState('error');
+      setScheduledScansError(error.message || 'Could not load scheduled scans');
+    }
+  }, [getToken, user]);
+
+  useEffect(() => {
+    if (activeSection !== 'scheduling') return undefined;
+    loadScheduledScans();
+    return undefined;
+  }, [activeSection, loadScheduledScans]);
 
   const activeSectionMeta = ACCOUNT_SECTIONS.find((section) => section.id === activeSection) || ACCOUNT_SECTIONS[0];
 
@@ -533,15 +579,70 @@ export default function ProfileModal({
 
                 {activeSection === 'scheduling' && (
                   <Section id="profile-section-scheduling">
-                    <div className="account-center-action-card">
-                      <div>
-                        <strong>Automated scan timing</strong>
-                        <span>Choose when Capital Flow should run a scan and notify you with the result.</span>
+                    {scheduledScansState === 'loading' && (
+                      <div className="account-center-schedule-state" role="status">
+                        Loading your scheduled scans…
                       </div>
-                      <button className="profile-primary-btn" type="button" onClick={onOpenScheduling}>
-                        Schedule scans
-                      </button>
-                    </div>
+                    )}
+
+                    {scheduledScansState === 'error' && (
+                      <div className="account-center-schedule-state account-center-schedule-state--error">
+                        <strong>Scheduled scans are temporarily unavailable.</strong>
+                        <span>{scheduledScansError}</span>
+                        <button className="profile-secondary-btn" type="button" onClick={loadScheduledScans}>
+                          Try again
+                        </button>
+                      </div>
+                    )}
+
+                    {scheduledScansState === 'ready' && scheduledScans.length === 0 && (
+                      <div className="account-center-schedule-empty">
+                        <div className="account-center-schedule-empty-icon" aria-hidden="true">
+                          ◷
+                        </div>
+                        <strong>No scheduled scans right now.</strong>
+                        <span>Set a time and Capital Flow will run the scan automatically for you.</span>
+                        <button className="profile-primary-btn" type="button" onClick={onOpenScheduling}>
+                          Schedule scans
+                        </button>
+                      </div>
+                    )}
+
+                    {scheduledScansState === 'ready' && scheduledScans.length > 0 && (
+                      <>
+                        <div className="account-center-schedule-list" aria-label="Your scheduled scans">
+                          {scheduledScans.map((schedule) => {
+                            const active = Boolean(schedule.active);
+                            return (
+                              <article className="account-center-schedule-item" key={schedule.id}>
+                                <div className="account-center-schedule-item-copy">
+                                  <div className="account-center-schedule-item-heading">
+                                    <strong>{SCHEDULE_SCAN_LABELS[schedule.scan_type] || 'Scheduled scan'}</strong>
+                                    <span className={'account-center-schedule-status' + (active ? ' is-active' : '')}>
+                                      {active ? 'Active' : 'Paused'}
+                                    </span>
+                                  </div>
+                                  <span className="account-center-schedule-item-time">{scheduleTiming(schedule)}</span>
+                                  <small>
+                                    {schedule.scan_date ? 'One-time scan' : 'Repeats daily'} · Jerusalem time
+                                    {schedule.last_run_at
+                                      ? ` · Last run ${formatDateTime(schedule.last_run_at)}`
+                                      : ' · Not run yet'}
+                                  </small>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                        <button
+                          className="profile-primary-btn account-center-schedule-cta"
+                          type="button"
+                          onClick={onOpenScheduling}
+                        >
+                          Schedule another scan
+                        </button>
+                      </>
+                    )}
                   </Section>
                 )}
 
