@@ -92,7 +92,7 @@ export default function Topbar({
   const isAdmin = !!(user && user.is_admin);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
-  const [profileModalSection, setProfileModalSection] = useState('overview');
+  const [profileModalSection, setProfileModalSection] = useState('account');
   const profileMenuRef = useRef(null);
 
   useEffect(() => {
@@ -113,7 +113,7 @@ export default function Topbar({
     };
   }, [profileMenuOpen]);
 
-  function openProfile(section = 'overview') {
+  function openProfile(section = 'account') {
     setProfileMenuOpen(false);
     setProfileModalSection(section);
     setProfileModalOpen(true);
@@ -122,26 +122,15 @@ export default function Topbar({
   const profileMenuSections = [
     {
       label: 'ACCOUNT',
-      items: [
-        { label: 'Profile', hint: 'Account overview', section: 'overview' },
-        { label: 'Plan & access', hint: 'Tier and trial', section: 'plan' },
-        { label: 'Workspace usage', hint: 'Scans and alerts', section: 'usage' },
-      ],
+      items: [{ label: 'Account & workspace', hint: 'Identity, plan, and usage', section: 'account' }],
+    },
+    {
+      label: 'AUTOMATION',
+      items: [{ label: 'Automation & alerts', hint: 'Scheduled scans and notifications', section: 'automation' }],
     },
     {
       label: 'SECURITY',
-      items: [{ label: 'Security', hint: 'Password and sessions', section: 'security' }],
-    },
-    {
-      label: 'WORKSPACE',
-      items: [
-        { label: 'Schedule scans', hint: 'Automated scan timing', section: 'scheduling' },
-        { label: 'Notifications', hint: 'Push access', section: 'notifications' },
-      ],
-    },
-    {
-      label: 'PRIVACY',
-      items: [{ label: 'Privacy & data', hint: 'Export or delete', section: 'privacy' }],
+      items: [{ label: 'Security & privacy', hint: 'Password, sessions, and data', section: 'security' }],
     },
   ];
 

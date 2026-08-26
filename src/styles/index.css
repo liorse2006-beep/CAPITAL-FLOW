@@ -1351,6 +1351,38 @@ button.topbar-premium-badge:hover {
 .account-center-panel {
   padding-top: 20px;
 }
+.account-center-group {
+  display: grid;
+  gap: 18px;
+}
+.account-center-subsection {
+  min-width: 0;
+}
+.account-center-subsection + .account-center-subsection {
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.account-center-subsection-head {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.account-center-subsection-eyebrow {
+  color: var(--accent-2);
+  font-size: 9px;
+  font-weight: 800;
+  font-family: var(--mono);
+  letter-spacing: 0.16em;
+  line-height: 1.2;
+}
+.account-center-subsection-head h4 {
+  margin: 0;
+  color: var(--text-0);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
 .account-center-section {
   display: block;
   min-width: 0;
@@ -1687,6 +1719,18 @@ button.topbar-premium-badge:hover {
   }
   .account-center-panel {
     padding-top: 16px;
+  }
+  .account-center-group {
+    gap: 16px;
+  }
+  .account-center-subsection + .account-center-subsection {
+    padding-top: 16px;
+  }
+  .account-center-subsection-head {
+    margin-bottom: 9px;
+  }
+  .account-center-subsection-head h4 {
+    font-size: 14px;
   }
   .account-center-action-card {
     align-items: stretch;

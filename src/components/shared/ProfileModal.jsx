@@ -66,57 +66,47 @@ function Section({ children, id }) {
   );
 }
 
+function SubsectionHeader({ eyebrow, title }) {
+  return (
+    <div className="account-center-subsection-head">
+      <span className="account-center-subsection-eyebrow">{eyebrow}</span>
+      <h4>{title}</h4>
+    </div>
+  );
+}
+
 const ACCOUNT_SECTIONS = [
   {
-    id: 'overview',
-    label: 'Overview',
+    id: 'account',
+    label: 'Account & workspace',
     eyebrow: 'ACCOUNT',
-    title: 'Account overview',
-    description: 'Your identity, access, and sign-in details at a glance.',
+    title: 'Account & workspace',
+    description: 'Manage your identity, access level, and workspace activity.',
   },
   {
-    id: 'plan',
-    label: 'Plan & access',
-    eyebrow: 'ACCESS',
-    title: 'Plan & access',
-    description: 'See the level of access currently active on your account.',
-  },
-  {
-    id: 'usage',
-    label: 'Workspace usage',
-    eyebrow: 'WORKSPACE',
-    title: 'Workspace usage',
-    description: 'A clear view of scans, alerts, schedules, and saved activity.',
+    id: 'automation',
+    label: 'Automation & alerts',
+    eyebrow: 'AUTOMATION',
+    title: 'Automation & alerts',
+    description: 'Control scheduled scans and the alerts that reach your devices.',
   },
   {
     id: 'security',
-    label: 'Security & sign-in',
+    label: 'Security & privacy',
     eyebrow: 'SECURITY',
-    title: 'Security & sign-in',
-    description: 'Protect your account, password, and active sessions.',
-  },
-  {
-    id: 'scheduling',
-    label: 'Scan scheduling',
-    eyebrow: 'WORKSPACE',
-    title: 'Scan scheduling',
-    description: 'Choose when Capital Flow should run your automated scans.',
-  },
-  {
-    id: 'notifications',
-    label: 'Notifications',
-    eyebrow: 'PREFERENCES',
-    title: 'Notifications',
-    description: 'Control whether this device can receive Capital Flow alerts.',
-  },
-  {
-    id: 'privacy',
-    label: 'Privacy & data',
-    eyebrow: 'PRIVACY',
-    title: 'Privacy & data',
-    description: 'Download your data or permanently close your account.',
+    title: 'Security & privacy',
+    description: 'Protect your account and control what happens to your data.',
   },
 ];
+
+const LEGACY_SECTION_GROUP = {
+  overview: 'account',
+  plan: 'account',
+  usage: 'account',
+  scheduling: 'automation',
+  notifications: 'automation',
+  privacy: 'security',
+};
 
 export default function ProfileModal({
   user,
@@ -138,7 +128,10 @@ export default function ProfileModal({
   onUpgrade,
 }) {
   const panelRef = useModalA11y(onClose);
-  const firstSection = ACCOUNT_SECTIONS.some((section) => section.id === initialSection) ? initialSection : 'overview';
+  const requestedSection = LEGACY_SECTION_GROUP[initialSection] || initialSection;
+  const firstSection = ACCOUNT_SECTIONS.some((section) => section.id === requestedSection)
+    ? requestedSection
+    : 'account';
   const [activeSection, setActiveSection] = useState(firstSection);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [summary, setSummary] = useState(null);
@@ -204,7 +197,7 @@ export default function ProfileModal({
   }, [getToken, user]);
 
   useEffect(() => {
-    if (activeSection !== 'scheduling') return undefined;
+    if (activeSection !== 'automation') return undefined;
     loadScheduledScans();
     return undefined;
   }, [activeSection, loadScheduledScans]);
@@ -422,272 +415,304 @@ export default function ProfileModal({
               </div>
 
               <div className="account-center-panel">
-                {activeSection === 'overview' && (
-                  <Section id="profile-section-overview">
-                    <div className="profile-stat-grid profile-stat-grid--four">
-                      <Stat label="Access" value={accessLabel(account)} detail={plan.access || '—'} />
-                      <Stat
-                        label="Verification"
-                        value={account.is_verified ? 'Verified' : 'Pending'}
-                        detail="Email status"
-                      />
-                      <Stat
-                        label="Sign-in"
-                        value={provider === 'Email and password' ? 'Email' : provider}
-                        detail="Authentication"
-                      />
-                      <Stat label="Member since" value={formatDate(account.created_at)} />
+                {activeSection === 'account' && (
+                  <div className="account-center-group">
+                    <div className="account-center-subsection">
+                      <SubsectionHeader eyebrow="ACCOUNT OVERVIEW" title="Account overview" />
+                      <Section id="profile-section-overview">
+                        <div className="profile-stat-grid profile-stat-grid--four">
+                          <Stat label="Access" value={accessLabel(account)} detail={plan.access || '—'} />
+                          <Stat
+                            label="Verification"
+                            value={account.is_verified ? 'Verified' : 'Pending'}
+                            detail="Email status"
+                          />
+                          <Stat
+                            label="Sign-in"
+                            value={provider === 'Email and password' ? 'Email' : provider}
+                            detail="Authentication"
+                          />
+                          <Stat label="Member since" value={formatDate(account.created_at)} />
+                        </div>
+                      </Section>
                     </div>
-                  </Section>
+
+                    <div className="account-center-subsection">
+                      <SubsectionHeader eyebrow="ACCESS" title="Plan & access" />
+                      <Section id="profile-section-plan">
+                        <div className="profile-modal-detail-list">
+                          <div className="profile-modal-detail">
+                            <span className="profile-modal-label">Current level</span>
+                            <strong className="profile-modal-value">{accessLabel(account)}</strong>
+                          </div>
+                          <div className="profile-modal-detail">
+                            <span className="profile-modal-label">Trial status</span>
+                            <span className="profile-modal-value">
+                              {plan.trialActive
+                                ? `Active · ends ${formatDate(plan.trialEndsAt)}`
+                                : account.tier === 'free'
+                                  ? 'Not active'
+                                  : 'Not applicable'}
+                            </span>
+                          </div>
+                        </div>
+                        {onUpgrade && (
+                          <button
+                            className="profile-primary-btn account-center-plan-cta"
+                            type="button"
+                            onClick={onUpgrade}
+                          >
+                            View upgrade options
+                          </button>
+                        )}
+                      </Section>
+                    </div>
+
+                    <div className="account-center-subsection">
+                      <SubsectionHeader eyebrow="WORKSPACE" title="Workspace usage" />
+                      <Section id="profile-section-usage">
+                        {summaryState === 'loading' ? (
+                          <div className="profile-modal-loading">Loading current usage…</div>
+                        ) : summaryState === 'error' ? (
+                          <div className="profile-modal-inline-error">{summaryError}</div>
+                        ) : (
+                          <div className="profile-stat-grid profile-stat-grid--four">
+                            <Stat label="Scans" value={scanDetail} detail="Current access" />
+                            <Stat label="Watchlist" value={number(usage.watchlistCount)} detail="Saved tickers" />
+                            <Stat label="Alerts" value={number(usage.alertCount)} detail="Active thresholds" />
+                            <Stat
+                              label="Radar"
+                              value={number(usage.activeRadarCount)}
+                              detail={`${number(usage.radarCount)} total rules`}
+                            />
+                            <Stat
+                              label="Schedules"
+                              value={number(usage.activeScheduleCount)}
+                              detail={`${number(usage.scheduleCount)} total`}
+                            />
+                            <Stat label="Devices" value={number(usage.pushDeviceCount)} detail="Push subscriptions" />
+                            <Stat
+                              label="Capi messages"
+                              value={number(usage.chatMessageCount)}
+                              detail="Saved conversations"
+                            />
+                            <Stat
+                              label="Sessions"
+                              value={number(security.activeSessionCount)}
+                              detail="Signed-in devices"
+                            />
+                          </div>
+                        )}
+                      </Section>
+                    </div>
+                  </div>
                 )}
 
-                {activeSection === 'plan' && (
-                  <Section id="profile-section-plan">
-                    <div className="profile-modal-detail-list">
-                      <div className="profile-modal-detail">
-                        <span className="profile-modal-label">Current level</span>
-                        <strong className="profile-modal-value">{accessLabel(account)}</strong>
-                      </div>
-                      <div className="profile-modal-detail">
-                        <span className="profile-modal-label">Trial status</span>
-                        <span className="profile-modal-value">
-                          {plan.trialActive
-                            ? `Active · ends ${formatDate(plan.trialEndsAt)}`
-                            : account.tier === 'free'
-                              ? 'Not active'
-                              : 'Not applicable'}
-                        </span>
-                      </div>
-                    </div>
-                    {onUpgrade && (
-                      <button className="profile-primary-btn account-center-plan-cta" type="button" onClick={onUpgrade}>
-                        View upgrade options
-                      </button>
-                    )}
-                  </Section>
-                )}
+                {activeSection === 'automation' && (
+                  <div className="account-center-group">
+                    <div className="account-center-subsection">
+                      <SubsectionHeader eyebrow="WORKSPACE" title="Scan scheduling" />
+                      <Section id="profile-section-scheduling">
+                        {scheduledScansState === 'loading' && (
+                          <div className="account-center-schedule-state" role="status">
+                            Loading your scheduled scans…
+                          </div>
+                        )}
 
-                {activeSection === 'usage' && (
-                  <Section id="profile-section-usage">
-                    {summaryState === 'loading' ? (
-                      <div className="profile-modal-loading">Loading current usage…</div>
-                    ) : summaryState === 'error' ? (
-                      <div className="profile-modal-inline-error">{summaryError}</div>
-                    ) : (
-                      <div className="profile-stat-grid profile-stat-grid--four">
-                        <Stat label="Scans" value={scanDetail} detail="Current access" />
-                        <Stat label="Watchlist" value={number(usage.watchlistCount)} detail="Saved tickers" />
-                        <Stat label="Alerts" value={number(usage.alertCount)} detail="Active thresholds" />
-                        <Stat
-                          label="Radar"
-                          value={number(usage.activeRadarCount)}
-                          detail={`${number(usage.radarCount)} total rules`}
-                        />
-                        <Stat
-                          label="Schedules"
-                          value={number(usage.activeScheduleCount)}
-                          detail={`${number(usage.scheduleCount)} total`}
-                        />
-                        <Stat label="Devices" value={number(usage.pushDeviceCount)} detail="Push subscriptions" />
-                        <Stat
-                          label="Capi messages"
-                          value={number(usage.chatMessageCount)}
-                          detail="Saved conversations"
-                        />
-                        <Stat label="Sessions" value={number(security.activeSessionCount)} detail="Signed-in devices" />
-                      </div>
-                    )}
-                  </Section>
+                        {scheduledScansState === 'error' && (
+                          <div className="account-center-schedule-state account-center-schedule-state--error">
+                            <strong>Scheduled scans are temporarily unavailable.</strong>
+                            <span>{scheduledScansError}</span>
+                            <button className="profile-secondary-btn" type="button" onClick={loadScheduledScans}>
+                              Try again
+                            </button>
+                          </div>
+                        )}
+
+                        {scheduledScansState === 'ready' && scheduledScans.length === 0 && (
+                          <div className="account-center-schedule-empty">
+                            <div className="account-center-schedule-empty-icon" aria-hidden="true">
+                              ◷
+                            </div>
+                            <strong>No scheduled scans right now.</strong>
+                            <span>Set a time and Capital Flow will run the scan automatically for you.</span>
+                            <button className="profile-primary-btn" type="button" onClick={onOpenScheduling}>
+                              Schedule scans
+                            </button>
+                          </div>
+                        )}
+
+                        {scheduledScansState === 'ready' && scheduledScans.length > 0 && (
+                          <>
+                            <div className="account-center-schedule-list" aria-label="Your scheduled scans">
+                              {scheduledScans.map((schedule) => {
+                                const active = Boolean(schedule.active);
+                                return (
+                                  <article className="account-center-schedule-item" key={schedule.id}>
+                                    <div className="account-center-schedule-item-copy">
+                                      <div className="account-center-schedule-item-heading">
+                                        <strong>{SCHEDULE_SCAN_LABELS[schedule.scan_type] || 'Scheduled scan'}</strong>
+                                        <span
+                                          className={'account-center-schedule-status' + (active ? ' is-active' : '')}
+                                        >
+                                          {active ? 'Active' : 'Paused'}
+                                        </span>
+                                      </div>
+                                      <span className="account-center-schedule-item-time">
+                                        {scheduleTiming(schedule)}
+                                      </span>
+                                      <small>
+                                        {schedule.scan_date ? 'One-time scan' : 'Repeats daily'} · Jerusalem time
+                                        {schedule.last_run_at
+                                          ? ` · Last run ${formatDateTime(schedule.last_run_at)}`
+                                          : ' · Not run yet'}
+                                      </small>
+                                    </div>
+                                  </article>
+                                );
+                              })}
+                            </div>
+                            <button
+                              className="profile-primary-btn account-center-schedule-cta"
+                              type="button"
+                              onClick={onOpenScheduling}
+                            >
+                              Schedule another scan
+                            </button>
+                          </>
+                        )}
+                      </Section>
+                    </div>
+
+                    <div className="account-center-subsection">
+                      <SubsectionHeader eyebrow="PREFERENCES" title="Notifications" />
+                      <Section id="profile-section-notifications">
+                        <div className="account-center-action-card">
+                          <div>
+                            <strong>Notification access</strong>
+                            <span>{notificationDescription}</span>
+                            {pushError && <small className="profile-modal-form-message error">{pushError}</small>}
+                          </div>
+                          <button
+                            className={'profile-primary-btn' + (pushEnabled ? ' profile-secondary-btn--active' : '')}
+                            type="button"
+                            onClick={requestNotificationsChange}
+                            disabled={pushBusy || (canNotify && (notificationBlocked || notificationUnavailable))}
+                          >
+                            {pushBusy ? 'Working…' : notificationLabel}
+                          </button>
+                        </div>
+                      </Section>
+                    </div>
+                  </div>
                 )}
 
                 {activeSection === 'security' && (
-                  <Section id="profile-section-security">
-                    <div className="profile-modal-detail-list">
-                      <div className="profile-modal-detail">
-                        <span className="profile-modal-label">Last sign-in</span>
-                        <span className="profile-modal-value">{formatDateTime(account.last_login_at)}</span>
-                      </div>
-                      <div className="profile-modal-detail">
-                        <span className="profile-modal-label">Active sessions</span>
-                        <span className="profile-modal-value">{number(security.activeSessionCount || 0)}</span>
-                      </div>
-                    </div>
+                  <div className="account-center-group">
+                    <div className="account-center-subsection">
+                      <SubsectionHeader eyebrow="SECURITY" title="Security & sign-in" />
+                      <Section id="profile-section-security">
+                        <div className="profile-modal-detail-list">
+                          <div className="profile-modal-detail">
+                            <span className="profile-modal-label">Last sign-in</span>
+                            <span className="profile-modal-value">{formatDateTime(account.last_login_at)}</span>
+                          </div>
+                          <div className="profile-modal-detail">
+                            <span className="profile-modal-label">Active sessions</span>
+                            <span className="profile-modal-value">{number(security.activeSessionCount || 0)}</span>
+                          </div>
+                        </div>
 
-                    {canChangePassword ? (
-                      <form className="profile-password-form" onSubmit={submitPassword}>
-                        <div className="profile-form-heading">Change password</div>
-                        <input
-                          className="auth-input profile-password-input"
-                          type="password"
-                          placeholder="Current password"
-                          autoComplete="current-password"
-                          value={password.current}
-                          onChange={(event) => updatePasswordField('current', event.target.value)}
-                          aria-label="Current password"
-                        />
-                        <input
-                          className="auth-input profile-password-input"
-                          type="password"
-                          placeholder="New password · 8 characters minimum"
-                          autoComplete="new-password"
-                          value={password.next}
-                          onChange={(event) => updatePasswordField('next', event.target.value)}
-                          aria-label="New password"
-                        />
-                        <input
-                          className="auth-input profile-password-input"
-                          type="password"
-                          placeholder="Confirm new password"
-                          autoComplete="new-password"
-                          value={password.confirm}
-                          onChange={(event) => updatePasswordField('confirm', event.target.value)}
-                          aria-label="Confirm new password"
-                        />
-                        {passwordState.message && (
-                          <p
-                            className={
-                              'profile-modal-form-message ' + (passwordState.status === 'success' ? 'success' : 'error')
-                            }
-                          >
-                            {passwordState.message}
-                          </p>
+                        {canChangePassword ? (
+                          <form className="profile-password-form" onSubmit={submitPassword}>
+                            <div className="profile-form-heading">Change password</div>
+                            <input
+                              className="auth-input profile-password-input"
+                              type="password"
+                              placeholder="Current password"
+                              autoComplete="current-password"
+                              value={password.current}
+                              onChange={(event) => updatePasswordField('current', event.target.value)}
+                              aria-label="Current password"
+                            />
+                            <input
+                              className="auth-input profile-password-input"
+                              type="password"
+                              placeholder="New password · 8 characters minimum"
+                              autoComplete="new-password"
+                              value={password.next}
+                              onChange={(event) => updatePasswordField('next', event.target.value)}
+                              aria-label="New password"
+                            />
+                            <input
+                              className="auth-input profile-password-input"
+                              type="password"
+                              placeholder="Confirm new password"
+                              autoComplete="new-password"
+                              value={password.confirm}
+                              onChange={(event) => updatePasswordField('confirm', event.target.value)}
+                              aria-label="Confirm new password"
+                            />
+                            {passwordState.message && (
+                              <p
+                                className={
+                                  'profile-modal-form-message ' +
+                                  (passwordState.status === 'success' ? 'success' : 'error')
+                                }
+                              >
+                                {passwordState.message}
+                              </p>
+                            )}
+                            <button
+                              className="profile-secondary-btn"
+                              type="submit"
+                              disabled={passwordState.status === 'saving'}
+                            >
+                              {passwordState.status === 'saving' ? 'Updating…' : 'Update password'}
+                            </button>
+                          </form>
+                        ) : (
+                          <div className="profile-modal-info-box">
+                            <strong>Password managed by Google</strong>
+                            <span>Change it from your Google Account security settings.</span>
+                          </div>
                         )}
+
                         <button
-                          className="profile-secondary-btn"
-                          type="submit"
-                          disabled={passwordState.status === 'saving'}
-                        >
-                          {passwordState.status === 'saving' ? 'Updating…' : 'Update password'}
-                        </button>
-                      </form>
-                    ) : (
-                      <div className="profile-modal-info-box">
-                        <strong>Password managed by Google</strong>
-                        <span>Change it from your Google Account security settings.</span>
-                      </div>
-                    )}
-
-                    <button
-                      className="profile-danger-link"
-                      type="button"
-                      onClick={() => setConfirmAction('logout-all')}
-                    >
-                      Sign out all devices
-                    </button>
-                  </Section>
-                )}
-
-                {activeSection === 'scheduling' && (
-                  <Section id="profile-section-scheduling">
-                    {scheduledScansState === 'loading' && (
-                      <div className="account-center-schedule-state" role="status">
-                        Loading your scheduled scans…
-                      </div>
-                    )}
-
-                    {scheduledScansState === 'error' && (
-                      <div className="account-center-schedule-state account-center-schedule-state--error">
-                        <strong>Scheduled scans are temporarily unavailable.</strong>
-                        <span>{scheduledScansError}</span>
-                        <button className="profile-secondary-btn" type="button" onClick={loadScheduledScans}>
-                          Try again
-                        </button>
-                      </div>
-                    )}
-
-                    {scheduledScansState === 'ready' && scheduledScans.length === 0 && (
-                      <div className="account-center-schedule-empty">
-                        <div className="account-center-schedule-empty-icon" aria-hidden="true">
-                          ◷
-                        </div>
-                        <strong>No scheduled scans right now.</strong>
-                        <span>Set a time and Capital Flow will run the scan automatically for you.</span>
-                        <button className="profile-primary-btn" type="button" onClick={onOpenScheduling}>
-                          Schedule scans
-                        </button>
-                      </div>
-                    )}
-
-                    {scheduledScansState === 'ready' && scheduledScans.length > 0 && (
-                      <>
-                        <div className="account-center-schedule-list" aria-label="Your scheduled scans">
-                          {scheduledScans.map((schedule) => {
-                            const active = Boolean(schedule.active);
-                            return (
-                              <article className="account-center-schedule-item" key={schedule.id}>
-                                <div className="account-center-schedule-item-copy">
-                                  <div className="account-center-schedule-item-heading">
-                                    <strong>{SCHEDULE_SCAN_LABELS[schedule.scan_type] || 'Scheduled scan'}</strong>
-                                    <span className={'account-center-schedule-status' + (active ? ' is-active' : '')}>
-                                      {active ? 'Active' : 'Paused'}
-                                    </span>
-                                  </div>
-                                  <span className="account-center-schedule-item-time">{scheduleTiming(schedule)}</span>
-                                  <small>
-                                    {schedule.scan_date ? 'One-time scan' : 'Repeats daily'} · Jerusalem time
-                                    {schedule.last_run_at
-                                      ? ` · Last run ${formatDateTime(schedule.last_run_at)}`
-                                      : ' · Not run yet'}
-                                  </small>
-                                </div>
-                              </article>
-                            );
-                          })}
-                        </div>
-                        <button
-                          className="profile-primary-btn account-center-schedule-cta"
+                          className="profile-danger-link"
                           type="button"
-                          onClick={onOpenScheduling}
+                          onClick={() => setConfirmAction('logout-all')}
                         >
-                          Schedule another scan
+                          Sign out all devices
                         </button>
-                      </>
-                    )}
-                  </Section>
-                )}
-
-                {activeSection === 'notifications' && (
-                  <Section id="profile-section-notifications">
-                    <div className="account-center-action-card">
-                      <div>
-                        <strong>Notification access</strong>
-                        <span>{notificationDescription}</span>
-                        {pushError && <small className="profile-modal-form-message error">{pushError}</small>}
-                      </div>
-                      <button
-                        className={'profile-primary-btn' + (pushEnabled ? ' profile-secondary-btn--active' : '')}
-                        type="button"
-                        onClick={requestNotificationsChange}
-                        disabled={pushBusy || (canNotify && (notificationBlocked || notificationUnavailable))}
-                      >
-                        {pushBusy ? 'Working…' : notificationLabel}
-                      </button>
+                      </Section>
                     </div>
-                  </Section>
-                )}
 
-                {activeSection === 'privacy' && (
-                  <Section id="profile-section-privacy">
-                    <div className="profile-privacy-actions">
-                      <button
-                        className="profile-secondary-btn"
-                        type="button"
-                        onClick={downloadData}
-                        disabled={downloadState === 'loading'}
-                      >
-                        {downloadState === 'loading' ? 'Preparing…' : 'Download my data'}
-                      </button>
-                      <button className="profile-danger-btn" type="button" onClick={() => setShowDelete(true)}>
-                        Delete account
-                      </button>
+                    <div className="account-center-subsection">
+                      <SubsectionHeader eyebrow="PRIVACY" title="Privacy & data" />
+                      <Section id="profile-section-privacy">
+                        <div className="profile-privacy-actions">
+                          <button
+                            className="profile-secondary-btn"
+                            type="button"
+                            onClick={downloadData}
+                            disabled={downloadState === 'loading'}
+                          >
+                            {downloadState === 'loading' ? 'Preparing…' : 'Download my data'}
+                          </button>
+                          <button className="profile-danger-btn" type="button" onClick={() => setShowDelete(true)}>
+                            Delete account
+                          </button>
+                        </div>
+                        {downloadState === 'success' && (
+                          <p className="profile-modal-form-message success">Your data download has started.</p>
+                        )}
+                        {downloadState === 'error' && (
+                          <p className="profile-modal-form-message error">Could not prepare the download. Try again.</p>
+                        )}
+                      </Section>
                     </div>
-                    {downloadState === 'success' && (
-                      <p className="profile-modal-form-message success">Your data download has started.</p>
-                    )}
-                    {downloadState === 'error' && (
-                      <p className="profile-modal-form-message error">Could not prepare the download. Try again.</p>
-                    )}
-                  </Section>
+                  </div>
                 )}
               </div>
             </main>

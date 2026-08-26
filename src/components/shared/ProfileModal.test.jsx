@@ -66,8 +66,8 @@ describe('ProfileModal preferences', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(summaryResponse()));
     const { props } = renderProfile();
 
-    expect(await screen.findByRole('heading', { name: 'Account overview' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
+    expect(await screen.findByRole('heading', { name: 'Account & workspace' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Automation & alerts' }));
     fireEvent.click(screen.getByRole('button', { name: 'Allow notifications' }));
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Allow notifications on this device?');
     expect(props.onEnablePush).not.toHaveBeenCalled();
@@ -80,8 +80,8 @@ describe('ProfileModal preferences', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(summaryResponse()));
     const { props } = renderProfile({ pushEnabled: true, notificationPermission: 'granted' });
 
-    expect(await screen.findByRole('heading', { name: 'Account overview' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
+    expect(await screen.findByRole('heading', { name: 'Account & workspace' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Automation & alerts' }));
     fireEvent.click(screen.getByRole('button', { name: 'Disable notifications' }));
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Disable notifications on this device?');
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -92,8 +92,8 @@ describe('ProfileModal preferences', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(summaryResponse()));
     const { props } = renderProfile();
 
-    expect(await screen.findByRole('heading', { name: 'Account overview' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Scan scheduling' }));
+    expect(await screen.findByRole('heading', { name: 'Account & workspace' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Automation & alerts' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Schedule scans' }));
     expect(props.onOpenScheduling).toHaveBeenCalledOnce();
   });
@@ -129,8 +129,8 @@ describe('ProfileModal preferences', () => {
     vi.stubGlobal('fetch', fetchMock);
     const { props } = renderProfile();
 
-    expect(await screen.findByRole('heading', { name: 'Account overview' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Scan scheduling' }));
+    expect(await screen.findByRole('heading', { name: 'Account & workspace' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Automation & alerts' }));
 
     expect(await screen.findByText('09:30 · Every day')).toBeInTheDocument();
     expect(screen.getByText('MA Scanner')).toBeInTheDocument();

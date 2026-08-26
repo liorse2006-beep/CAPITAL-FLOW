@@ -93,7 +93,7 @@ describe('Topbar tier badge', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
     expect(screen.getByRole('menu', { name: 'Profile menu' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Profile' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Account & workspace' }));
     expect(screen.getByRole('dialog', { name: 'Account Center' })).toBeInTheDocument();
     expect(screen.getByText('user@example.com')).toBeInTheDocument();
   });
@@ -104,28 +104,34 @@ describe('Topbar tier badge', () => {
     render(<Topbar {...baseProps({ user: { id: 1, email: 'user@example.com' }, onOpenScheduling })} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
-    for (const label of [
-      'Profile',
-      'Plan & access',
-      'Workspace usage',
-      'Security',
-      'Schedule scans',
-      'Notifications',
-      'Privacy & data',
-    ]) {
+    for (const label of ['Account & workspace', 'Automation & alerts', 'Security & privacy']) {
       expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument();
     }
 
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Plan & access' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Account & workspace' }));
     expect(screen.getByRole('dialog', { name: 'Account Center' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Account & workspace' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Account overview' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Plan & access' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Workspace usage' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Close profile' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Schedule scans' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Automation & alerts' }));
     expect(screen.getByRole('dialog', { name: 'Account Center' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Automation & alerts' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Scan scheduling' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Notifications' })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: 'Schedule scans' }));
     expect(onOpenScheduling).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Security & privacy' }));
+    expect(screen.getByRole('heading', { name: 'Security & privacy' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Security & sign-in' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Privacy & data' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download my data' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete account' })).toBeInTheDocument();
   });
 
   it('places the red Log Out action inside the profile menu', () => {
