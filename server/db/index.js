@@ -217,6 +217,11 @@ async function initDb() {
       min_volume          REAL    NOT NULL DEFAULT 0,
       min_price           REAL    NOT NULL DEFAULT 0,
       max_price           REAL    NOT NULL DEFAULT 0,
+      ma_period           INTEGER NOT NULL DEFAULT 20,
+      ma_distance         REAL    NOT NULL DEFAULT 2,
+      ma_interval         TEXT    NOT NULL DEFAULT '1d',
+      ma_direction        TEXT    NOT NULL DEFAULT 'all',
+      condition_version   TEXT    NOT NULL DEFAULT 'radar-v2',
       schedule_time_1     TEXT,
       schedule_time_2     TEXT,
       expires_on          TEXT,
@@ -224,6 +229,10 @@ async function initDb() {
       last_check_at       TEXT,
       last_success_at     TEXT,
       last_error          TEXT,
+      last_error_detail   TEXT,
+      last_data_status    TEXT    NOT NULL DEFAULT 'waiting',
+      last_data_as_of     TEXT,
+      last_scan_run_id    TEXT,
       last_partial_count  INTEGER NOT NULL DEFAULT 0,
       created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
       updated_at          INTEGER NOT NULL DEFAULT (unixepoch())
@@ -278,11 +287,43 @@ async function initDb() {
       status          TEXT    NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','completed','failed')),
       result_count    INTEGER,
       error_code      TEXT,
+      error_json      TEXT,
+      attempts        INTEGER NOT NULL DEFAULT 1,
+      lease_until     INTEGER,
+      scan_id         TEXT,
+      data_status     TEXT,
+      data_as_of      TEXT,
+      capital_flow_count INTEGER,
+      ma_count        INTEGER,
       UNIQUE (radar_id, run_date, scheduled_time)
     );
 
     CREATE INDEX IF NOT EXISTS idx_radar_schedule_runs_due ON radar_schedule_runs(run_date, status, scheduled_time);
     CREATE INDEX IF NOT EXISTS idx_radar_schedule_runs_radar ON radar_schedule_runs(radar_id, run_date);
+
+    -- Immutable-ish run metadata makes every notification explainable without
+    -- storing provider secrets or an unbounded copy of every market row.
+    -- The payload records the exact condition version and source timestamps.
+    -- raw provider responses remain outside the user-facing database.
+    CREATE TABLE IF NOT EXISTS radar_run_snapshots (
+      scan_id             TEXT PRIMARY KEY,
+      started_at           TEXT NOT NULL,
+      completed_at         TEXT,
+      capital_flow_as_of  TEXT,
+      ma_as_of            TEXT,
+      data_status          TEXT NOT NULL,
+      condition_version    TEXT NOT NULL,
+      ma_period            INTEGER,
+      ma_distance          REAL,
+      ma_interval          TEXT,
+      ma_direction         TEXT,
+      result_count         INTEGER NOT NULL DEFAULT 0,
+      checked_count        INTEGER NOT NULL DEFAULT 0,
+      error_json           TEXT,
+      created_at           INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_radar_run_snapshots_created ON radar_run_snapshots(created_at);
 
     CREATE TABLE IF NOT EXISTS processed_webhook_events (
       event_id     TEXT    PRIMARY KEY,
@@ -625,6 +666,23 @@ async function initDb() {
     `ALTER TABLE capital_flow_radars ADD COLUMN schedule_time_1 TEXT`,
     `ALTER TABLE capital_flow_radars ADD COLUMN schedule_time_2 TEXT`,
     `ALTER TABLE capital_flow_radars ADD COLUMN expires_on TEXT`,
+    `ALTER TABLE capital_flow_radars ADD COLUMN ma_period INTEGER NOT NULL DEFAULT 20`,
+    `ALTER TABLE capital_flow_radars ADD COLUMN ma_distance REAL NOT NULL DEFAULT 2`,
+    `ALTER TABLE capital_flow_radars ADD COLUMN ma_interval TEXT NOT NULL DEFAULT '1d'`,
+    `ALTER TABLE capital_flow_radars ADD COLUMN ma_direction TEXT NOT NULL DEFAULT 'all'`,
+    `ALTER TABLE capital_flow_radars ADD COLUMN condition_version TEXT NOT NULL DEFAULT 'radar-v2'`,
+    `ALTER TABLE capital_flow_radars ADD COLUMN last_error_detail TEXT`,
+    `ALTER TABLE capital_flow_radars ADD COLUMN last_data_status TEXT NOT NULL DEFAULT 'waiting'`,
+    `ALTER TABLE capital_flow_radars ADD COLUMN last_data_as_of TEXT`,
+    `ALTER TABLE capital_flow_radars ADD COLUMN last_scan_run_id TEXT`,
+    `ALTER TABLE radar_schedule_runs ADD COLUMN error_json TEXT`,
+    `ALTER TABLE radar_schedule_runs ADD COLUMN attempts INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE radar_schedule_runs ADD COLUMN lease_until INTEGER`,
+    `ALTER TABLE radar_schedule_runs ADD COLUMN scan_id TEXT`,
+    `ALTER TABLE radar_schedule_runs ADD COLUMN data_status TEXT`,
+    `ALTER TABLE radar_schedule_runs ADD COLUMN data_as_of TEXT`,
+    `ALTER TABLE radar_schedule_runs ADD COLUMN capital_flow_count INTEGER`,
+    `ALTER TABLE radar_schedule_runs ADD COLUMN ma_count INTEGER`,
   ];
 
   for (const sql of migrations) {
@@ -642,6 +700,8 @@ async function initDb() {
   // index that's a full table scan on every single minute, growing worse as
   // the user base grows.
   await client.execute('CREATE INDEX IF NOT EXISTS idx_users_notification_time ON users(notification_time)');
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_radar_schedule_runs_lease ON radar_schedule_runs(status, lease_until)');
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_capital_flow_radars_data_status ON capital_flow_radars(last_data_status, active)');
 
   // One-time data migration: carry over ma_scan_count → free_scan_count
   try {
@@ -676,6 +736,48 @@ async function initDb() {
   }
   await pruneStaleSessions();
   setInterval(() => pruneStaleSessions(), 24 * 60 * 60 * 1000).unref();
+
+  // Radar state is current-state data, but run metadata and entry history
+  // must not grow forever. Keep a useful long-term window by default while
+  // allowing the operator to tune it without changing application code.
+  const configuredRadarRetention = Number(process.env.RADAR_HISTORY_RETENTION_DAYS);
+  const radarRetentionDays =
+    Number.isInteger(configuredRadarRetention) && configuredRadarRetention >= 30 && configuredRadarRetention <= 3650
+      ? configuredRadarRetention
+      : 365;
+  function radarRetentionDate() {
+    const cutoff = new Date(Date.now() - radarRetentionDays * 24 * 60 * 60 * 1000);
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jerusalem',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(cutoff);
+    const map = {};
+    parts.forEach((part) => {
+      map[part.type] = part.value;
+    });
+    return `${map.year}-${map.month}-${map.day}`;
+  }
+  async function pruneRadarHistory() {
+    const cutoffSeconds = Math.floor(Date.now() / 1000) - radarRetentionDays * 24 * 60 * 60;
+    const cutoffDate = radarRetentionDate();
+    try {
+      await db.prepare('DELETE FROM radar_run_snapshots WHERE created_at < ?').run(cutoffSeconds);
+      await db.prepare('DELETE FROM radar_events WHERE created_at < ?').run(cutoffSeconds);
+      await db
+        .prepare(
+          `DELETE FROM radar_schedule_runs
+             WHERE run_date < ?
+               AND (status <> 'pending' OR started_at < ?)`
+        )
+        .run(cutoffDate, cutoffSeconds);
+    } catch (err) {
+      console.warn('[db] Radar history pruning skipped:', safeErrorSummary(err));
+    }
+  }
+  await pruneRadarHistory();
+  setInterval(() => pruneRadarHistory(), 24 * 60 * 60 * 1000).unref();
 }
 
 function sleep(ms) {

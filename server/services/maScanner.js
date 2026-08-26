@@ -91,8 +91,15 @@ function daysSinceCross(closes, period) {
  * Phase 2 — chart history for filtered tickers only, compute SMA
  *            (no batch endpoint exists for charts — stays per-symbol)
  */
-async function scanMA(tickers, { ma, distance, interval, onProgress }) {
+async function scanMA(tickers, { ma, distance, interval, direction = 'all', onProgress } = {}) {
   const total = tickers.length;
+  const errors = new Set();
+  const checkedSymbols = new Set();
+
+  function addError(symbol) {
+    const normalized = String(symbol || '').trim().toUpperCase();
+    if (normalized) errors.add(normalized);
+  }
 
   // ── Phase 1: batch quote fetch → market cap filter ───────────────────────
   if (onProgress) onProgress({ processed: 0, total, found: 0, phase: 1 });
@@ -107,8 +114,18 @@ async function scanMA(tickers, { ma, distance, interval, onProgress }) {
   const qualified = [];
   tickers.forEach((sym) => {
     const q = quotesMap.get(sym);
-    if (!q || !q.regularMarketPrice) return;
-    if ((q.marketCap || 0) < MIN_MKT_CAP) return;
+    if (!q) {
+      addError(sym);
+      return;
+    }
+    const price = Number(q.regularMarketPrice);
+    const marketCap = Number(q.marketCap);
+    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(marketCap) || marketCap <= 0) {
+      addError(sym);
+      return;
+    }
+    checkedSymbols.add(String(q.symbol || sym).trim().toUpperCase());
+    if (marketCap < MIN_MKT_CAP) return;
     qualified.push({ symbol: sym, q });
   });
 
@@ -133,17 +150,25 @@ async function scanMA(tickers, { ma, distance, interval, onProgress }) {
               period1: new Date(Date.now() - lb),
               interval,
             });
-            closes = (chart?.quotes || []).filter((x) => x?.close != null).map((x) => x.close);
+            closes = (chart?.quotes || [])
+              .filter((x) => x?.close != null && Number.isFinite(Number(x.close)))
+              .sort((a, b) => new Date(a.date) - new Date(b.date))
+              .map((x) => Number(x.close));
             setCachedCloses(symbol, interval, closes);
           }
           phase2Done++;
 
           const maValue = sma(closes, ma);
-          if (maValue === null) return null;
+          if (maValue === null) {
+            addError(symbol);
+            return null;
+          }
 
           const price = q.regularMarketPrice;
           const pctDist = ((price - maValue) / maValue) * 100;
           if (Math.abs(pctDist) > distance) return null;
+          if (direction === 'above' && pctDist < 0) return null;
+          if (direction === 'below' && pctDist >= 0) return null;
 
           return {
             symbol,
@@ -156,12 +181,17 @@ async function scanMA(tickers, { ma, distance, interval, onProgress }) {
             maValue: +maValue.toFixed(2),
             maDistance: +pctDist.toFixed(2),
             direction: pctDist >= 0 ? 'above' : 'below',
+            maPeriod: ma,
+            maInterval: interval,
+            maDirection: pctDist >= 0 ? 'above' : 'below',
+            dataQuality: 'complete',
             // Real bars-since-crossing computed from the same `closes`
             // history above, or null when the data doesn't show one within
             // the lookback window — see daysSinceCross's own doc comment.
             daysSinceCross: daysSinceCross(closes, ma),
           };
         } catch {
+          addError(symbol);
           phase2Done++;
           return null;
         }
@@ -180,7 +210,15 @@ async function scanMA(tickers, { ma, distance, interval, onProgress }) {
 
   results.sort((a, b) => Math.abs(a.maDistance) - Math.abs(b.maDistance));
 
-  return { results, processed: tickers.length, qualified: qualified.length };
+  return {
+    results,
+    processed: tickers.length,
+    qualified: qualified.length,
+    errors: [...errors],
+    checkedSymbols: [...checkedSymbols],
+    dataStatus: errors.size > 0 ? 'partial' : 'complete',
+    dataAsOf: new Date().toISOString(),
+  };
 }
 
 module.exports = { scanMA };

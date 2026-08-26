@@ -6,6 +6,10 @@
 // produced from a real scan row that satisfies the saved recipe.
 
 const REARM_AFTER_MISSED_SCANS = 2;
+const MA_PERIODS = Object.freeze([9, 20, 50, 150]);
+const MA_DISTANCES = Object.freeze([1, 2]);
+const MA_INTERVALS = Object.freeze(['1d', '1wk']);
+const MA_DIRECTIONS = Object.freeze(['all', 'above', 'below']);
 
 function parseVolumeInput(value) {
   if (value == null || value === '') return 0;
@@ -29,6 +33,27 @@ function symbolOf(row) {
     .trim()
     .toUpperCase();
   return symbol || null;
+}
+
+function maMatchesRadar(row, radar) {
+  const maValue = asFinite(row && row.maValue);
+  const maDistance = asFinite(row && row.maDistance);
+  const maPeriod = asFinite(row && row.maPeriod);
+  const maInterval = String(row && row.maInterval ? row.maInterval : '');
+  if (
+    maValue == null ||
+    maValue <= 0 ||
+    maDistance == null ||
+    maPeriod == null ||
+    maPeriod !== Number(radar.maPeriod) ||
+    maInterval !== String(radar.maInterval || '1d')
+  )
+    return false;
+
+  const direction = String(radar && radar.maDirection ? radar.maDirection : 'all');
+  if (direction === 'above' && maDistance < 0) return false;
+  if (direction === 'below' && maDistance >= 0) return false;
+  return Math.abs(maDistance) <= Number(radar.maDistance);
 }
 
 /**
@@ -58,7 +83,7 @@ function resultMatchesRadar(row, radar, universe) {
     if (!radar.selectedSectors.includes(sector)) return false;
   }
 
-  return true;
+  return maMatchesRadar(row, radar);
 }
 
 function normalizeState(state) {
@@ -82,7 +107,12 @@ function normalizeState(state) {
 function evaluateRadarTransitions(radar, results, states, options) {
   const opts = options || {};
   const scanDate = new Date(opts.scanTime);
-  if (!Array.isArray(results) || !opts.scanTime || Number.isNaN(scanDate.getTime())) {
+  if (
+    !Array.isArray(results) ||
+    !opts.scanTime ||
+    Number.isNaN(scanDate.getTime()) ||
+    opts.dataStatus === 'unavailable'
+  ) {
     return {
       available: false,
       partial: false,
@@ -106,6 +136,11 @@ function evaluateRadarTransitions(radar, results, states, options) {
           )
           .filter(Boolean)
       : []
+  );
+  const checked = new Set(
+    (Array.isArray(opts.checkedSymbols) ? opts.checkedSymbols : [])
+      .map((value) => String(value || '').trim().toUpperCase())
+      .filter(Boolean)
   );
   const currentMatches = new Map();
   const eventTime = scanDate.toISOString();
@@ -137,7 +172,12 @@ function evaluateRadarTransitions(radar, results, states, options) {
   });
 
   sourceStates.forEach((rawState, symbol) => {
-    if (currentMatches.has(symbol) || unavailable.has(symbol)) return;
+    // On a partial provider response, only symbols explicitly checked by all
+    // required inputs may be re-armed. Missing symbols must remain untouched;
+    // otherwise a temporary gap would create a false exit followed by a false
+    // re-entry when the provider recovers.
+    if (currentMatches.has(symbol) || unavailable.has(symbol) || (opts.dataStatus === 'partial' && !checked.has(symbol)))
+      return;
     const state = normalizeState(rawState);
     if (!state.matches) return;
     const missedChecks = state.missedChecks + 1;
@@ -159,7 +199,12 @@ function evaluateRadarTransitions(radar, results, states, options) {
 
 module.exports = {
   REARM_AFTER_MISSED_SCANS,
+  MA_PERIODS,
+  MA_DISTANCES,
+  MA_INTERVALS,
+  MA_DIRECTIONS,
   parseVolumeInput,
+  maMatchesRadar,
   resultMatchesRadar,
   evaluateRadarTransitions,
 };

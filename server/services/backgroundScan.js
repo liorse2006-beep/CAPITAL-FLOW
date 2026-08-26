@@ -1,6 +1,7 @@
 const { scanTickers } = require('./scanner');
 const { SP500, NASDAQ100, ALL_TICKERS } = require('../../tickers');
 const { reportError } = require('../utils/reportError');
+const { isMarketOpen, isPreMarket } = require('./marketCalendar');
 
 var backgroundCache = {
   results: null,
@@ -22,30 +23,6 @@ function getBroadcastToUser() {
   } catch (_) {
     return () => {};
   }
-}
-
-// `now` is injectable (defaults to the real clock) purely so tests can
-// verify behavior across a specific DST transition date deterministically —
-// every real call site just gets the current time, unchanged. Deliberately
-// re-derives the ET wall-clock hour/day via Intl's America/New_York zone on
-// every call rather than a hardcoded UTC offset — that's what makes this
-// already correct across DST, not something that needs a seasonal fix.
-function isMarketOpen(now) {
-  now = now || new Date();
-  var etStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
-  var et = new Date(etStr);
-  var day = et.getDay();
-  var mins = et.getHours() * 60 + et.getMinutes();
-  return day !== 0 && day !== 6 && mins >= 570 && mins < 960;
-}
-
-function isPreMarket(now) {
-  now = now || new Date();
-  var etStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
-  var et = new Date(etStr);
-  var day = et.getDay();
-  var mins = et.getHours() * 60 + et.getMinutes();
-  return day !== 0 && day !== 6 && mins >= 240 && mins < 570; // 4:00–9:30 AM ET
 }
 
 function filterCachedResults(cached, opts) {
@@ -204,6 +181,7 @@ async function runBackgroundScan() {
 
     // Check watchlist thresholds
     await checkWatchlistAlerts(res.results);
+
   } catch (e) {
     reportError(e, '[Background] Scan failed');
     broadcast('scan-status', { running: false, error: e.message });

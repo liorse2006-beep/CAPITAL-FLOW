@@ -250,6 +250,21 @@ export default function ScannerPage({
 
   return (
     <div className="page-content">
+      <CapitalFlowRadar
+        user={user}
+        getToken={getToken}
+        isElite={isElite}
+        trialActive={trialActive}
+        onUpgrade={onUpgrade}
+        onSignIn={onSignIn}
+        scanMode={scanMode}
+        selectedSectors={selectedSectors}
+        minRatio={minRatio}
+        minCap={minCap}
+        minVol={minVol}
+        radarEvent={radarEvent}
+      />
+
       {/* Scanning: Radar + Live Results Feed */}
       {scanning && progress && (
         <div className="scan-live-wrap">
@@ -614,21 +629,6 @@ export default function ScannerPage({
           </button>
         </div>
       )}
-
-      <CapitalFlowRadar
-        user={user}
-        getToken={getToken}
-        isElite={isElite}
-        trialActive={trialActive}
-        onUpgrade={onUpgrade}
-        onSignIn={onSignIn}
-        scanMode={scanMode}
-        selectedSectors={selectedSectors}
-        minRatio={minRatio}
-        minCap={minCap}
-        minVol={minVol}
-        radarEvent={radarEvent}
-      />
 
       {/* Preset panel */}
       {filtersUnlocked && showPresetPanel && (

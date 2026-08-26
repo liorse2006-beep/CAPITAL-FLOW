@@ -60,6 +60,11 @@ test('dumpTables includes every user-facing and operational table, not just the 
     'processed_webhook_events',
     'site_visits',
     'app_meta',
+    'capital_flow_radars',
+    'radar_states',
+    'radar_events',
+    'radar_schedule_runs',
+    'radar_run_snapshots',
   ];
   for (const table of expected) {
     assert.ok(table in dump.tables, `backup must include the ${table} table`);

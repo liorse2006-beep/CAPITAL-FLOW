@@ -32,8 +32,8 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 // in flight instead of starting a duplicate one.
 const inFlightScans = new Map(); // cacheKey → { promise, subscribers: Set<userId> }
 
-function cacheKeyFor(ma, distance, interval, market, sectors) {
-  return [ma, distance, interval, market, sectors.slice().sort().join('+')].join('|');
+function cacheKeyFor(ma, distance, interval, direction, market, sectors) {
+  return [ma, distance, interval, direction, market, sectors.slice().sort().join('+')].join('|');
 }
 
 // ── Start a MA scan ────────────────────────────────────────────────────────
@@ -44,6 +44,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
   const ma = req.query.ma == null || req.query.ma === '' ? 20 : Number(req.query.ma);
   const distance = req.query.distance == null || req.query.distance === '' ? 2 : Number(req.query.distance);
   const interval = req.query.interval == null || req.query.interval === '' ? '1d' : req.query.interval;
+  const direction = req.query.direction == null || req.query.direction === '' ? 'all' : req.query.direction;
   const market = req.query.market == null || req.query.market === '' ? 'all' : req.query.market;
   const sectors =
     req.query.sectors == null
@@ -63,6 +64,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
     !MA_VALID.includes(ma) ||
     !DIST_VALID.includes(distance) ||
     !['1d', '1wk'].includes(interval) ||
+    !['all', 'above', 'below'].includes(direction) ||
     !['all', 'nasdaq100', 'sp500', 'sectors'].includes(market) ||
     !Array.isArray(sectors) ||
     sectors.length > 20 ||
@@ -72,7 +74,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
     return res.status(400).json({ error: 'Invalid moving-average scan filters' });
   }
 
-  const cacheKey = cacheKeyFor(ma, distance, interval, market, sectors);
+  const cacheKey = cacheKeyFor(ma, distance, interval, direction, market, sectors);
   const cached = resultCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     // Cache hit — free, same policy as the main scanner. requireScanQuota
@@ -82,7 +84,11 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
     return res.json({
       results: cached.results,
       scanTime: cached.scanTime,
-      params: { ma, distance, interval },
+      params: { ma, distance, interval, direction, market, sectors },
+      dataStatus: cached.dataStatus,
+      dataAsOf: cached.dataAsOf,
+      errors: cached.errors,
+      checkedSymbols: cached.checkedSymbols,
       fromCache: true,
       ...quotaFor(req.user),
     });
@@ -127,6 +133,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
           ma,
           distance,
           interval,
+          direction,
           // Broadcast progress to every subscriber's own progress slot, not
           // just the request that happened to start the scan — /ma-progress
           // is polled per-user, so a joining subscriber still sees live
@@ -142,17 +149,30 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
     }
     entry.subscribers.add(userId);
 
-    const { results } = await entry.promise;
+    const scan = await entry.promise;
+    const results = scan.results || [];
 
     scanProgress.delete(userId);
 
     const scanTime = new Date().toISOString();
-    resultCache.set(cacheKey, { results, scanTime, expiresAt: Date.now() + CACHE_TTL_MS });
+    resultCache.set(cacheKey, {
+      results,
+      scanTime,
+      dataStatus: scan.dataStatus || (scan.errors && scan.errors.length ? 'partial' : 'complete'),
+      dataAsOf: scan.dataAsOf || scanTime,
+      errors: scan.errors || [],
+      checkedSymbols: scan.checkedSymbols || [],
+      expiresAt: Date.now() + CACHE_TTL_MS,
+    });
 
     res.json({
       results,
       scanTime,
-      params: { ma, distance, interval },
+      params: { ma, distance, interval, direction, market, sectors },
+      dataStatus: scan.dataStatus || (scan.errors && scan.errors.length ? 'partial' : 'complete'),
+      dataAsOf: scan.dataAsOf || scanTime,
+      errors: scan.errors || [],
+      checkedSymbols: scan.checkedSymbols || [],
       ...quotaFor(req.user),
     });
   } catch (err) {

@@ -32,6 +32,37 @@ const RADAR_TIME_OPTIONS = Array.from({ length: 25 }, (_, index) => {
   return { value, label: formatRadarTime(value) };
 });
 
+const RADAR_SECTORS = [
+  'Technology',
+  'Financials',
+  'Health Care',
+  'Consumer Discretionary',
+  'Consumer Staples',
+  'Energy',
+  'Industrials',
+  'Materials',
+  'Real Estate',
+  'Utilities',
+  'Communication Services',
+  'Semiconductors',
+];
+const RADAR_MA_PERIODS = [9, 20, 50, 150];
+const RADAR_MA_DISTANCES = [1, 2];
+const RADAR_MA_DIRECTIONS = [
+  { value: 'all', label: 'All' },
+  { value: 'above', label: 'Above' },
+  { value: 'below', label: 'Below' },
+];
+
+function formatVolumeInput(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number) || number <= 0) return '';
+  if (number >= 1e9) return `${number / 1e9}B`;
+  if (number >= 1e6) return `${number / 1e6}M`;
+  if (number >= 1e3) return `${number / 1e3}K`;
+  return String(number);
+}
+
 function formatTime(value) {
   if (!value) return '—';
   const date = new Date(value);
@@ -93,6 +124,7 @@ export default function CapitalFlowRadar({
   const [scheduleTime1, setScheduleTime1] = useState('');
   const [scheduleTime2, setScheduleTime2] = useState('');
   const [expiresOn, setExpiresOn] = useState(todayIsrael());
+  const [draftRecipe, setDraftRecipe] = useState(null);
   const [error, setError] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -137,9 +169,33 @@ export default function CapitalFlowRadar({
       minVolumeRatio: Number(minRatio),
       minMarketCap: Number(minCap) * 1e9,
       minVolRaw: minVol || '',
+      minPrice: 0,
+      maxPrice: 0,
+      maPeriod: 20,
+      maDistance: 2,
+      maInterval: '1d',
+      maDirection: 'all',
     }),
     [minCap, minRatio, minVol, scanMode, selectedSectors]
   );
+
+  const currentRecipe = draftRecipe || recipe;
+
+  function radarRecipeFromRow(radar) {
+    return {
+      mode: radar.mode || 'all',
+      selectedSectors: Array.isArray(radar.selectedSectors) ? radar.selectedSectors : [],
+      minVolumeRatio: Number(radar.minVolumeRatio || 1.5),
+      minMarketCap: Number(radar.minMarketCap || 500_000_000),
+      minVolRaw: formatVolumeInput(radar.minVolume),
+      minPrice: Number(radar.minPrice || 0),
+      maxPrice: Number(radar.maxPrice || 0),
+      maPeriod: Number(radar.maPeriod || 20),
+      maDistance: Number(radar.maDistance || 2),
+      maInterval: radar.maInterval || '1d',
+      maDirection: radar.maDirection || 'all',
+    };
+  }
 
   function closeSetup() {
     setSetupOpen(false);
@@ -148,6 +204,7 @@ export default function CapitalFlowRadar({
     setScheduleTime1('');
     setScheduleTime2('');
     setExpiresOn(todayIsrael());
+    setDraftRecipe(null);
   }
 
   function openSetupForRadar(radar) {
@@ -156,11 +213,29 @@ export default function CapitalFlowRadar({
     setScheduleTime1(radar?.scheduleTime1 || '');
     setScheduleTime2(radar?.scheduleTime2 || '');
     setExpiresOn(radar?.expiresOn || todayIsrael());
+    setDraftRecipe(radar ? radarRecipeFromRow(radar) : { ...recipe });
     setError('');
     setSetupOpen(true);
   }
 
+  function updateDraftRecipe(key, value) {
+    setDraftRecipe((previous) => ({ ...(previous || recipe), [key]: value }));
+    setError('');
+  }
+
+  function toggleDraftSector(sector) {
+    setDraftRecipe((previous) => {
+      const base = previous || recipe;
+      const sectors = base.selectedSectors.includes(sector)
+        ? base.selectedSectors.filter((item) => item !== sector)
+        : [...base.selectedSectors, sector];
+      return { ...base, selectedSectors: sectors };
+    });
+    setError('');
+  }
+
   function activateRadar() {
+    const selectedRecipe = draftRecipe || recipe;
     if (!scheduleTime1) {
       setError('Choose at least one scan time.');
       return;
@@ -173,6 +248,10 @@ export default function CapitalFlowRadar({
       setError('Choose the last date on which this Radar may run.');
       return;
     }
+    if (selectedRecipe.mode === 'sectors' && selectedRecipe.selectedSectors.length === 0) {
+      setError('Choose at least one sector before activating this Radar.');
+      return;
+    }
     setLoading(true);
     setError('');
     const editing = editingRadarId !== null;
@@ -181,7 +260,7 @@ export default function CapitalFlowRadar({
       headers: { ...headers(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: name.trim() || 'Capital Flow Radar',
-        ...recipe,
+        ...selectedRecipe,
         scheduleTime1,
         scheduleTime2: scheduleTime2 || null,
         expiresOn,
@@ -319,7 +398,8 @@ export default function CapitalFlowRadar({
                     </div>
                     <div className="cfr-radar-recipe">
                       {modeLabel(radar)} <span>·</span> {Number(radar.minVolumeRatio).toFixed(1)}x RVOL <span>·</span>{' '}
-                      {formatCap(radar.minMarketCap)}
+                      {formatCap(radar.minMarketCap)} <span>·</span> SMA{radar.maPeriod || 20} ±
+                      {Number(radar.maDistance || 2).toFixed(0)}% {radar.maDirection && radar.maDirection !== 'all' ? radar.maDirection : ''}
                     </div>
                   </div>
                   <span className={'cfr-radar-data-status ' + radar.dataStatus}>
@@ -403,6 +483,174 @@ export default function CapitalFlowRadar({
               <div className="cfr-radar-setup-label">
                 {editingRadarId !== null ? 'UPDATE RADAR SCHEDULE' : 'SCHEDULE THIS SCAN'}
               </div>
+              <div className="cfr-radar-condition-block">
+                <div className="cfr-radar-condition-heading">
+                  <span>COMBINED CONDITIONS</span>
+                  <small>Capital Flow + moving average must match together.</small>
+                </div>
+                <div className="cfr-radar-filter-grid">
+                  <label className="cfr-radar-filter cfr-radar-filter-wide">
+                    <span>Universe</span>
+                    <select
+                      value={currentRecipe.mode}
+                      onChange={(event) =>
+                        updateDraftRecipe('mode', event.target.value === 'sectors' ? 'sectors' : event.target.value)
+                      }
+                      aria-label="Radar market universe"
+                    >
+                      <option value="all">All stocks</option>
+                      <option value="sp500">S&amp;P 500</option>
+                      <option value="nasdaq100">NASDAQ 100</option>
+                      <option value="sectors">Selected sectors</option>
+                    </select>
+                  </label>
+                  <label className="cfr-radar-filter">
+                    <span>Min RVOL</span>
+                    <input
+                      type="number"
+                      min="1.5"
+                      max="100"
+                      step="0.1"
+                      value={currentRecipe.minVolumeRatio}
+                      onChange={(event) => updateDraftRecipe('minVolumeRatio', event.target.value)}
+                      aria-label="Minimum relative volume"
+                    />
+                  </label>
+                  <label className="cfr-radar-filter">
+                    <span>Min cap ($B)</span>
+                    <input
+                      type="number"
+                      min="0.5"
+                      max="100000"
+                      step="0.1"
+                      value={(Number(currentRecipe.minMarketCap || 0) / 1e9).toString()}
+                      onChange={(event) => updateDraftRecipe('minMarketCap', Number(event.target.value) * 1e9)}
+                      aria-label="Minimum market capitalization in billions"
+                    />
+                  </label>
+                  <label className="cfr-radar-filter">
+                    <span>Min volume</span>
+                    <input
+                      type="text"
+                      value={currentRecipe.minVolRaw}
+                      onChange={(event) => updateDraftRecipe('minVolRaw', event.target.value.toUpperCase())}
+                      placeholder="Optional"
+                      aria-label="Minimum trading volume"
+                    />
+                  </label>
+                  <label className="cfr-radar-filter">
+                    <span>Min price</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={currentRecipe.minPrice || ''}
+                      onChange={(event) => updateDraftRecipe('minPrice', Number(event.target.value || 0))}
+                      placeholder="Any"
+                      aria-label="Minimum price"
+                    />
+                  </label>
+                  <label className="cfr-radar-filter">
+                    <span>Max price</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={currentRecipe.maxPrice || ''}
+                      onChange={(event) => updateDraftRecipe('maxPrice', Number(event.target.value || 0))}
+                      placeholder="Any"
+                      aria-label="Maximum price"
+                    />
+                  </label>
+                </div>
+                {currentRecipe.mode === 'sectors' && (
+                  <div className="cfr-radar-sector-picker">
+                    <span>Sectors</span>
+                    <div className="cfr-radar-sector-grid">
+                      {RADAR_SECTORS.map((sector) => (
+                        <button
+                          type="button"
+                          key={sector}
+                          className={currentRecipe.selectedSectors.includes(sector) ? 'active' : ''}
+                          aria-pressed={currentRecipe.selectedSectors.includes(sector)}
+                          onClick={() => toggleDraftSector(sector)}
+                        >
+                          {sector}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="cfr-radar-ma-controls">
+                  <div className="cfr-radar-option-group">
+                    <span>SMA period</span>
+                    <div className="cfr-radar-option-row">
+                      {RADAR_MA_PERIODS.map((period) => (
+                        <button
+                          type="button"
+                          key={period}
+                          className={Number(currentRecipe.maPeriod) === period ? 'active' : ''}
+                          aria-pressed={Number(currentRecipe.maPeriod) === period}
+                          onClick={() => updateDraftRecipe('maPeriod', period)}
+                        >
+                          {period}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="cfr-radar-option-group">
+                    <span>Distance</span>
+                    <div className="cfr-radar-option-row">
+                      {RADAR_MA_DISTANCES.map((distance) => (
+                        <button
+                          type="button"
+                          key={distance}
+                          className={Number(currentRecipe.maDistance) === distance ? 'active' : ''}
+                          aria-pressed={Number(currentRecipe.maDistance) === distance}
+                          onClick={() => updateDraftRecipe('maDistance', distance)}
+                        >
+                          ±{distance}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="cfr-radar-option-group">
+                    <span>Direction</span>
+                    <div className="cfr-radar-option-row">
+                      {RADAR_MA_DIRECTIONS.map((item) => (
+                        <button
+                          type="button"
+                          key={item.value}
+                          className={currentRecipe.maDirection === item.value ? 'active' : ''}
+                          aria-pressed={currentRecipe.maDirection === item.value}
+                          onClick={() => updateDraftRecipe('maDirection', item.value)}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="cfr-radar-option-group">
+                    <span>Timeframe</span>
+                    <div className="cfr-radar-option-row">
+                      {[
+                        { value: '1d', label: 'Daily' },
+                        { value: '1wk', label: 'Weekly' },
+                      ].map((item) => (
+                        <button
+                          type="button"
+                          key={item.value}
+                          className={currentRecipe.maInterval === item.value ? 'active' : ''}
+                          aria-pressed={currentRecipe.maInterval === item.value}
+                          onClick={() => updateDraftRecipe('maInterval', item.value)}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
               <div className="cfr-radar-schedule-picker">
                 <div className="cfr-radar-schedule-heading">Choose up to 2 scan times · Jerusalem time</div>
                 <div className="cfr-radar-schedule-grid">
@@ -452,8 +700,8 @@ export default function CapitalFlowRadar({
                   </label>
                 </div>
                 <p className="cfr-radar-schedule-note">
-                  Pick a time between 11:00 AM and 11:00 PM. Closed-market periods are skipped, and the expiry date is
-                  inclusive.
+                  Pick a time between 11:00 AM and 11:00 PM. Pre-market and regular-session checks are supported;
+                  closed-market periods are skipped, and the expiry date is inclusive.
                 </p>
               </div>
               <label className="cfr-radar-name-field">
@@ -470,10 +718,11 @@ export default function CapitalFlowRadar({
                 />
               </label>
               <div className="cfr-radar-current-recipe">
-                {modeLabel(recipe)} <span>·</span> {Number(recipe.minVolumeRatio || 0).toFixed(1)}x RVOL <span>·</span>{' '}
-                {formatCap(recipe.minMarketCap)}
+                {modeLabel(currentRecipe)} <span>·</span> {Number(currentRecipe.minVolumeRatio || 0).toFixed(1)}x RVOL{' '}
+                <span>·</span> {formatCap(currentRecipe.minMarketCap)} <span>·</span> SMA{currentRecipe.maPeriod}{' '}
+                ±{currentRecipe.maDistance}%
               </div>
-              {recipe.mode === 'sectors' && recipe.selectedSectors.length === 0 && (
+              {currentRecipe.mode === 'sectors' && currentRecipe.selectedSectors.length === 0 && (
                 <div className="cfr-radar-form-error">Choose at least one sector before activating this Radar.</div>
               )}
               <div className="cfr-radar-setup-actions">
@@ -481,7 +730,7 @@ export default function CapitalFlowRadar({
                   type="button"
                   className="cfr-radar-cta"
                   onClick={activateRadar}
-                  disabled={loading || (recipe.mode === 'sectors' && recipe.selectedSectors.length === 0)}
+                  disabled={loading || (currentRecipe.mode === 'sectors' && currentRecipe.selectedSectors.length === 0)}
                 >
                   Activate Radar <span aria-hidden="true">→</span>
                 </button>

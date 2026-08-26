@@ -19,6 +19,10 @@ const radar = {
   minVolume: 0,
   minPrice: 0,
   maxPrice: 0,
+  maPeriod: 20,
+  maDistance: 2,
+  maInterval: '1d',
+  maDirection: 'all',
 };
 
 function row(overrides = {}) {
@@ -32,6 +36,11 @@ function row(overrides = {}) {
     volumeRatio: 2,
     marketCap: 2_000_000_000_000,
     sector: 'Technology',
+    maValue: 185,
+    maDistance: 2,
+    maPeriod: 20,
+    maInterval: '1d',
+    maDirection: 'above',
     ...overrides,
   };
 }

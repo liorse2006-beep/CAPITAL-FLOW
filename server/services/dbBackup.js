@@ -34,6 +34,7 @@ const TABLES = [
   'radar_states',
   'radar_events',
   'radar_schedule_runs',
+  'radar_run_snapshots',
   'chat_messages',
   'notifications',
   'admin_audit_log',

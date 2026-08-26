@@ -12,9 +12,11 @@ const { ADMIN_EMAIL } = require('../config');
 const { freeTrialActive } = require('./scanQuota');
 const { reportError } = require('../utils/reportError');
 const {
-  REARM_AFTER_MISSED_SCANS,
+  MA_PERIODS,
+  MA_DISTANCES,
+  MA_INTERVALS,
+  MA_DIRECTIONS,
   parseVolumeInput,
-  resultMatchesRadar,
   evaluateRadarTransitions,
 } = require('./radarLogic');
 
@@ -29,6 +31,9 @@ const DATA_UNAVAILABLE_MESSAGE = 'Data is not available right now. Try again in 
 const PARTIAL_DATA_MESSAGE = 'Some market data is unavailable right now. Try again in a few minutes.';
 const RADAR_SCHEDULE_MESSAGE = 'Choose one or two scan times and an expiry date before activating this Radar.';
 const RADAR_TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+const RADAR_SLOT_START = 11 * 60;
+const RADAR_SLOT_END = 23 * 60;
+const CONDITION_VERSION = 'radar-v2';
 
 const UNIVERSE = {
   sp500: new Set(SP500),
@@ -82,6 +87,19 @@ function numberOr(value, fallback) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function allowedRadarTime(value) {
+  if (typeof value !== 'string' || !RADAR_TIME_RE.test(value)) return false;
+  const [hour, minute] = value.split(':').map(Number);
+  const total = hour * 60 + minute;
+  return total >= RADAR_SLOT_START && total <= RADAR_SLOT_END && minute % 30 === 0;
+}
+
+function integerOr(value, fallback) {
+  if (value == null || value === '') return fallback;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
 /** Normalize and validate both HTTP input and existing DB rows. */
 function normalizeRadarInput(input, base, options = {}) {
   const source = { ...(base || {}), ...(input || {}) };
@@ -113,6 +131,10 @@ function normalizeRadarInput(input, base, options = {}) {
   const minPrice = numberOr(source.minPrice ?? source.min_price, 0);
   const maxPrice = numberOr(source.maxPrice ?? source.max_price, 0);
   const minVolume = parseVolumeInput(source.minVolRaw ?? source.minVolume ?? source.min_volume ?? '');
+  const maPeriod = integerOr(source.maPeriod ?? source.ma_period, 20);
+  const maDistance = numberOr(source.maDistance ?? source.ma_distance, 2);
+  const maInterval = String(source.maInterval ?? source.ma_interval ?? '1d');
+  const maDirection = String(source.maDirection ?? source.ma_direction ?? 'all');
 
   const scheduleTime1 = scheduleValue(source, 'scheduleTime1', 'schedule_time_1');
   const scheduleTime2 = scheduleValue(source, 'scheduleTime2', 'schedule_time_2');
@@ -124,13 +146,13 @@ function normalizeRadarInput(input, base, options = {}) {
     error.code = 'INVALID_RADAR_SCHEDULE';
     throw error;
   }
-  if (scheduleTime1 !== null && scheduleTime1 !== '' && !RADAR_TIME_RE.test(scheduleTime1)) {
-    const error = new Error('The first Radar time must use HH:MM.');
+  if (scheduleTime1 !== null && scheduleTime1 !== '' && !allowedRadarTime(scheduleTime1)) {
+    const error = new Error('Radar times must be in 30-minute steps from 11:00 AM through 11:00 PM.');
     error.code = 'INVALID_RADAR_SCHEDULE';
     throw error;
   }
-  if (hasSecondSchedule && !RADAR_TIME_RE.test(scheduleTime2)) {
-    const error = new Error('The second Radar time must use HH:MM.');
+  if (hasSecondSchedule && !allowedRadarTime(scheduleTime2)) {
+    const error = new Error('Radar times must be in 30-minute steps from 11:00 AM through 11:00 PM.');
     error.code = 'INVALID_RADAR_SCHEDULE';
     throw error;
   }
@@ -166,7 +188,11 @@ function normalizeRadarInput(input, base, options = {}) {
     maxPrice == null ||
     maxPrice < 0 ||
     maxPrice > 10_000_000 ||
-    (maxPrice > 0 && minPrice > maxPrice)
+    (maxPrice > 0 && minPrice > maxPrice) ||
+    !MA_PERIODS.includes(maPeriod) ||
+    !MA_DISTANCES.includes(maDistance) ||
+    !MA_INTERVALS.includes(maInterval) ||
+    !MA_DIRECTIONS.includes(maDirection)
   ) {
     const error = new Error(`Radar supports Min Ratio ≥ ${MIN_VOLUME_RATIO} and Min Cap ≥ $${MIN_MARKET_CAP / 1e9}B`);
     error.code = 'INVALID_RADAR_FILTERS';
@@ -182,6 +208,11 @@ function normalizeRadarInput(input, base, options = {}) {
     minVolume,
     minPrice,
     maxPrice,
+    maPeriod,
+    maDistance,
+    maInterval,
+    maDirection,
+    conditionVersion: CONDITION_VERSION,
     scheduleTime1: hasSchedule ? scheduleTime1 : null,
     scheduleTime2: hasSecondSchedule ? scheduleTime2 : null,
     expiresOn: expiresOn || null,
@@ -205,8 +236,9 @@ function statusForRow(row) {
     return { state: 'needs_schedule', message: RADAR_SCHEDULE_MESSAGE };
   }
   const hasSuccess = !!row.last_success_at;
-  const partial = Number(row.last_partial_count || 0) > 0;
-  if (row.last_error === 'SCAN_UNAVAILABLE') {
+  const dataStatus = row.last_data_status || (Number(row.last_partial_count || 0) > 0 ? 'partial' : null);
+  const partial = dataStatus === 'partial' || Number(row.last_partial_count || 0) > 0;
+  if (row.last_error === 'SCAN_UNAVAILABLE' || dataStatus === 'unavailable') {
     return { state: 'unavailable', message: DATA_UNAVAILABLE_MESSAGE };
   }
   if (!hasSuccess && row.last_error) {
@@ -245,6 +277,14 @@ function serializeRadar(row, events) {
     partialCount: Number(row.last_partial_count || 0),
     dataStatus: status.state,
     statusMessage: status.message,
+    maPeriod: Number(row.ma_period || 20),
+    maDistance: Number(row.ma_distance || 2),
+    maInterval: row.ma_interval || '1d',
+    maDirection: row.ma_direction || 'all',
+    conditionVersion: row.condition_version || CONDITION_VERSION,
+    lastDataStatus: row.last_data_status || 'waiting',
+    lastDataAsOf: row.last_data_as_of || null,
+    lastScanRunId: row.last_scan_run_id || null,
     maxScansPerDay: MAX_RADAR_SCANS_PER_DAY,
     scheduleTimezone: RADAR_TIMEZONE,
     events: events || [],
@@ -263,6 +303,11 @@ function rowToConfig(row) {
     minVolume: Number(row.min_volume || 0),
     minPrice: Number(row.min_price || 0),
     maxPrice: Number(row.max_price || 0),
+    maPeriod: Number(row.ma_period || 20),
+    maDistance: Number(row.ma_distance || 2),
+    maInterval: row.ma_interval || '1d',
+    maDirection: row.ma_direction || 'all',
+    conditionVersion: row.condition_version || CONDITION_VERSION,
     scheduleTime1: row.schedule_time_1 || null,
     scheduleTime2: row.schedule_time_2 || null,
     expiresOn: row.expires_on || null,
@@ -331,8 +376,9 @@ async function createRadar(userId, input) {
     .prepare(
       `INSERT INTO capital_flow_radars
         (user_id, name, mode, selected_sectors_json, min_volume_ratio, min_market_cap,
-         min_volume, min_price, max_price, schedule_time_1, schedule_time_2, expires_on, active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
+         min_volume, min_price, max_price, ma_period, ma_distance, ma_interval, ma_direction,
+         condition_version, schedule_time_1, schedule_time_2, expires_on, active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
     )
     .run(
       userId,
@@ -344,6 +390,11 @@ async function createRadar(userId, input) {
       config.minVolume,
       config.minPrice,
       config.maxPrice,
+      config.maPeriod,
+      config.maDistance,
+      config.maInterval,
+      config.maDirection,
+      config.conditionVersion,
       config.scheduleTime1,
       config.scheduleTime2,
       config.expiresOn
@@ -363,6 +414,10 @@ async function updateRadar(userId, radarId, input) {
     minVolume: existing.min_volume,
     minPrice: existing.min_price,
     maxPrice: existing.max_price,
+    maPeriod: existing.ma_period,
+    maDistance: existing.ma_distance,
+    maInterval: existing.ma_interval,
+    maDirection: existing.ma_direction,
     scheduleTime1: existing.schedule_time_1,
     scheduleTime2: existing.schedule_time_2,
     expiresOn: existing.expires_on,
@@ -373,7 +428,8 @@ async function updateRadar(userId, radarId, input) {
     .prepare(
       `UPDATE capital_flow_radars
           SET name = ?, mode = ?, selected_sectors_json = ?, min_volume_ratio = ?, min_market_cap = ?,
-              min_volume = ?, min_price = ?, max_price = ?, schedule_time_1 = ?, schedule_time_2 = ?,
+              min_volume = ?, min_price = ?, max_price = ?, ma_period = ?, ma_distance = ?, ma_interval = ?,
+              ma_direction = ?, condition_version = ?, schedule_time_1 = ?, schedule_time_2 = ?,
               expires_on = ?, active = ?, updated_at = unixepoch()
         WHERE id = ? AND user_id = ?`
     )
@@ -386,6 +442,11 @@ async function updateRadar(userId, radarId, input) {
       config.minVolume,
       config.minPrice,
       config.maxPrice,
+      config.maPeriod,
+      config.maDistance,
+      config.maInterval,
+      config.maDirection,
+      config.conditionVersion,
       config.scheduleTime1,
       config.scheduleTime2,
       config.expiresOn,
@@ -407,7 +468,7 @@ async function deleteRadar(userId, radarId) {
   return !!(last && Number(last.rowsAffected) > 0);
 }
 
-function eventPayload(row, scanTime) {
+function eventPayload(row, scanTime, meta = {}) {
   const numeric = (value) => (Number.isFinite(Number(value)) ? Number(value) : null);
   return {
     symbol: String(row.symbol || '').toUpperCase(),
@@ -421,6 +482,15 @@ function eventPayload(row, scanTime) {
     avgVolume: numeric(row.avgVolume),
     sector: row.sector ? String(row.sector).slice(0, 80) : null,
     exchange: row.exchange ? String(row.exchange).slice(0, 40) : null,
+    maValue: numeric(row.maValue),
+    maDistance: numeric(row.maDistance),
+    maDirection: row.maDirection ? String(row.maDirection).slice(0, 10) : null,
+    maPeriod: numeric(row.maPeriod),
+    maInterval: row.maInterval ? String(row.maInterval).slice(0, 10) : null,
+    conditionVersion: meta.conditionVersion || CONDITION_VERSION,
+    scanId: meta.scanId || null,
+    dataStatus: meta.dataStatus || 'complete',
+    dataAsOf: meta.dataAsOf || scanTime,
     scanTime,
   };
 }
@@ -428,11 +498,14 @@ function eventPayload(row, scanTime) {
 function eventBody(payload, reentry) {
   const ratio = Number.isFinite(payload.volumeRatio) ? payload.volumeRatio.toFixed(2) + 'x RVOL' : 'volume signal';
   const price = Number.isFinite(payload.price) ? '$' + payload.price.toFixed(2) : 'price unavailable';
-  return `${reentry ? 'Re-entry' : 'New entry'}: ${payload.symbol} meets your Capital Flow Radar · ${ratio} · ${price}`;
+  const ma = Number.isFinite(payload.maDistance)
+    ? `SMA${payload.maPeriod || ''} ${payload.maDistance >= 0 ? '+' : ''}${payload.maDistance.toFixed(2)}%`
+    : 'moving-average condition';
+  return `${reentry ? 'Re-entry' : 'New entry'}: ${payload.symbol} meets both Radar conditions · ${ratio} · ${ma} · ${price}`;
 }
 
 async function dispatchRadarEvent(radar, event) {
-  const payload = eventPayload(event.row, event.scanTime);
+  const payload = eventPayload(event.row, event.scanTime, event.meta);
   const title = `Capital Flow Radar · ${payload.symbol}`;
   const body = eventBody(payload, event.reentry);
   const eventRow = await db
@@ -517,16 +590,18 @@ async function getStates(radarId) {
  * and no AI analysis is generated in the alert path.
  */
 async function processRadarScan(results, scanTime, meta) {
+  const scanMeta = meta || {};
   const radarIds = [
     ...new Set(
-      (meta && meta.radarIds ? meta.radarIds : []).map(Number).filter((id) => Number.isSafeInteger(id) && id > 0)
+      (scanMeta.radarIds ? scanMeta.radarIds : []).map(Number).filter((id) => Number.isSafeInteger(id) && id > 0)
     ),
   ];
   // Regular background scans must not evaluate Radar recipes. Only the
   // scheduled worker supplies explicit ids, so Radar never falls back to
   // continuous processing.
   if (radarIds.length === 0) return [];
-  if (!Array.isArray(results) || !scanTime || Number.isNaN(new Date(scanTime).getTime())) {
+  const dataStatus = scanMeta.dataStatus || (Array.isArray(scanMeta.errors) && scanMeta.errors.length ? 'partial' : 'complete');
+  if (!Array.isArray(results) || !scanTime || Number.isNaN(new Date(scanTime).getTime()) || dataStatus === 'unavailable') {
     await markRadarsUnavailable(radarIds);
     return [];
   }
@@ -553,69 +628,118 @@ async function processRadarScan(results, scanTime, meta) {
       (row.owner_tier === 'free' && freeTrialActive({ created_at: row.owner_created_at }))
     );
   });
-  const unavailableSymbols = Array.isArray(meta && meta.errors) ? meta.errors : [];
+  const unavailableSymbols = Array.isArray(scanMeta.errors) ? scanMeta.errors : [];
+  const checkedSymbols = Array.isArray(scanMeta.checkedSymbols) ? scanMeta.checkedSymbols : [];
+  const scanId = String(scanMeta.scanId || `radar-${new Date(scanTime).getTime()}`);
+  const dataAsOf = scanMeta.dataAsOf || scanTime;
   const emitted = [];
 
   for (const radar of activeRadars) {
     try {
       const config = rowToConfig(radar);
       const states = await getStates(config.id);
+      const resultRowsBySymbol = new Map(
+        results
+          .map((row) => [String(row && row.symbol ? row.symbol : '').trim().toUpperCase(), row])
+          .filter(([symbol]) => symbol)
+      );
+      const sectorUnavailableSymbols =
+        config.mode === 'sectors'
+          ? checkedSymbols
+              .filter((symbol) => resultRowsBySymbol.has(String(symbol).toUpperCase()))
+              .filter((symbol) => {
+                const sector = String(resultRowsBySymbol.get(String(symbol).toUpperCase())?.sector || '').trim();
+                return !sector || sector === 'N/A' || sector === 'Pending';
+              })
+              .map((symbol) => String(symbol).toUpperCase())
+          : [];
+      const radarUnavailableSymbols = [...new Set([...unavailableSymbols, ...sectorUnavailableSymbols])];
+      const radarErrorDetails = [
+        ...unavailableSymbols,
+        ...sectorUnavailableSymbols.map((symbol) => `SECTOR_DATA_UNAVAILABLE:${symbol}`),
+      ];
+      const radarDataStatus = sectorUnavailableSymbols.length > 0 ? 'partial' : dataStatus;
       const evaluation = evaluateRadarTransitions(config, results, states, {
         scanTime,
-        unavailableSymbols,
+        unavailableSymbols: radarUnavailableSymbols,
+        checkedSymbols,
+        dataStatus: radarDataStatus,
         universe: UNIVERSE,
       });
-      const matchedRows = new Map();
-      results.forEach((row) => {
-        const symbol = String(row && row.symbol ? row.symbol : '')
-          .trim()
-          .toUpperCase();
-        if (symbol && resultMatchesRadar(row, config, UNIVERSE)) matchedRows.set(symbol, row);
-      });
+      const statements = [
+        {
+          sql: `INSERT OR IGNORE INTO radar_run_snapshots
+                  (scan_id, started_at, completed_at, capital_flow_as_of, ma_as_of, data_status,
+                   condition_version, ma_period, ma_distance, ma_interval, ma_direction,
+                   result_count, checked_count, error_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [
+            scanId,
+            scanMeta.startedAt || scanTime,
+            scanTime,
+            scanMeta.capitalFlowAsOf || dataAsOf,
+            scanMeta.maAsOf || dataAsOf,
+            radarDataStatus,
+            config.conditionVersion || CONDITION_VERSION,
+            config.maPeriod,
+            config.maDistance,
+            config.maInterval,
+            // The shared MA request is direction-neutral; each Radar applies
+            // its own above/below preference locally during evaluation.
+            scanMeta.maDirection || 'all',
+            results.length,
+            checkedSymbols.length || (dataStatus === 'complete' ? results.length : 0),
+            JSON.stringify(radarErrorDetails.slice(0, 100)),
+          ],
+        },
+      ];
 
-      const statements = [];
-      matchedRows.forEach((row, symbol) => {
+      // Persist exactly the pure evaluator's next state. This keeps partial
+      // provider responses from incrementing a symbol that was not actually
+      // checked, and removes the old duplicate SQL transition logic.
+      evaluation.nextStates.forEach((state, symbol) => {
         statements.push({
           sql: `INSERT INTO radar_states
                   (radar_id, symbol, matches, entered_at, last_seen_at, missed_checks)
-                VALUES (?, ?, 1, ?, ?, 0)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(radar_id, symbol) DO UPDATE SET
-                  matches = 1,
-                  entered_at = CASE WHEN radar_states.matches = 1 THEN radar_states.entered_at ELSE excluded.entered_at END,
+                  matches = excluded.matches,
+                  entered_at = excluded.entered_at,
                   last_seen_at = excluded.last_seen_at,
-                  missed_checks = 0`,
-          args: [radar.id, symbol, evaluation.nextStates.get(symbol).enteredAt, evaluation.scanTime],
+                  missed_checks = excluded.missed_checks`,
+          args: [radar.id, symbol, state.matches ? 1 : 0, state.enteredAt, state.lastSeenAt, state.missedChecks],
         });
       });
 
-      const exclusions = [...matchedRows.keys(), ...unavailableSymbols.map((value) => String(value).toUpperCase())];
-      const missingArgs = [REARM_AFTER_MISSED_SCANS, radar.id];
-      let missingSql = `UPDATE radar_states
-                           SET missed_checks = missed_checks + 1,
-                               matches = CASE WHEN missed_checks + 1 >= ? THEN 0 ELSE matches END
-                         WHERE radar_id = ? AND matches = 1`;
-      if (exclusions.length > 0) {
-        missingSql += ` AND symbol NOT IN (${exclusions.map(() => '?').join(',')})`;
-        missingArgs.push(...exclusions);
-      }
-      statements.push({ sql: missingSql, args: missingArgs });
-
-      const partialCount = unavailableSymbols.length;
+      const partialCount = radarUnavailableSymbols.length;
+      const lastError = radarDataStatus === 'partial' ? 'PARTIAL_DATA' : null;
       statements.push({
         sql: `UPDATE capital_flow_radars
-                 SET last_check_at = ?, last_success_at = ?, last_error = ?, last_partial_count = ?, updated_at = unixepoch()
+                 SET last_check_at = ?, last_success_at = ?, last_error = ?, last_error_detail = ?,
+                     last_data_status = ?, last_data_as_of = ?, last_scan_run_id = ?,
+                     last_partial_count = ?, updated_at = unixepoch()
                WHERE id = ?`,
         args: [
           evaluation.scanTime,
           evaluation.scanTime,
-          partialCount > 0 ? 'PARTIAL_DATA' : null,
+          lastError,
+          radarErrorDetails.length > 0 ? JSON.stringify(radarErrorDetails.slice(0, 100)) : null,
+          radarDataStatus,
+          dataAsOf,
+          scanId,
           partialCount,
           radar.id,
         ],
       });
 
       evaluation.events.forEach((event) => {
-        const payload = eventPayload(event.row, evaluation.scanTime);
+        const payload = eventPayload(event.row, evaluation.scanTime, {
+          ...scanMeta,
+          scanId,
+          dataStatus: radarDataStatus,
+          dataAsOf,
+          conditionVersion: config.conditionVersion || CONDITION_VERSION,
+        });
         statements.push({
           sql: `INSERT OR IGNORE INTO radar_events
                   (radar_id, user_id, symbol, scan_time, payload_json)
@@ -627,7 +751,16 @@ async function processRadarScan(results, scanTime, meta) {
       await db.transaction(statements);
       for (const event of evaluation.events) {
         emitted.push({ radarId: config.id, userId: config.user_id, symbol: event.symbol, scanTime: event.scanTime });
-        await dispatchRadarEvent(config, event);
+        await dispatchRadarEvent(config, {
+          ...event,
+          meta: {
+            ...scanMeta,
+            scanId,
+            dataStatus: radarDataStatus,
+            dataAsOf,
+            conditionVersion: config.conditionVersion,
+          },
+        });
       }
     } catch (err) {
       // One malformed user recipe or one transient DB error cannot disable
@@ -636,27 +769,39 @@ async function processRadarScan(results, scanTime, meta) {
       await db
         .prepare(
           `UPDATE capital_flow_radars
-              SET last_check_at = ?, last_error = 'SCAN_UNAVAILABLE', updated_at = unixepoch()
+              SET last_check_at = ?, last_error = 'SCAN_UNAVAILABLE', last_error_detail = ?,
+                  last_data_status = 'unavailable', last_data_as_of = ?, updated_at = unixepoch()
             WHERE id = ?`
         )
-        .run(new Date().toISOString(), radar.id)
+        .run(
+          new Date().toISOString(),
+          JSON.stringify([err.code || 'RADAR_PROCESSING_FAILED']),
+          new Date().toISOString(),
+          radar.id
+        )
         .catch(() => {});
     }
   }
   return emitted;
 }
 
-async function markRadarsUnavailable(radarIds) {
+async function markRadarsUnavailable(radarIds, metadata = {}) {
   const ids = [...new Set((radarIds || []).map(Number).filter((id) => Number.isSafeInteger(id) && id > 0))];
   if (ids.length === 0) return;
   const placeholders = ids.map(() => '?').join(',');
+  const checkedAt = metadata.dataAsOf || new Date().toISOString();
+  const errorDetail = Array.isArray(metadata.errors) && metadata.errors.length > 0
+    ? JSON.stringify(metadata.errors.slice(0, 100))
+    : null;
   await db
     .prepare(
       `UPDATE capital_flow_radars
-          SET last_check_at = ?, last_error = 'SCAN_UNAVAILABLE', last_partial_count = 0, updated_at = unixepoch()
+          SET last_check_at = ?, last_error = 'SCAN_UNAVAILABLE', last_error_detail = ?,
+              last_data_status = 'unavailable', last_data_as_of = ?, last_scan_run_id = ?,
+              last_partial_count = 0, updated_at = unixepoch()
         WHERE active = 1 AND id IN (${placeholders})`
     )
-    .run(new Date().toISOString(), ...ids);
+    .run(checkedAt, errorDetail, checkedAt, metadata.scanId || null, ...ids);
 }
 
 module.exports = {
@@ -670,6 +815,7 @@ module.exports = {
   normalizeRadarInput,
   getRadarBundle,
   getRadarRowForUser,
+  rowToConfig,
   getEventRows,
   createRadar,
   updateRadar,

@@ -29,6 +29,11 @@ function scanRow(overrides = {}) {
     marketCap: 2_000_000_000_000,
     sector: 'Technology',
     exchange: 'NMS',
+    maValue: 185,
+    maDistance: 2,
+    maPeriod: 20,
+    maInterval: '1d',
+    maDirection: 'above',
     ...overrides,
   };
 }
@@ -50,7 +55,7 @@ function futureIsraelDate(days = 7) {
 }
 
 function scheduleFields() {
-  return { scheduleTime1: '10:00', scheduleTime2: '14:00', expiresOn: futureIsraelDate() };
+  return { scheduleTime1: '11:00', scheduleTime2: '14:00', expiresOn: futureIsraelDate() };
 }
 
 test('Capital Flow Radar persists a new entry once and preserves it during an ongoing match', async () => {

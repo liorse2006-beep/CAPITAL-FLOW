@@ -68,6 +68,11 @@ async function scanTickers(tickers, options) {
 
   var results = [];
   var errors = [];
+  var checkedSymbols = [];
+
+  function addError(symbol) {
+    if (!errors.includes(symbol)) errors.push(symbol);
+  }
 
   // ── Phase 1: batch-fetch all quotes (5–6 HTTP calls for 516 tickers) ────────
   if (onProgress) onProgress({ processed: 0, total: tickers.length, found: 0 });
@@ -86,36 +91,55 @@ async function scanTickers(tickers, options) {
   tickers.forEach(function (symbol) {
     var quote = quotesMap.get(symbol);
     if (!quote) {
-      errors.push(symbol);
+      addError(symbol);
       return;
     }
 
-    if (!quote.regularMarketVolume) return;
-    if ((quote.marketCap || 0) < minMarketCap) return;
+    // A symbol is considered checked only when every field needed to decide
+    // the Capital Flow floor is present. This distinction is consumed by the
+    // scheduled Radar evaluator: a missing quote must not be interpreted as a
+    // real negative signal and must not re-arm an existing match.
+    var quotePrice = Number(quote.regularMarketPrice);
+    var quoteVolume = Number(quote.regularMarketVolume);
+    var avgVolume = Number(quote.averageDailyVolume10Day);
+    var quoteMarketCap = Number(quote.marketCap);
+    if (
+      !Number.isFinite(quotePrice) ||
+      quotePrice <= 0 ||
+      !Number.isFinite(quoteVolume) ||
+      quoteVolume <= 0 ||
+      !Number.isFinite(avgVolume) ||
+      avgVolume <= 0 ||
+      !Number.isFinite(quoteMarketCap) ||
+      quoteMarketCap <= 0
+    ) {
+      addError(symbol);
+      return;
+    }
 
-    var avgVolume = quote.averageDailyVolume10Day || 0;
-    if (avgVolume <= 0) return;
+    checkedSymbols.push(String(quote.symbol || symbol).trim().toUpperCase());
+    if (quoteMarketCap < minMarketCap) return;
 
-    var volumeRatio = Math.round((quote.regularMarketVolume / avgVolume) * 100) / 100;
+    var volumeRatio = Math.round((quoteVolume / avgVolume) * 100) / 100;
     if (volumeRatio < minVolumeRatio) return;
 
-    var price = quote.regularMarketPrice || 0;
+    var price = quotePrice;
     if (minPrice > 0 && price < minPrice) return;
     if (maxPrice > 0 && price > maxPrice) return;
-    if (minVolNum > 0 && quote.regularMarketVolume < minVolNum) return;
+    if (minVolNum > 0 && quoteVolume < minVolNum) return;
 
-    var rvol = calculateRVOL(quote.regularMarketVolume, avgVolume, etMins);
+    var rvol = calculateRVOL(quoteVolume, avgVolume, etMins);
 
     var match = {
       symbol: quote.symbol,
       name: quote.shortName || quote.longName || symbol,
       price: price,
       change: quote.regularMarketChangePercent || 0,
-      volume: quote.regularMarketVolume,
+      volume: quoteVolume,
       avgVolume: avgVolume,
       volumeRatio: volumeRatio,
       rvol: rvol,
-      marketCap: quote.marketCap || 0,
+      marketCap: quoteMarketCap,
       sector: 'Pending',
       exchange: quote.exchange || 'N/A',
       dayHigh: quote.regularMarketDayHigh || 0,
@@ -265,7 +289,14 @@ async function scanTickers(tickers, options) {
     return b.volumeRatio - a.volumeRatio;
   });
 
-  return { results: results, errors: errors, processed: tickers.length };
+  return {
+    results: results,
+    errors: errors,
+    checkedSymbols: [...new Set(checkedSymbols)],
+    dataStatus: errors.length > 0 ? 'partial' : 'complete',
+    dataAsOf: new Date().toISOString(),
+    processed: tickers.length,
+  };
 }
 
 async function quickScan(symbols) {

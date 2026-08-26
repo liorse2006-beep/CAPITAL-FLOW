@@ -13226,6 +13226,119 @@ html.a11y-highlight-links a {
   background: #171512;
 }
 
+.cfr-radar-condition-block {
+  margin-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 11px;
+}
+
+.cfr-radar-condition-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--accent, #f59e0b);
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.cfr-radar-condition-heading small {
+  color: var(--text-3, #71717a);
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.cfr-radar-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.cfr-radar-filter {
+  display: block;
+  min-width: 0;
+  color: var(--text-3, #71717a);
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+}
+
+.cfr-radar-filter-wide {
+  grid-column: span 2;
+}
+
+.cfr-radar-filter input,
+.cfr-radar-filter select {
+  margin-top: 6px;
+  min-height: 34px;
+  padding: 8px 9px;
+  font-size: 11px;
+}
+
+.cfr-radar-sector-picker,
+.cfr-radar-ma-controls {
+  margin-top: 10px;
+}
+
+.cfr-radar-sector-picker > span,
+.cfr-radar-option-group > span {
+  display: block;
+  color: var(--text-3, #71717a);
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+}
+
+.cfr-radar-sector-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.cfr-radar-sector-grid button,
+.cfr-radar-option-row button {
+  cursor: pointer;
+  min-height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  padding: 0 8px;
+  color: var(--text-3, #71717a);
+  background: rgba(0, 0, 0, 0.2);
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.cfr-radar-sector-grid button:hover,
+.cfr-radar-option-row button:hover,
+.cfr-radar-sector-grid button.active,
+.cfr-radar-option-row button.active {
+  border-color: rgba(245, 158, 11, 0.65);
+  color: var(--accent, #f59e0b);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.cfr-radar-ma-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cfr-radar-option-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.cfr-radar-option-row button {
+  flex: 1 1 auto;
+}
+
 .cfr-radar-setup input:focus,
 .cfr-radar-setup select:focus {
   border-color: rgba(245, 158, 11, 0.65);
@@ -13458,6 +13571,24 @@ html.a11y-highlight-links a {
   }
 
   .cfr-radar-schedule-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cfr-radar-condition-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .cfr-radar-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cfr-radar-filter-wide {
+    grid-column: 1 / -1;
+  }
+
+  .cfr-radar-ma-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
