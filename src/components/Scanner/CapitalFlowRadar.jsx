@@ -485,103 +485,114 @@ export default function CapitalFlowRadar({
               </div>
               <div className="cfr-radar-condition-block">
                 <div className="cfr-radar-condition-heading">
-                  <span>COMBINED CONDITIONS</span>
-                  <small>Capital Flow + moving average must match together.</small>
+                  <span>RADAR FILTERS</span>
+                  <small>Both signal layers must match before an alert is sent.</small>
                 </div>
-                <div className="cfr-radar-filter-grid">
-                  <label className="cfr-radar-filter cfr-radar-filter-wide">
-                    <span>Universe</span>
-                    <select
-                      value={currentRecipe.mode}
-                      onChange={(event) =>
-                        updateDraftRecipe('mode', event.target.value === 'sectors' ? 'sectors' : event.target.value)
-                      }
-                      aria-label="Radar market universe"
-                    >
-                      <option value="all">All stocks</option>
-                      <option value="sp500">S&amp;P 500</option>
-                      <option value="nasdaq100">NASDAQ 100</option>
-                      <option value="sectors">Selected sectors</option>
-                    </select>
-                  </label>
-                  <label className="cfr-radar-filter">
-                    <span>Min RVOL</span>
-                    <input
-                      type="number"
-                      min="1.5"
-                      max="100"
-                      step="0.1"
-                      value={currentRecipe.minVolumeRatio}
-                      onChange={(event) => updateDraftRecipe('minVolumeRatio', event.target.value)}
-                      aria-label="Minimum relative volume"
-                    />
-                  </label>
-                  <label className="cfr-radar-filter">
-                    <span>Min cap ($B)</span>
-                    <input
-                      type="number"
-                      min="0.5"
-                      max="100000"
-                      step="0.1"
-                      value={(Number(currentRecipe.minMarketCap || 0) / 1e9).toString()}
-                      onChange={(event) => updateDraftRecipe('minMarketCap', Number(event.target.value) * 1e9)}
-                      aria-label="Minimum market capitalization in billions"
-                    />
-                  </label>
-                  <label className="cfr-radar-filter">
-                    <span>Min volume</span>
-                    <input
-                      type="text"
-                      value={currentRecipe.minVolRaw}
-                      onChange={(event) => updateDraftRecipe('minVolRaw', event.target.value.toUpperCase())}
-                      placeholder="Optional"
-                      aria-label="Minimum trading volume"
-                    />
-                  </label>
-                  <label className="cfr-radar-filter">
-                    <span>Min price</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={currentRecipe.minPrice || ''}
-                      onChange={(event) => updateDraftRecipe('minPrice', Number(event.target.value || 0))}
-                      placeholder="Any"
-                      aria-label="Minimum price"
-                    />
-                  </label>
-                  <label className="cfr-radar-filter">
-                    <span>Max price</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={currentRecipe.maxPrice || ''}
-                      onChange={(event) => updateDraftRecipe('maxPrice', Number(event.target.value || 0))}
-                      placeholder="Any"
-                      aria-label="Maximum price"
-                    />
-                  </label>
-                </div>
-                {currentRecipe.mode === 'sectors' && (
-                  <div className="cfr-radar-sector-picker">
-                    <span>Sectors</span>
-                    <div className="cfr-radar-sector-grid">
-                      {RADAR_SECTORS.map((sector) => (
-                        <button
-                          type="button"
-                          key={sector}
-                          className={currentRecipe.selectedSectors.includes(sector) ? 'active' : ''}
-                          aria-pressed={currentRecipe.selectedSectors.includes(sector)}
-                          onClick={() => toggleDraftSector(sector)}
-                        >
-                          {sector}
-                        </button>
-                      ))}
-                    </div>
+                <div className="cfr-radar-filter-section">
+                  <div className="cfr-radar-filter-section-heading">
+                    <span>CAPITAL FLOW</span>
+                    <small>Choose where to scan and the minimum activity.</small>
                   </div>
-                )}
-                <div className="cfr-radar-ma-controls">
+                  <div className="cfr-radar-filter-grid">
+                    <label className="cfr-radar-filter cfr-radar-filter-wide">
+                      <span>Universe</span>
+                      <select
+                        value={currentRecipe.mode}
+                        onChange={(event) =>
+                          updateDraftRecipe('mode', event.target.value === 'sectors' ? 'sectors' : event.target.value)
+                        }
+                        aria-label="Radar market universe"
+                      >
+                        <option value="all">All stocks</option>
+                        <option value="sp500">S&amp;P 500</option>
+                        <option value="nasdaq100">NASDAQ 100</option>
+                        <option value="sectors">Selected sectors</option>
+                      </select>
+                    </label>
+                    <label className="cfr-radar-filter">
+                      <span>Min RVOL</span>
+                      <input
+                        type="number"
+                        min="1.5"
+                        max="100"
+                        step="0.1"
+                        value={currentRecipe.minVolumeRatio}
+                        onChange={(event) => updateDraftRecipe('minVolumeRatio', event.target.value)}
+                        aria-label="Minimum relative volume"
+                      />
+                    </label>
+                    <label className="cfr-radar-filter">
+                      <span>Min cap ($B)</span>
+                      <input
+                        type="number"
+                        min="0.5"
+                        max="100000"
+                        step="0.1"
+                        value={(Number(currentRecipe.minMarketCap || 0) / 1e9).toString()}
+                        onChange={(event) => updateDraftRecipe('minMarketCap', Number(event.target.value) * 1e9)}
+                        aria-label="Minimum market capitalization in billions"
+                      />
+                    </label>
+                    <label className="cfr-radar-filter">
+                      <span>Min volume</span>
+                      <input
+                        type="text"
+                        value={currentRecipe.minVolRaw}
+                        onChange={(event) => updateDraftRecipe('minVolRaw', event.target.value.toUpperCase())}
+                        placeholder="Optional"
+                        aria-label="Minimum trading volume"
+                      />
+                    </label>
+                    <label className="cfr-radar-filter">
+                      <span>Min price</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={currentRecipe.minPrice || ''}
+                        onChange={(event) => updateDraftRecipe('minPrice', Number(event.target.value || 0))}
+                        placeholder="Any"
+                        aria-label="Minimum price"
+                      />
+                    </label>
+                    <label className="cfr-radar-filter">
+                      <span>Max price</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={currentRecipe.maxPrice || ''}
+                        onChange={(event) => updateDraftRecipe('maxPrice', Number(event.target.value || 0))}
+                        placeholder="Any"
+                        aria-label="Maximum price"
+                      />
+                    </label>
+                  </div>
+                  {currentRecipe.mode === 'sectors' && (
+                    <div className="cfr-radar-sector-picker">
+                      <span>Sectors</span>
+                      <div className="cfr-radar-sector-grid">
+                        {RADAR_SECTORS.map((sector) => (
+                          <button
+                            type="button"
+                            key={sector}
+                            className={currentRecipe.selectedSectors.includes(sector) ? 'active' : ''}
+                            aria-pressed={currentRecipe.selectedSectors.includes(sector)}
+                            onClick={() => toggleDraftSector(sector)}
+                          >
+                            {sector}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="cfr-radar-filter-section cfr-radar-ma-section">
+                  <div className="cfr-radar-filter-section-heading">
+                    <span>MOVING AVERAGE</span>
+                    <small>Set the SMA condition that must confirm the flow signal.</small>
+                  </div>
+                  <div className="cfr-radar-ma-controls">
                   <div className="cfr-radar-option-group">
                     <span>SMA period</span>
                     <div className="cfr-radar-option-row">
@@ -650,6 +661,7 @@ export default function CapitalFlowRadar({
                     </div>
                   </div>
                 </div>
+              </div>
               </div>
               <div className="cfr-radar-schedule-picker">
                 <div className="cfr-radar-schedule-heading">Choose up to 2 scan times · Jerusalem time</div>

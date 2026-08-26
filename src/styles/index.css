@@ -13194,25 +13194,26 @@ html.a11y-highlight-links a {
 }
 
 .cfr-radar-setup {
-  margin-top: 10px;
-  padding: 12px;
-  border: 1px solid rgba(245, 158, 11, 0.25);
-  border-radius: 12px;
-  background: rgba(245, 158, 11, 0.045);
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(245, 158, 11, 0.075), rgba(0, 0, 0, 0.17) 42%);
 }
 
 .cfr-radar-setup input,
 .cfr-radar-setup select {
   width: 100%;
-  margin-top: 10px;
-  min-height: 37px;
+  margin-top: 7px;
+  min-height: 44px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  padding: 10px 11px;
+  border-radius: 10px;
+  padding: 0 12px;
   color: var(--text, #f5f5f5);
   background: rgba(0, 0, 0, 0.25);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
+  line-height: 1.2;
   outline: none;
 }
 
@@ -13227,89 +13228,129 @@ html.a11y-highlight-links a {
 }
 
 .cfr-radar-condition-block {
-  margin-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding-top: 11px;
+  margin-top: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.14);
 }
 
 .cfr-radar-condition-heading {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 5px;
   color: var(--accent, #f59e0b);
   font-family: var(--font-mono, monospace);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
 }
 
 .cfr-radar-condition-heading small {
   color: var(--text-3, #71717a);
   font-family: inherit;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 400;
   letter-spacing: 0;
+  line-height: 1.4;
+}
+
+.cfr-radar-filter-section {
+  margin-top: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.cfr-radar-filter-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.cfr-radar-filter-section-heading > span {
+  flex: 0 0 auto;
+  color: var(--accent, #f59e0b);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.cfr-radar-filter-section-heading small {
+  color: var(--text-3, #71717a);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .cfr-radar-filter-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 9px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
 }
 
 .cfr-radar-filter {
   display: block;
   min-width: 0;
-  color: var(--text-3, #71717a);
+  color: var(--text-2, #a1a1aa);
   font-family: var(--font-mono, monospace);
-  font-size: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.035em;
 }
 
 .cfr-radar-filter-wide {
-  grid-column: span 2;
+  grid-column: span 1;
 }
 
 .cfr-radar-filter input,
 .cfr-radar-filter select {
-  margin-top: 6px;
-  min-height: 34px;
-  padding: 8px 9px;
-  font-size: 11px;
+  margin-top: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .cfr-radar-sector-picker,
 .cfr-radar-ma-controls {
-  margin-top: 10px;
+  margin-top: 16px;
 }
 
 .cfr-radar-sector-picker > span,
 .cfr-radar-option-group > span {
   display: block;
-  color: var(--text-3, #71717a);
+  color: var(--text-2, #a1a1aa);
   font-family: var(--font-mono, monospace);
-  font-size: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.035em;
 }
 
 .cfr-radar-sector-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 6px;
+  gap: 8px;
+  margin-top: 9px;
 }
 
 .cfr-radar-sector-grid button,
 .cfr-radar-option-row button {
   cursor: pointer;
-  min-height: 28px;
+  min-height: 36px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 7px;
-  padding: 0 8px;
+  border-radius: 9px;
+  padding: 0 12px;
   color: var(--text-3, #71717a);
   background: rgba(0, 0, 0, 0.2);
   font-family: var(--font-mono, monospace);
-  font-size: 9px;
+  font-size: 11px;
+  font-weight: 600;
   transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
 }
 
@@ -13324,19 +13365,28 @@ html.a11y-highlight-links a {
 
 .cfr-radar-ma-controls {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.cfr-radar-option-group {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.16);
 }
 
 .cfr-radar-option-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 6px;
+  gap: 7px;
+  margin-top: 8px;
 }
 
 .cfr-radar-option-row button {
   flex: 1 1 auto;
+  min-width: 48px;
+  font-size: 12px;
 }
 
 .cfr-radar-setup input:focus,
@@ -13345,15 +13395,17 @@ html.a11y-highlight-links a {
 }
 
 .cfr-radar-schedule-picker {
-  margin-top: 10px;
-  padding-top: 11px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .cfr-radar-schedule-heading {
   color: var(--text-2, #a1a1aa);
   font-family: var(--font-mono, monospace);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -13362,16 +13414,18 @@ html.a11y-highlight-links a {
 .cfr-radar-schedule-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 7px;
+  gap: 14px;
+  margin-top: 13px;
 }
 
 .cfr-radar-schedule-grid label {
   display: block;
   min-width: 0;
-  color: var(--text-3, #71717a);
+  color: var(--text-2, #a1a1aa);
   font-family: var(--font-mono, monospace);
-  font-size: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.035em;
 }
 
 .cfr-radar-schedule-grid label span {
@@ -13386,23 +13440,27 @@ html.a11y-highlight-links a {
 
 .cfr-radar-schedule-grid input,
 .cfr-radar-schedule-grid select {
-  margin-top: 6px;
+  margin-top: 8px;
+  min-height: 44px;
+  font-size: 14px;
   color-scheme: dark;
 }
 
 .cfr-radar-schedule-note {
-  margin: 7px 0 0;
+  margin: 10px 0 0;
   color: var(--text-3, #71717a);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
 .cfr-radar-name-field {
   display: block;
-  margin-top: 10px;
-  color: var(--text-3, #71717a);
+  margin-top: 16px;
+  color: var(--text-2, #a1a1aa);
   font-family: var(--font-mono, monospace);
-  font-size: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.035em;
 }
 
 .cfr-radar-name-field > span {
@@ -13416,15 +13474,16 @@ html.a11y-highlight-links a {
 }
 
 .cfr-radar-current-recipe {
-  margin-top: 8px;
+  margin-top: 12px;
   color: var(--text-3, #71717a);
   font-family: var(--font-mono, monospace);
-  font-size: 10px;
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .cfr-radar-setup-actions {
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 16px;
 }
 
 .cfr-radar-live-event {
@@ -13529,6 +13588,19 @@ html.a11y-highlight-links a {
     padding: 12px;
   }
 
+  .cfr-radar-setup {
+    padding: 14px 12px 12px;
+  }
+
+  .cfr-radar-condition-block {
+    padding: 12px;
+  }
+
+  .cfr-radar-filter-section,
+  .cfr-radar-schedule-picker {
+    padding: 12px;
+  }
+
   .cfr-radar-item-head {
     align-items: flex-start;
     flex-direction: column;
@@ -13571,7 +13643,7 @@ html.a11y-highlight-links a {
   }
 
   .cfr-radar-schedule-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .cfr-radar-condition-heading {
@@ -13580,8 +13652,14 @@ html.a11y-highlight-links a {
     gap: 4px;
   }
 
+  .cfr-radar-filter-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
   .cfr-radar-filter-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .cfr-radar-filter-wide {
@@ -13589,10 +13667,10 @@ html.a11y-highlight-links a {
   }
 
   .cfr-radar-ma-controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .cfr-radar-expiry-field {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 }
