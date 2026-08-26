@@ -39,17 +39,65 @@ function Stat({ label, value, detail }) {
   );
 }
 
-function Section({ eyebrow, title, children, id }) {
+function Section({ children, id }) {
   return (
-    <section className="profile-modal-section" id={id}>
-      <div className="profile-modal-section-head">
-        <span className="profile-modal-section-eyebrow">{eyebrow}</span>
-        <h3>{title}</h3>
-      </div>
+    <section className="account-center-section" id={id}>
       {children}
     </section>
   );
 }
+
+const ACCOUNT_SECTIONS = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    eyebrow: 'ACCOUNT',
+    title: 'Account overview',
+    description: 'Your identity, access, and sign-in details at a glance.',
+  },
+  {
+    id: 'plan',
+    label: 'Plan & access',
+    eyebrow: 'ACCESS',
+    title: 'Plan & access',
+    description: 'See the level of access currently active on your account.',
+  },
+  {
+    id: 'usage',
+    label: 'Workspace usage',
+    eyebrow: 'WORKSPACE',
+    title: 'Workspace usage',
+    description: 'A clear view of scans, alerts, schedules, and saved activity.',
+  },
+  {
+    id: 'security',
+    label: 'Security & sign-in',
+    eyebrow: 'SECURITY',
+    title: 'Security & sign-in',
+    description: 'Protect your account, password, and active sessions.',
+  },
+  {
+    id: 'scheduling',
+    label: 'Scan scheduling',
+    eyebrow: 'WORKSPACE',
+    title: 'Scan scheduling',
+    description: 'Choose when Capital Flow should run your automated scans.',
+  },
+  {
+    id: 'notifications',
+    label: 'Notifications',
+    eyebrow: 'PREFERENCES',
+    title: 'Notifications',
+    description: 'Control whether this device can receive Capital Flow alerts.',
+  },
+  {
+    id: 'privacy',
+    label: 'Privacy & data',
+    eyebrow: 'PRIVACY',
+    title: 'Privacy & data',
+    description: 'Download your data or permanently close your account.',
+  },
+];
 
 export default function ProfileModal({
   user,
@@ -71,6 +119,9 @@ export default function ProfileModal({
   onUpgrade,
 }) {
   const panelRef = useModalA11y(onClose);
+  const firstSection = ACCOUNT_SECTIONS.some((section) => section.id === initialSection) ? initialSection : 'overview';
+  const [activeSection, setActiveSection] = useState(firstSection);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [summary, setSummary] = useState(null);
   const [summaryState, setSummaryState] = useState(() => (getToken && user ? 'loading' : 'ready'));
   const [summaryError, setSummaryError] = useState('');
@@ -112,16 +163,12 @@ export default function ProfileModal({
     };
   }, [getToken, user]);
 
-  useEffect(() => {
-    if (!initialSection) return undefined;
-    const timer = window.setTimeout(() => {
-      const target = document.getElementById('profile-section-' + initialSection);
-      if (target && typeof target.scrollIntoView === 'function') {
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [initialSection]);
+  const activeSectionMeta = ACCOUNT_SECTIONS.find((section) => section.id === activeSection) || ACCOUNT_SECTIONS[0];
+
+  function selectSection(sectionId) {
+    setActiveSection(sectionId);
+    setMobileNavOpen(false);
+  }
 
   function updatePasswordField(field, value) {
     setPassword((previous) => ({ ...previous, [field]: value }));
@@ -246,214 +293,311 @@ export default function ProfileModal({
   return (
     <>
       <div
-        className="upgrade-overlay profile-overlay"
+        className="upgrade-overlay profile-overlay account-center-overlay"
         onClick={(event) => {
           if (event.target === event.currentTarget) onClose();
         }}
       >
         <div
-          className="upgrade-modal profile-modal"
+          className="upgrade-modal profile-modal account-center"
           ref={panelRef}
           tabIndex={-1}
           role="dialog"
           aria-modal="true"
           aria-labelledby="profile-modal-title"
         >
-          <button className="upgrade-close" onClick={onClose} aria-label="Close profile" type="button">
-            ×
-          </button>
-
-          <div className="profile-modal-identity">
-            <UserAvatar user={account} className="profile-modal-avatar" />
-            <div className="profile-modal-kicker">CAPITAL FLOW ACCOUNT</div>
-            <h2 id="profile-modal-title" className="upgrade-title">
-              Your Profile
-            </h2>
-            <p className="profile-modal-email-head">{account.email || '—'}</p>
-          </div>
-
-          <div className="profile-modal-body">
-            <Section eyebrow="ACCOUNT" title="Overview" id="profile-section-overview">
-              <div className="profile-stat-grid profile-stat-grid--four">
-                <Stat label="Access" value={accessLabel(account)} detail={plan.access || '—'} />
-                <Stat label="Verification" value={account.is_verified ? 'Verified' : 'Pending'} detail="Email status" />
-                <Stat
-                  label="Sign-in"
-                  value={provider === 'Email and password' ? 'Email' : provider}
-                  detail="Authentication"
-                />
-                <Stat label="Member since" value={formatDate(account.created_at)} />
+          <header className="account-center-header">
+            <div className="account-center-identity">
+              <UserAvatar user={account} className="profile-modal-avatar" />
+              <div className="account-center-identity-copy">
+                <div className="profile-modal-kicker">CAPITAL FLOW ACCOUNT</div>
+                <h2 id="profile-modal-title">Account Center</h2>
+                <p>{account.email || '—'}</p>
               </div>
-            </Section>
-
-            <Section eyebrow="PLAN" title="Your access" id="profile-section-plan">
-              <div className="profile-modal-detail-list">
-                <div className="profile-modal-detail">
-                  <span className="profile-modal-label">Current level</span>
-                  <strong className="profile-modal-value">{accessLabel(account)}</strong>
-                </div>
-                <div className="profile-modal-detail">
-                  <span className="profile-modal-label">Trial status</span>
-                  <span className="profile-modal-value">
-                    {plan.trialActive
-                      ? `Active · ends ${formatDate(plan.trialEndsAt)}`
-                      : account.tier === 'free'
-                        ? 'Not active'
-                        : 'Not applicable'}
-                  </span>
-                </div>
-              </div>
-            </Section>
-
-            <Section eyebrow="USAGE" title="Your workspace" id="profile-section-usage">
-              {summaryState === 'loading' ? (
-                <div className="profile-modal-loading">Loading current usage…</div>
-              ) : summaryState === 'error' ? (
-                <div className="profile-modal-inline-error">{summaryError}</div>
-              ) : (
-                <div className="profile-stat-grid profile-stat-grid--four">
-                  <Stat label="Scans" value={scanDetail} detail="Current access" />
-                  <Stat label="Watchlist" value={number(usage.watchlistCount)} detail="Saved tickers" />
-                  <Stat label="Alerts" value={number(usage.alertCount)} detail="Active thresholds" />
-                  <Stat
-                    label="Radar"
-                    value={number(usage.activeRadarCount)}
-                    detail={`${number(usage.radarCount)} total rules`}
-                  />
-                  <Stat
-                    label="Schedules"
-                    value={number(usage.activeScheduleCount)}
-                    detail={`${number(usage.scheduleCount)} total`}
-                  />
-                  <Stat label="Devices" value={number(usage.pushDeviceCount)} detail="Push subscriptions" />
-                  <Stat label="Capi messages" value={number(usage.chatMessageCount)} detail="Saved conversations" />
-                  <Stat label="Sessions" value={number(security.activeSessionCount)} detail="Signed-in devices" />
-                </div>
-              )}
-            </Section>
-
-            <Section eyebrow="SECURITY" title="Protect your account" id="profile-section-security">
-              <div className="profile-modal-detail-list">
-                <div className="profile-modal-detail">
-                  <span className="profile-modal-label">Last sign-in</span>
-                  <span className="profile-modal-value">{formatDateTime(account.last_login_at)}</span>
-                </div>
-                <div className="profile-modal-detail">
-                  <span className="profile-modal-label">Active sessions</span>
-                  <span className="profile-modal-value">{number(security.activeSessionCount || 0)}</span>
-                </div>
-              </div>
-
-              {canChangePassword ? (
-                <form className="profile-password-form" onSubmit={submitPassword}>
-                  <div className="profile-form-heading">Change password</div>
-                  <input
-                    className="auth-input profile-password-input"
-                    type="password"
-                    placeholder="Current password"
-                    autoComplete="current-password"
-                    value={password.current}
-                    onChange={(event) => updatePasswordField('current', event.target.value)}
-                    aria-label="Current password"
-                  />
-                  <input
-                    className="auth-input profile-password-input"
-                    type="password"
-                    placeholder="New password · 8 characters minimum"
-                    autoComplete="new-password"
-                    value={password.next}
-                    onChange={(event) => updatePasswordField('next', event.target.value)}
-                    aria-label="New password"
-                  />
-                  <input
-                    className="auth-input profile-password-input"
-                    type="password"
-                    placeholder="Confirm new password"
-                    autoComplete="new-password"
-                    value={password.confirm}
-                    onChange={(event) => updatePasswordField('confirm', event.target.value)}
-                    aria-label="Confirm new password"
-                  />
-                  {passwordState.message && (
-                    <p
-                      className={
-                        'profile-modal-form-message ' + (passwordState.status === 'success' ? 'success' : 'error')
-                      }
-                    >
-                      {passwordState.message}
-                    </p>
-                  )}
-                  <button className="profile-secondary-btn" type="submit" disabled={passwordState.status === 'saving'}>
-                    {passwordState.status === 'saving' ? 'Updating…' : 'Update password'}
-                  </button>
-                </form>
-              ) : (
-                <div className="profile-modal-info-box">
-                  <strong>Password managed by Google</strong>
-                  <span>Change it from your Google Account security settings.</span>
-                </div>
-              )}
-
-              <button className="profile-danger-link" type="button" onClick={() => setConfirmAction('logout-all')}>
-                Sign out all devices
+            </div>
+            <div className="account-center-header-actions">
+              <span className="account-center-tier">{accessLabel(account).toUpperCase()}</span>
+              <button className="upgrade-close" onClick={onClose} aria-label="Close profile" type="button">
+                ×
               </button>
-            </Section>
+            </div>
+          </header>
 
-            <Section eyebrow="PREFERENCES" title="Two controls, clearly defined" id="profile-section-preferences">
-              <div className="profile-preference-list">
-                <div className="profile-preference-row">
-                  <div>
-                    <strong>Scan scheduling</strong>
-                    <span>Choose when an automated scan should run.</span>
-                  </div>
-                  <button className="profile-secondary-btn" type="button" onClick={onOpenScheduling}>
-                    Schedule scans
-                  </button>
-                </div>
-                <div className="profile-preference-row">
-                  <div>
-                    <strong>Notification access</strong>
-                    <span>{notificationDescription}</span>
-                    {pushError && <small className="profile-modal-form-message error">{pushError}</small>}
-                  </div>
-                  <button
-                    className={'profile-secondary-btn' + (pushEnabled ? ' profile-secondary-btn--active' : '')}
-                    type="button"
-                    onClick={requestNotificationsChange}
-                    disabled={pushBusy || (canNotify && (notificationBlocked || notificationUnavailable))}
-                  >
-                    {pushBusy ? 'Working…' : notificationLabel}
-                  </button>
-                </div>
-              </div>
-            </Section>
-
-            <Section eyebrow="PRIVACY" title="Your data" id="profile-section-privacy">
-              <div className="profile-privacy-actions">
+          <div className={'account-center-layout' + (mobileNavOpen ? ' account-center-layout--mobile-nav' : '')}>
+            <aside className="account-center-sidebar" aria-label="Account sections">
+              <div className="account-center-nav-label">ACCOUNT CENTER</div>
+              {ACCOUNT_SECTIONS.map((section) => (
                 <button
-                  className="profile-secondary-btn"
+                  className={'account-center-nav-item' + (activeSection === section.id ? ' is-active' : '')}
                   type="button"
-                  onClick={downloadData}
-                  disabled={downloadState === 'loading'}
+                  key={section.id}
+                  onClick={() => selectSection(section.id)}
+                  aria-current={activeSection === section.id ? 'page' : undefined}
                 >
-                  {downloadState === 'loading' ? 'Preparing…' : 'Download my data'}
+                  <span>{section.label}</span>
+                  <span className="account-center-nav-arrow" aria-hidden="true">
+                    →
+                  </span>
                 </button>
-                <button className="profile-danger-btn" type="button" onClick={() => setShowDelete(true)}>
-                  Delete account
+              ))}
+            </aside>
+
+            <nav className="account-center-mobile-nav" aria-label="Account sections">
+              <div className="account-center-nav-label">ACCOUNT CENTER</div>
+              {ACCOUNT_SECTIONS.map((section) => (
+                <button
+                  className="account-center-mobile-nav-item"
+                  type="button"
+                  key={section.id}
+                  onClick={() => selectSection(section.id)}
+                >
+                  <span>
+                    <strong>{section.label}</strong>
+                    <small>{section.description}</small>
+                  </span>
+                  <span aria-hidden="true">→</span>
                 </button>
+              ))}
+            </nav>
+
+            <main className="account-center-content">
+              <button
+                className="account-center-mobile-back"
+                type="button"
+                onClick={() => setMobileNavOpen(true)}
+                aria-label="Back to account sections"
+              >
+                ← All account sections
+              </button>
+              <div className="account-center-content-head">
+                <span className="profile-modal-section-eyebrow">{activeSectionMeta.eyebrow}</span>
+                <h3>{activeSectionMeta.title}</h3>
+                <p>{activeSectionMeta.description}</p>
               </div>
-              {downloadState === 'success' && (
-                <p className="profile-modal-form-message success">Your data download has started.</p>
-              )}
-              {downloadState === 'error' && (
-                <p className="profile-modal-form-message error">Could not prepare the download. Try again.</p>
-              )}
-            </Section>
+
+              <div className="account-center-panel">
+                {activeSection === 'overview' && (
+                  <Section id="profile-section-overview">
+                    <div className="profile-stat-grid profile-stat-grid--four">
+                      <Stat label="Access" value={accessLabel(account)} detail={plan.access || '—'} />
+                      <Stat
+                        label="Verification"
+                        value={account.is_verified ? 'Verified' : 'Pending'}
+                        detail="Email status"
+                      />
+                      <Stat
+                        label="Sign-in"
+                        value={provider === 'Email and password' ? 'Email' : provider}
+                        detail="Authentication"
+                      />
+                      <Stat label="Member since" value={formatDate(account.created_at)} />
+                    </div>
+                  </Section>
+                )}
+
+                {activeSection === 'plan' && (
+                  <Section id="profile-section-plan">
+                    <div className="profile-modal-detail-list">
+                      <div className="profile-modal-detail">
+                        <span className="profile-modal-label">Current level</span>
+                        <strong className="profile-modal-value">{accessLabel(account)}</strong>
+                      </div>
+                      <div className="profile-modal-detail">
+                        <span className="profile-modal-label">Trial status</span>
+                        <span className="profile-modal-value">
+                          {plan.trialActive
+                            ? `Active · ends ${formatDate(plan.trialEndsAt)}`
+                            : account.tier === 'free'
+                              ? 'Not active'
+                              : 'Not applicable'}
+                        </span>
+                      </div>
+                    </div>
+                    {onUpgrade && (
+                      <button className="profile-primary-btn account-center-plan-cta" type="button" onClick={onUpgrade}>
+                        View upgrade options
+                      </button>
+                    )}
+                  </Section>
+                )}
+
+                {activeSection === 'usage' && (
+                  <Section id="profile-section-usage">
+                    {summaryState === 'loading' ? (
+                      <div className="profile-modal-loading">Loading current usage…</div>
+                    ) : summaryState === 'error' ? (
+                      <div className="profile-modal-inline-error">{summaryError}</div>
+                    ) : (
+                      <div className="profile-stat-grid profile-stat-grid--four">
+                        <Stat label="Scans" value={scanDetail} detail="Current access" />
+                        <Stat label="Watchlist" value={number(usage.watchlistCount)} detail="Saved tickers" />
+                        <Stat label="Alerts" value={number(usage.alertCount)} detail="Active thresholds" />
+                        <Stat
+                          label="Radar"
+                          value={number(usage.activeRadarCount)}
+                          detail={`${number(usage.radarCount)} total rules`}
+                        />
+                        <Stat
+                          label="Schedules"
+                          value={number(usage.activeScheduleCount)}
+                          detail={`${number(usage.scheduleCount)} total`}
+                        />
+                        <Stat label="Devices" value={number(usage.pushDeviceCount)} detail="Push subscriptions" />
+                        <Stat
+                          label="Capi messages"
+                          value={number(usage.chatMessageCount)}
+                          detail="Saved conversations"
+                        />
+                        <Stat label="Sessions" value={number(security.activeSessionCount)} detail="Signed-in devices" />
+                      </div>
+                    )}
+                  </Section>
+                )}
+
+                {activeSection === 'security' && (
+                  <Section id="profile-section-security">
+                    <div className="profile-modal-detail-list">
+                      <div className="profile-modal-detail">
+                        <span className="profile-modal-label">Last sign-in</span>
+                        <span className="profile-modal-value">{formatDateTime(account.last_login_at)}</span>
+                      </div>
+                      <div className="profile-modal-detail">
+                        <span className="profile-modal-label">Active sessions</span>
+                        <span className="profile-modal-value">{number(security.activeSessionCount || 0)}</span>
+                      </div>
+                    </div>
+
+                    {canChangePassword ? (
+                      <form className="profile-password-form" onSubmit={submitPassword}>
+                        <div className="profile-form-heading">Change password</div>
+                        <input
+                          className="auth-input profile-password-input"
+                          type="password"
+                          placeholder="Current password"
+                          autoComplete="current-password"
+                          value={password.current}
+                          onChange={(event) => updatePasswordField('current', event.target.value)}
+                          aria-label="Current password"
+                        />
+                        <input
+                          className="auth-input profile-password-input"
+                          type="password"
+                          placeholder="New password · 8 characters minimum"
+                          autoComplete="new-password"
+                          value={password.next}
+                          onChange={(event) => updatePasswordField('next', event.target.value)}
+                          aria-label="New password"
+                        />
+                        <input
+                          className="auth-input profile-password-input"
+                          type="password"
+                          placeholder="Confirm new password"
+                          autoComplete="new-password"
+                          value={password.confirm}
+                          onChange={(event) => updatePasswordField('confirm', event.target.value)}
+                          aria-label="Confirm new password"
+                        />
+                        {passwordState.message && (
+                          <p
+                            className={
+                              'profile-modal-form-message ' + (passwordState.status === 'success' ? 'success' : 'error')
+                            }
+                          >
+                            {passwordState.message}
+                          </p>
+                        )}
+                        <button
+                          className="profile-secondary-btn"
+                          type="submit"
+                          disabled={passwordState.status === 'saving'}
+                        >
+                          {passwordState.status === 'saving' ? 'Updating…' : 'Update password'}
+                        </button>
+                      </form>
+                    ) : (
+                      <div className="profile-modal-info-box">
+                        <strong>Password managed by Google</strong>
+                        <span>Change it from your Google Account security settings.</span>
+                      </div>
+                    )}
+
+                    <button
+                      className="profile-danger-link"
+                      type="button"
+                      onClick={() => setConfirmAction('logout-all')}
+                    >
+                      Sign out all devices
+                    </button>
+                  </Section>
+                )}
+
+                {activeSection === 'scheduling' && (
+                  <Section id="profile-section-scheduling">
+                    <div className="account-center-action-card">
+                      <div>
+                        <strong>Automated scan timing</strong>
+                        <span>Choose when Capital Flow should run a scan and notify you with the result.</span>
+                      </div>
+                      <button className="profile-primary-btn" type="button" onClick={onOpenScheduling}>
+                        Schedule scans
+                      </button>
+                    </div>
+                  </Section>
+                )}
+
+                {activeSection === 'notifications' && (
+                  <Section id="profile-section-notifications">
+                    <div className="account-center-action-card">
+                      <div>
+                        <strong>Notification access</strong>
+                        <span>{notificationDescription}</span>
+                        {pushError && <small className="profile-modal-form-message error">{pushError}</small>}
+                      </div>
+                      <button
+                        className={'profile-primary-btn' + (pushEnabled ? ' profile-secondary-btn--active' : '')}
+                        type="button"
+                        onClick={requestNotificationsChange}
+                        disabled={pushBusy || (canNotify && (notificationBlocked || notificationUnavailable))}
+                      >
+                        {pushBusy ? 'Working…' : notificationLabel}
+                      </button>
+                    </div>
+                  </Section>
+                )}
+
+                {activeSection === 'privacy' && (
+                  <Section id="profile-section-privacy">
+                    <div className="profile-privacy-actions">
+                      <button
+                        className="profile-secondary-btn"
+                        type="button"
+                        onClick={downloadData}
+                        disabled={downloadState === 'loading'}
+                      >
+                        {downloadState === 'loading' ? 'Preparing…' : 'Download my data'}
+                      </button>
+                      <button className="profile-danger-btn" type="button" onClick={() => setShowDelete(true)}>
+                        Delete account
+                      </button>
+                    </div>
+                    {downloadState === 'success' && (
+                      <p className="profile-modal-form-message success">Your data download has started.</p>
+                    )}
+                    {downloadState === 'error' && (
+                      <p className="profile-modal-form-message error">Could not prepare the download. Try again.</p>
+                    )}
+                  </Section>
+                )}
+              </div>
+            </main>
           </div>
 
-          <button className="upgrade-cta profile-modal-close" onClick={onClose} type="button">
-            Done
-          </button>
+          <footer className="account-center-footer">
+            <span>Account changes apply to this workspace.</span>
+            <button className="profile-secondary-btn" onClick={onClose} type="button">
+              Done
+            </button>
+          </footer>
 
           {confirmAction && (
             <div className="profile-confirm-layer" role="presentation">

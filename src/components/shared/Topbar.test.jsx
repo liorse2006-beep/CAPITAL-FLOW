@@ -94,7 +94,7 @@ describe('Topbar tier badge', () => {
     expect(screen.getByRole('menu', { name: 'Profile menu' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Profile' }));
-    expect(screen.getByRole('dialog', { name: 'Your Profile' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Account Center' })).toBeInTheDocument();
     expect(screen.getByText('user@example.com')).toBeInTheDocument();
   });
 
@@ -116,12 +116,14 @@ describe('Topbar tier badge', () => {
     }
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Plan & access' }));
-    expect(screen.getByRole('dialog', { name: 'Your Profile' })).toBeInTheDocument();
-    expect(screen.getByText('Your access')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Account Center' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Plan & access' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Close profile' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Schedule scans' }));
+    expect(screen.getByRole('dialog', { name: 'Account Center' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Schedule scans' }));
     expect(onOpenScheduling).toHaveBeenCalledOnce();
   });
 

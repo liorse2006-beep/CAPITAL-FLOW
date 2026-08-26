@@ -119,13 +119,6 @@ export default function Topbar({
     setProfileModalOpen(true);
   }
 
-  function openSchedulingFromMenu() {
-    setProfileMenuOpen(false);
-    setProfileModalOpen(false);
-    setProfileModalSection(null);
-    onOpenScheduling?.();
-  }
-
   const profileMenuSections = [
     {
       label: 'ACCOUNT',
@@ -140,10 +133,10 @@ export default function Topbar({
       items: [{ label: 'Security', hint: 'Password and sessions', section: 'security' }],
     },
     {
-      label: 'PREFERENCES',
+      label: 'WORKSPACE',
       items: [
-        { label: 'Schedule scans', hint: 'Choose scan times', action: 'schedule' },
-        { label: 'Notifications', hint: 'Push access', section: 'preferences' },
+        { label: 'Schedule scans', hint: 'Automated scan timing', section: 'scheduling' },
+        { label: 'Notifications', hint: 'Push access', section: 'notifications' },
       ],
     },
     {
@@ -232,9 +225,7 @@ export default function Topbar({
                             role="menuitem"
                             key={item.label}
                             aria-label={item.label}
-                            onClick={() =>
-                              item.action === 'schedule' ? openSchedulingFromMenu() : openProfile(item.section)
-                            }
+                            onClick={() => openProfile(item.section)}
                           >
                             <span className="topbar-profile-menu-item-copy">
                               <strong>{item.label}</strong>

@@ -66,7 +66,8 @@ describe('ProfileModal preferences', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(summaryResponse()));
     const { props } = renderProfile();
 
-    expect(await screen.findByText('Your workspace')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Account overview' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
     fireEvent.click(screen.getByRole('button', { name: 'Allow notifications' }));
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Allow notifications on this device?');
     expect(props.onEnablePush).not.toHaveBeenCalled();
@@ -79,7 +80,8 @@ describe('ProfileModal preferences', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(summaryResponse()));
     const { props } = renderProfile({ pushEnabled: true, notificationPermission: 'granted' });
 
-    expect(await screen.findByText('Your workspace')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Account overview' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
     fireEvent.click(screen.getByRole('button', { name: 'Disable notifications' }));
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Disable notifications on this device?');
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -90,7 +92,8 @@ describe('ProfileModal preferences', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(summaryResponse()));
     const { props } = renderProfile();
 
-    expect(await screen.findByText('Your workspace')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Account overview' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Scan scheduling' }));
     fireEvent.click(screen.getByRole('button', { name: 'Schedule scans' }));
     expect(props.onOpenScheduling).toHaveBeenCalledOnce();
   });
