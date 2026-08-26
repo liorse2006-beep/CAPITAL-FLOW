@@ -13235,25 +13235,150 @@ html.a11y-highlight-links a {
   background: rgba(0, 0, 0, 0.14);
 }
 
-.cfr-radar-condition-heading {
+.cfr-radar-logic-picker {
+  min-inline-size: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.cfr-radar-logic-legend {
   display: flex;
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 5px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 0;
+  padding: 0;
+}
+
+.cfr-radar-logic-legend span {
   color: var(--accent, #f59e0b);
   font-family: var(--font-mono, monospace);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.cfr-radar-logic-legend strong {
+  color: var(--text, #f5f5f5);
+  font-size: 16px;
+  font-weight: 720;
+  letter-spacing: -0.015em;
+}
+
+.cfr-radar-logic-help,
+.cfr-radar-logic-result {
+  margin: 6px 0 0;
+  color: var(--text-3, #71717a);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.cfr-radar-logic-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 13px;
+}
+
+.cfr-radar-logic-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 11px 12px;
+  background: rgba(0, 0, 0, 0.18);
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.cfr-radar-logic-option:hover,
+.cfr-radar-logic-option.active {
+  border-color: rgba(245, 158, 11, 0.62);
+  background: rgba(245, 158, 11, 0.09);
+}
+
+.cfr-radar-logic-option input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  margin: 1px 0 0;
+  border: 0;
+  padding: 0;
+  accent-color: var(--accent, #f59e0b);
+  background: transparent;
+}
+
+.cfr-radar-logic-option-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.cfr-radar-logic-option-copy b {
+  color: var(--text, #f5f5f5);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cfr-radar-logic-option-copy small {
+  color: var(--text-3, #71717a);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.cfr-radar-logic-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  margin-top: 13px;
+}
+
+.cfr-radar-logic-node {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 7px;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 8px;
+  padding: 8px 9px;
+  color: var(--text-2, #a1a1aa);
+  background: rgba(245, 158, 11, 0.045);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cfr-radar-logic-node i {
+  color: var(--accent, #f59e0b);
+  font-size: 9px;
+  font-style: normal;
+}
+
+.cfr-radar-logic-connector {
+  display: grid;
+  min-width: 38px;
+  min-height: 25px;
+  place-items: center;
+  border: 1px solid rgba(245, 158, 11, 0.55);
+  border-radius: 999px;
+  color: var(--accent, #f59e0b);
+  background: rgba(245, 158, 11, 0.12);
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
   letter-spacing: 0.1em;
 }
 
-.cfr-radar-condition-heading small {
-  color: var(--text-3, #71717a);
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0;
-  line-height: 1.4;
+.cfr-radar-logic-result {
+  color: var(--text-2, #a1a1aa);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
 }
 
 .cfr-radar-filter-section {
@@ -13278,6 +13403,14 @@ html.a11y-highlight-links a {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
+}
+
+.cfr-radar-filter-section-heading > span i {
+  margin-right: 6px;
+  color: var(--text-3, #71717a);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.05em;
 }
 
 .cfr-radar-filter-section-heading small {
@@ -13646,10 +13779,19 @@ html.a11y-highlight-links a {
     grid-template-columns: 1fr;
   }
 
-  .cfr-radar-condition-heading {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 4px;
+  .cfr-radar-logic-options {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .cfr-radar-logic-flow {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .cfr-radar-logic-connector {
+    justify-self: center;
+    min-width: 42px;
   }
 
   .cfr-radar-filter-section-heading {

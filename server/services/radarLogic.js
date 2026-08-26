@@ -10,6 +10,7 @@ const MA_PERIODS = Object.freeze([9, 20, 50, 150]);
 const MA_DISTANCES = Object.freeze([1, 2]);
 const MA_INTERVALS = Object.freeze(['1d', '1wk']);
 const MA_DIRECTIONS = Object.freeze(['all', 'above', 'below']);
+const CONDITION_MODES = Object.freeze(['both', 'either']);
 
 function parseVolumeInput(value) {
   if (value == null || value === '') return 0;
@@ -35,6 +36,20 @@ function symbolOf(row) {
   return symbol || null;
 }
 
+function universeMatchesRadar(row, radar, universe) {
+  const symbol = symbolOf(row);
+  if (!symbol || !radar) return false;
+
+  if (radar.mode === 'sp500' && universe && universe.sp500 && !universe.sp500.has(symbol)) return false;
+  if (radar.mode === 'nasdaq100' && universe && universe.nasdaq100 && !universe.nasdaq100.has(symbol)) return false;
+  if (radar.mode === 'sectors' && Array.isArray(radar.selectedSectors) && radar.selectedSectors.length > 0) {
+    const sector = String(row.sector || '').trim();
+    if (!radar.selectedSectors.includes(sector)) return false;
+  }
+
+  return true;
+}
+
 function maMatchesRadar(row, radar) {
   const maValue = asFinite(row && row.maValue);
   const maDistance = asFinite(row && row.maDistance);
@@ -56,14 +71,9 @@ function maMatchesRadar(row, radar) {
   return Math.abs(maDistance) <= Number(radar.maDistance);
 }
 
-/**
- * Does one fully-enriched scanner row satisfy a saved Radar recipe?
- * Missing numeric data is a non-match, never a zero. That distinction is
- * important: an unavailable quote must not become a fabricated signal.
- */
-function resultMatchesRadar(row, radar, universe) {
+function capitalFlowMatchesRadar(row, radar, universe) {
   const symbol = symbolOf(row);
-  if (!symbol || !radar) return false;
+  if (!symbol || !radar || !universeMatchesRadar(row, radar, universe)) return false;
 
   const volumeRatio = asFinite(row.volumeRatio);
   const marketCap = asFinite(row.marketCap);
@@ -76,14 +86,30 @@ function resultMatchesRadar(row, radar, universe) {
   if (Number(radar.minPrice) > 0 && price < Number(radar.minPrice)) return false;
   if (Number(radar.maxPrice) > 0 && price > Number(radar.maxPrice)) return false;
 
-  if (radar.mode === 'sp500' && universe && universe.sp500 && !universe.sp500.has(symbol)) return false;
-  if (radar.mode === 'nasdaq100' && universe && universe.nasdaq100 && !universe.nasdaq100.has(symbol)) return false;
-  if (radar.mode === 'sectors' && Array.isArray(radar.selectedSectors) && radar.selectedSectors.length > 0) {
-    const sector = String(row.sector || '').trim();
-    if (!radar.selectedSectors.includes(sector)) return false;
-  }
+  return true;
+}
 
-  return maMatchesRadar(row, radar);
+function radarMatchDetails(row, radar, universe) {
+  const inUniverse = universeMatchesRadar(row, radar, universe);
+  const capitalFlow = inUniverse && capitalFlowMatchesRadar(row, radar, universe);
+  const movingAverage = inUniverse && maMatchesRadar(row, radar);
+  const conditionMode = CONDITION_MODES.includes(String(radar && radar.conditionMode)) ? radar.conditionMode : 'both';
+  const matched = conditionMode === 'either' ? capitalFlow || movingAverage : capitalFlow && movingAverage;
+  return {
+    matched,
+    conditionMode,
+    matchedConditions: [capitalFlow ? 'Capital Flow' : null, movingAverage ? 'Moving Average' : null].filter(Boolean),
+  };
+}
+
+/**
+ * Does one scanner row satisfy a saved Radar recipe? In `both` mode the two
+ * signal layers are ANDed; in `either` mode one complete layer is enough.
+ * Missing numeric data is a non-match, never a zero. That distinction is
+ * important: an unavailable quote must not become a fabricated signal.
+ */
+function resultMatchesRadar(row, radar, universe) {
+  return radarMatchDetails(row, radar, universe).matched;
 }
 
 function normalizeState(state) {
@@ -147,12 +173,14 @@ function evaluateRadarTransitions(radar, results, states, options) {
 
   results.forEach((row) => {
     const symbol = symbolOf(row);
-    if (!symbol || !resultMatchesRadar(row, radar, opts.universe)) return;
-    currentMatches.set(symbol, row);
+    if (!symbol) return;
+    const details = radarMatchDetails(row, radar, opts.universe);
+    if (!details.matched) return;
+    currentMatches.set(symbol, { row, details });
   });
 
   const events = [];
-  currentMatches.forEach((row, symbol) => {
+  currentMatches.forEach(({ row, details }, symbol) => {
     const previous = normalizeState(sourceStates.get(symbol));
     const entered = !previous.matches;
     nextStates.set(symbol, {
@@ -167,6 +195,7 @@ function evaluateRadarTransitions(radar, results, states, options) {
         row,
         scanTime: eventTime,
         reentry: !!sourceStates.get(symbol),
+        matchedConditions: details.matchedConditions,
       });
     }
   });
@@ -203,8 +232,12 @@ module.exports = {
   MA_DISTANCES,
   MA_INTERVALS,
   MA_DIRECTIONS,
+  CONDITION_MODES,
   parseVolumeInput,
   maMatchesRadar,
+  universeMatchesRadar,
+  capitalFlowMatchesRadar,
+  radarMatchDetails,
   resultMatchesRadar,
   evaluateRadarTransitions,
 };

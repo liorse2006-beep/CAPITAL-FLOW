@@ -163,7 +163,7 @@ router.get('/account/export', requireAuth, async (req, res) => {
         .all(userId),
       db
         .prepare(
-          'SELECT id, name, mode, selected_sectors_json, min_volume_ratio, min_market_cap, min_volume, min_price, max_price, ma_period, ma_distance, ma_interval, ma_direction, condition_version, schedule_time_1, schedule_time_2, expires_on, active, last_check_at, last_success_at, last_error, last_error_detail, last_data_status, last_data_as_of, last_scan_run_id, last_partial_count, created_at, updated_at FROM capital_flow_radars WHERE user_id = ? ORDER BY created_at ASC'
+          'SELECT id, name, mode, selected_sectors_json, min_volume_ratio, min_market_cap, min_volume, min_price, max_price, ma_period, ma_distance, ma_interval, ma_direction, condition_mode, condition_version, schedule_time_1, schedule_time_2, expires_on, active, last_check_at, last_success_at, last_error, last_error_detail, last_data_status, last_data_as_of, last_scan_run_id, last_partial_count, created_at, updated_at FROM capital_flow_radars WHERE user_id = ? ORDER BY created_at ASC'
         )
         .all(userId),
       db

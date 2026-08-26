@@ -53,4 +53,27 @@ describe('CapitalFlowRadar schedule picker', () => {
     expect(first).toHaveTextContent('11:00 PM');
     expect(document.querySelector('input[type="time"]')).not.toBeInTheDocument();
   });
+
+  it('makes the one-or-both condition rule explicit before the scan filters', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: true, json: async () => ({ radars: [] }) }))
+    );
+    const user = userEvent.setup();
+    render(<CapitalFlowRadar {...baseProps()} />);
+
+    await user.click(screen.getByRole('button', { name: /activate this scan as radar/i }));
+
+    const both = screen.getByRole('radio', { name: /both conditions/i });
+    const either = screen.getByRole('radio', { name: /either condition/i });
+    expect(both).toBeChecked();
+    expect(either).not.toBeChecked();
+    expect(screen.getByText(/only a match from both layers sends an alert/i)).toBeInTheDocument();
+
+    await user.click(either);
+    expect(either).toBeChecked();
+    expect(both).not.toBeChecked();
+    expect(screen.getByText(/one match sends an alert/i)).toBeInTheDocument();
+    expect(screen.getByText(/^OR$/)).toBeInTheDocument();
+  });
 });

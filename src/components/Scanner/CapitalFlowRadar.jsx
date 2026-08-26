@@ -54,6 +54,16 @@ const RADAR_MA_DIRECTIONS = [
   { value: 'below', label: 'Below' },
 ];
 
+function conditionModeLabel(value) {
+  return value === 'either' ? 'Either condition' : 'Both conditions';
+}
+
+function conditionModeDescription(value) {
+  return value === 'either'
+    ? 'One valid signal is enough to send an alert.'
+    : 'Capital Flow and Moving Average must both match before an alert is sent.';
+}
+
 function formatVolumeInput(value) {
   const number = Number(value || 0);
   if (!Number.isFinite(number) || number <= 0) return '';
@@ -175,6 +185,7 @@ export default function CapitalFlowRadar({
       maDistance: 2,
       maInterval: '1d',
       maDirection: 'all',
+      conditionMode: 'both',
     }),
     [minCap, minRatio, minVol, scanMode, selectedSectors]
   );
@@ -194,6 +205,7 @@ export default function CapitalFlowRadar({
       maDistance: Number(radar.maDistance || 2),
       maInterval: radar.maInterval || '1d',
       maDirection: radar.maDirection || 'all',
+      conditionMode: radar.conditionMode === 'either' ? 'either' : 'both',
     };
   }
 
@@ -399,7 +411,7 @@ export default function CapitalFlowRadar({
                     <div className="cfr-radar-recipe">
                       {modeLabel(radar)} <span>·</span> {Number(radar.minVolumeRatio).toFixed(1)}x RVOL <span>·</span>{' '}
                       {formatCap(radar.minMarketCap)} <span>·</span> SMA{radar.maPeriod || 20} ±
-                      {Number(radar.maDistance || 2).toFixed(0)}% {radar.maDirection && radar.maDirection !== 'all' ? radar.maDirection : ''}
+                      {Number(radar.maDistance || 2).toFixed(0)}% <span>·</span> {conditionModeLabel(radar.conditionMode)}
                     </div>
                   </div>
                   <span className={'cfr-radar-data-status ' + radar.dataStatus}>
@@ -484,14 +496,58 @@ export default function CapitalFlowRadar({
                 {editingRadarId !== null ? 'UPDATE RADAR SCHEDULE' : 'SCHEDULE THIS SCAN'}
               </div>
               <div className="cfr-radar-condition-block">
-                <div className="cfr-radar-condition-heading">
-                  <span>RADAR FILTERS</span>
-                  <small>Both signal layers must match before an alert is sent.</small>
-                </div>
+                <fieldset className="cfr-radar-logic-picker" aria-describedby="cfr-radar-logic-help">
+                  <legend className="cfr-radar-logic-legend">
+                    <span>ALERT LOGIC</span>
+                    <strong>{conditionModeLabel(currentRecipe.conditionMode)}</strong>
+                  </legend>
+                  <p id="cfr-radar-logic-help" className="cfr-radar-logic-help">
+                    {conditionModeDescription(currentRecipe.conditionMode)} All filters inside each layer still apply
+                    together.
+                  </p>
+                  <div className="cfr-radar-logic-options" role="radiogroup" aria-label="Radar alert logic">
+                    <label className={'cfr-radar-logic-option' + (currentRecipe.conditionMode === 'both' ? ' active' : '')}>
+                      <input
+                        type="radio"
+                        name="radar-condition-mode"
+                        value="both"
+                        checked={currentRecipe.conditionMode === 'both'}
+                        onChange={() => updateDraftRecipe('conditionMode', 'both')}
+                      />
+                      <span className="cfr-radar-logic-option-copy">
+                        <b>Both conditions</b>
+                        <small>Capital Flow AND Moving Average must match.</small>
+                      </span>
+                    </label>
+                    <label className={'cfr-radar-logic-option' + (currentRecipe.conditionMode === 'either' ? ' active' : '')}>
+                      <input
+                        type="radio"
+                        name="radar-condition-mode"
+                        value="either"
+                        checked={currentRecipe.conditionMode === 'either'}
+                        onChange={() => updateDraftRecipe('conditionMode', 'either')}
+                      />
+                      <span className="cfr-radar-logic-option-copy">
+                        <b>Either condition</b>
+                        <small>Capital Flow OR Moving Average is enough.</small>
+                      </span>
+                    </label>
+                  </div>
+                  <div className="cfr-radar-logic-flow" aria-live="polite">
+                    <span className="cfr-radar-logic-node"><i>01</i> Capital Flow</span>
+                    <b className="cfr-radar-logic-connector">{currentRecipe.conditionMode === 'either' ? 'OR' : 'AND'}</b>
+                    <span className="cfr-radar-logic-node"><i>02</i> Moving Average</span>
+                  </div>
+                  <p className="cfr-radar-logic-result">
+                    {currentRecipe.conditionMode === 'either'
+                      ? 'One match sends an alert. If both match, you still receive one alert.'
+                      : 'Only a match from both layers sends an alert.'}
+                  </p>
+                </fieldset>
                 <div className="cfr-radar-filter-section">
                   <div className="cfr-radar-filter-section-heading">
-                    <span>CAPITAL FLOW</span>
-                    <small>Choose where to scan and the minimum activity.</small>
+                    <span><i>01</i> CAPITAL FLOW</span>
+                    <small>Choose the universe and activity filters.</small>
                   </div>
                   <div className="cfr-radar-filter-grid">
                     <label className="cfr-radar-filter cfr-radar-filter-wide">
@@ -589,8 +645,8 @@ export default function CapitalFlowRadar({
                 </div>
                 <div className="cfr-radar-filter-section cfr-radar-ma-section">
                   <div className="cfr-radar-filter-section-heading">
-                    <span>MOVING AVERAGE</span>
-                    <small>Set the SMA condition that must confirm the flow signal.</small>
+                    <span><i>02</i> MOVING AVERAGE</span>
+                    <small>Set the SMA confirmation settings.</small>
                   </div>
                   <div className="cfr-radar-ma-controls">
                   <div className="cfr-radar-option-group">

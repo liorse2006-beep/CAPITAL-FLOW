@@ -1,7 +1,7 @@
 const db = require('../db');
 const { reportError } = require('../utils/reportError');
 const { isMarketOpen, isPreMarket } = require('./backgroundScan');
-const { MA_PERIODS, MA_DISTANCES, MA_INTERVALS, MA_DIRECTIONS } = require('./radarLogic');
+const { MA_PERIODS, MA_DISTANCES, MA_INTERVALS, MA_DIRECTIONS, CONDITION_MODES } = require('./radarLogic');
 
 // Runs `worker` over every item with at most `limit` in flight at once — a
 // bounded fan-out. Used so that when hundreds of users are all scheduled for
@@ -92,6 +92,7 @@ function normalizedRadarRecipe(row) {
     maDistance: MA_DISTANCES.includes(distance) ? distance : 2,
     maInterval: MA_INTERVALS.includes(interval) ? interval : '1d',
     maDirection: MA_DIRECTIONS.includes(direction) ? direction : 'all',
+    conditionMode: CONDITION_MODES.includes(String(row.condition_mode || '')) ? row.condition_mode : 'both',
     conditionVersion: String(row.condition_version || 'radar-v2'),
   };
 }
@@ -254,8 +255,8 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
   try {
     rows = await db
       .prepare(
-        `SELECT id, schedule_time_1, schedule_time_2, expires_on,
-                ma_period, ma_distance, ma_interval, ma_direction, condition_version
+        `SELECT id, mode, schedule_time_1, schedule_time_2, expires_on,
+                ma_period, ma_distance, ma_interval, ma_direction, condition_mode, condition_version
            FROM capital_flow_radars
           WHERE active = 1
             AND expires_on >= ?`
@@ -288,11 +289,10 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
   }
   if (dueRuns.length === 0) return;
 
-  const radarIds = [...new Set(dueRuns.map((run) => run.radarId))];
+  const { ALL_TICKERS } = require('../../tickers');
   let capitalFlowScan;
   const scanStartedAt = new Date().toISOString();
   try {
-    const { ALL_TICKERS } = require('../../tickers');
     const { scanTickers } = require('./scanner');
     capitalFlowScan = await scanTickers(ALL_TICKERS, {
       minVolumeRatio: 1.5,
@@ -300,32 +300,18 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
     });
   } catch (err) {
     reportError(err, '[Radar scheduler] scan failed');
-    const scanId = `radar-${runDate}-capital-flow-${Date.now()}`;
-    const errors = [err.code || 'CAPITAL_FLOW_SCAN_UNAVAILABLE'];
-    try {
-      await require('./radar').markRadarsUnavailable(radarIds, { scanId, errors, dataAsOf: scanStartedAt });
-      await saveRadarRunSnapshot({
-        scanId,
-        startedAt: scanStartedAt,
-        completedAt: new Date().toISOString(),
-        dataStatus: 'unavailable',
-        errors,
-        checkedCount: 0,
-      });
-      await finishRadarRuns(dueRuns, 'failed', null, 'SCAN_UNAVAILABLE', {
-        dataStatus: 'unavailable',
-        scanId,
-        errors,
-        dataAsOf: scanStartedAt,
-        completedAt: nowSeconds,
-      });
-    } catch (stateError) {
-      reportError(stateError, '[Radar scheduler] failed to persist unavailable state');
-    }
-    return;
+    // An Either-condition Radar can still make a valid decision from the MA
+    // source if Capital Flow is unavailable. The per-Radar status below keeps
+    // Both-condition Radars unavailable until both inputs are usable.
+    capitalFlowScan = {
+      results: [],
+      errors: [...ALL_TICKERS],
+      checkedSymbols: [],
+      dataStatus: 'unavailable',
+      dataAsOf: scanStartedAt,
+    };
   }
 
-  const { ALL_TICKERS } = require('../../tickers');
   const capitalFlowResults = Array.isArray(capitalFlowScan.results) ? capitalFlowScan.results : [];
   const capitalFlowErrors = Array.isArray(capitalFlowScan.errors) ? capitalFlowScan.errors : [];
   const capitalFlowChecked = new Set(
@@ -361,53 +347,59 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
       });
     } catch (err) {
       reportError(err, '[Radar scheduler] MA scan failed');
-      const errors = [err.code || 'MA_SCAN_UNAVAILABLE'];
-      try {
-        await require('./radar').markRadarsUnavailable(groupIds, {
-          scanId,
-          errors,
-          dataAsOf: scanStartedAt,
-        });
-        await saveRadarRunSnapshot({
-          scanId,
-          startedAt: scanStartedAt,
-          completedAt: new Date().toISOString(),
-          capitalFlowAsOf,
-          dataStatus: 'unavailable',
-          conditionVersion: first.conditionVersion,
-          maPeriod: first.maPeriod,
-          maDistance: first.maDistance,
-          maInterval: first.maInterval,
-          maDirection: 'all',
-          errors,
-        });
-        await finishRadarRuns(runs, 'failed', null, 'MA_SCAN_UNAVAILABLE', {
-          dataStatus: 'unavailable',
-          scanId,
-          errors,
-          dataAsOf: scanStartedAt,
-          capitalFlowCount: capitalFlowResults.length,
-          completedAt: nowSeconds,
-        });
-      } catch (stateError) {
-        reportError(stateError, '[Radar scheduler] failed to persist MA unavailable state');
-      }
-      continue;
+      // Keep the Capital Flow result available for Either-condition Radars.
+      // Both-condition Radars are marked unavailable below because the MA
+      // input is missing, so they cannot emit a composite signal.
+      maScan = {
+        results: [],
+        errors: [...ALL_TICKERS],
+        checkedSymbols: [],
+        dataStatus: 'unavailable',
+        dataAsOf: scanStartedAt,
+      };
     }
 
     const maResults = Array.isArray(maScan.results) ? maScan.results : [];
-    const maBySymbol = new Map(
-      maResults
+    const capitalFlowBySymbol = new Map(
+      capitalFlowResults
         .map((row) => [String(row && row.symbol ? row.symbol : '').trim().toUpperCase(), row])
         .filter(([symbol]) => symbol)
     );
-    const compositeResults = capitalFlowResults
-      .map((capitalFlowRow) => {
-        const symbol = String(capitalFlowRow && capitalFlowRow.symbol ? capitalFlowRow.symbol : '').trim().toUpperCase();
-        const maRow = maBySymbol.get(symbol);
-        if (!maRow) return null;
-        return {
-          ...capitalFlowRow,
+
+    // A sector-scoped Either-condition Radar must be able to evaluate a
+    // moving-average-only match against the same selected sectors. Sector
+    // metadata is cached for seven days, so this only adds lookups for MA
+    // candidates that are not already present in the Capital Flow result.
+    const needsSectorEnrichment = runs.some((run) => run.conditionMode === 'either' && run.mode === 'sectors');
+    let enrichedMaResults = maResults;
+    if (needsSectorEnrichment && maResults.length > 0) {
+      const { enrichSector } = require('./scanner');
+      enrichedMaResults = await Promise.all(
+        maResults.map(async (row) => {
+          const symbol = String(row && row.symbol ? row.symbol : '').trim().toUpperCase();
+          if (!symbol || capitalFlowBySymbol.has(symbol)) return row;
+          return { ...row, sector: await enrichSector(symbol) };
+        })
+      );
+    }
+
+    const maBySymbol = new Map(
+      enrichedMaResults
+        .map((row) => [String(row && row.symbol ? row.symbol : '').trim().toUpperCase(), row])
+        .filter(([symbol]) => symbol)
+    );
+    const compositeSymbols = [
+      ...new Set([
+        ...capitalFlowBySymbol.keys(),
+        ...maBySymbol.keys(),
+      ]),
+    ];
+    const compositeResults = compositeSymbols.map((symbol) => {
+      const capitalFlowRow = capitalFlowBySymbol.get(symbol);
+      const maRow = maBySymbol.get(symbol);
+      const row = { ...(capitalFlowRow || maRow) };
+      if (maRow) {
+        Object.assign(row, {
           maValue: maRow.maValue,
           maDistance: maRow.maDistance,
           maDirection: maRow.maDirection || maRow.direction,
@@ -415,9 +407,10 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
           maInterval: maRow.maInterval || first.maInterval,
           daysSinceCross: maRow.daysSinceCross,
           dataQuality: maRow.dataQuality || 'complete',
-        };
-      })
-      .filter(Boolean);
+        });
+      }
+      return row;
+    });
 
     const maErrors = Array.isArray(maScan.errors) ? maScan.errors : [];
     const maChecked = new Set(
@@ -427,13 +420,18 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
     );
     const checkedSymbols = [...capitalFlowChecked].filter((symbol) => maChecked.has(symbol));
     const errors = [...new Set([...capitalFlowErrors, ...maErrors])];
+    const capitalFlowUnavailable = capitalFlowScan.dataStatus === 'unavailable';
+    const maUnavailable = maScan.dataStatus === 'unavailable';
+    const sourceIsPartial =
+      errors.length > 0 || capitalFlowScan.dataStatus === 'partial' || maScan.dataStatus === 'partial';
     const dataStatus =
-      capitalFlowScan.dataStatus === 'unavailable' || maScan.dataStatus === 'unavailable'
-        ? 'unavailable'
-        : errors.length > 0
-          ? 'partial'
-          : 'complete';
-    const maAsOf = maScan.dataAsOf || new Date().toISOString();
+      capitalFlowUnavailable && maUnavailable ? 'unavailable' : sourceIsPartial || capitalFlowUnavailable || maUnavailable ? 'partial' : 'complete';
+    const conditionStatusByRadarId = {};
+    runs.forEach((run) => {
+      const unavailable = run.conditionMode === 'either' ? capitalFlowUnavailable && maUnavailable : capitalFlowUnavailable || maUnavailable;
+      conditionStatusByRadarId[String(run.radarId)] = unavailable ? 'unavailable' : sourceIsPartial ? 'partial' : 'complete';
+    });
+    const maAsOf = maScan.dataAsOf || scanStartedAt;
     const scanTime = maAsOf > capitalFlowAsOf ? maAsOf : capitalFlowAsOf;
 
     try {
@@ -449,6 +447,7 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
         dataAsOf: scanTime,
         conditionVersion: first.conditionVersion,
         maDirection: 'all',
+        conditionStatusByRadarId,
       });
       await saveRadarRunSnapshot({
         scanId,
@@ -466,15 +465,30 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
         checkedCount: checkedSymbols.length,
         errors,
       });
-      await finishRadarRuns(runs, 'completed', compositeResults.length, null, {
-        errors,
-        dataStatus,
-        scanId,
-        dataAsOf: scanTime,
-        capitalFlowCount: capitalFlowResults.length,
-        maCount: maResults.length,
-        completedAt: nowSeconds,
-      });
+      const unavailableRuns = runs.filter((run) => conditionStatusByRadarId[String(run.radarId)] === 'unavailable');
+      const completedRuns = runs.filter((run) => conditionStatusByRadarId[String(run.radarId)] !== 'unavailable');
+      if (completedRuns.length > 0) {
+        await finishRadarRuns(completedRuns, 'completed', compositeResults.length, null, {
+          errors,
+          dataStatus,
+          scanId,
+          dataAsOf: scanTime,
+          capitalFlowCount: capitalFlowResults.length,
+          maCount: maResults.length,
+          completedAt: nowSeconds,
+        });
+      }
+      if (unavailableRuns.length > 0) {
+        await finishRadarRuns(unavailableRuns, 'failed', null, 'SCAN_UNAVAILABLE', {
+          errors,
+          dataStatus: 'unavailable',
+          scanId,
+          dataAsOf: scanTime,
+          capitalFlowCount: capitalFlowResults.length,
+          maCount: maResults.length,
+          completedAt: nowSeconds,
+        });
+      }
     } catch (err) {
       reportError(err, '[Radar scheduler] composite processing failed');
       try {

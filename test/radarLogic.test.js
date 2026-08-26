@@ -61,6 +61,39 @@ test('Radar matches only a complete row that satisfies every saved threshold', (
   );
 });
 
+test('Radar Either mode accepts one complete signal layer but never accepts an incomplete row', () => {
+  const either = { ...radar, conditionMode: 'either' };
+  assert.equal(resultMatchesRadar(row({ maValue: null, maDistance: null, maPeriod: null, maInterval: null }), either, universe), true);
+  assert.equal(resultMatchesRadar(row({ volumeRatio: null }), either, universe), true);
+  assert.equal(
+    resultMatchesRadar(
+      row({ volumeRatio: null, maValue: null, maDistance: null, maPeriod: null, maInterval: null }),
+      either,
+      universe
+    ),
+    false
+  );
+  assert.equal(
+    resultMatchesRadar(
+      row({ volumeRatio: 1.4, maValue: null, maDistance: null, maPeriod: null, maInterval: null }),
+      either,
+      universe
+    ),
+    false
+  );
+});
+
+test('Radar Either mode records which layer triggered the entry', () => {
+  const either = { ...radar, conditionMode: 'either' };
+  const result = evaluateRadarTransitions(
+    either,
+    [row({ maValue: null, maDistance: null, maPeriod: null, maInterval: null })],
+    new Map(),
+    { scanTime: '2026-08-25T12:00:00.000Z', universe }
+  );
+  assert.deepEqual(result.events[0].matchedConditions, ['Capital Flow']);
+});
+
 test('Radar emits once on a new entry and does not repeat while the row remains matched', () => {
   const first = evaluateRadarTransitions(radar, [row()], new Map(), {
     scanTime: '2026-08-25T12:00:00.000Z',

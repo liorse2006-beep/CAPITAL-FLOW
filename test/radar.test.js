@@ -101,3 +101,28 @@ test('Capital Flow Radar does not invent a result while the scan is unavailable'
   assert.match(bundle[0].statusMessage, /not available right now/i);
   assert.equal(bundle[0].events.length, 0);
 });
+
+test('Capital Flow Radar persists Either mode and emits from one matching layer', async () => {
+  const user = await makeEliteUser('radar-either@test.local');
+  const radar = await radarService.createRadar(user.id, {
+    name: 'Either Layer Radar',
+    mode: 'all',
+    selectedSectors: [],
+    minVolumeRatio: 1.5,
+    minMarketCap: 500_000_000,
+    conditionMode: 'either',
+    ...scheduleFields(),
+  });
+
+  assert.equal(radar.condition_mode, 'either');
+  await radarService.processRadarScan(
+    [scanRow({ maValue: null, maDistance: null, maPeriod: null, maInterval: null })],
+    '2026-08-25T12:00:00.000Z',
+    { errors: [], radarIds: [radar.id] }
+  );
+
+  const bundle = await radarService.getRadarBundle(user.id);
+  assert.equal(bundle[0].conditionMode, 'either');
+  assert.equal(bundle[0].events.length, 1);
+  assert.deepEqual(bundle[0].events[0].data.matchedConditions, ['Capital Flow']);
+});

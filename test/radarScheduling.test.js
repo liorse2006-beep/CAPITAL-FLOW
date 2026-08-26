@@ -204,6 +204,55 @@ test('Radar retries one failed slot inside its recovery window without creating 
   assert.equal(Number(events.count), 1);
 });
 
+test('Either-condition Radar can alert from the available MA layer when Capital Flow is unavailable', async (t) => {
+  const user = await db
+    .prepare("INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, 'elite', 1)")
+    .run('radar-either-source@test.local');
+  const current = new Date();
+  const minute = israelNowMinutes(current);
+  const firstRunNow = new Date(current.getTime() + ((11 * 60 - minute + 1440) % 1440) * 60 * 1000);
+  const radarRow = await radar.createRadar(user.lastInsertRowid, {
+    name: 'Either Source',
+    mode: 'all',
+    conditionMode: 'either',
+    scheduleTime1: '11:00',
+    expiresOn: futureIsraelDate(),
+  });
+
+  t.mock.method(scanner, 'scanTickers', async () => {
+    throw new Error('Capital Flow provider unavailable');
+  });
+  t.mock.method(maScanner, 'scanMA', async () => ({
+    results: [
+      {
+        symbol: 'AAPL',
+        name: 'Apple Inc.',
+        price: 190,
+        maValue: 185,
+        maDistance: 2,
+        maDirection: 'above',
+        maPeriod: 20,
+        maInterval: '1d',
+        dataQuality: 'complete',
+      },
+    ],
+    errors: [],
+    checkedSymbols: ['AAPL'],
+    dataStatus: 'complete',
+    dataAsOf: '2026-08-25T12:00:00.000Z',
+  }));
+  t.mock.method(webPush, 'sendPushToUser', async () => {});
+
+  await runRadarScheduledScans(firstRunNow, { ignoreMarketHours: true });
+
+  const run = await db
+    .prepare('SELECT status FROM radar_schedule_runs WHERE radar_id = ? AND scheduled_time = ?')
+    .get(radarRow.id, '11:00');
+  assert.equal(run.status, 'completed');
+  const events = await db.prepare('SELECT COUNT(*) AS count FROM radar_events WHERE radar_id = ?').get(radarRow.id);
+  assert.equal(Number(events.count), 1);
+});
+
 test('Radar runs at the selectable 11:00 Jerusalem pre-market slot', async (t) => {
   const user = await db
     .prepare("INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, 'elite', 1)")

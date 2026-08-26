@@ -16,6 +16,7 @@ const {
   MA_DISTANCES,
   MA_INTERVALS,
   MA_DIRECTIONS,
+  CONDITION_MODES,
   parseVolumeInput,
   evaluateRadarTransitions,
 } = require('./radarLogic');
@@ -135,6 +136,12 @@ function normalizeRadarInput(input, base, options = {}) {
   const maDistance = numberOr(source.maDistance ?? source.ma_distance, 2);
   const maInterval = String(source.maInterval ?? source.ma_interval ?? '1d');
   const maDirection = String(source.maDirection ?? source.ma_direction ?? 'all');
+  const conditionMode = String(source.conditionMode ?? source.condition_mode ?? 'both').toLowerCase();
+  if (!CONDITION_MODES.includes(conditionMode)) {
+    const error = new Error('Choose whether one or both Radar conditions can trigger an alert.');
+    error.code = 'INVALID_RADAR_FILTERS';
+    throw error;
+  }
 
   const scheduleTime1 = scheduleValue(source, 'scheduleTime1', 'schedule_time_1');
   const scheduleTime2 = scheduleValue(source, 'scheduleTime2', 'schedule_time_2');
@@ -212,6 +219,7 @@ function normalizeRadarInput(input, base, options = {}) {
     maDistance,
     maInterval,
     maDirection,
+    conditionMode,
     conditionVersion: CONDITION_VERSION,
     scheduleTime1: hasSchedule ? scheduleTime1 : null,
     scheduleTime2: hasSecondSchedule ? scheduleTime2 : null,
@@ -281,6 +289,7 @@ function serializeRadar(row, events) {
     maDistance: Number(row.ma_distance || 2),
     maInterval: row.ma_interval || '1d',
     maDirection: row.ma_direction || 'all',
+    conditionMode: CONDITION_MODES.includes(String(row.condition_mode || '')) ? row.condition_mode : 'both',
     conditionVersion: row.condition_version || CONDITION_VERSION,
     lastDataStatus: row.last_data_status || 'waiting',
     lastDataAsOf: row.last_data_as_of || null,
@@ -307,6 +316,7 @@ function rowToConfig(row) {
     maDistance: Number(row.ma_distance || 2),
     maInterval: row.ma_interval || '1d',
     maDirection: row.ma_direction || 'all',
+    conditionMode: CONDITION_MODES.includes(String(row.condition_mode || '')) ? row.condition_mode : 'both',
     conditionVersion: row.condition_version || CONDITION_VERSION,
     scheduleTime1: row.schedule_time_1 || null,
     scheduleTime2: row.schedule_time_2 || null,
@@ -377,8 +387,8 @@ async function createRadar(userId, input) {
       `INSERT INTO capital_flow_radars
         (user_id, name, mode, selected_sectors_json, min_volume_ratio, min_market_cap,
          min_volume, min_price, max_price, ma_period, ma_distance, ma_interval, ma_direction,
-         condition_version, schedule_time_1, schedule_time_2, expires_on, active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
+         condition_mode, condition_version, schedule_time_1, schedule_time_2, expires_on, active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
     )
     .run(
       userId,
@@ -394,6 +404,7 @@ async function createRadar(userId, input) {
       config.maDistance,
       config.maInterval,
       config.maDirection,
+      config.conditionMode,
       config.conditionVersion,
       config.scheduleTime1,
       config.scheduleTime2,
@@ -418,6 +429,7 @@ async function updateRadar(userId, radarId, input) {
     maDistance: existing.ma_distance,
     maInterval: existing.ma_interval,
     maDirection: existing.ma_direction,
+    conditionMode: existing.condition_mode,
     scheduleTime1: existing.schedule_time_1,
     scheduleTime2: existing.schedule_time_2,
     expiresOn: existing.expires_on,
@@ -429,7 +441,7 @@ async function updateRadar(userId, radarId, input) {
       `UPDATE capital_flow_radars
           SET name = ?, mode = ?, selected_sectors_json = ?, min_volume_ratio = ?, min_market_cap = ?,
               min_volume = ?, min_price = ?, max_price = ?, ma_period = ?, ma_distance = ?, ma_interval = ?,
-              ma_direction = ?, condition_version = ?, schedule_time_1 = ?, schedule_time_2 = ?,
+              ma_direction = ?, condition_mode = ?, condition_version = ?, schedule_time_1 = ?, schedule_time_2 = ?,
               expires_on = ?, active = ?, updated_at = unixepoch()
         WHERE id = ? AND user_id = ?`
     )
@@ -446,6 +458,7 @@ async function updateRadar(userId, radarId, input) {
       config.maDistance,
       config.maInterval,
       config.maDirection,
+      config.conditionMode,
       config.conditionVersion,
       config.scheduleTime1,
       config.scheduleTime2,
@@ -487,6 +500,10 @@ function eventPayload(row, scanTime, meta = {}) {
     maDirection: row.maDirection ? String(row.maDirection).slice(0, 10) : null,
     maPeriod: numeric(row.maPeriod),
     maInterval: row.maInterval ? String(row.maInterval).slice(0, 10) : null,
+    conditionMode: meta.conditionMode === 'either' ? 'either' : 'both',
+    matchedConditions: Array.isArray(meta.matchedConditions)
+      ? meta.matchedConditions.filter((item) => item === 'Capital Flow' || item === 'Moving Average')
+      : [],
     conditionVersion: meta.conditionVersion || CONDITION_VERSION,
     scanId: meta.scanId || null,
     dataStatus: meta.dataStatus || 'complete',
@@ -501,7 +518,14 @@ function eventBody(payload, reentry) {
   const ma = Number.isFinite(payload.maDistance)
     ? `SMA${payload.maPeriod || ''} ${payload.maDistance >= 0 ? '+' : ''}${payload.maDistance.toFixed(2)}%`
     : 'moving-average condition';
-  return `${reentry ? 'Re-entry' : 'New entry'}: ${payload.symbol} meets both Radar conditions · ${ratio} · ${ma} · ${price}`;
+  const matched = Array.isArray(payload.matchedConditions) ? payload.matchedConditions : [];
+  const conditionText =
+    payload.conditionMode === 'either'
+      ? matched.length > 0
+        ? `matches ${matched.join(' + ')}`
+        : 'matches a Radar condition'
+      : 'meets both Radar conditions';
+  return `${reentry ? 'Re-entry' : 'New entry'}: ${payload.symbol} ${conditionText} · ${ratio} · ${ma} · ${price}`;
 }
 
 async function dispatchRadarEvent(radar, event) {
@@ -630,6 +654,7 @@ async function processRadarScan(results, scanTime, meta) {
   });
   const unavailableSymbols = Array.isArray(scanMeta.errors) ? scanMeta.errors : [];
   const checkedSymbols = Array.isArray(scanMeta.checkedSymbols) ? scanMeta.checkedSymbols : [];
+  const conditionStatusByRadarId = scanMeta.conditionStatusByRadarId || {};
   const scanId = String(scanMeta.scanId || `radar-${new Date(scanTime).getTime()}`);
   const dataAsOf = scanMeta.dataAsOf || scanTime;
   const emitted = [];
@@ -658,7 +683,10 @@ async function processRadarScan(results, scanTime, meta) {
         ...unavailableSymbols,
         ...sectorUnavailableSymbols.map((symbol) => `SECTOR_DATA_UNAVAILABLE:${symbol}`),
       ];
-      const radarDataStatus = sectorUnavailableSymbols.length > 0 ? 'partial' : dataStatus;
+      const radarConditionStatus = conditionStatusByRadarId[String(config.id)] || dataStatus;
+      const radarDataStatus = sectorUnavailableSymbols.length > 0 && radarConditionStatus === 'complete'
+        ? 'partial'
+        : radarConditionStatus;
       const evaluation = evaluateRadarTransitions(config, results, states, {
         scanTime,
         unavailableSymbols: radarUnavailableSymbols,
@@ -688,7 +716,7 @@ async function processRadarScan(results, scanTime, meta) {
             // its own above/below preference locally during evaluation.
             scanMeta.maDirection || 'all',
             results.length,
-            checkedSymbols.length || (dataStatus === 'complete' ? results.length : 0),
+            checkedSymbols.length || (radarDataStatus === 'complete' ? results.length : 0),
             JSON.stringify(radarErrorDetails.slice(0, 100)),
           ],
         },
@@ -739,6 +767,8 @@ async function processRadarScan(results, scanTime, meta) {
           dataStatus: radarDataStatus,
           dataAsOf,
           conditionVersion: config.conditionVersion || CONDITION_VERSION,
+          conditionMode: config.conditionMode,
+          matchedConditions: event.matchedConditions,
         });
         statements.push({
           sql: `INSERT OR IGNORE INTO radar_events
@@ -759,6 +789,8 @@ async function processRadarScan(results, scanTime, meta) {
             dataStatus: radarDataStatus,
             dataAsOf,
             conditionVersion: config.conditionVersion,
+            conditionMode: config.conditionMode,
+            matchedConditions: event.matchedConditions,
           },
         });
       }
