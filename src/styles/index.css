@@ -1116,6 +1116,26 @@ button.topbar-premium-badge:hover {
     0 28px 80px rgba(0, 0, 0, 0.72),
     0 0 34px rgba(245, 158, 11, 0.08);
 }
+/* .upgrade-modal is declared later in this stylesheet for the other modal
+   families. Keep the Account Center's shell rules stronger so that generic
+   modal defaults can never collapse it back to a 380px dialog. */
+.upgrade-modal.account-center {
+  width: min(940px, calc(100vw - 48px));
+  max-width: 940px;
+  height: min(680px, calc(100vh - 48px));
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(245, 158, 11, 0.07), transparent 34%),
+    linear-gradient(145deg, rgba(22, 20, 16, 0.99), rgba(9, 9, 9, 0.99));
+  text-align: left;
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.72),
+    0 0 34px rgba(245, 158, 11, 0.08);
+}
 .account-center,
 .account-center * {
   scrollbar-width: thin;
