@@ -58,12 +58,6 @@ function conditionModeLabel(value) {
   return value === 'either' ? 'Either condition' : 'Both conditions';
 }
 
-function conditionModeDescription(value) {
-  return value === 'either'
-    ? 'One valid signal is enough to send an alert.'
-    : 'Capital Flow and Moving Average must both match before an alert is sent.';
-}
-
 function formatVolumeInput(value) {
   const number = Number(value || 0);
   if (!Number.isFinite(number) || number <= 0) return '';
@@ -496,15 +490,10 @@ export default function CapitalFlowRadar({
                 {editingRadarId !== null ? 'UPDATE RADAR SCHEDULE' : 'SCHEDULE THIS SCAN'}
               </div>
               <div className="cfr-radar-condition-block">
-                <fieldset className="cfr-radar-logic-picker" aria-describedby="cfr-radar-logic-help">
+                <fieldset className="cfr-radar-logic-picker">
                   <legend className="cfr-radar-logic-legend">
                     <span>ALERT LOGIC</span>
-                    <strong>{conditionModeLabel(currentRecipe.conditionMode)}</strong>
                   </legend>
-                  <p id="cfr-radar-logic-help" className="cfr-radar-logic-help">
-                    {conditionModeDescription(currentRecipe.conditionMode)} All filters inside each layer still apply
-                    together.
-                  </p>
                   <div className="cfr-radar-logic-options" role="radiogroup" aria-label="Radar alert logic">
                     <label className={'cfr-radar-logic-option' + (currentRecipe.conditionMode === 'both' ? ' active' : '')}>
                       <input

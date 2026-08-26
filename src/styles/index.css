@@ -13259,14 +13259,6 @@ html.a11y-highlight-links a {
   letter-spacing: 0.16em;
 }
 
-.cfr-radar-logic-legend strong {
-  color: var(--text, #f5f5f5);
-  font-size: 16px;
-  font-weight: 720;
-  letter-spacing: -0.015em;
-}
-
-.cfr-radar-logic-help,
 .cfr-radar-logic-result {
   margin: 6px 0 0;
   color: var(--text-3, #71717a);
