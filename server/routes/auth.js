@@ -600,3 +600,4 @@ module.exports = router;
 module.exports.setRefreshCookie = setRefreshCookie;
 module.exports.clearRefreshCookie = clearRefreshCookie;
 module.exports.serializePublicUser = serializePublicUser;
+module.exports.getGoogleAvatarUrl = getGoogleAvatarUrl;
