@@ -82,12 +82,12 @@ describe('Topbar tier badge', () => {
     expect(screen.queryByRole('link', { name: 'Status' })).not.toBeInTheDocument();
   });
 
-  it('shows the default logo avatar and opens the profile entry point', () => {
+  it('shows the default person avatar and opens the profile entry point', () => {
     render(<Topbar {...baseProps({ user: { id: 1, email: 'user@example.com' } })} />);
 
     expect(screen.getByRole('img', { name: 'user@example.com profile picture' })).toHaveAttribute(
       'src',
-      '/icon-192.png'
+      '/default-avatar.svg'
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));

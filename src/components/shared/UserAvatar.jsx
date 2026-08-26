@@ -1,6 +1,6 @@
 import React from 'react';
 
-const DEFAULT_AVATAR_SRC = '/icon-192.png';
+const DEFAULT_AVATAR_SRC = '/default-avatar.svg';
 
 function handleAvatarError(event) {
   const image = event.currentTarget;

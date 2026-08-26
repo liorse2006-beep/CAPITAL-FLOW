@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">Default profile avatar</title>
+  <desc id="desc">A neutral person silhouette used when no profile photo is available.</desc>
+  <circle cx="48" cy="48" r="47" fill="#1b1b1b" stroke="#3b3b3b" stroke-width="2" />
+  <circle cx="48" cy="35" r="15" fill="#9b9b9b" />
+  <path d="M20 78c2.8-14.6 13.8-23 28-23s25.2 8.4 28 23" fill="#9b9b9b" />
+</svg>
