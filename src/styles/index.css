@@ -1447,6 +1447,15 @@ button.topbar-premium-badge:hover {
     border-left: 0;
     border-radius: 0;
   }
+  .upgrade-modal.account-center {
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
   .account-center-header {
     min-height: 84px;
     gap: 10px;
