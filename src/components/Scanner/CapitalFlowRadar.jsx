@@ -534,9 +534,8 @@ export default function CapitalFlowRadar({
                     </label>
                   </div>
                   <div className="cfr-radar-logic-flow" aria-live="polite">
-                    <span className="cfr-radar-logic-node"><i>01</i> Capital Flow</span>
-                    <b className="cfr-radar-logic-connector">{currentRecipe.conditionMode === 'either' ? 'OR' : 'AND'}</b>
-                    <span className="cfr-radar-logic-node"><i>02</i> Moving Average</span>
+                    <span className="cfr-radar-logic-node">Capital Flow</span>
+                    <span className="cfr-radar-logic-node">Moving Average</span>
                   </div>
                   <p className="cfr-radar-logic-result">
                     {currentRecipe.conditionMode === 'either'
@@ -546,7 +545,7 @@ export default function CapitalFlowRadar({
                 </fieldset>
                 <div className="cfr-radar-filter-section">
                   <div className="cfr-radar-filter-section-heading">
-                    <span><i>01</i> CAPITAL FLOW</span>
+                    <span>CAPITAL FLOW</span>
                     <small>Choose the universe and activity filters.</small>
                   </div>
                   <div className="cfr-radar-filter-grid">
@@ -645,7 +644,7 @@ export default function CapitalFlowRadar({
                 </div>
                 <div className="cfr-radar-filter-section cfr-radar-ma-section">
                   <div className="cfr-radar-filter-section-heading">
-                    <span><i>02</i> MOVING AVERAGE</span>
+                    <span>MOVING AVERAGE</span>
                     <small>Set the SMA confirmation settings.</small>
                   </div>
                   <div className="cfr-radar-ma-controls">

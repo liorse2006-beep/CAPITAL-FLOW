@@ -74,6 +74,9 @@ describe('CapitalFlowRadar schedule picker', () => {
     expect(either).toBeChecked();
     expect(both).not.toBeChecked();
     expect(screen.getByText(/one match sends an alert/i)).toBeInTheDocument();
-    expect(screen.getByText(/^OR$/)).toBeInTheDocument();
+    expect(screen.queryByText(/^OR$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^AND$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^01$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^02$/)).not.toBeInTheDocument();
   });
 });

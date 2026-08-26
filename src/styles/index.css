@@ -13332,7 +13332,7 @@ html.a11y-highlight-links a {
 
 .cfr-radar-logic-flow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: center;
   gap: 9px;
   margin-top: 13px;
@@ -13342,7 +13342,6 @@ html.a11y-highlight-links a {
   display: flex;
   align-items: center;
   min-width: 0;
-  gap: 7px;
   border: 1px solid rgba(245, 158, 11, 0.2);
   border-radius: 8px;
   padding: 8px 9px;
@@ -13353,26 +13352,6 @@ html.a11y-highlight-links a {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-}
-
-.cfr-radar-logic-node i {
-  color: var(--accent, #f59e0b);
-  font-size: 9px;
-  font-style: normal;
-}
-
-.cfr-radar-logic-connector {
-  display: grid;
-  min-width: 38px;
-  min-height: 25px;
-  place-items: center;
-  border: 1px solid rgba(245, 158, 11, 0.55);
-  border-radius: 999px;
-  color: var(--accent, #f59e0b);
-  background: rgba(245, 158, 11, 0.12);
-  font-family: var(--font-mono, monospace);
-  font-size: 9px;
-  letter-spacing: 0.1em;
 }
 
 .cfr-radar-logic-result {
@@ -13403,14 +13382,6 @@ html.a11y-highlight-links a {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
-}
-
-.cfr-radar-filter-section-heading > span i {
-  margin-right: 6px;
-  color: var(--text-3, #71717a);
-  font-size: 9px;
-  font-style: normal;
-  letter-spacing: 0.05em;
 }
 
 .cfr-radar-filter-section-heading small {
@@ -13787,11 +13758,6 @@ html.a11y-highlight-links a {
   .cfr-radar-logic-flow {
     grid-template-columns: 1fr;
     gap: 6px;
-  }
-
-  .cfr-radar-logic-connector {
-    justify-self: center;
-    min-width: 42px;
   }
 
   .cfr-radar-filter-section-heading {
