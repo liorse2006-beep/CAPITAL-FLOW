@@ -98,6 +98,18 @@ describe('ProfileModal preferences', () => {
     expect(props.onOpenScheduling).toHaveBeenCalledOnce();
   });
 
+  it('places notifications above scan scheduling in Automation & alerts', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(summaryResponse()));
+    renderProfile();
+
+    expect(await screen.findByRole('heading', { name: 'Account & workspace' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Automation & alerts' }));
+
+    const notifications = await screen.findByRole('heading', { name: 'Notifications' });
+    const scheduling = screen.getByRole('heading', { name: 'Scan scheduling' });
+    expect(notifications.compareDocumentPosition(scheduling) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('shows every existing scheduled scan with a follow-up CTA', async () => {
     const fetchMock = vi.fn().mockImplementation((url) =>
       url === '/api/scheduled-scans'

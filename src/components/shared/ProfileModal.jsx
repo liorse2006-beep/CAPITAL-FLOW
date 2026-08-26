@@ -511,6 +511,27 @@ export default function ProfileModal({
                 {activeSection === 'automation' && (
                   <div className="account-center-group">
                     <div className="account-center-subsection">
+                      <SubsectionHeader eyebrow="PREFERENCES" title="Notifications" />
+                      <Section id="profile-section-notifications">
+                        <div className="account-center-action-card">
+                          <div>
+                            <strong>Notification access</strong>
+                            <span>{notificationDescription}</span>
+                            {pushError && <small className="profile-modal-form-message error">{pushError}</small>}
+                          </div>
+                          <button
+                            className={'profile-primary-btn' + (pushEnabled ? ' profile-secondary-btn--active' : '')}
+                            type="button"
+                            onClick={requestNotificationsChange}
+                            disabled={pushBusy || (canNotify && (notificationBlocked || notificationUnavailable))}
+                          >
+                            {pushBusy ? 'Working…' : notificationLabel}
+                          </button>
+                        </div>
+                      </Section>
+                    </div>
+
+                    <div className="account-center-subsection">
                       <SubsectionHeader eyebrow="WORKSPACE" title="Scan scheduling" />
                       <Section id="profile-section-scheduling">
                         {scheduledScansState === 'loading' && (
@@ -581,27 +602,6 @@ export default function ProfileModal({
                             </button>
                           </>
                         )}
-                      </Section>
-                    </div>
-
-                    <div className="account-center-subsection">
-                      <SubsectionHeader eyebrow="PREFERENCES" title="Notifications" />
-                      <Section id="profile-section-notifications">
-                        <div className="account-center-action-card">
-                          <div>
-                            <strong>Notification access</strong>
-                            <span>{notificationDescription}</span>
-                            {pushError && <small className="profile-modal-form-message error">{pushError}</small>}
-                          </div>
-                          <button
-                            className={'profile-primary-btn' + (pushEnabled ? ' profile-secondary-btn--active' : '')}
-                            type="button"
-                            onClick={requestNotificationsChange}
-                            disabled={pushBusy || (canNotify && (notificationBlocked || notificationUnavailable))}
-                          >
-                            {pushBusy ? 'Working…' : notificationLabel}
-                          </button>
-                        </div>
                       </Section>
                     </div>
                   </div>
