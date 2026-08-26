@@ -181,3 +181,19 @@ describe('ScannerPage restored-last-scan label', () => {
     expect(screen.queryByText(/click Run Scan to refresh/)).not.toBeInTheDocument();
   });
 });
+
+describe('ScannerPage Radar placement', () => {
+  it('keeps one compact Radar surface after results are available', () => {
+    render(
+      <ScannerPage
+        {...baseProps({
+          results: [mockRow],
+          sorted: [mockRow],
+          scanTime: new Date().toISOString(),
+        })}
+      />
+    );
+
+    expect(screen.getAllByRole('heading', { name: /catch the moment a setup appears/i })).toHaveLength(1);
+  });
+});

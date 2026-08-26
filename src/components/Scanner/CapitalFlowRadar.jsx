@@ -14,6 +14,24 @@ function formatCap(value) {
   return '$' + (billions >= 10 ? billions.toFixed(0) : billions.toFixed(1)) + 'B cap';
 }
 
+function formatRadarTime(value) {
+  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ''));
+  if (!match) return value || '—';
+  const hour = Number(match[1]);
+  const minute = match[2];
+  const displayHour = hour % 12 || 12;
+  const period = hour >= 12 ? 'PM' : 'AM';
+  return `${displayHour}:${minute} ${period}`;
+}
+
+const RADAR_TIME_OPTIONS = Array.from({ length: 25 }, (_, index) => {
+  const totalMinutes = 11 * 60 + index * 30;
+  const hour = Math.floor(totalMinutes / 60);
+  const minute = totalMinutes % 60;
+  const value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  return { value, label: formatRadarTime(value) };
+});
+
 function formatTime(value) {
   if (!value) return '—';
   const date = new Date(value);
@@ -257,8 +275,8 @@ export default function CapitalFlowRadar({
       </div>
 
       <p className="cfr-radar-copy">
-        Save this scan once. Choose up to two different times during the trading day and an expiry date. Capital Flow
-        checks the market only in those windows and alerts you when a symbol enters the criteria for the first time.
+        Choose up to two daily check times and an expiry date. Radar checks only in those windows and alerts you when a
+        symbol first matches the criteria.
       </p>
 
       <div className="cfr-radar-proof">
@@ -321,7 +339,10 @@ export default function CapitalFlowRadar({
                   </span>
                   <span>
                     Scan times{' '}
-                    <b>{[radar.scheduleTime1, radar.scheduleTime2].filter(Boolean).join(' · ') || 'Not set'}</b>
+                    <b>
+                      {[radar.scheduleTime1, radar.scheduleTime2].filter(Boolean).map(formatRadarTime).join(' · ') ||
+                        'Not set'}
+                    </b>
                   </span>
                   <span>
                     Until <b>{formatDate(radar.expiresOn)}</b>
@@ -382,37 +403,41 @@ export default function CapitalFlowRadar({
               <div className="cfr-radar-setup-label">
                 {editingRadarId !== null ? 'UPDATE RADAR SCHEDULE' : 'SCHEDULE THIS SCAN'}
               </div>
-              <input
-                type="text"
-                maxLength={60}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Radar name (optional)"
-                aria-label="Radar name"
-              />
               <div className="cfr-radar-schedule-picker">
                 <div className="cfr-radar-schedule-heading">Choose up to 2 scan times · Jerusalem time</div>
                 <div className="cfr-radar-schedule-grid">
                   <label>
                     <span>First scan</span>
-                    <input
-                      type="time"
+                    <select
                       value={scheduleTime1}
                       onChange={(event) => setScheduleTime1(event.target.value)}
                       required
                       aria-label="First daily Radar scan time"
-                    />
+                    >
+                      <option value="">Choose a time</option>
+                      {RADAR_TIME_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label>
                     <span>
                       Second scan <em>optional</em>
                     </span>
-                    <input
-                      type="time"
+                    <select
                       value={scheduleTime2}
                       onChange={(event) => setScheduleTime2(event.target.value)}
                       aria-label="Second daily Radar scan time"
-                    />
+                    >
+                      <option value="">No second scan</option>
+                      {RADAR_TIME_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label className="cfr-radar-expiry-field">
                     <span>Active through</span>
@@ -427,10 +452,23 @@ export default function CapitalFlowRadar({
                   </label>
                 </div>
                 <p className="cfr-radar-schedule-note">
-                  The Radar runs only in the selected windows during regular U.S. market hours. Weekends and
-                  closed-market periods are skipped. The expiry date is inclusive.
+                  Pick a time between 11:00 AM and 11:00 PM. Closed-market periods are skipped, and the expiry date is
+                  inclusive.
                 </p>
               </div>
+              <label className="cfr-radar-name-field">
+                <span>
+                  Radar name <em>optional</em>
+                </span>
+                <input
+                  type="text"
+                  maxLength={60}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="e.g. Large-cap momentum"
+                  aria-label="Radar name"
+                />
+              </label>
               <div className="cfr-radar-current-recipe">
                 {modeLabel(recipe)} <span>·</span> {Number(recipe.minVolumeRatio || 0).toFixed(1)}x RVOL <span>·</span>{' '}
                 {formatCap(recipe.minMarketCap)}

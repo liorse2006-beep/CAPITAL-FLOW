@@ -467,21 +467,6 @@ export default function ScannerPage({
             )}
           </div>
 
-          <CapitalFlowRadar
-            user={user}
-            getToken={getToken}
-            isElite={isElite}
-            trialActive={trialActive}
-            onUpgrade={onUpgrade}
-            onSignIn={onSignIn}
-            scanMode={scanMode}
-            selectedSectors={selectedSectors}
-            minRatio={minRatio}
-            minCap={minCap}
-            minVol={minVol}
-            radarEvent={radarEvent}
-          />
-
           <div className="scan-mode-options-head">
             <span>Available universes</span>
             <span>{SCAN_MODE_OPTIONS.length + ' scan modes'}</span>
@@ -630,22 +615,20 @@ export default function ScannerPage({
         </div>
       )}
 
-      {results && !scanning && (
-        <CapitalFlowRadar
-          user={user}
-          getToken={getToken}
-          isElite={isElite}
-          trialActive={trialActive}
-          onUpgrade={onUpgrade}
-          onSignIn={onSignIn}
-          scanMode={scanMode}
-          selectedSectors={selectedSectors}
-          minRatio={minRatio}
-          minCap={minCap}
-          minVol={minVol}
-          radarEvent={radarEvent}
-        />
-      )}
+      <CapitalFlowRadar
+        user={user}
+        getToken={getToken}
+        isElite={isElite}
+        trialActive={trialActive}
+        onUpgrade={onUpgrade}
+        onSignIn={onSignIn}
+        scanMode={scanMode}
+        selectedSectors={selectedSectors}
+        minRatio={minRatio}
+        minCap={minCap}
+        minVol={minVol}
+        radarEvent={radarEvent}
+      />
 
       {/* Preset panel */}
       {filtersUnlocked && showPresetPanel && (

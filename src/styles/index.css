@@ -12792,8 +12792,8 @@ html.a11y-highlight-links a {
 .cfr-radar-panel {
   position: relative;
   overflow: hidden;
-  margin: 24px 0 28px;
-  padding: 22px 24px 20px;
+  margin: 16px 0 20px;
+  padding: 17px 20px 15px;
   border: 1px solid rgba(245, 158, 11, 0.26);
   border-radius: 18px;
   background:
@@ -12839,9 +12839,9 @@ html.a11y-highlight-links a {
 
 .cfr-radar-icon {
   display: grid;
-  flex: 0 0 40px;
-  width: 40px;
-  height: 40px;
+  flex: 0 0 35px;
+  width: 35px;
+  height: 35px;
   place-items: center;
   border: 1px solid rgba(245, 158, 11, 0.38);
   border-radius: 12px;
@@ -12850,8 +12850,8 @@ html.a11y-highlight-links a {
 }
 
 .cfr-radar-icon svg {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
 }
 
 .cfr-radar-kicker,
@@ -12867,9 +12867,9 @@ html.a11y-highlight-links a {
 }
 
 .cfr-radar-brand h3 {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   color: var(--text, #f5f5f5);
-  font-size: clamp(18px, 2.1vw, 24px);
+  font-size: clamp(17px, 1.9vw, 22px);
   font-weight: 650;
   letter-spacing: -0.025em;
   line-height: 1.15;
@@ -12906,20 +12906,20 @@ html.a11y-highlight-links a {
 }
 
 .cfr-radar-copy {
-  max-width: 720px;
-  margin: 14px 0 16px 53px;
+  max-width: 680px;
+  margin: 9px 0 12px 48px;
   color: var(--text-2, #a1a1aa);
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 12px;
+  line-height: 1.48;
 }
 
 .cfr-radar-proof {
   flex-wrap: wrap;
-  gap: 8px 22px;
-  margin: 0 0 18px 53px;
+  gap: 6px 17px;
+  margin: 0 0 12px 48px;
   color: var(--text-3, #71717a);
   font-family: var(--font-mono, monospace);
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.04em;
 }
 
@@ -12931,8 +12931,8 @@ html.a11y-highlight-links a {
 .cfr-radar-locked {
   justify-content: space-between;
   gap: 16px;
-  margin-left: 53px;
-  padding-top: 15px;
+  margin-left: 48px;
+  padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--text-2, #a1a1aa);
   font-size: 12px;
@@ -13167,8 +13167,8 @@ html.a11y-highlight-links a {
   align-items: center;
   gap: 9px;
   width: 100%;
-  margin-top: 12px;
-  padding: 12px 14px;
+  margin-top: 10px;
+  padding: 10px 12px;
   color: var(--accent, #f59e0b);
   background: rgba(245, 158, 11, 0.055);
   font-size: 11px;
@@ -13194,16 +13194,18 @@ html.a11y-highlight-links a {
 }
 
 .cfr-radar-setup {
-  margin-top: 12px;
-  padding: 14px;
+  margin-top: 10px;
+  padding: 12px;
   border: 1px solid rgba(245, 158, 11, 0.25);
   border-radius: 12px;
   background: rgba(245, 158, 11, 0.045);
 }
 
-.cfr-radar-setup input {
+.cfr-radar-setup input,
+.cfr-radar-setup select {
   width: 100%;
   margin-top: 10px;
+  min-height: 37px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   padding: 10px 11px;
@@ -13214,13 +13216,24 @@ html.a11y-highlight-links a {
   outline: none;
 }
 
-.cfr-radar-setup input:focus {
+.cfr-radar-setup select {
+  cursor: pointer;
+  color-scheme: dark;
+}
+
+.cfr-radar-setup select option {
+  color: #f5f5f5;
+  background: #171512;
+}
+
+.cfr-radar-setup input:focus,
+.cfr-radar-setup select:focus {
   border-color: rgba(245, 158, 11, 0.65);
 }
 
 .cfr-radar-schedule-picker {
-  margin-top: 14px;
-  padding-top: 13px;
+  margin-top: 10px;
+  padding-top: 11px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -13236,8 +13249,8 @@ html.a11y-highlight-links a {
 .cfr-radar-schedule-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 9px;
-  margin-top: 8px;
+  gap: 8px;
+  margin-top: 7px;
 }
 
 .cfr-radar-schedule-grid label {
@@ -13258,20 +13271,39 @@ html.a11y-highlight-links a {
   opacity: 0.8;
 }
 
-.cfr-radar-schedule-grid input {
+.cfr-radar-schedule-grid input,
+.cfr-radar-schedule-grid select {
   margin-top: 6px;
   color-scheme: dark;
 }
 
 .cfr-radar-schedule-note {
-  margin: 9px 0 0;
+  margin: 7px 0 0;
   color: var(--text-3, #71717a);
   font-size: 10px;
   line-height: 1.45;
 }
 
+.cfr-radar-name-field {
+  display: block;
+  margin-top: 10px;
+  color: var(--text-3, #71717a);
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+}
+
+.cfr-radar-name-field > span {
+  display: block;
+}
+
+.cfr-radar-name-field em {
+  color: var(--text-3, #71717a);
+  font-style: normal;
+  opacity: 0.8;
+}
+
 .cfr-radar-current-recipe {
-  margin-top: 9px;
+  margin-top: 8px;
   color: var(--text-3, #71717a);
   font-family: var(--font-mono, monospace);
   font-size: 10px;
@@ -13279,7 +13311,7 @@ html.a11y-highlight-links a {
 
 .cfr-radar-setup-actions {
   gap: 8px;
-  margin-top: 13px;
+  margin-top: 10px;
 }
 
 .cfr-radar-live-event {
@@ -13294,7 +13326,7 @@ html.a11y-highlight-links a {
 
 .cfr-radar-refresh {
   display: block;
-  margin: 12px 0 0 auto;
+  margin: 8px 0 0 auto;
   border-color: transparent;
   padding-inline: 5px;
   font-size: 9px;
@@ -13308,8 +13340,8 @@ html.a11y-highlight-links a {
 
 @media (max-width: 640px) {
   .cfr-radar-panel {
-    margin: 18px 0 22px;
-    padding: 17px 14px 15px;
+    margin: 14px 0 18px;
+    padding: 14px 12px 12px;
     border-radius: 14px;
   }
 
@@ -13324,15 +13356,15 @@ html.a11y-highlight-links a {
   }
 
   .cfr-radar-icon {
-    flex-basis: 34px;
-    width: 34px;
-    height: 34px;
+    flex-basis: 31px;
+    width: 31px;
+    height: 31px;
     border-radius: 10px;
   }
 
   .cfr-radar-icon svg {
-    width: 19px;
-    height: 19px;
+    width: 18px;
+    height: 18px;
   }
 
   .cfr-radar-kicker {
@@ -13341,7 +13373,7 @@ html.a11y-highlight-links a {
   }
 
   .cfr-radar-brand h3 {
-    font-size: 17px;
+    font-size: 16px;
     line-height: 1.2;
   }
 
@@ -13358,14 +13390,15 @@ html.a11y-highlight-links a {
   }
 
   .cfr-radar-copy {
-    margin-top: 13px;
-    font-size: 12px;
-    line-height: 1.55;
+    margin-top: 10px;
+    font-size: 11px;
+    line-height: 1.48;
   }
 
   .cfr-radar-proof {
-    gap: 7px 12px;
-    font-size: 9px;
+    gap: 6px 10px;
+    margin-bottom: 10px;
+    font-size: 8px;
   }
 
   .cfr-radar-locked {
