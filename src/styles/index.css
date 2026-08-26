@@ -1098,6 +1098,9 @@ button.topbar-premium-badge:hover {
 .account-center-overlay {
   padding: clamp(12px, 3vw, 32px);
 }
+.upgrade-overlay.account-center-overlay {
+  z-index: 1600;
+}
 .account-center {
   display: flex;
   width: min(940px, calc(100vw - 48px));
