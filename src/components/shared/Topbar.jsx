@@ -52,6 +52,19 @@ function TierBadgeOrUpgrade({ isElite, isPremium, isTrial, user, onUpgrade, onSi
   );
 }
 
+function ProfileMenuArrow({ external = false }) {
+  return (
+    <svg
+      className={'topbar-profile-menu-arrow' + (external ? ' topbar-profile-menu-arrow--external' : '')}
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {external ? <path d="M5 11 11 5M7 5h4v4" /> : <path d="m6 3 4 5-4 5" />}
+    </svg>
+  );
+}
+
 export default function Topbar({
   user,
   isElite,
@@ -220,9 +233,7 @@ export default function Topbar({
                               <strong>{item.label}</strong>
                               <small>{item.hint}</small>
                             </span>
-                            <span className="topbar-profile-menu-arrow" aria-hidden="true">
-                              →
-                            </span>
+                            <ProfileMenuArrow />
                           </button>
                         ))}
                       </div>
@@ -242,9 +253,7 @@ export default function Topbar({
                     <span className="topbar-profile-menu-item-copy">
                       <strong>Log Out</strong>
                     </span>
-                    <span className="topbar-profile-menu-arrow" aria-hidden="true">
-                      ↗
-                    </span>
+                    <ProfileMenuArrow external />
                   </button>
                 </div>
               )}
