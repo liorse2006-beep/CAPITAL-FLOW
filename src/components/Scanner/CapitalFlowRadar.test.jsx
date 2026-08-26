@@ -78,5 +78,6 @@ describe('CapitalFlowRadar schedule picker', () => {
     expect(screen.queryByText(/^AND$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/^01$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/^02$/)).not.toBeInTheDocument();
+    expect(document.querySelector('.cfr-radar-logic-flow')).not.toBeInTheDocument();
   });
 });

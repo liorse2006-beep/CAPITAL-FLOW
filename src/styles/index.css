@@ -13330,30 +13330,6 @@ html.a11y-highlight-links a {
   line-height: 1.35;
 }
 
-.cfr-radar-logic-flow {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: center;
-  gap: 9px;
-  margin-top: 13px;
-}
-
-.cfr-radar-logic-node {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  border: 1px solid rgba(245, 158, 11, 0.2);
-  border-radius: 8px;
-  padding: 8px 9px;
-  color: var(--text-2, #a1a1aa);
-  background: rgba(245, 158, 11, 0.045);
-  font-family: var(--font-mono, monospace);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
 .cfr-radar-logic-result {
   color: var(--text-2, #a1a1aa);
   font-family: var(--font-mono, monospace);
@@ -13753,11 +13729,6 @@ html.a11y-highlight-links a {
   .cfr-radar-logic-options {
     grid-template-columns: 1fr;
     gap: 8px;
-  }
-
-  .cfr-radar-logic-flow {
-    grid-template-columns: 1fr;
-    gap: 6px;
   }
 
   .cfr-radar-filter-section-heading {

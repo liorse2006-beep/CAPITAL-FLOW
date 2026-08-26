@@ -533,10 +533,6 @@ export default function CapitalFlowRadar({
                       </span>
                     </label>
                   </div>
-                  <div className="cfr-radar-logic-flow" aria-live="polite">
-                    <span className="cfr-radar-logic-node">Capital Flow</span>
-                    <span className="cfr-radar-logic-node">Moving Average</span>
-                  </div>
                   <p className="cfr-radar-logic-result">
                     {currentRecipe.conditionMode === 'either'
                       ? 'One match sends an alert. If both match, you still receive one alert.'
