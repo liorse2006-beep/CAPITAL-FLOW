@@ -112,7 +112,9 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label={'Alert for ' + symbol}
+        lang="he"
+        dir="rtl"
+        aria-label={'התראה עבור ' + symbol}
       >
         <button className="upgrade-close" onClick={onClose} aria-label="Close">
           ×
@@ -120,19 +122,21 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
 
         <div className="alert-modal-header">
           <span className="alert-modal-dot" />
-          <h2 className="alert-modal-title">{'ALERT · ' + symbol}</h2>
+          <h2 className="alert-modal-title" lang="en" dir="ltr">
+            {'ALERT · ' + symbol}
+          </h2>
         </div>
 
         {step === 'type' ? (
           <>
-            <p className="alert-modal-desc">איזה סוג התראה תרצה להגדיר?</p>
+            <p className="alert-modal-desc">איזו התראה תרצה להגדיר?</p>
             <div className="alert-type-grid">
               <button type="button" className="alert-type-card" onClick={() => chooseType('volume')}>
                 <span className="alert-type-icon">
                   <VolumeIcon />
                 </span>
                 <span className="alert-type-name">נפח</span>
-                <span className="alert-type-desc">חריגת RVOL מהממוצע</span>
+                <span className="alert-type-desc">חריגת נפח ביחס לממוצע</span>
               </button>
               <button type="button" className="alert-type-card" onClick={() => chooseType('price')}>
                 <span className="alert-type-icon">
@@ -146,22 +150,27 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
         ) : (
           <form onSubmit={submit}>
             <button type="button" className="alert-modal-back" onClick={() => setStep('type')}>
-              {'‹ שנה סוג התראה'}
+              חזרה לבחירת סוג ההתראה
             </button>
 
             {step === 'volume' ? (
               <>
                 <p className="alert-modal-desc">
-                  שלח לי התראה כאשר הנפח של <strong style={{ color: 'var(--text-0)' }}>{symbol}</strong> יחצה את הסף
-                  שאקבע.
+                  שלחו לי התראה כאשר נפח המסחר של{' '}
+                  <bdi className="alert-symbol" dir="ltr">
+                    {symbol}
+                  </bdi>{' '}
+                  יעבור את סף ה־<bdi dir="ltr">RVOL</bdi> שאקבע.
                 </p>
 
                 <div className="alert-readout">
-                  <div className="alert-readout-val">{(trimmed === '' ? '—' : parseFloat(trimmed) || '—') + '×'}</div>
+                  <div className="alert-readout-val" dir="ltr">
+                    {(trimmed === '' ? '—' : parseFloat(trimmed) || '—') + '×'}
+                  </div>
                   <div className="alert-readout-lbl">RVOL THRESHOLD</div>
                 </div>
 
-                <p className="alert-modal-sublabel">בחר סף מהיר</p>
+                <p className="alert-modal-sublabel">בחרו סף מהיר</p>
                 <div className="alert-preset-row">
                   {PRESETS.map((v) => (
                     <button
@@ -176,55 +185,68 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
                 </div>
 
                 <label className="alert-modal-sublabel" htmlFor="alert-threshold-input">
-                  או הכנס ידנית
+                  או הזינו ערך ידנית
                 </label>
-                <div className="alert-input-wrap">
+                <div className="alert-input-wrap" dir="ltr">
                   <input
                     id="alert-threshold-input"
-                    className="auth-input"
+                    className="auth-input alert-number-input"
                     type="number"
                     step="0.5"
                     min="0.5"
                     placeholder="e.g. 3"
+                    dir="ltr"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
-                    style={{ textAlign: 'center', paddingRight: 44 }}
+                    style={{ textAlign: 'center' }}
                   />
-                  <span className="alert-input-suffix">× RVOL</span>
+                  <span className="alert-input-suffix" dir="ltr">
+                    × RVOL
+                  </span>
                 </div>
               </>
             ) : (
               <>
                 <p className="alert-modal-desc">
-                  שלח לי התראה כאשר המחיר של <strong style={{ color: 'var(--text-0)' }}>{symbol}</strong> יחצה את המחיר
-                  שאקבע.
+                  שלחו לי התראה כאשר המחיר של{' '}
+                  <bdi className="alert-symbol" dir="ltr">
+                    {symbol}
+                  </bdi>{' '}
+                  יחצה את מחיר היעד שאקבע.
                 </p>
 
                 <div className="alert-readout">
-                  <div className="alert-readout-val">{trimmed === '' ? '—' : '$' + (parseFloat(trimmed) || '—')}</div>
+                  <div className="alert-readout-val" dir="ltr">
+                    {trimmed === '' ? '—' : '$' + (parseFloat(trimmed) || '—')}
+                  </div>
                   <div className="alert-readout-lbl">PRICE TARGET</div>
                 </div>
 
                 {currentPrice > 0 && (
-                  <p className="alert-modal-current-price">{'מחיר נוכחי: $' + currentPrice.toFixed(2)}</p>
+                  <p className="alert-modal-current-price">
+                    <span>מחיר נוכחי:</span> <bdi dir="ltr">${currentPrice.toFixed(2)}</bdi>
+                  </p>
                 )}
 
                 <label className="alert-modal-sublabel" htmlFor="alert-price-input">
                   מחיר יעד
                 </label>
-                <div className="alert-input-wrap">
+                <div className="alert-input-wrap" dir="ltr">
                   <input
                     id="alert-price-input"
-                    className="auth-input"
+                    className="auth-input alert-number-input"
                     type="number"
                     step="0.01"
                     min="0.01"
                     placeholder="e.g. 185.00"
+                    dir="ltr"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
-                    style={{ textAlign: 'center', paddingRight: 32 }}
+                    style={{ textAlign: 'center' }}
                   />
-                  <span className="alert-input-suffix">$</span>
+                  <span className="alert-input-suffix" dir="ltr">
+                    $
+                  </span>
                 </div>
               </>
             )}

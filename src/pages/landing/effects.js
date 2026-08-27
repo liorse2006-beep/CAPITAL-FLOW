@@ -1,7 +1,7 @@
 // Vanilla-DOM visual effects for the landing page, ported from the original
 // static-HTML prototype (inline <script type="module"> for the WebGL
-// scanner background + inline <script> for gsap entrance, FAQ, tilt,
-// ElectricBorder, DepthText, EchoText). Kept as plain DOM code rather than
+// inline <script> for gsap entrance, FAQ, tilt, ElectricBorder, DepthText,
+// EchoText). Kept as plain DOM code rather than
 // rewritten as React components because it's all imperative rAF/canvas/GL
 // work with no state React needs to know about — the only React-specific
 // requirement is that everything started here must be torn down cleanly
@@ -1134,11 +1134,6 @@ function setupCategoryTransitions(root, cleanupFns) {
   const sections = Array.from(root.querySelectorAll('.cf-category-section'));
   if (!sections.length) return;
 
-  const rail = root.querySelector('.cf-category-rail');
-  const railItems = rail ? Array.from(rail.querySelectorAll('.cf-category-rail-item')) : [];
-  const railFill = rail?.querySelector('.cf-category-rail-fill');
-  const railGlow = rail?.querySelector('.cf-category-rail-glow');
-
   root.classList.add('has-category-transitions');
   root.classList.remove('has-category-scroll-stack');
 
@@ -1146,11 +1141,6 @@ function setupCategoryTransitions(root, cleanupFns) {
     sections.forEach((section) =>
       section.classList.remove('is-category-active', 'is-category-before', 'is-category-after')
     );
-    railItems.forEach((item) => item.classList.remove('is-category-active', 'is-category-before', 'is-category-after'));
-    rail?.style.removeProperty('--cf-category-progress');
-    rail?.style.removeProperty('--cf-category-progress-px');
-    railFill?.style.removeProperty('--cf-category-progress');
-    railGlow?.style.removeProperty('--cf-category-progress');
   };
 
   reset();
@@ -1158,7 +1148,6 @@ function setupCategoryTransitions(root, cleanupFns) {
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reducedMotion) {
     sections.forEach((section) => section.classList.add('is-category-active'));
-    railItems[0]?.classList.add('is-category-active');
     cleanupFns.push(() => {
       reset();
       root.classList.remove('has-category-transitions');
@@ -1200,22 +1189,6 @@ function setupCategoryTransitions(root, cleanupFns) {
       section.classList.toggle('is-category-before', index < activeIndex);
       section.classList.toggle('is-category-after', index > activeIndex);
     });
-
-    railItems.forEach((item, index) => {
-      item.classList.toggle('is-category-active', index === activeIndex);
-      item.classList.toggle('is-category-before', index < activeIndex);
-      item.classList.toggle('is-category-after', index > activeIndex);
-    });
-
-    const progress = sections.length > 1 ? (activeIndex / (sections.length - 1)) * 100 : 100;
-    rail?.style.setProperty('--cf-category-progress', `${progress}%`);
-    if (rail) {
-      const railHeight = rail.getBoundingClientRect().height;
-      const trackHeight = Math.max(0, railHeight - 24);
-      rail.style.setProperty('--cf-category-progress-px', `${(progress / 100) * trackHeight}px`);
-    }
-    railFill?.style.setProperty('--cf-category-progress', `${progress}%`);
-    railGlow?.style.setProperty('--cf-category-progress', `${progress}%`);
   }
 
   function onScrollOrResize() {
@@ -1244,7 +1217,7 @@ function setupElectricBorders(root, cleanupFns) {
 
   const ebInstances = [];
   const mounted = [];
-  root.querySelectorAll('.cf-feat, .cf-faq-item').forEach((el) => {
+  root.querySelectorAll('.cf-faq-item').forEach((el) => {
     mounted.push(
       mountElectricBorder(
         el,
@@ -1430,6 +1403,237 @@ function setupHeroEntrance(root) {
   });
 }
 
+// Paints the landing-page proof chart as a lightweight, deterministic canvas
+// visualization. It mirrors the product story in the static labels: price
+// action turns up, the moving averages cross, and volume expands at the same
+// signal point. Canvas keeps the chart crisp at every responsive width without
+// introducing another charting dependency into the landing page.
+function mountSignalChart(root, cleanupFns) {
+  const chart = root.querySelector('.cf-signal-chart');
+  const canvas = chart?.querySelector('.cf-signal-canvas');
+  if (!chart || !canvas) return;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const closes = Array.from({ length: 72 }, (_, index) => {
+    const phase = index < 34 ? index / 34 : (index - 34) / 38;
+    const base = index < 34 ? 1 - phase * 0.34 : 0.66 + phase * 0.68;
+    const wave = Math.sin(index * 1.55) * 0.018 + Math.sin(index * 0.47) * 0.014;
+    return base + wave;
+  });
+  // Keep the highlighted signal aligned with the volume callout. The spike
+  // below is intentionally deterministic so the bar the callout points to is
+  // always the tallest one, at every canvas size.
+  const signalIndex = 40;
+  let resizeObserver;
+
+  const movingAverage = (windowSize) =>
+    closes.map((_, index) => {
+      const start = Math.max(0, index - windowSize + 1);
+      const slice = closes.slice(start, index + 1);
+      return slice.reduce((sum, value) => sum + value, 0) / slice.length;
+    });
+
+  const shortAverage = movingAverage(7);
+  const longAverage = movingAverage(19);
+
+  function draw() {
+    const rect = chart.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const width = Math.max(1, Math.floor(rect.width));
+    const height = Math.max(1, Math.floor(rect.height));
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const left = 20;
+    const right = width - 46;
+    const top = 22;
+    const plotBottom = Math.floor(height * 0.67);
+    const volumeTop = Math.floor(height * 0.74);
+    const volumeBottom = height - 34;
+    const plotWidth = Math.max(1, right - left);
+    const plotHeight = Math.max(1, plotBottom - top);
+    const minValue = Math.min(...closes) - 0.08;
+    const maxValue = Math.max(...closes) + 0.08;
+    const xAt = (index) => left + (index / (closes.length - 1)) * plotWidth;
+    const yAt = (value) => plotBottom - ((value - minValue) / (maxValue - minValue)) * plotHeight;
+
+    ctx.fillStyle = '#090705';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.strokeStyle = 'rgba(226, 165, 69, 0.10)';
+    ctx.lineWidth = 1;
+    for (let row = 0; row <= 4; row += 1) {
+      const y = top + (plotHeight / 4) * row;
+      ctx.beginPath();
+      ctx.moveTo(left, y);
+      ctx.lineTo(right, y);
+      ctx.stroke();
+    }
+    for (let column = 0; column <= 7; column += 1) {
+      const x = left + (plotWidth / 7) * column;
+      ctx.beginPath();
+      ctx.moveTo(x, top);
+      ctx.lineTo(x, volumeBottom);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(226, 165, 69, 0.24)';
+    ctx.beginPath();
+    ctx.moveTo(left, volumeTop - 12);
+    ctx.lineTo(right, volumeTop - 12);
+    ctx.stroke();
+
+    const drawLine = (values, color, lineWidth) => {
+      ctx.beginPath();
+      values.forEach((value, index) => {
+        const x = xAt(index);
+        const y = yAt(value);
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lineWidth;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    };
+
+    drawLine(longAverage, 'rgba(181, 165, 137, 0.78)', 1.35);
+    drawLine(shortAverage, '#e2a545', 1.7);
+
+    const candleWidth = Math.max(2.2, (plotWidth / closes.length) * 0.56);
+    closes.forEach((close, index) => {
+      const previous = index === 0 ? close : closes[index - 1];
+      const open = previous + Math.sin(index * 2.1) * 0.012;
+      const high = Math.max(open, close) + 0.025 + Math.abs(Math.sin(index * 1.7)) * 0.012;
+      const low = Math.min(open, close) - 0.025 - Math.abs(Math.cos(index * 1.35)) * 0.012;
+      const x = xAt(index);
+      const bodyTop = yAt(Math.max(open, close));
+      const bodyBottom = yAt(Math.min(open, close));
+      ctx.strokeStyle = close >= open ? 'rgba(76, 191, 138, 0.62)' : 'rgba(194, 108, 76, 0.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, yAt(high));
+      ctx.lineTo(x, yAt(low));
+      ctx.stroke();
+      ctx.fillStyle = close >= open ? 'rgba(76, 191, 138, 0.60)' : 'rgba(194, 108, 76, 0.48)';
+      ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, Math.max(1.5, bodyBottom - bodyTop));
+    });
+
+    closes.forEach((_, index) => {
+      const distance = Math.abs(index - signalIndex);
+      const baseline = 0.16 + Math.abs(Math.sin(index * 0.83)) * 0.2;
+      const volume =
+        distance === 0
+          ? 1.08
+          : Math.min(0.78, baseline + (distance === 1 ? 0.35 : distance === 2 ? 0.18 : 0));
+      const barWidth = Math.max(2, (plotWidth / closes.length) * 0.64);
+      const x = xAt(index);
+      const y = volumeBottom - volume * (volumeBottom - volumeTop);
+      ctx.fillStyle =
+        distance === 0
+          ? 'rgba(226, 165, 69, 0.98)'
+          : distance <= 2
+            ? 'rgba(226, 165, 69, 0.78)'
+            : 'rgba(107, 83, 43, 0.56)';
+      ctx.fillRect(x - barWidth / 2, y, barWidth, volumeBottom - y);
+    });
+
+    const signalX = xAt(signalIndex);
+    const signalY = yAt(closes[signalIndex]);
+    const gradient = ctx.createLinearGradient(signalX - 34, 0, signalX + 34, 0);
+    gradient.addColorStop(0, 'rgba(226, 165, 69, 0)');
+    gradient.addColorStop(0.5, 'rgba(226, 165, 69, 0.17)');
+    gradient.addColorStop(1, 'rgba(226, 165, 69, 0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(signalX - 34, top, 68, volumeBottom - top);
+    ctx.strokeStyle = 'rgba(226, 165, 69, 0.70)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(signalX, top);
+    ctx.lineTo(signalX, volumeBottom);
+    ctx.stroke();
+
+    ctx.fillStyle = '#e2a545';
+    ctx.beginPath();
+    ctx.arc(signalX, signalY, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(226, 165, 69, 0.24)';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(signalX, signalY, 9, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const calloutLines = [
+      [width * 0.30, height * 0.40],
+      [width * 0.52, height * 0.44],
+      [width * 0.55, height * 0.79],
+    ];
+    calloutLines.forEach(([targetX, targetY]) => {
+      ctx.strokeStyle = 'rgba(226, 165, 69, 0.42)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(signalX, signalY);
+      ctx.lineTo(targetX, targetY);
+      ctx.stroke();
+    });
+
+    const arrowTargetX = xAt(63);
+    const arrowTargetY = Math.max(top + 24, yAt(closes[63]) - 12);
+    ctx.strokeStyle = 'rgba(226, 165, 69, 0.92)';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(signalX + 8, signalY - 4);
+    ctx.lineTo(arrowTargetX, arrowTargetY);
+    ctx.stroke();
+    const arrowAngle = Math.atan2(arrowTargetY - signalY + 4, arrowTargetX - signalX - 8);
+    const arrowSize = 10;
+    ctx.fillStyle = 'rgba(226, 165, 69, 0.92)';
+    ctx.beginPath();
+    ctx.moveTo(arrowTargetX, arrowTargetY);
+    ctx.lineTo(
+      arrowTargetX - arrowSize * Math.cos(arrowAngle - Math.PI / 6),
+      arrowTargetY - arrowSize * Math.sin(arrowAngle - Math.PI / 6)
+    );
+    ctx.lineTo(
+      arrowTargetX - arrowSize * Math.cos(arrowAngle + Math.PI / 6),
+      arrowTargetY - arrowSize * Math.sin(arrowAngle + Math.PI / 6)
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    const fontFamily = getComputedStyle(chart).fontFamily || 'sans-serif';
+    ctx.fillStyle = 'rgba(181, 165, 137, 0.68)';
+    ctx.font = '10px ' + fontFamily;
+    ctx.textAlign = 'center';
+    ['09:30', '11:00', '12:30', '14:00', '16:00'].forEach((label, index, labels) => {
+      const x = left + (plotWidth / (labels.length - 1)) * index;
+      ctx.fillText(label, x, height - 12);
+    });
+    ctx.textAlign = 'left';
+    ['1,240', '1,180', '1,120', '1,060', '1,000'].forEach((label, index, labels) => {
+      const y = top + (plotHeight / (labels.length - 1)) * index + 3;
+      ctx.fillText(label, right + 8, y);
+    });
+    ['20M', '10M', '0'].forEach((label, index, labels) => {
+      const y = volumeTop + ((volumeBottom - volumeTop) / (labels.length - 1)) * index + 3;
+      ctx.fillText(label, right + 8, y);
+    });
+  }
+
+  resizeObserver = new ResizeObserver(draw);
+  resizeObserver.observe(chart);
+  draw();
+  cleanupFns.push(() => resizeObserver?.disconnect());
+}
+
 // CTAs are buttons marked with data-cta-location in the static markup (no href to a real
 // checkout — the original page never had auth). One delegated listener
 // routes every click to the caller's onGetStarted, matching the historical
@@ -1481,13 +1685,7 @@ function mountTrustMarquee(el, assets, cleanupFns) {
         fallback.hidden = true;
         fallback.innerHTML = '<i></i><i></i><i></i>';
 
-        logo.addEventListener(
-          'load',
-          () => {
-            frame.classList.add('has-logo');
-          },
-          { once: true }
-        );
+        logo.addEventListener('load', () => frame.classList.add('has-logo'), { once: true });
         logo.addEventListener(
           'error',
           () => {
@@ -1498,10 +1696,7 @@ function mountTrustMarquee(el, assets, cleanupFns) {
           { once: true }
         );
 
-        if (logo.complete && logo.naturalWidth > 0) {
-          frame.classList.add('has-logo');
-        }
-
+        if (logo.complete && logo.naturalWidth > 0) frame.classList.add('has-logo');
         frame.append(logo, fallback);
         item.appendChild(frame);
         seg.appendChild(item);
@@ -1509,13 +1704,13 @@ function mountTrustMarquee(el, assets, cleanupFns) {
     }
     return seg;
   }
-    el.appendChild(buildSegment());
-    el.appendChild(buildSegment());
-    el.style.setProperty('--cf-marq-duration', Math.max(26, assets.length * 0.48) + 's');
-    cleanupFns.push(() => {
-      el.textContent = '';
-      el.style.removeProperty('--cf-marq-duration');
-    });
+  el.appendChild(buildSegment());
+  el.appendChild(buildSegment());
+  el.style.setProperty('--cf-marq-duration', Math.max(26, assets.length * 0.48) + 's');
+  cleanupFns.push(() => {
+    el.textContent = '';
+    el.style.removeProperty('--cf-marq-duration');
+  });
 }
 
 function setupScrollCta(root, cleanupFns) {
@@ -1609,9 +1804,9 @@ export function initLandingEffects(rootEl, onGetStarted) {
 
   runSafely('setupSmoothAnchorScroll', () => setupSmoothAnchorScroll(cleanupFns));
   runSafely('setupHeroEntrance', () => setupHeroEntrance(rootEl));
+  runSafely('mountSignalChart', () => mountSignalChart(rootEl, cleanupFns));
   runSafely('setupTiltCards', () => setupTiltCards(rootEl, cleanupFns));
   runSafely('setupGradualBlur', () => setupGradualBlur(rootEl, cleanupFns));
-  runSafely('setupElectricBorders', () => setupElectricBorders(rootEl, cleanupFns));
   runSafely('setupScrollFloat', () => setupScrollFloat(rootEl, cleanupFns));
   runSafely('setupCategoryTransitions', () => setupCategoryTransitions(rootEl, cleanupFns));
 
@@ -1623,51 +1818,6 @@ export function initLandingEffects(rootEl, onGetStarted) {
         { echoes: 12, offset: 20, direction: 'right', blur: 3, tint: '#fcda7d', duration: 900, color: '#e2a545' },
         cleanupFns
       );
-    }
-  });
-
-  runSafely('mountScanner', () => {
-    const bgEl = rootEl.querySelector('.cf-bg');
-    if (bgEl) {
-      mountScanner(
-        bgEl,
-        {
-          color1: '#ff9400',
-          color2: '#ffe29f',
-          color3: '#ffffff',
-          speed: 0.28,
-          sweepSpeed: 0.12,
-          sweepWidth: 1.6,
-          sweepFalloff: 6,
-          scale: 1.5,
-          frequency: 2,
-          ripple: 0.14,
-          bandDensity: 11,
-          lineSharpness: 4.5,
-          glow: 0.08,
-          scanDirection: 'vertical',
-          colorSpread: 0.38,
-          brightness: 0.5,
-          contrast: 0.95,
-          softness: 1.4,
-          vignette: 0.45,
-          scanline: true,
-          grain: true,
-          grainIntensity: 0.025,
-          opacity: 0.34,
-          mouseInteraction: true,
-          mouseRadius: 0.5,
-          mouseStrength: 0.22,
-        },
-        cleanupFns
-      );
-    }
-  });
-
-  runSafely('mountCinematicJourney', () => {
-    const journeyEl = rootEl.querySelector('#cfJourney');
-    if (journeyEl) {
-      mountCinematicJourney(rootEl, journeyEl, cleanupFns);
     }
   });
 

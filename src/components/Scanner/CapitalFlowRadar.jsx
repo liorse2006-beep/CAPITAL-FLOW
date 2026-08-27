@@ -96,6 +96,24 @@ function formatDate(value) {
   return new Date(year, month - 1, day).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function formatRadarDateInput(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
+  return match ? `${match[2]}/${match[3]}/${match[1]}` : 'Choose a date';
+}
+
+function formatBillions(value) {
+  const billions = Number(value || 0) / 1e9;
+  if (!Number.isFinite(billions) || billions <= 0) return '—';
+  return Number.isInteger(billions) ? String(billions) : billions.toFixed(1);
+}
+
+function setupUniverseLabel(recipe) {
+  if (recipe?.mode === 'sp500') return 'S&P 500';
+  if (recipe?.mode === 'nasdaq100') return 'NASDAQ 100';
+  if (recipe?.mode === 'sectors') return 'Selected sectors';
+  return 'All stocks';
+}
+
 function dataLine(radar) {
   if (radar.dataStatus === 'unavailable') return radar.statusMessage || DATA_UNAVAILABLE;
   if (radar.dataStatus === 'partial')
@@ -331,9 +349,23 @@ export default function CapitalFlowRadar({
   const hasActiveScheduledRadar = radars.some(
     (radar) => radar.active && radar.dataStatus !== 'expired' && radar.dataStatus !== 'needs_schedule'
   );
+  const setupUniverse = setupUniverseLabel(currentRecipe);
+  const setupConditionMode = currentRecipe.conditionMode === 'either' ? 'EITHER' : 'BOTH';
+  const setupMinRatio = Number(currentRecipe.minVolumeRatio || 0).toFixed(1);
+  const setupMinCap = formatBillions(currentRecipe.minMarketCap);
+  const setupRecipe = `${setupUniverse} · RVOL ${setupMinRatio}x · SMA${currentRecipe.maPeriod} ±${currentRecipe.maDistance}% · ${
+    currentRecipe.maInterval === '1wk' ? 'Weekly' : 'Daily'
+  }`;
+  const setupPriceRange =
+    currentRecipe.minPrice || currentRecipe.maxPrice
+      ? `${currentRecipe.minPrice ? '$' + currentRecipe.minPrice : 'Any'} – ${currentRecipe.maxPrice ? '$' + currentRecipe.maxPrice : 'Any'}`
+      : null;
 
   return (
-    <section className="cfr-radar-panel" aria-labelledby="capital-flow-radar-title">
+    <section
+      className={'cfr-radar-panel' + (setupOpen && !locked ? ' cfr-radar-panel--setup-open' : '')}
+      aria-labelledby={setupOpen && !locked ? 'capital-flow-radar-setup-title' : 'capital-flow-radar-title'}
+    >
       <div className="cfr-radar-topline">
         <div className="cfr-radar-brand">
           <span className="cfr-radar-icon" aria-hidden="true">
@@ -405,7 +437,8 @@ export default function CapitalFlowRadar({
                     <div className="cfr-radar-recipe">
                       {modeLabel(radar)} <span>·</span> {Number(radar.minVolumeRatio).toFixed(1)}x RVOL <span>·</span>{' '}
                       {formatCap(radar.minMarketCap)} <span>·</span> SMA{radar.maPeriod || 20} ±
-                      {Number(radar.maDistance || 2).toFixed(0)}% <span>·</span> {conditionModeLabel(radar.conditionMode)}
+                      {Number(radar.maDistance || 2).toFixed(0)}% <span>·</span>{' '}
+                      {conditionModeLabel(radar.conditionMode)}
                     </div>
                   </div>
                   <span className={'cfr-radar-data-status ' + radar.dataStatus}>
@@ -486,8 +519,9 @@ export default function CapitalFlowRadar({
 
           {setupOpen ? (
             <div className="cfr-radar-setup">
-              <div className="cfr-radar-setup-label">
-                {editingRadarId !== null ? 'UPDATE RADAR SCHEDULE' : 'SCHEDULE THIS SCAN'}
+              <div className="cfr-radar-setup-label" id="capital-flow-radar-setup-title">
+                CAPITAL FLOW RADAR SETUP
+                {editingRadarId !== null && <em> · EDITING SAVED RADAR</em>}
               </div>
               <div className="cfr-radar-condition-block">
                 <fieldset className="cfr-radar-logic-picker">
@@ -495,7 +529,9 @@ export default function CapitalFlowRadar({
                     <span>ALERT LOGIC</span>
                   </legend>
                   <div className="cfr-radar-logic-options" role="radiogroup" aria-label="Radar alert logic">
-                    <label className={'cfr-radar-logic-option' + (currentRecipe.conditionMode === 'both' ? ' active' : '')}>
+                    <label
+                      className={'cfr-radar-logic-option' + (currentRecipe.conditionMode === 'both' ? ' active' : '')}
+                    >
                       <input
                         type="radio"
                         name="radar-condition-mode"
@@ -508,7 +544,9 @@ export default function CapitalFlowRadar({
                         <small>Capital Flow AND Moving Average must match.</small>
                       </span>
                     </label>
-                    <label className={'cfr-radar-logic-option' + (currentRecipe.conditionMode === 'either' ? ' active' : '')}>
+                    <label
+                      className={'cfr-radar-logic-option' + (currentRecipe.conditionMode === 'either' ? ' active' : '')}
+                    >
                       <input
                         type="radio"
                         name="radar-condition-mode"
@@ -573,6 +611,12 @@ export default function CapitalFlowRadar({
                         aria-label="Minimum market capitalization in billions"
                       />
                     </label>
+                  </div>
+                  <div className="cfr-radar-advanced-heading">
+                    <span aria-hidden="true">⌄</span>
+                    More filters <em>(optional)</em>
+                  </div>
+                  <div className="cfr-radar-filter-grid cfr-radar-advanced-filter-grid">
                     <label className="cfr-radar-filter">
                       <span>Min volume</span>
                       <input
@@ -633,76 +677,166 @@ export default function CapitalFlowRadar({
                     <small>Set the SMA confirmation settings.</small>
                   </div>
                   <div className="cfr-radar-ma-controls">
-                  <div className="cfr-radar-option-group">
-                    <span>SMA period</span>
-                    <div className="cfr-radar-option-row">
-                      {RADAR_MA_PERIODS.map((period) => (
-                        <button
-                          type="button"
-                          key={period}
-                          className={Number(currentRecipe.maPeriod) === period ? 'active' : ''}
-                          aria-pressed={Number(currentRecipe.maPeriod) === period}
-                          onClick={() => updateDraftRecipe('maPeriod', period)}
-                        >
-                          {period}
-                        </button>
-                      ))}
+                    <div className="cfr-radar-option-group">
+                      <span>SMA period</span>
+                      <div className="cfr-radar-option-row">
+                        {RADAR_MA_PERIODS.map((period) => (
+                          <button
+                            type="button"
+                            key={period}
+                            className={Number(currentRecipe.maPeriod) === period ? 'active' : ''}
+                            aria-pressed={Number(currentRecipe.maPeriod) === period}
+                            onClick={() => updateDraftRecipe('maPeriod', period)}
+                          >
+                            {period}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <div className="cfr-radar-option-group">
-                    <span>Distance</span>
-                    <div className="cfr-radar-option-row">
-                      {RADAR_MA_DISTANCES.map((distance) => (
-                        <button
-                          type="button"
-                          key={distance}
-                          className={Number(currentRecipe.maDistance) === distance ? 'active' : ''}
-                          aria-pressed={Number(currentRecipe.maDistance) === distance}
-                          onClick={() => updateDraftRecipe('maDistance', distance)}
-                        >
-                          ±{distance}%
-                        </button>
-                      ))}
+                    <div className="cfr-radar-option-group">
+                      <span>Distance</span>
+                      <div className="cfr-radar-option-row">
+                        {RADAR_MA_DISTANCES.map((distance) => (
+                          <button
+                            type="button"
+                            key={distance}
+                            className={Number(currentRecipe.maDistance) === distance ? 'active' : ''}
+                            aria-pressed={Number(currentRecipe.maDistance) === distance}
+                            onClick={() => updateDraftRecipe('maDistance', distance)}
+                          >
+                            ±{distance}%
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <div className="cfr-radar-option-group">
-                    <span>Direction</span>
-                    <div className="cfr-radar-option-row">
-                      {RADAR_MA_DIRECTIONS.map((item) => (
-                        <button
-                          type="button"
-                          key={item.value}
-                          className={currentRecipe.maDirection === item.value ? 'active' : ''}
-                          aria-pressed={currentRecipe.maDirection === item.value}
-                          onClick={() => updateDraftRecipe('maDirection', item.value)}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
+                    <div className="cfr-radar-option-group">
+                      <span>Direction</span>
+                      <div className="cfr-radar-option-row">
+                        {RADAR_MA_DIRECTIONS.map((item) => (
+                          <button
+                            type="button"
+                            key={item.value}
+                            className={currentRecipe.maDirection === item.value ? 'active' : ''}
+                            aria-pressed={currentRecipe.maDirection === item.value}
+                            onClick={() => updateDraftRecipe('maDirection', item.value)}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <div className="cfr-radar-option-group">
-                    <span>Timeframe</span>
-                    <div className="cfr-radar-option-row">
-                      {[
-                        { value: '1d', label: 'Daily' },
-                        { value: '1wk', label: 'Weekly' },
-                      ].map((item) => (
-                        <button
-                          type="button"
-                          key={item.value}
-                          className={currentRecipe.maInterval === item.value ? 'active' : ''}
-                          aria-pressed={currentRecipe.maInterval === item.value}
-                          onClick={() => updateDraftRecipe('maInterval', item.value)}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
+                    <div className="cfr-radar-option-group">
+                      <span>Timeframe</span>
+                      <div className="cfr-radar-option-row">
+                        {[
+                          { value: '1d', label: 'Daily' },
+                          { value: '1wk', label: 'Weekly' },
+                        ].map((item) => (
+                          <button
+                            type="button"
+                            key={item.value}
+                            className={currentRecipe.maInterval === item.value ? 'active' : ''}
+                            aria-pressed={currentRecipe.maInterval === item.value}
+                            onClick={() => updateDraftRecipe('maInterval', item.value)}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-              </div>
+              <aside className="cfr-radar-summary" aria-labelledby="cfr-radar-summary-title">
+                <div className="cfr-radar-summary-head">
+                  <span id="cfr-radar-summary-title">YOUR RADAR</span>
+                  {editingRadarId !== null && <em>EDITING</em>}
+                </div>
+                <div className="cfr-radar-summary-recipe">{setupRecipe}</div>
+
+                <div className="cfr-radar-summary-divider" />
+
+                <div className="cfr-radar-summary-label">CONDITIONS ({setupConditionMode})</div>
+                <div className="cfr-radar-summary-conditions">
+                  <div className="cfr-radar-summary-condition">
+                    <span className="cfr-radar-summary-step">1</span>
+                    <div>
+                      <b>CAPITAL FLOW CONDITION</b>
+                      <p>Price action meets Capital Flow filters</p>
+                      <ul>
+                        <li>Universe: {setupUniverse}</li>
+                        <li>Min RVOL: {setupMinRatio}</li>
+                        <li>Min cap: ${setupMinCap}B</li>
+                        {currentRecipe.mode === 'sectors' && currentRecipe.selectedSectors.length > 0 && (
+                          <li>Sectors: {currentRecipe.selectedSectors.join(' · ')}</li>
+                        )}
+                        {currentRecipe.minVolRaw && <li>Min volume: {currentRecipe.minVolRaw}</li>}
+                        {setupPriceRange && <li>Price: {setupPriceRange}</li>}
+                      </ul>
+                    </div>
+                  </div>
+                  <div className="cfr-radar-summary-condition">
+                    <span className="cfr-radar-summary-step">2</span>
+                    <div>
+                      <b>MOVING AVERAGE CONDITION</b>
+                      <p>
+                        Price is within ±{currentRecipe.maDistance}% of SMA{currentRecipe.maPeriod}
+                      </p>
+                      <ul>
+                        <li>SMA period: {currentRecipe.maPeriod}</li>
+                        <li>Distance: ±{currentRecipe.maDistance}%</li>
+                        <li>
+                          Direction:{' '}
+                          {RADAR_MA_DIRECTIONS.find((item) => item.value === currentRecipe.maDirection)?.label || 'All'}
+                        </li>
+                        <li>Timeframe: {currentRecipe.maInterval === '1wk' ? 'Weekly' : 'Daily'}</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="cfr-radar-summary-divider" />
+
+                <div className="cfr-radar-summary-schedule">
+                  <div className="cfr-radar-summary-label">SCHEDULE</div>
+                  <div className="cfr-radar-summary-schedule-row">
+                    <span>First scan</span>
+                    <b>{scheduleTime1 ? formatRadarTime(scheduleTime1) : 'Choose a time'}</b>
+                  </div>
+                  <div className="cfr-radar-summary-schedule-row">
+                    <span>
+                      Second scan <em>optional</em>
+                    </span>
+                    <b>{scheduleTime2 ? formatRadarTime(scheduleTime2) : 'No second scan'}</b>
+                  </div>
+                  <div className="cfr-radar-summary-schedule-row">
+                    <span>Active through</span>
+                    <b>{formatRadarDateInput(expiresOn)}</b>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="cfr-radar-error" role="alert">
+                    {error}
+                  </div>
+                )}
+
+                <div className="cfr-radar-summary-actions">
+                  <button
+                    type="button"
+                    className="cfr-radar-cta cfr-radar-summary-cta"
+                    onClick={activateRadar}
+                    disabled={
+                      loading || (currentRecipe.mode === 'sectors' && currentRecipe.selectedSectors.length === 0)
+                    }
+                  >
+                    Activate Radar <span aria-hidden="true">→</span>
+                  </button>
+                  <button type="button" className="cfr-radar-cancel" onClick={closeSetup}>
+                    Cancel
+                  </button>
+                </div>
+              </aside>
               <div className="cfr-radar-schedule-picker">
                 <div className="cfr-radar-schedule-heading">Choose up to 2 scan times · Jerusalem time</div>
                 <div className="cfr-radar-schedule-grid">
@@ -771,25 +905,12 @@ export default function CapitalFlowRadar({
               </label>
               <div className="cfr-radar-current-recipe">
                 {modeLabel(currentRecipe)} <span>·</span> {Number(currentRecipe.minVolumeRatio || 0).toFixed(1)}x RVOL{' '}
-                <span>·</span> {formatCap(currentRecipe.minMarketCap)} <span>·</span> SMA{currentRecipe.maPeriod}{' '}
-                ±{currentRecipe.maDistance}%
+                <span>·</span> {formatCap(currentRecipe.minMarketCap)} <span>·</span> SMA{currentRecipe.maPeriod} ±
+                {currentRecipe.maDistance}%
               </div>
               {currentRecipe.mode === 'sectors' && currentRecipe.selectedSectors.length === 0 && (
                 <div className="cfr-radar-form-error">Choose at least one sector before activating this Radar.</div>
               )}
-              <div className="cfr-radar-setup-actions">
-                <button
-                  type="button"
-                  className="cfr-radar-cta"
-                  onClick={activateRadar}
-                  disabled={loading || (currentRecipe.mode === 'sectors' && currentRecipe.selectedSectors.length === 0)}
-                >
-                  Activate Radar <span aria-hidden="true">→</span>
-                </button>
-                <button type="button" className="cfr-radar-cancel" onClick={closeSetup}>
-                  Cancel
-                </button>
-              </div>
             </div>
           ) : (
             <button
@@ -806,7 +927,7 @@ export default function CapitalFlowRadar({
             </button>
           )}
 
-          {error && (
+          {!setupOpen && error && (
             <div className="cfr-radar-error" role="alert">
               {error}
             </div>

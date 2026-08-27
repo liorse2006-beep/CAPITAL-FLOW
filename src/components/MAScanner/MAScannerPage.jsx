@@ -181,16 +181,6 @@ export default function MAScannerPage({
     );
   };
 
-  // Renders exactly what the scan computed — never invents a number. null
-  // means the scan's own historical data didn't show a cross within its
-  // lookback window, and that is shown as-is rather than as "0" or blank.
-  function crossLabel(daysSinceCross) {
-    if (daysSinceCross == null) return 'No recent cross';
-    if (daysSinceCross === 0) return 'Just now';
-    var unit = timeframe === '1wk' ? 'wk' : 'd';
-    return daysSinceCross + unit + ' ago';
-  }
-
   const chartBtn = (symbol) =>
     React.createElement(
       'a',
@@ -631,7 +621,7 @@ export default function MAScannerPage({
         null,
         React.createElement(
           'div',
-          { className: 'table-card' },
+          { className: 'table-card signal-rail-results' },
           React.createElement(
             'div',
             { className: 'table-bar' },
@@ -703,17 +693,6 @@ export default function MAScannerPage({
                         'span',
                         { className: 'mobile-card-change', style: { color: distColor } },
                         (r.maDistance >= 0 ? '+' : '') + r.maDistance.toFixed(2) + '%'
-                      ),
-                      React.createElement(
-                        'span',
-                        {
-                          style: {
-                            fontFamily: 'var(--mono)',
-                            fontSize: 11,
-                            color: r.daysSinceCross != null ? 'var(--text-1)' : 'var(--text-3)',
-                          },
-                        },
-                        crossLabel(r.daysSinceCross)
                       )
                     ),
                     React.createElement(
@@ -747,7 +726,6 @@ export default function MAScannerPage({
                   React.createElement(TH, { label: 'Price', field: 'price' }),
                   React.createElement(TH, { label: `SMA${ma}`, field: 'maValue' }),
                   React.createElement(TH, { label: 'Distance %', field: 'maDistance' }),
-                  React.createElement(TH, { label: 'Cross', field: 'daysSinceCross' }),
                   React.createElement('th', { style: { width: 120 } })
                 )
               ),
@@ -761,7 +739,7 @@ export default function MAScannerPage({
                       React.createElement(
                         'td',
                         {
-                          colSpan: 8,
+                          colSpan: 7,
                           style: {
                             textAlign: 'center',
                             padding: '32px',
@@ -801,17 +779,6 @@ export default function MAScannerPage({
                             { className: 'ma-distance-cell', style: { color: distColor } },
                             (r.maDistance >= 0 ? '+' : '') + r.maDistance.toFixed(2) + '%'
                           )
-                        ),
-                        React.createElement(
-                          'td',
-                          {
-                            style: {
-                              fontFamily: 'var(--mono)',
-                              fontSize: 11.5,
-                              color: r.daysSinceCross != null ? 'var(--text-1)' : 'var(--text-3)',
-                            },
-                          },
-                          crossLabel(r.daysSinceCross)
                         ),
                         React.createElement(
                           'td',

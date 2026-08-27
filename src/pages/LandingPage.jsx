@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import bodyHtml from './landing/landing.body.html?raw';
 import SpecularButton from '../components/SpecularButton';
+import Topography from '../components/Topography';
 import { initLandingEffects } from './landing/effects';
 import { track } from '../analytics';
 import './landing/landing.scoped.css';
@@ -63,20 +64,52 @@ function mountSpecularCtas(root) {
   };
 }
 
+function mountTopography(root) {
+  const mount = root.querySelector('#cfTopography');
+  if (!mount) return () => {};
+
+  const reactRoot = createRoot(mount);
+  reactRoot.render(
+    <Topography
+      className="cf-topography"
+      lowColor="#7a4b16"
+      midColor="#e2a545"
+      highColor="#fff4d2"
+      speed={0.22}
+      morphAmount={3.0}
+      morphSpeed={0.05}
+      bands={2.0}
+      thickness={0.012}
+      scale={1.0}
+      pixelSize={1.0}
+      glow={0.28}
+      colorMode="elevation"
+      contrast={2.6}
+      brightness={0.8}
+      fillBands={false}
+      opacity={0.72}
+      grain
+      grainIntensity={0.025}
+      mouseInteraction={false}
+    />
+  );
+
+  return () => reactRoot.unmount();
+}
+
 // Public marketing page shown at "/" for logged-out visitors (see App.jsx:
 // `location.pathname === '/' && !user`). Ported from a hand-authored static
 // HTML prototype rather than rebuilt element-by-element as JSX — it's all
 // visual/marketing copy with no app state, so the highest-fidelity path was
-// to keep the markup and its effects (WebGL scan background, tilt cards,
-// FAQ accordion, entrance animation) intact and just give them a React
-// mount/unmount lifecycle. See landing/effects.js for the teardown logic
-// that makes that safe inside an SPA route.
+// to keep the markup and its effects (tilt cards, FAQ accordion, entrance
+// animation) intact and just give them a React mount/unmount lifecycle.
 export default function LandingPage({ onGetStarted }) {
   const rootRef = useRef(null);
 
   useEffect(() => {
     const root = rootRef.current;
     const cleanupSpecularCtas = mountSpecularCtas(root);
+    const cleanupTopography = mountTopography(root);
     const cleanup = initLandingEffects(root, onGetStarted);
     const previousTitle = document.title;
     const description = document.querySelector('meta[name="description"]');
@@ -106,6 +139,7 @@ export default function LandingPage({ onGetStarted }) {
     return () => {
       root.removeEventListener('click', onMarketingClick);
       cleanup();
+      cleanupTopography();
       cleanupSpecularCtas();
       document.title = previousTitle;
       if (description && previousDescription !== null) description.setAttribute('content', previousDescription);

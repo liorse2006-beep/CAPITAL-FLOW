@@ -107,7 +107,7 @@ describe('AlertThresholdModal', () => {
         onClose={vi.fn()}
       />
     );
-    await user.click(screen.getByText('‹ שנה סוג התראה'));
+    await user.click(screen.getByText('חזרה לבחירת סוג ההתראה'));
     expect(screen.getByText('נפח')).toBeInTheDocument();
     expect(screen.getByText('מחיר')).toBeInTheDocument();
   });

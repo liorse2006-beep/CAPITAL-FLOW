@@ -13283,7 +13283,9 @@ html.a11y-highlight-links a {
   border-radius: 10px;
   padding: 11px 12px;
   background: rgba(0, 0, 0, 0.18);
-  transition: border-color 160ms ease, background 160ms ease;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
 }
 
 .cfr-radar-logic-option:hover,
@@ -13423,7 +13425,10 @@ html.a11y-highlight-links a {
   font-family: var(--font-mono, monospace);
   font-size: 11px;
   font-weight: 600;
-  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    background 160ms ease;
 }
 
 .cfr-radar-sector-grid button:hover,
@@ -13743,5 +13748,620 @@ html.a11y-highlight-links a {
 
   .cfr-radar-expiry-field {
     grid-column: auto;
+  }
+}
+
+/* ── Capital Flow Radar setup: Split Workspace ─────────────────────────────
+   The setup state is intentionally a separate workspace from the compact
+   Radar status card. Controls stay on the left; the live recipe, conditions,
+   schedule summary, and primary action stay anchored on the right. */
+.cfr-radar-panel--setup-open {
+  margin: 16px 0 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.cfr-radar-panel--setup-open::after,
+.cfr-radar-panel--setup-open > .cfr-radar-topline,
+.cfr-radar-panel--setup-open > .cfr-radar-copy,
+.cfr-radar-panel--setup-open > .cfr-radar-proof,
+.cfr-radar-panel--setup-open > .cfr-radar-item,
+.cfr-radar-panel--setup-open > .cfr-radar-live-event,
+.cfr-radar-panel--setup-open > .cfr-radar-refresh {
+  display: none;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-setup {
+  display: grid;
+  grid-template-areas:
+    'header summary'
+    'conditions summary'
+    'schedule summary'
+    'name summary'
+    'recipe summary'
+    'error summary';
+  grid-template-columns: minmax(0, 1.24fr) minmax(320px, 0.96fr);
+  gap: 0 14px;
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-setup-label {
+  grid-area: header;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-bottom-color: rgba(255, 255, 255, 0.07);
+  border-radius: 8px 8px 0 0;
+  padding: 18px 24px;
+  color: var(--accent, #f59e0b);
+  background: linear-gradient(145deg, rgba(20, 18, 14, 0.98), rgba(15, 15, 15, 0.98));
+  font-family: var(--font-mono, monospace);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.35;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-setup-label em {
+  color: var(--text-3, #71717a);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-condition-block {
+  grid-area: conditions;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-top: 0;
+  border-radius: 0;
+  padding: 0;
+  background: linear-gradient(145deg, rgba(20, 18, 14, 0.98), rgba(15, 15, 15, 0.98));
+  overflow: hidden;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-logic-picker {
+  margin: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 18px 24px 16px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-logic-legend {
+  gap: 8px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-logic-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin-top: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-logic-option {
+  position: relative;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+  padding: 10px 14px;
+  background: transparent;
+  text-align: center;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-logic-option:last-child {
+  border-right: 0;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-logic-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-logic-option-copy {
+  display: block;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-logic-option-copy b {
+  font-size: 12px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-logic-option-copy small {
+  display: none;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-logic-result {
+  margin: 9px 0 0;
+  color: var(--text-3, #71717a);
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-filter-section {
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  padding: 20px 24px;
+  background: transparent;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-filter-section:last-child {
+  border-bottom: 0;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-filter-section-heading {
+  align-items: center;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-filter-section-heading > span {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-filter-section-heading small {
+  color: var(--text-3, #71717a);
+  font-size: 10px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-filter-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-filter {
+  font-size: 10px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-filter input,
+.cfr-radar-panel--setup-open .cfr-radar-filter select,
+.cfr-radar-panel--setup-open .cfr-radar-schedule-grid input,
+.cfr-radar-panel--setup-open .cfr-radar-schedule-grid select {
+  min-height: 44px;
+  margin-top: 7px;
+  border-color: rgba(255, 255, 255, 0.13);
+  border-radius: 8px;
+  padding-inline: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  font-size: 14px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-advanced-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 13px;
+  color: var(--text-2, #a1a1aa);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-advanced-heading > span {
+  color: var(--accent, #f59e0b);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-advanced-heading em {
+  color: var(--text-3, #71717a);
+  font-style: normal;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-advanced-filter-grid {
+  margin-top: 11px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-sector-picker {
+  margin-top: 16px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-ma-section {
+  padding-top: 20px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-ma-controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 12px;
+  margin-top: 14px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-option-group {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-option-group > span {
+  font-size: 10px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-option-row {
+  flex-wrap: nowrap;
+  gap: 0;
+  margin-top: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-option-row button {
+  min-width: 0;
+  min-height: 44px;
+  flex: 1 1 0;
+  border: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+  padding-inline: 8px;
+  background: transparent;
+  font-size: 11px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-option-row button:last-child {
+  border-right: 0;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-schedule-picker {
+  grid-area: schedule;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-top: 0;
+  border-radius: 0;
+  padding: 18px 24px 20px;
+  background: linear-gradient(145deg, rgba(20, 18, 14, 0.98), rgba(15, 15, 15, 0.98));
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-schedule-heading {
+  color: var(--text-2, #a1a1aa);
+  font-size: 10px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-schedule-grid {
+  gap: 12px;
+  margin-top: 13px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-schedule-grid label {
+  font-size: 10px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-schedule-note {
+  margin-top: 10px;
+  font-size: 10px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-name-field {
+  grid-area: name;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-top: 0;
+  padding: 14px 24px 16px;
+  background: linear-gradient(145deg, rgba(20, 18, 14, 0.98), rgba(15, 15, 15, 0.98));
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-name-field input {
+  min-height: 40px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-current-recipe {
+  grid-area: recipe;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-top: 0;
+  padding: 12px 24px 14px;
+  background: linear-gradient(145deg, rgba(20, 18, 14, 0.98), rgba(15, 15, 15, 0.98));
+  font-size: 10px;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-form-error {
+  grid-area: error;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid rgba(248, 113, 113, 0.22);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  padding: 12px 24px 14px;
+  background: rgba(127, 29, 29, 0.12);
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-summary {
+  grid-area: summary;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-self: stretch;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 8px;
+  padding: 18px 24px 20px;
+  background: linear-gradient(145deg, rgba(20, 18, 14, 0.98), rgba(15, 15, 15, 0.98));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.025);
+}
+
+.cfr-radar-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--accent, #f59e0b);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.cfr-radar-summary-head em {
+  color: var(--text-3, #71717a);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+}
+
+.cfr-radar-summary-recipe {
+  margin-top: 20px;
+  color: var(--text, #f5f5f5);
+  font-family: var(--font-mono, monospace);
+  font-size: clamp(16px, 1.55vw, 22px);
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.cfr-radar-summary-divider {
+  height: 1px;
+  margin: 18px 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.cfr-radar-summary-label {
+  color: var(--text-2, #a1a1aa);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.cfr-radar-summary-conditions {
+  display: grid;
+  gap: 22px;
+  margin-top: 18px;
+}
+
+.cfr-radar-summary-condition {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: start;
+  gap: 13px;
+  min-width: 0;
+}
+
+.cfr-radar-summary-step {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(245, 158, 11, 0.8);
+  border-radius: 50%;
+  color: var(--accent, #f59e0b);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cfr-radar-summary-condition b {
+  display: block;
+  color: var(--accent, #f59e0b);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.cfr-radar-summary-condition p {
+  margin-top: 8px;
+  color: var(--text, #f5f5f5);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.cfr-radar-summary-condition ul {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-2, #a1a1aa);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.cfr-radar-summary-condition li {
+  overflow-wrap: anywhere;
+}
+
+.cfr-radar-summary-condition li::before {
+  margin-right: 7px;
+  color: var(--text-3, #71717a);
+  content: '•';
+}
+
+.cfr-radar-summary-schedule {
+  margin-top: auto;
+}
+
+.cfr-radar-summary-schedule-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 12px;
+  color: var(--text-2, #a1a1aa);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+}
+
+.cfr-radar-summary-schedule-row b {
+  color: var(--text, #f5f5f5);
+  font-weight: 500;
+  text-align: right;
+}
+
+.cfr-radar-summary-schedule-row em {
+  color: var(--text-3, #71717a);
+  font-style: normal;
+}
+
+.cfr-radar-panel--setup-open .cfr-radar-summary .cfr-radar-error {
+  margin-top: 18px;
+  border: 1px solid rgba(248, 113, 113, 0.28);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(127, 29, 29, 0.12);
+  font-size: 10px;
+}
+
+.cfr-radar-summary-actions {
+  display: grid;
+  gap: 9px;
+  margin-top: 22px;
+}
+
+.cfr-radar-summary-cta {
+  justify-content: center;
+  min-height: 54px;
+  width: 100%;
+  margin-top: 0;
+  border-color: rgba(245, 158, 11, 0.65);
+  box-shadow: 0 10px 24px rgba(245, 158, 11, 0.17);
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+
+.cfr-radar-summary-cta span {
+  margin-left: 7px;
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.cfr-radar-summary-actions .cfr-radar-cancel {
+  justify-self: center;
+  min-height: 30px;
+  border-color: transparent;
+  color: var(--text-2, #a1a1aa);
+  font-size: 11px;
+}
+
+@media (max-width: 920px) {
+  .cfr-radar-panel--setup-open .cfr-radar-setup {
+    grid-template-areas:
+      'header'
+      'conditions'
+      'schedule'
+      'name'
+      'recipe'
+      'error'
+      'summary';
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .cfr-radar-panel--setup-open .cfr-radar-summary {
+    margin-top: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .cfr-radar-panel--setup-open {
+    margin: 12px 0 16px;
+  }
+
+  .cfr-radar-panel--setup-open .cfr-radar-setup-label,
+  .cfr-radar-panel--setup-open .cfr-radar-logic-picker,
+  .cfr-radar-panel--setup-open .cfr-radar-filter-section,
+  .cfr-radar-panel--setup-open .cfr-radar-schedule-picker,
+  .cfr-radar-panel--setup-open .cfr-radar-name-field,
+  .cfr-radar-panel--setup-open .cfr-radar-current-recipe,
+  .cfr-radar-panel--setup-open .cfr-radar-form-error {
+    padding-inline: 16px;
+  }
+
+  .cfr-radar-panel--setup-open .cfr-radar-setup-label {
+    padding-block: 15px;
+    font-size: 11px;
+  }
+
+  .cfr-radar-panel--setup-open .cfr-radar-filter-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .cfr-radar-panel--setup-open .cfr-radar-filter-grid,
+  .cfr-radar-panel--setup-open .cfr-radar-ma-controls,
+  .cfr-radar-panel--setup-open .cfr-radar-schedule-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cfr-radar-panel--setup-open .cfr-radar-logic-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cfr-radar-panel--setup-open .cfr-radar-logic-option {
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .cfr-radar-panel--setup-open .cfr-radar-logic-option:last-child {
+    border-bottom: 0;
+  }
+
+  .cfr-radar-panel--setup-open .cfr-radar-summary {
+    padding: 16px;
+  }
+
+  .cfr-radar-summary-recipe {
+    margin-top: 16px;
+    font-size: 15px;
+  }
+
+  .cfr-radar-summary-condition p {
+    font-size: 12px;
+  }
+
+  .cfr-radar-summary-schedule-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .cfr-radar-summary-schedule-row b {
+    text-align: left;
   }
 }
