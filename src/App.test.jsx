@@ -4,6 +4,16 @@ import { MemoryRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './context/AuthContext';
 
+// Keep this routing test focused on App's route selection. The real landing
+// page mounts canvas/effects and several nested React roots; loading that
+// marketing surface here makes the assertion depend on animation/effect
+// scheduling and can race the test runner on a slower CI worker.
+vi.mock('./pages/LandingPage', () => ({
+  default: function MockLandingPage() {
+    return <h1>Capital Flow landing</h1>;
+  },
+}));
+
 // App.jsx owns URL-driven page routing (page derived from location.pathname,
 // setPage() navigates) — this was converted from plain state to
 // react-router this session and has no coverage anywhere else. Rendered
@@ -37,9 +47,11 @@ describe('App routing', () => {
   it('renders the public landing page at the root path for a logged-out visitor', async () => {
     // "/" is the marketing page for guests (see App.jsx's isGuestLanding) —
     // only an authenticated user lands on the scanner at "/". LandingPage is
-    // lazy-loaded, so its first render in this file resolves asynchronously.
+    // lazy-loaded, so its first render in this file resolves asynchronously;
+    // the module mock above keeps this route assertion independent of the
+    // landing page's visual effects.
     renderAt('/');
-    expect(await screen.findByRole('heading', { level: 1 }, { timeout: 3000 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument();
   });
 
   it('renders the watchlist page at /watchlist', () => {
