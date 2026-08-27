@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import SectorHeatmap from './SectorHeatmap';
 import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
+import MobileResultSort from '../shared/MobileResultSort';
 import { fmt, friendlyError } from '../../utils/format';
 import { categoryQuota } from '../../utils/quota';
 import { SECTOR_ETFS } from '../../constants';
@@ -303,6 +304,19 @@ export default function MoneyFlow({
                 </div>
                 <span className="table-bar-count">{flowData.length} sectors</span>
               </div>
+              <MobileResultSort
+                options={[
+                  { value: 'symbol', label: 'Ticker' },
+                  { value: 'sector', label: 'Sector' },
+                  { value: 'price', label: 'Price' },
+                  { value: 'change', label: 'Change' },
+                  { value: 'volRatio', label: 'Vol ratio' },
+                  { value: 'flow', label: 'Flow' },
+                ]}
+                value={flowSort}
+                direction={flowSortDir}
+                onSort={handleFlowSort}
+              />
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -461,6 +475,130 @@ export default function MoneyFlow({
                     })}
                   </tbody>
                 </table>
+              </div>
+              <div className="mobile-cards mobile-result-list money-flow-results">
+                {sorted.map(function (d, i) {
+                  var etf = etfMap[d.symbol];
+                  var open = expandedETF === d.symbol;
+                  return (
+                    <div key={d.symbol} className="mobile-card mobile-result-card flow-result-card">
+                      <div className="mobile-result-card-header">
+                        <div className="mobile-result-card-identity">
+                          <span className="mobile-result-card-rank">#{i + 1}</span>
+                          <span className="mobile-card-ticker">{d.symbol}</span>
+                          <span className="mobile-card-name">{(etf && etf.name) || d.symbol}</span>
+                        </div>
+                        <div className="mobile-result-card-actions">
+                          <a
+                            className="chart-open-btn"
+                            href={'https://www.tradingview.com/chart/?symbol=' + d.symbol}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Open in TradingView"
+                            aria-label={'Open ' + d.symbol + ' in TradingView'}
+                          >
+                            <svg
+                              viewBox="0 0 24 24"
+                              width="14"
+                              height="14"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M3 3v18h18" />
+                              <path d="M18.7 8l-5.1 5.1-4-4L3 15.6" />
+                            </svg>
+                          </a>
+                          <button
+                            className={'alert-create-btn' + (alertLevels && alertLevels[d.symbol] ? ' active' : '')}
+                            onClick={() => promptCreateAlert(d.symbol)}
+                            title={
+                              alertLevels && alertLevels[d.symbol]
+                                ? 'Alert set at ' + alertLevels[d.symbol] + 'x — click to edit'
+                                : 'Create a volume alert'
+                            }
+                            aria-label={'Create a volume alert for ' + d.symbol}
+                          >
+                            <svg
+                              viewBox="0 0 24 24"
+                              width="14"
+                              height="14"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mobile-result-card-quote">
+                        <div className="mobile-result-card-quote-item">
+                          <span className="mobile-result-card-label">PRICE</span>
+                          <span className="mobile-card-price">{'$' + d.price.toFixed(2)}</span>
+                        </div>
+                        <div className="mobile-result-card-quote-item mobile-result-card-quote-item-end">
+                          <span className="mobile-result-card-label">CHANGE</span>
+                          <span className={'mobile-card-change ' + (d.change >= 0 ? 'pos' : 'neg')}>
+                            {(d.change >= 0 ? '+' : '') + d.change + '%'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mobile-result-card-grid">
+                        <div className="mobile-result-card-stat">
+                          <span className="mobile-result-card-label">VOL RATIO</span>
+                          <span
+                            className={'ratio-pill ' + (d.volRatio >= 2 ? 'hot' : d.volRatio >= 1.2 ? 'warm' : 'ok')}
+                          >
+                            {d.volRatio + 'x'}
+                          </span>
+                        </div>
+                        <div className="mobile-result-card-stat">
+                          <span className="mobile-result-card-label">VOLUME</span>
+                          <span className="mobile-result-card-value">{fmt(d.volume)}</span>
+                        </div>
+                        <div className="mobile-result-card-stat">
+                          <span className="mobile-result-card-label">FLOW</span>
+                          <span className={'flow-badge ' + d.flow}>{d.flow.toUpperCase()}</span>
+                        </div>
+                        <div className="mobile-result-card-stat mobile-result-card-stat-wide">
+                          <span className="mobile-result-card-label">SECTOR</span>
+                          <span className="mobile-result-card-sector-name">{(etf && etf.name) || d.symbol}</span>
+                        </div>
+                      </div>
+                      {etf && etf.holdings && etf.holdings.length > 0 && (
+                        <>
+                          <button
+                            className="flow-mobile-holdings-toggle"
+                            onClick={() => setExpandedETF(open ? null : d.symbol)}
+                            aria-expanded={open}
+                          >
+                            {open ? 'Hide top holdings' : 'View top holdings'}
+                            <span aria-hidden="true">{open ? '−' : '+'}</span>
+                          </button>
+                          {open && (
+                            <div className="flow-mobile-holdings" aria-label="Top holdings">
+                              {etf.holdings.map(function (h) {
+                                return (
+                                  <div key={h.sym} className="flow-mobile-holding">
+                                    <span className="holding-sym">{h.sym}</span>
+                                    <span className="holding-name">{h.name}</span>
+                                    <span className="holding-weight">{h.weight}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               {fetchTime && <div className="table-footer">Last updated: {new Date(fetchTime).toLocaleString()}</div>}
             </div>

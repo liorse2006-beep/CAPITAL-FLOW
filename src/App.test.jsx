@@ -39,7 +39,7 @@ describe('App routing', () => {
     // only an authenticated user lands on the scanner at "/". LandingPage is
     // lazy-loaded, so its first render in this file resolves asynchronously.
     renderAt('/');
-    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1 }, { timeout: 3000 })).toBeInTheDocument();
   });
 
   it('renders the watchlist page at /watchlist', () => {

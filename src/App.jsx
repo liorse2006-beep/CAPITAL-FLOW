@@ -4,6 +4,7 @@ import Toast from './components/shared/Toast';
 import useSSE from './hooks/useSSE';
 import useScanQuota from './hooks/useScanQuota';
 import usePushSubscription from './hooks/usePushSubscription';
+import useIsMobile from './hooks/useIsMobile';
 import { parseVolInput } from './utils/format';
 import { categoryQuota } from './utils/quota';
 import { hasEliteAccess, hasPremiumFeatureAccess } from './utils/access';
@@ -62,6 +63,7 @@ function App() {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobile = useIsMobile();
   // Derived from the URL rather than its own state — keeps every existing
   // `page === 'x'` / `setPage('x')` call site unchanged while making page
   // navigation a real, bookmarkable, back/forward-able browser route.
@@ -586,6 +588,7 @@ function App() {
   const [capiExternalPrompt, setCapiExternalPrompt] = useState(null);
 
   function explainWithCapi(r) {
+    if (isMobile) return;
     if (!user) {
       setShowAuthModal(true);
       return;
@@ -1300,7 +1303,7 @@ function App() {
         />
       )}
 
-      {!isGuestLanding && (
+      {!isGuestLanding && !isMobile && (
         <Suspense fallback={null}>
           <ChatWidget
             user={user}

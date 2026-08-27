@@ -269,7 +269,7 @@ export default function WatchlistPage({
           </div>
         </div>
       ) : (
-        <div className="table-card">
+        <div className="table-card watchlist-results">
           <div className="table-bar">
             <div>
               <h2>{watchlist.length + ' Ticker' + (watchlist.length !== 1 ? 's' : '')}</h2>
@@ -398,14 +398,27 @@ export default function WatchlistPage({
             {watchlist.map((sym) => {
               const d = findQuote(sym);
               return (
-                <div key={sym} className="mobile-card ratio-ok">
-                  <div className="mobile-card-top">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+                <div key={sym} className="mobile-card mobile-result-card watchlist-result-card ratio-ok">
+                  <div className="mobile-result-card-header">
+                    <div className="mobile-result-card-identity">
+                      <span className="mobile-result-card-rank" aria-hidden="true">
+                        •
+                      </span>
+                      <img
+                        className="ticker-logo"
+                        src={'https://assets.parqet.com/logos/symbol/' + sym}
+                        alt=""
+                        width={18}
+                        height={18}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                        }}
+                      />
                       <span className="mobile-card-ticker">{sym}</span>
                       {d && <span className="mobile-card-name">{d.name}</span>}
                       {!d && watchlistLoading && <span className="skel skel-text" />}
                     </div>
-                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <div className="mobile-result-card-actions">
                       <ChartLink symbol={sym} />
                       <AlertButton
                         symbol={sym}
@@ -423,11 +436,17 @@ export default function WatchlistPage({
                     </div>
                   </div>
                   {d && (
-                    <div className="mobile-card-mid">
-                      <span className="mobile-card-price">{'$' + d.price.toFixed(2)}</span>
-                      <span className={'mobile-card-change ' + (d.change >= 0 ? 'pos' : 'neg')}>
-                        {(d.change >= 0 ? '+' : '') + d.change.toFixed(2) + '%'}
-                      </span>
+                    <div className="mobile-result-card-quote">
+                      <div className="mobile-result-card-quote-item">
+                        <span className="mobile-result-card-label">PRICE</span>
+                        <span className="mobile-card-price">{'$' + d.price.toFixed(2)}</span>
+                      </div>
+                      <div className="mobile-result-card-quote-item mobile-result-card-quote-item-end">
+                        <span className="mobile-result-card-label">CHANGE</span>
+                        <span className={'mobile-card-change ' + (d.change >= 0 ? 'pos' : 'neg')}>
+                          {(d.change >= 0 ? '+' : '') + d.change.toFixed(2) + '%'}
+                        </span>
+                      </div>
                     </div>
                   )}
                   {!d && watchlistLoading && (
@@ -437,17 +456,19 @@ export default function WatchlistPage({
                     </div>
                   )}
                   {d && (
-                    <div className="mobile-card-bottom">
-                      <div className="mobile-card-stat">
-                        <span className="mobile-card-stat-label">RVOL</span>
+                    <div className="mobile-result-card-grid">
+                      <div className="mobile-result-card-stat">
+                        <span className="mobile-result-card-label">VOL RATIO</span>
                         <RatioPill ratio={d.volumeRatio} />
                       </div>
-                      {d.marketCap > 0 && (
-                        <div className="mobile-card-stat">
-                          <span className="mobile-card-stat-label">Cap</span>
-                          <span className="mobile-card-stat-value">{fmt(d.marketCap)}</span>
-                        </div>
-                      )}
+                      <div className="mobile-result-card-stat">
+                        <span className="mobile-result-card-label">MKT CAP</span>
+                        <span className="mobile-result-card-value">{d.marketCap > 0 ? fmt(d.marketCap) : '—'}</span>
+                      </div>
+                      <div className="mobile-result-card-stat mobile-result-card-stat-wide">
+                        <span className="mobile-result-card-label">NAME</span>
+                        <span className="mobile-result-card-sector-name">{d.name || '—'}</span>
+                      </div>
                     </div>
                   )}
                 </div>

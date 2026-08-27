@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import useModalA11y from '../../hooks/useModalA11y';
+import useIsMobile from '../../hooks/useIsMobile';
 
 function formatDate(timestamp) {
   if (!timestamp) return 'Recent';
@@ -15,6 +16,7 @@ function Sentiment({ value }) {
 }
 
 export default function NewsModal({ symbol, getToken, onClose }) {
+  const isMobile = useIsMobile();
   const panelRef = useModalA11y(onClose);
   const [articles, setArticles] = useState([]);
   const [source, setSource] = useState('');
@@ -22,6 +24,7 @@ export default function NewsModal({ symbol, getToken, onClose }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (isMobile) return undefined;
     let cancelled = false;
     fetch('/api/news/' + encodeURIComponent(symbol), {
       headers: { Authorization: 'Bearer ' + getToken() },
@@ -48,7 +51,9 @@ export default function NewsModal({ symbol, getToken, onClose }) {
     return () => {
       cancelled = true;
     };
-  }, [symbol, getToken]);
+  }, [symbol, getToken, isMobile]);
+
+  if (isMobile) return null;
 
   return (
     <div className="news-overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>

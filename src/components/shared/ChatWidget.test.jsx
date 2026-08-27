@@ -117,4 +117,20 @@ describe('ChatWidget', () => {
     fireEvent.click(container.querySelector('.chat-panel-close'));
     expect(screen.getByText(/Hi, I.m Capi/)).toBeInTheDocument();
   });
+
+  it('renders nothing on mobile so the Capi launcher cannot appear there', () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn(() => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+
+    try {
+      const { container } = render(<ChatWidget user={USER} isElite getToken={() => 't'} />);
+      expect(container).toBeEmptyDOMElement();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
 });

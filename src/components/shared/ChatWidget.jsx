@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import useIsMobile from '../../hooks/useIsMobile';
 
 // Capi's persona leans on **bold** and bullets to stay scannable — a tiny
 // line-based parser is enough here, no need for a full markdown library.
@@ -48,6 +49,7 @@ export default function ChatWidget({
   onRequireAuth,
   onTrialEnded,
 }) {
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [teaserReady, setTeaserReady] = useState(false);
   const [teaserDismissed, setTeaserDismissed] = useState(false);
@@ -154,7 +156,7 @@ export default function ChatWidget({
   // lands after it rather than racing it, then sends.
   useEffect(
     function () {
-      if (!externalPrompt || !user) return;
+      if (isMobile || !externalPrompt || !user) return;
       setOpen(true);
       var ready = historyLoaded ? Promise.resolve() : loadHistory();
       ready.then(function () {
@@ -162,8 +164,13 @@ export default function ChatWidget({
       });
       if (onExternalPromptSent) onExternalPromptSent();
     },
-    [externalPrompt]
+    [externalPrompt, isMobile]
   );
+
+  // App also avoids mounting the widget at phone widths. Keep this guard in
+  // the component as a second line of defense for direct consumers and for
+  // responsive resizes after the widget was already mounted on desktop.
+  if (isMobile) return null;
 
   function clearChat() {
     setMessages([]);

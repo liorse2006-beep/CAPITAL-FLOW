@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import useScanQuota from '../../hooks/useScanQuota';
 import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
+import MobileResultSort from '../shared/MobileResultSort';
 import { categoryQuota } from '../../utils/quota';
 import { friendlyError, alertLevelLabel } from '../../utils/format';
 
@@ -644,6 +645,19 @@ export default function MAScannerPage({
             )
           ),
 
+          React.createElement(MobileResultSort, {
+            options: [
+              { value: 'symbol', label: 'Ticker' },
+              { value: 'name', label: 'Name' },
+              { value: 'price', label: 'Price' },
+              { value: 'maValue', label: `SMA${ma}` },
+              { value: 'maDistance', label: 'Distance' },
+            ],
+            value: sortField,
+            direction: sortDir,
+            onSort: handleSort,
+          }),
+
           // Mobile cards — the desktop <table> is hidden below 768px (global
           // rule), so results need a dedicated mobile layout or they'd just
           // vanish with no results visible and no error.
@@ -662,7 +676,7 @@ export default function MAScannerPage({
                   const distColor = distAbs < 0.5 ? 'var(--accent)' : isAbove ? 'var(--green)' : 'var(--red)';
                   return React.createElement(
                     'div',
-                    { key: r.symbol, className: 'mobile-card' },
+                    { key: r.symbol, className: 'mobile-card mobile-result-card ma-result-card' },
                     React.createElement(
                       'div',
                       { className: 'mobile-card-top' },
@@ -683,25 +697,40 @@ export default function MAScannerPage({
                     ),
                     React.createElement(
                       'div',
-                      { className: 'mobile-card-mid' },
+                      { className: 'mobile-result-card-quote' },
                       React.createElement(
-                        'span',
-                        { className: 'mobile-card-price' },
-                        r.price ? '$' + r.price.toFixed(2) : '—'
+                        'div',
+                        { className: 'mobile-result-card-quote-item' },
+                        React.createElement('span', { className: 'mobile-result-card-label' }, 'PRICE'),
+                        React.createElement(
+                          'span',
+                          { className: 'mobile-card-price' },
+                          r.price ? '$' + r.price.toFixed(2) : '—'
+                        )
                       ),
                       React.createElement(
-                        'span',
-                        { className: 'mobile-card-change', style: { color: distColor } },
-                        (r.maDistance >= 0 ? '+' : '') + r.maDistance.toFixed(2) + '%'
+                        'div',
+                        { className: 'mobile-result-card-quote-item mobile-result-card-quote-item-end' },
+                        React.createElement('span', { className: 'mobile-result-card-label' }, 'DISTANCE'),
+                        React.createElement(
+                          'span',
+                          { className: 'mobile-card-change', style: { color: distColor } },
+                          (r.maDistance >= 0 ? '+' : '') + r.maDistance.toFixed(2) + '%'
+                        )
                       )
                     ),
                     React.createElement(
                       'div',
-                      { className: 'mobile-card-bottom' },
+                      { className: 'mobile-result-card-grid ma-result-card-grid' },
                       React.createElement(
-                        'span',
-                        { className: 'mobile-card-vol' },
-                        `SMA${ma}: $${r.maValue.toFixed(2)}`
+                        'div',
+                        { className: 'mobile-result-card-stat mobile-result-card-stat-wide' },
+                        React.createElement('span', { className: 'mobile-result-card-label' }, `SMA${ma}`),
+                        React.createElement(
+                          'span',
+                          { className: 'mobile-result-card-value' },
+                          '$' + r.maValue.toFixed(2)
+                        )
                       )
                     )
                   );

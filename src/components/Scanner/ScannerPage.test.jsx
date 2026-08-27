@@ -197,3 +197,38 @@ describe('ScannerPage Radar placement', () => {
     expect(screen.getAllByRole('heading', { name: /catch the moment a setup appears/i })).toHaveLength(1);
   });
 });
+
+describe('ScannerPage mobile result surface', () => {
+  it('keeps desktop data and actions that fit while removing news and Capi actions', () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn(() => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+
+    try {
+      render(
+        <ScannerPage
+          {...baseProps({
+            isPremium: true,
+            isElite: true,
+            results: [mockRow],
+            sorted: [mockRow],
+            visibleCount: 50,
+            scanTime: new Date().toISOString(),
+          })}
+        />
+      );
+
+      expect(screen.getByText('MKT CAP')).toBeInTheDocument();
+      expect(screen.getByText('AVG VOLUME')).toBeInTheDocument();
+      expect(screen.getByText('CURRENT VOLUME')).toBeInTheDocument();
+      expect(screen.getByText('SECTOR')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /read market news/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /ask capi/i })).not.toBeInTheDocument();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+});

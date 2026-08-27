@@ -65,12 +65,19 @@ export default function ScheduledScanResultsModal({ notification, onClose, isInW
                     <span className="scheduled-results-symbol">{r.symbol}</span>
                     {r.name && <span className="scheduled-results-name">{r.name}</span>}
                   </div>
-                  <span className="scheduled-results-cap">{r.marketCap > 0 ? fmt(r.marketCap) : ''}</span>
-                  <span className="scheduled-results-price">{'$' + (r.price || 0).toFixed(2)}</span>
-                  <span className={'scheduled-results-change ' + (r.change >= 0 ? 'col-pos' : 'col-neg')}>
+                  <span className="scheduled-results-cap" data-label="Mkt cap">
+                    {r.marketCap > 0 ? fmt(r.marketCap) : '—'}
+                  </span>
+                  <span className="scheduled-results-price" data-label="Price">
+                    {'$' + (r.price || 0).toFixed(2)}
+                  </span>
+                  <span
+                    className={'scheduled-results-change ' + (r.change >= 0 ? 'col-pos' : 'col-neg')}
+                    data-label="Change"
+                  >
                     {(r.change >= 0 ? '+' : '') + (r.change || 0).toFixed(2) + '%'}
                   </span>
-                  <span className="scheduled-results-signal">
+                  <span className="scheduled-results-signal" data-label="Signal">
                     {hasRatio ? (
                       <span
                         className={'ratio-pill ' + (r.volumeRatio >= 5 ? 'hot' : r.volumeRatio >= 3.5 ? 'warm' : 'ok')}
