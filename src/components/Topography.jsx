@@ -5,11 +5,7 @@ import './Topography.css';
 const hexToRgb = (hex) => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (!result) return [1, 1, 1];
-  return [
-    parseInt(result[1], 16) / 255,
-    parseInt(result[2], 16) / 255,
-    parseInt(result[3], 16) / 255
-  ];
+  return [parseInt(result[1], 16) / 255, parseInt(result[2], 16) / 255, parseInt(result[3], 16) / 255];
 };
 
 const colorModeToFloat = (mode) => {
@@ -133,7 +129,7 @@ const CTRL_INDICES = [
   [1, -2, 3, -4],
   [9, -8, 7, -6],
   [5, 2, 5, -5],
-  [-1, -3, 8, 9]
+  [-1, -3, 8, 9],
 ];
 
 const Topography = ({
@@ -159,7 +155,7 @@ const Topography = ({
   mouseRadius = 0.3,
   mouseStrength = 0.4,
   paused = false,
-  className = ''
+  className = '',
 }) => {
   const containerRef = useRef(null);
   const propsRef = useRef({ paused, speed, morphSpeed });
@@ -175,7 +171,7 @@ const Topography = ({
       alpha: true,
       premultipliedAlpha: true,
       antialias: false,
-      dpr: Math.min(window.devicePixelRatio || 1, 1.5)
+      dpr: Math.min(window.devicePixelRatio || 1, 1.5),
     });
     const gl = renderer.gl;
     gl.clearColor(0, 0, 0, 0);
@@ -216,8 +212,8 @@ const Topography = ({
         uCtrlA: { value: new Float32Array([0, 0, 0, 0]) },
         uCtrlB: { value: new Float32Array([0, 0, 0, 0]) },
         uCtrlC: { value: new Float32Array([0, 0, 0, 0]) },
-        uCtrlD: { value: new Float32Array([0, 0, 0, 0]) }
-      }
+        uCtrlD: { value: new Float32Array([0, 0, 0, 0]) },
+      },
     });
     const mesh = new Mesh(gl, { geometry, program });
     canvas.__topographyContext = { program };
@@ -265,7 +261,7 @@ const Topography = ({
       program.uniforms.uCtrlA.value,
       program.uniforms.uCtrlB.value,
       program.uniforms.uCtrlC.value,
-      program.uniforms.uCtrlD.value
+      program.uniforms.uCtrlD.value,
     ];
     let raf = 0;
     let isVisible = true;
@@ -281,7 +277,8 @@ const Topography = ({
         const indices = CTRL_INDICES[group];
         for (let j = 0; j < 4; j += 1) {
           const index = indices[j];
-          values[j] = morph * Math.sin(elapsed * propsRef.current.speed * Math.sin(index * propsRef.current.morphSpeed) + index);
+          values[j] =
+            morph * Math.sin(elapsed * propsRef.current.speed * Math.sin(index * propsRef.current.morphSpeed) + index);
         }
       }
 
@@ -374,7 +371,7 @@ const Topography = ({
     grainIntensity,
     mouseInteraction,
     mouseRadius,
-    mouseStrength
+    mouseStrength,
   ]);
 
   return <div ref={containerRef} className={`topography-container ${className}`.trim()} />;
