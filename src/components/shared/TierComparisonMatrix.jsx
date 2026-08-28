@@ -110,7 +110,7 @@ function PlanCard({ column, userTier, trialEnded, payingTier, onCheckout }) {
 
 export default function TierComparisonMatrix({ userTier = 'free', trialEnded = false, payingTier, onCheckout }) {
   return (
-    <div className="tier-matrix-scroll">
+    <div className="tier-matrix-scroll" dir="ltr">
       <div className="tier-matrix" role="group" aria-label="Premium and Elite feature comparison">
         {UPGRADE_COLUMNS.map((column) => (
           <PlanCard

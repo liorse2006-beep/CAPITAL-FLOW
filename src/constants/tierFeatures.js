@@ -7,7 +7,7 @@ export const TIER_ROWS = [
   {
     label: 'Full market scans',
     free: 'Unlimited · 7-day trial',
-    premium: '5 / 24h shared',
+    premium: '5 scans / 24h (shared)',
     elite: 'Unlimited',
   },
   {
