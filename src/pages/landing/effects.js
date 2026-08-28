@@ -13,6 +13,8 @@
 // disconnects every observer, and kills every ScrollTrigger it created.
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { Renderer, Program, Mesh, Triangle } from 'ogl';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
@@ -20,6 +22,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
+import LandingCtaPortals from '../../components/LandingCtaPortals';
 import { TRUST_LOGO_SYMBOLS } from './trustLogos';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -1656,6 +1659,51 @@ function mountSignalChart(root, cleanupFns) {
 // contention with the WebGL scanner background or ElectricBorder's rAF
 // loops. Built via JS rather than hand-duplicated in the static markup
 // purely to avoid maintaining two copies of the same logo list by hand.
+function setupSpecularCtas(root, onGetStarted, cleanupFns) {
+  const targets = Array.from(root.querySelectorAll('.cf-specular-cta-mount'));
+  const pricingTarget = root.querySelector('.cf-pricing-matrix-mount');
+  if (!targets.length && !pricingTarget) return;
+
+  const fallbacks = targets
+    .map((target) => target.querySelector('.cf-specular-cta-fallback'))
+    .filter(Boolean)
+    .map((element) => ({ element, hidden: element.hidden }));
+
+  // Hide the static copy before React commits the portal so there can never be
+  // two visible CTAs during the hand-off. It is restored only if mounting the
+  // real component fails.
+  fallbacks.forEach(({ element }) => {
+    element.hidden = true;
+  });
+
+  const host = document.createElement('div');
+  host.className = 'cf-specular-cta-react-host';
+  host.setAttribute('aria-hidden', 'true');
+  host.style.display = 'none';
+  root.appendChild(host);
+
+  let reactRoot;
+  try {
+    reactRoot = createRoot(host);
+    reactRoot.render(createElement(LandingCtaPortals, { targets, pricingTarget, onGetStarted }));
+  } catch (error) {
+    host.remove();
+    fallbacks.forEach(({ element, hidden }) => {
+      element.hidden = hidden;
+    });
+    if (typeof console !== 'undefined') console.error('[landing] specular CTAs failed to mount:', error);
+    return;
+  }
+
+  cleanupFns.push(() => {
+    reactRoot.unmount();
+    fallbacks.forEach(({ element, hidden }) => {
+      element.hidden = hidden;
+    });
+    host.remove();
+  });
+}
+
 function mountTrustMarquee(el, assets, cleanupFns) {
   function buildSegment() {
     const seg = document.createElement('div');
@@ -1787,6 +1835,7 @@ export function initLandingEffects(rootEl, onGetStarted) {
   // These two are the page's actual function (navigation + FAQ + the CTA
   // that gets someone to sign in) — allowed to throw so a real bug here is
   // loud, not silently swallowed like the decorative effects below.
+  setupSpecularCtas(rootEl, onGetStarted, cleanupFns);
   setupCtaDelegation(rootEl, onGetStarted, cleanupFns);
   runSafely('setupScrollCta', () => setupScrollCta(rootEl, cleanupFns));
   setupFaqAccordion(rootEl, cleanupFns);
