@@ -46,7 +46,15 @@ function AccessCell({ value }) {
       <span className="tier-matrix-status" aria-label={included ? 'Included' : 'Not included'}>
         {included ? <CheckIcon /> : <CrossIcon />}
       </span>
-      <span className="tier-matrix-value">{included ? value : 'Not included'}</span>
+    </span>
+  );
+}
+
+function AccessValue({ value }) {
+  const included = value !== false;
+  return (
+    <span className={'tier-matrix-value ' + (included ? 'is-included' : 'is-excluded')}>
+      {included ? value : 'Not included'}
     </span>
   );
 }
@@ -89,8 +97,9 @@ function PlanCard({ column, userTier, trialEnded, payingTier, onCheckout }) {
       <ul className="tier-matrix-feature-list">
         {TIER_ROWS.map((row) => (
           <li key={row.label} className="tier-matrix-feature">
-            <span className="tier-matrix-feature-name">{row.label}</span>
             <AccessCell value={row[column.key]} />
+            <span className="tier-matrix-feature-name">{row.label}</span>
+            <AccessValue value={row[column.key]} />
           </li>
         ))}
       </ul>

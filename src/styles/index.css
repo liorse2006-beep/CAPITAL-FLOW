@@ -12765,7 +12765,9 @@ html.a11y-highlight-links a {
 }
 .tier-matrix-scroll {
   width: 100%;
+  min-width: 0;
   margin-top: 11px;
+  overflow: hidden;
   border: 1px solid var(--border-strong);
   border-radius: 9px;
   background: rgba(5, 5, 5, 0.48);
@@ -12774,9 +12776,10 @@ html.a11y-highlight-links a {
 }
 .tier-matrix {
   width: 100%;
+  min-width: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px;
+  gap: 7px;
   direction: ltr;
 }
 .tier-matrix-plan {
@@ -12797,8 +12800,8 @@ html.a11y-highlight-links a {
 }
 .tier-matrix-plan-heading {
   position: relative;
-  min-height: 94px;
-  padding: 11px 12px 10px;
+  min-height: 88px;
+  padding: 10px 11px 9px;
   border-bottom: 1px solid var(--border-strong);
   background: rgba(255, 255, 255, 0.012);
 }
@@ -12861,12 +12864,12 @@ html.a11y-highlight-links a {
   padding: 0;
 }
 .tier-matrix-feature {
-  display: flex;
+  display: grid;
+  grid-template-columns: 13px minmax(0, 1fr) minmax(0, 42%);
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 32px;
-  padding: 5px 9px;
+  gap: 6px;
+  min-height: 29px;
+  padding: 4px 8px;
   border-bottom: 1px solid var(--border);
   direction: ltr;
   text-align: left;
@@ -12878,7 +12881,7 @@ html.a11y-highlight-links a {
   background: rgba(245, 158, 11, 0.045);
 }
 .tier-matrix-feature-name {
-  flex: 1 1 auto;
+  grid-column: 2;
   min-width: 0;
   color: var(--text-1);
   font-family: var(--font);
@@ -12888,17 +12891,19 @@ html.a11y-highlight-links a {
   line-height: 1.15;
   text-align: left;
   text-transform: none;
+  overflow-wrap: anywhere;
 }
 .tier-matrix-access {
   display: inline-flex;
-  flex: 0 0 43%;
+  grid-column: 1;
+  grid-row: 1;
   align-items: center;
-  justify-content: flex-end;
-  gap: 5px;
-  min-width: 0;
-  margin-left: auto;
+  justify-content: flex-start;
+  width: 13px;
+  height: 13px;
+  margin: 0;
   line-height: 1.15;
-  text-align: right;
+  text-align: left;
 }
 .tier-matrix-status {
   display: inline-flex;
@@ -12922,12 +12927,21 @@ html.a11y-highlight-links a {
   color: var(--text-3);
 }
 .tier-matrix-value {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  max-width: 100%;
   min-width: 0;
-  color: inherit;
+  color: var(--text-1);
   font-family: var(--mono);
   font-size: 8px;
-  white-space: nowrap;
+  line-height: 1.15;
+  text-align: right;
+  white-space: normal;
   overflow-wrap: anywhere;
+}
+.tier-matrix-value.is-excluded {
+  color: var(--text-3);
 }
 .tier-matrix-plan-footer {
   display: flex;
@@ -12985,21 +12999,22 @@ html.a11y-highlight-links a {
     gap: 5px;
   }
   .tier-matrix-plan-heading {
-    min-height: 82px;
-    padding: 8px 7px 7px;
+    min-height: 76px;
+    padding: 7px 6px 6px;
   }
   .tier-matrix-feature {
+    grid-template-columns: 10px minmax(0, 1fr) minmax(0, 43%);
     gap: 3px;
-    min-height: 27px;
-    padding: 4px 5px;
+    min-height: 25px;
+    padding: 3px 4px;
   }
   .tier-matrix-feature-name {
     font-size: 7.8px;
     line-height: 1.1;
   }
   .tier-matrix-access {
-    flex-basis: 46%;
-    gap: 2px;
+    width: 10px;
+    height: 10px;
   }
   .tier-matrix-status {
     flex-basis: 10px;
@@ -13012,6 +13027,7 @@ html.a11y-highlight-links a {
   }
   .tier-matrix-value {
     font-size: 6.5px;
+    line-height: 1.1;
   }
   .tier-matrix-plan-name {
     font-size: 9px;
