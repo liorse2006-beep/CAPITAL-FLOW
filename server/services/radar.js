@@ -26,11 +26,17 @@ const MAX_RADAR_SCANS_PER_DAY = 2;
 const MIN_VOLUME_RATIO = 1.5;
 const MIN_MARKET_CAP = 500_000_000;
 const MAX_MARKET_CAP = 100_000_000_000_000;
-const MAX_RADARS_PER_USER = 3;
+// A customer can keep one Radar recipe only. That recipe is also the only
+// recipe that can be active, which keeps the product promise and the worker's
+// per-user monitoring state unambiguous.
+const MAX_RADARS_PER_USER = 1;
+const MAX_ACTIVE_RADARS_PER_USER = 1;
 const MAX_EVENTS_PER_RADAR = 50;
 const DATA_UNAVAILABLE_MESSAGE = 'Data is not available right now. Try again in a few minutes.';
 const PARTIAL_DATA_MESSAGE = 'Some market data is unavailable right now. Try again in a few minutes.';
 const RADAR_SCHEDULE_MESSAGE = 'Choose one or two scan times and an expiry date before activating this Radar.';
+const RADAR_LIMIT_MESSAGE = 'Only one Radar scan can be saved per account. Edit or remove the current Radar before creating another.';
+const RADAR_ACTIVE_LIMIT_MESSAGE = 'Only one Radar scan can be active at a time. Edit or remove the current Radar before activating another.';
 const RADAR_TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const RADAR_SLOT_START = 11 * 60;
 const RADAR_SLOT_END = 23 * 60;
@@ -50,6 +56,21 @@ function cleanName(value) {
     .join('');
   const name = safeText.replace(/\s+/g, ' ').trim();
   return (name || 'Capital Flow Radar').slice(0, 60);
+}
+
+function radarLimitError(message = RADAR_LIMIT_MESSAGE, code = 'RADAR_LIMIT_REACHED') {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function isActiveRadarUniqueError(error) {
+  const message = String(error && error.message ? error.message : '');
+  const code = String(error && error.code ? error.code : '');
+  return (
+    message.includes('idx_capital_flow_radars_one_active_user') ||
+    message.includes('capital_flow_radars.user_id') && code.includes('CONSTRAINT')
+  );
 }
 
 function parseSectors(value) {
@@ -253,7 +274,7 @@ function statusForRow(row) {
     return { state: 'unavailable', message: DATA_UNAVAILABLE_MESSAGE };
   }
   if (!hasSuccess) {
-    return { state: 'waiting', message: 'Waiting for the first completed market scan.' };
+    return { state: 'waiting', message: 'WAITING FOR A SIGNAL' };
   }
   if (partial) {
     return { state: 'partial', message: PARTIAL_DATA_MESSAGE };
@@ -382,34 +403,47 @@ async function getRadarBundle(userId) {
 
 async function createRadar(userId, input) {
   const config = normalizeRadarInput(input);
-  const result = await db
-    .prepare(
-      `INSERT INTO capital_flow_radars
-        (user_id, name, mode, selected_sectors_json, min_volume_ratio, min_market_cap,
-         min_volume, min_price, max_price, ma_period, ma_distance, ma_interval, ma_direction,
-         condition_mode, condition_version, schedule_time_1, schedule_time_2, expires_on, active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
-    )
-    .run(
-      userId,
-      config.name,
-      config.mode,
-      JSON.stringify(config.selectedSectors),
-      config.minVolumeRatio,
-      config.minMarketCap,
-      config.minVolume,
-      config.minPrice,
-      config.maxPrice,
-      config.maPeriod,
-      config.maDistance,
-      config.maInterval,
-      config.maDirection,
-      config.conditionMode,
-      config.conditionVersion,
-      config.scheduleTime1,
-      config.scheduleTime2,
-      config.expiresOn
-    );
+  const existingCount = await db
+    .prepare('SELECT COUNT(*) AS count FROM capital_flow_radars WHERE user_id = ?')
+    .get(userId);
+  if (Number(existingCount && existingCount.count) >= MAX_RADARS_PER_USER) {
+    throw radarLimitError();
+  }
+
+  let result;
+  try {
+    result = await db
+      .prepare(
+        `INSERT INTO capital_flow_radars
+          (user_id, name, mode, selected_sectors_json, min_volume_ratio, min_market_cap,
+           min_volume, min_price, max_price, ma_period, ma_distance, ma_interval, ma_direction,
+           condition_mode, condition_version, schedule_time_1, schedule_time_2, expires_on, active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
+      )
+      .run(
+        userId,
+        config.name,
+        config.mode,
+        JSON.stringify(config.selectedSectors),
+        config.minVolumeRatio,
+        config.minMarketCap,
+        config.minVolume,
+        config.minPrice,
+        config.maxPrice,
+        config.maPeriod,
+        config.maDistance,
+        config.maInterval,
+        config.maDirection,
+        config.conditionMode,
+        config.conditionVersion,
+        config.scheduleTime1,
+        config.scheduleTime2,
+        config.expiresOn
+      );
+  } catch (error) {
+    if (isActiveRadarUniqueError(error)) throw radarLimitError();
+    throw error;
+  }
   return getRadarRowForUser(userId, result.lastInsertRowid);
 }
 
@@ -436,37 +470,53 @@ async function updateRadar(userId, radarId, input) {
   };
   const config = normalizeRadarInput(input, base, { requireSchedule: input.active !== false });
   const active = typeof input.active === 'boolean' ? (input.active ? 1 : 0) : Number(existing.active) ? 1 : 0;
-  await db
-    .prepare(
-      `UPDATE capital_flow_radars
-          SET name = ?, mode = ?, selected_sectors_json = ?, min_volume_ratio = ?, min_market_cap = ?,
-              min_volume = ?, min_price = ?, max_price = ?, ma_period = ?, ma_distance = ?, ma_interval = ?,
-              ma_direction = ?, condition_mode = ?, condition_version = ?, schedule_time_1 = ?, schedule_time_2 = ?,
-              expires_on = ?, active = ?, updated_at = unixepoch()
-        WHERE id = ? AND user_id = ?`
-    )
-    .run(
-      config.name,
-      config.mode,
-      JSON.stringify(config.selectedSectors),
-      config.minVolumeRatio,
-      config.minMarketCap,
-      config.minVolume,
-      config.minPrice,
-      config.maxPrice,
-      config.maPeriod,
-      config.maDistance,
-      config.maInterval,
-      config.maDirection,
-      config.conditionMode,
-      config.conditionVersion,
-      config.scheduleTime1,
-      config.scheduleTime2,
-      config.expiresOn,
-      active,
-      radarId,
-      userId
-    );
+  if (active && !existing.active) {
+    const activeCount = await db
+      .prepare('SELECT COUNT(*) AS count FROM capital_flow_radars WHERE user_id = ? AND active = 1')
+      .get(userId);
+    if (Number(activeCount && activeCount.count) >= MAX_ACTIVE_RADARS_PER_USER) {
+      throw radarLimitError(RADAR_ACTIVE_LIMIT_MESSAGE, 'RADAR_ACTIVE_LIMIT_REACHED');
+    }
+  }
+
+  try {
+    await db
+      .prepare(
+        `UPDATE capital_flow_radars
+            SET name = ?, mode = ?, selected_sectors_json = ?, min_volume_ratio = ?, min_market_cap = ?,
+                min_volume = ?, min_price = ?, max_price = ?, ma_period = ?, ma_distance = ?, ma_interval = ?,
+                ma_direction = ?, condition_mode = ?, condition_version = ?, schedule_time_1 = ?, schedule_time_2 = ?,
+                expires_on = ?, active = ?, updated_at = unixepoch()
+          WHERE id = ? AND user_id = ?`
+      )
+      .run(
+        config.name,
+        config.mode,
+        JSON.stringify(config.selectedSectors),
+        config.minVolumeRatio,
+        config.minMarketCap,
+        config.minVolume,
+        config.minPrice,
+        config.maxPrice,
+        config.maPeriod,
+        config.maDistance,
+        config.maInterval,
+        config.maDirection,
+        config.conditionMode,
+        config.conditionVersion,
+        config.scheduleTime1,
+        config.scheduleTime2,
+        config.expiresOn,
+        active,
+        radarId,
+        userId
+      );
+  } catch (error) {
+    if (isActiveRadarUniqueError(error)) {
+      throw radarLimitError(RADAR_ACTIVE_LIMIT_MESSAGE, 'RADAR_ACTIVE_LIMIT_REACHED');
+    }
+    throw error;
+  }
   return getRadarRowForUser(userId, radarId);
 }
 
@@ -842,6 +892,9 @@ module.exports = {
   MIN_VOLUME_RATIO,
   MIN_MARKET_CAP,
   MAX_RADARS_PER_USER,
+  MAX_ACTIVE_RADARS_PER_USER,
+  RADAR_LIMIT_MESSAGE,
+  RADAR_ACTIVE_LIMIT_MESSAGE,
   DATA_UNAVAILABLE_MESSAGE,
   PARTIAL_DATA_MESSAGE,
   normalizeRadarInput,

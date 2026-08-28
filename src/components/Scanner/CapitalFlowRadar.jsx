@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 const DATA_UNAVAILABLE = 'Data is not available right now. Try again in a few minutes.';
+const RADAR_SINGLE_LIMIT_MESSAGE =
+  'Only one Radar scan can be saved per account. Edit or remove the current Radar before creating another.';
 
 function modeLabel(radar) {
   if (radar.mode === 'sp500') return 'S&P 500';
@@ -118,7 +120,7 @@ function dataLine(radar) {
   if (radar.dataStatus === 'unavailable') return radar.statusMessage || DATA_UNAVAILABLE;
   if (radar.dataStatus === 'partial')
     return radar.statusMessage || 'Some market data is unavailable right now. Try again in a few minutes.';
-  if (radar.dataStatus === 'waiting') return radar.statusMessage || 'Waiting for the first completed market scan.';
+  if (radar.dataStatus === 'waiting') return 'WAITING FOR A SIGNAL';
   if (radar.dataStatus === 'needs_schedule' || radar.dataStatus === 'expired')
     return radar.statusMessage || 'Choose a new Radar schedule.';
   return null;
@@ -140,7 +142,10 @@ export default function CapitalFlowRadar({
 }) {
   const [radars, setRadars] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [radarsLoaded, setRadarsLoaded] = useState(false);
+  const [radarLoadFailed, setRadarLoadFailed] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [editingRadarId, setEditingRadarId] = useState(null);
   const [name, setName] = useState('');
   const [scheduleTime1, setScheduleTime1] = useState('');
@@ -156,8 +161,12 @@ export default function CapitalFlowRadar({
   const loadRadars = useCallback(() => {
     if (!radarAccess) {
       setRadars([]);
+      setRadarsLoaded(true);
+      setRadarLoadFailed(false);
       return Promise.resolve();
     }
+    setRadarsLoaded(false);
+    setRadarLoadFailed(false);
     setLoading(true);
     setError('');
     return fetch('/api/radars', { headers: headers() })
@@ -166,8 +175,15 @@ export default function CapitalFlowRadar({
         if (!response.ok) throw new Error(data.error || 'Radar data is temporarily unavailable.');
         return data;
       })
-      .then((data) => setRadars(Array.isArray(data.radars) ? data.radars : []))
-      .catch((err) => setError(err.message || DATA_UNAVAILABLE))
+      .then((data) => {
+        setRadars(Array.isArray(data.radars) ? data.radars : []);
+        setRadarsLoaded(true);
+      })
+      .catch((err) => {
+        setRadarLoadFailed(true);
+        setRadarsLoaded(true);
+        setError(err.message || DATA_UNAVAILABLE);
+      })
       .finally(() => setLoading(false));
   }, [headers, radarAccess]);
 
@@ -223,6 +239,7 @@ export default function CapitalFlowRadar({
 
   function closeSetup() {
     setSetupOpen(false);
+    setAdvancedFiltersOpen(false);
     setEditingRadarId(null);
     setName('');
     setScheduleTime1('');
@@ -232,6 +249,10 @@ export default function CapitalFlowRadar({
   }
 
   function openSetupForRadar(radar) {
+    if (!radar && radars.length > 0) {
+      setError(RADAR_SINGLE_LIMIT_MESSAGE);
+      return;
+    }
     setEditingRadarId(radar ? radar.id : null);
     setName(radar ? radar.name : '');
     setScheduleTime1(radar?.scheduleTime1 || '');
@@ -239,6 +260,7 @@ export default function CapitalFlowRadar({
     setExpiresOn(radar?.expiresOn || todayIsrael());
     setDraftRecipe(radar ? radarRecipeFromRow(radar) : { ...recipe });
     setError('');
+    setAdvancedFiltersOpen(false);
     setSetupOpen(true);
   }
 
@@ -260,6 +282,11 @@ export default function CapitalFlowRadar({
 
   function activateRadar() {
     const selectedRecipe = draftRecipe || recipe;
+    const editing = editingRadarId !== null;
+    if (!editing && radars.length > 0) {
+      setError(RADAR_SINGLE_LIMIT_MESSAGE);
+      return;
+    }
     if (!scheduleTime1) {
       setError('Choose at least one scan time.');
       return;
@@ -278,7 +305,6 @@ export default function CapitalFlowRadar({
     }
     setLoading(true);
     setError('');
-    const editing = editingRadarId !== null;
     fetch(editing ? '/api/radars/' + editingRadarId : '/api/radars', {
       method: editing ? 'PUT' : 'POST',
       headers: { ...headers(), 'Content-Type': 'application/json' },
@@ -346,6 +372,8 @@ export default function CapitalFlowRadar({
   }
 
   const locked = !radarAccess;
+  const hasSavedRadar = radars.length > 0;
+  const canCreateRadar = radarsLoaded && !radarLoadFailed && !hasSavedRadar && !loading;
   const hasActiveScheduledRadar = radars.some(
     (radar) => radar.active && radar.dataStatus !== 'expired' && radar.dataStatus !== 'needs_schedule'
   );
@@ -388,26 +416,6 @@ export default function CapitalFlowRadar({
             : hasActiveScheduledRadar
               ? 'SCHEDULED'
               : 'READY TO SCHEDULE'}
-        </span>
-      </div>
-
-      <p className="cfr-radar-copy">
-        Choose up to two daily check times and an expiry date. Radar checks only in those windows and alerts you when a
-        symbol first matches the criteria.
-      </p>
-
-      <div className="cfr-radar-proof">
-        <span>
-          <b>ONE</b> alert per new entry
-        </span>
-        <span>
-          <b>UP TO 2</b> scans per day
-        </span>
-        <span>
-          <b>UNTIL</b> your expiry date
-        </span>
-        <span>
-          <b>NO</b> invented data
         </span>
       </div>
 
@@ -612,46 +620,59 @@ export default function CapitalFlowRadar({
                       />
                     </label>
                   </div>
-                  <div className="cfr-radar-advanced-heading">
-                    <span aria-hidden="true">⌄</span>
-                    More filters <em>(optional)</em>
-                  </div>
-                  <div className="cfr-radar-filter-grid cfr-radar-advanced-filter-grid">
-                    <label className="cfr-radar-filter">
-                      <span>Min volume</span>
-                      <input
-                        type="text"
-                        value={currentRecipe.minVolRaw}
-                        onChange={(event) => updateDraftRecipe('minVolRaw', event.target.value.toUpperCase())}
-                        placeholder="Optional"
-                        aria-label="Minimum trading volume"
-                      />
-                    </label>
-                    <label className="cfr-radar-filter">
-                      <span>Min price</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={currentRecipe.minPrice || ''}
-                        onChange={(event) => updateDraftRecipe('minPrice', Number(event.target.value || 0))}
-                        placeholder="Any"
-                        aria-label="Minimum price"
-                      />
-                    </label>
-                    <label className="cfr-radar-filter">
-                      <span>Max price</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={currentRecipe.maxPrice || ''}
-                        onChange={(event) => updateDraftRecipe('maxPrice', Number(event.target.value || 0))}
-                        placeholder="Any"
-                        aria-label="Maximum price"
-                      />
-                    </label>
-                  </div>
+                  <button
+                    type="button"
+                    className="cfr-radar-advanced-heading"
+                    aria-expanded={advancedFiltersOpen}
+                    aria-controls="cfr-radar-advanced-filters"
+                    onClick={() => setAdvancedFiltersOpen((open) => !open)}
+                  >
+                    <span aria-hidden="true">{advancedFiltersOpen ? '⌃' : '⌄'}</span>
+                    <span>
+                      More filters <em>(optional)</em>
+                    </span>
+                  </button>
+                  {advancedFiltersOpen && (
+                    <div
+                      id="cfr-radar-advanced-filters"
+                      className="cfr-radar-filter-grid cfr-radar-advanced-filter-grid"
+                    >
+                      <label className="cfr-radar-filter">
+                        <span>Min volume</span>
+                        <input
+                          type="text"
+                          value={currentRecipe.minVolRaw}
+                          onChange={(event) => updateDraftRecipe('minVolRaw', event.target.value.toUpperCase())}
+                          placeholder="Optional"
+                          aria-label="Minimum trading volume"
+                        />
+                      </label>
+                      <label className="cfr-radar-filter">
+                        <span>Min price</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={currentRecipe.minPrice || ''}
+                          onChange={(event) => updateDraftRecipe('minPrice', Number(event.target.value || 0))}
+                          placeholder="Any"
+                          aria-label="Minimum price"
+                        />
+                      </label>
+                      <label className="cfr-radar-filter">
+                        <span>Max price</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={currentRecipe.maxPrice || ''}
+                          onChange={(event) => updateDraftRecipe('maxPrice', Number(event.target.value || 0))}
+                          placeholder="Any"
+                          aria-label="Maximum price"
+                        />
+                      </label>
+                    </div>
+                  )}
                   {currentRecipe.mode === 'sectors' && (
                     <div className="cfr-radar-sector-picker">
                       <span>Sectors</span>
@@ -912,20 +933,18 @@ export default function CapitalFlowRadar({
                 <div className="cfr-radar-form-error">Choose at least one sector before activating this Radar.</div>
               )}
             </div>
-          ) : (
+          ) : canCreateRadar ? (
             <button
               type="button"
               className="cfr-radar-activate"
               onClick={() => openSetupForRadar(null)}
-              disabled={radars.length >= 3}
-              title={radars.length >= 3 ? 'Maximum of three Radar recipes' : undefined}
             >
               <span className="cfr-radar-plus" aria-hidden="true">
                 +
               </span>
-              {radars.length ? 'Save another Radar from these filters' : 'Activate this scan as Radar'}
+              Activate this scan as Radar
             </button>
-          )}
+          ) : null}
 
           {!setupOpen && error && (
             <div className="cfr-radar-error" role="alert">

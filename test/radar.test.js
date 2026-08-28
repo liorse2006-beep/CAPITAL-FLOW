@@ -126,3 +126,32 @@ test('Capital Flow Radar persists Either mode and emits from one matching layer'
   assert.equal(bundle[0].events.length, 1);
   assert.deepEqual(bundle[0].events[0].data.matchedConditions, ['Capital Flow']);
 });
+
+test('Capital Flow Radar keeps one saved/live recipe per account under concurrent creation', async () => {
+  const user = await makeEliteUser('radar-single-recipe@test.local');
+  const input = {
+    name: 'Single Radar',
+    mode: 'all',
+    selectedSectors: [],
+    minVolumeRatio: 1.5,
+    minMarketCap: 500_000_000,
+    ...scheduleFields(),
+  };
+
+  const attempts = await Promise.allSettled([
+    radarService.createRadar(user.id, input),
+    radarService.createRadar(user.id, input),
+  ]);
+  const created = attempts.filter((attempt) => attempt.status === 'fulfilled');
+  const rejected = attempts.filter((attempt) => attempt.status === 'rejected');
+
+  assert.equal(created.length, 1);
+  assert.equal(rejected.length, 1);
+  assert.equal(rejected[0].reason.code, 'RADAR_LIMIT_REACHED');
+
+  const count = await db
+    .prepare('SELECT COUNT(*) AS count, SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) AS active FROM capital_flow_radars WHERE user_id = ?')
+    .get(user.id);
+  assert.equal(Number(count.count), 1);
+  assert.equal(Number(count.active), 1);
+});

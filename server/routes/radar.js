@@ -4,6 +4,9 @@ const db = require('../db');
 const { reportError } = require('../utils/reportError');
 const {
   MAX_RADARS_PER_USER,
+  MAX_ACTIVE_RADARS_PER_USER,
+  RADAR_LIMIT_MESSAGE,
+  RADAR_ACTIVE_LIMIT_MESSAGE,
   normalizeRadarInput,
   getRadarBundle,
   getRadarRowForUser,
@@ -20,6 +23,9 @@ function radarId(value) {
 }
 
 function sendValidationError(res, error) {
+  if (error && (error.code === 'RADAR_LIMIT_REACHED' || error.code === 'RADAR_ACTIVE_LIMIT_REACHED')) {
+    return res.status(409).json({ code: error.code, error: error.message });
+  }
   if (
     error &&
     (error.code === 'INVALID_RADAR' ||
@@ -47,16 +53,16 @@ router.get('/radars', requireEliteOrTrial, async (req, res) => {
 // server boundary so the worker never silently misses matches below its data.
 router.post('/radars', requireEliteOrTrial, async (req, res) => {
   try {
+    // Validate before checking the account limit so malformed requests always
+    // receive a useful validation response.
+    normalizeRadarInput(req.body || {});
     const count = await db
       .prepare('SELECT COUNT(*) AS count FROM capital_flow_radars WHERE user_id = ?')
       .get(req.user.id);
     if (Number(count && count.count) >= MAX_RADARS_PER_USER) {
-      return res.status(400).json({ error: `Maximum ${MAX_RADARS_PER_USER} Radar recipes per account.` });
+      return res.status(409).json({ code: 'RADAR_LIMIT_REACHED', error: RADAR_LIMIT_MESSAGE });
     }
 
-    // Validate before writing, then let the service perform the same
-    // normalization used by the persistence layer.
-    normalizeRadarInput(req.body || {});
     const row = await createRadar(req.user.id, req.body || {});
     res.status(201).json({ radar: serializeRadar(row, []) });
   } catch (error) {
@@ -77,8 +83,8 @@ router.put('/radars/:id', requireEliteOrTrial, async (req, res) => {
       const activeCount = await db
         .prepare('SELECT COUNT(*) AS count FROM capital_flow_radars WHERE user_id = ? AND active = 1')
         .get(req.user.id);
-      if (Number(activeCount && activeCount.count) >= MAX_RADARS_PER_USER) {
-        return res.status(400).json({ error: `Maximum ${MAX_RADARS_PER_USER} active Radars per account.` });
+      if (Number(activeCount && activeCount.count) >= MAX_ACTIVE_RADARS_PER_USER) {
+        return res.status(409).json({ code: 'RADAR_ACTIVE_LIMIT_REACHED', error: RADAR_ACTIVE_LIMIT_MESSAGE });
       }
     }
     const row = await updateRadar(req.user.id, id, req.body || {});

@@ -369,6 +369,7 @@ async function initDb() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON chat_messages(user_id, id);
 
     -- Durable, cross-process provider budget accounting.  Unlike in-memory
     -- counters this survives deploys and is shared by every Render worker.
@@ -378,6 +379,7 @@ async function initDb() {
       user_id     INTEGER NOT NULL DEFAULT 0,
       calls       INTEGER NOT NULL DEFAULT 0,
       updated_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+      reservation_token TEXT,
       PRIMARY KEY (usage_date, scope, user_id)
     );
 
@@ -685,6 +687,7 @@ async function initDb() {
     `ALTER TABLE radar_schedule_runs ADD COLUMN data_as_of TEXT`,
     `ALTER TABLE radar_schedule_runs ADD COLUMN capital_flow_count INTEGER`,
     `ALTER TABLE radar_schedule_runs ADD COLUMN ma_count INTEGER`,
+    `ALTER TABLE ai_usage ADD COLUMN reservation_token TEXT`,
   ];
 
   for (const sql of migrations) {
@@ -702,8 +705,37 @@ async function initDb() {
   // index that's a full table scan on every single minute, growing worse as
   // the user base grows.
   await client.execute('CREATE INDEX IF NOT EXISTS idx_users_notification_time ON users(notification_time)');
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON chat_messages(user_id, id)');
   await client.execute('CREATE INDEX IF NOT EXISTS idx_radar_schedule_runs_lease ON radar_schedule_runs(status, lease_until)');
   await client.execute('CREATE INDEX IF NOT EXISTS idx_capital_flow_radars_data_status ON capital_flow_radars(last_data_status, active)');
+
+  // Existing deployments may have been created before the one-live-Radar
+  // invariant existed. Preserve every recipe and its history, but pause older
+  // duplicate active recipes deterministically before creating the unique
+  // index. This is idempotent and changes no rows when the invariant already
+  // holds.
+  try {
+    await client.execute(
+      `UPDATE capital_flow_radars
+          SET active = 0, updated_at = unixepoch()
+        WHERE active = 1
+          AND id NOT IN (
+            SELECT MAX(id)
+              FROM capital_flow_radars
+             WHERE active = 1
+             GROUP BY user_id
+          )`
+    );
+    await client.execute(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_capital_flow_radars_one_active_user
+         ON capital_flow_radars(user_id)
+         WHERE active = 1`
+    );
+  } catch (err) {
+    // Keep startup resilient if a remote database temporarily rejects DDL;
+    // route/service guards still fail closed while the next boot retries it.
+    console.warn('[db] Radar single-active invariant setup skipped:', safeErrorSummary(err));
+  }
 
   // One-time data migration: carry over ma_scan_count → free_scan_count
   try {
