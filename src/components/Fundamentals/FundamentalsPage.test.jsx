@@ -51,6 +51,8 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     floatShares: 1.44e10,
     shortPercent: 0.01,
     peRatio: 31.2,
+    forwardPE: 24.8,
+    pegRatio: 1.6,
     debtToEquity: 1.45,
     revenueGrowth5Y: 8.9,
     nextEarningsDate: '2026-11-05',
@@ -58,13 +60,15 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
       floatShares: false,
       shortPercent: false,
       peRatio: true, // Finnhub failed for this one — must show "not verified", not a fake 31.2
+      forwardPE: false,
+      pegRatio: false,
       debtToEquity: false,
       revenueGrowth5Y: false,
       nextEarningsDate: false,
     },
   };
 
-  function renderPremiumPage() {
+  function renderPremiumPage(result = FAKE_RESULT) {
     localStorage.setItem('vs_token', 'fake-token');
     const fetchMock = vi.spyOn(global, 'fetch').mockImplementation((url) => {
       if (String(url).includes('/api/auth/me')) {
@@ -77,7 +81,7 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
         return Promise.resolve({ ok: false });
       }
       if (String(url).includes('/api/fundamentals')) {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ result: FAKE_RESULT }) });
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ result }) });
       }
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
     });
@@ -94,7 +98,7 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     renderPremiumPage();
 
     await screen.findByPlaceholderText(/Enter a ticker/);
-    // None of the six toggle buttons should read as pressed before the
+    // None of the seven toggle buttons should read as pressed before the
     // customer has touched any of them.
     expect(screen.getByRole('button', { name: 'Float' })).toHaveAttribute('aria-pressed', 'false');
 
@@ -125,6 +129,27 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     // unverified message — only the one flagged unverified is.
     expect(screen.queryByText('31.20')).not.toBeInTheDocument();
     expect(screen.getByText('1.45')).toBeInTheDocument();
+  });
+
+  it('shows forward P/E inside the current P/E tile and PEG as its own metric', async () => {
+    const user = userEvent.setup();
+    const result = {
+      ...FAKE_RESULT,
+      unverified: { ...FAKE_RESULT.unverified, peRatio: false },
+    };
+    renderPremiumPage(result);
+
+    await screen.findByPlaceholderText(/Enter a ticker/);
+    await user.type(screen.getByPlaceholderText(/Enter a ticker/), 'AAPL');
+    await user.click(screen.getByText('Analyze'));
+    await screen.findByText('Apple Inc.');
+    await user.click(screen.getByRole('button', { name: /select all/i }));
+
+    expect(screen.getByText('31.20')).toBeInTheDocument();
+    expect(screen.getByText('24.80')).toBeInTheDocument();
+    expect(screen.getByText('1.60')).toBeInTheDocument();
+    expect(screen.getByText('Forward P/E')).toBeInTheDocument();
+    expect(screen.getAllByText('PEG Ratio')).toHaveLength(2);
   });
 
   it('deselecting a metric hides its tile, and Select all brings every tile back', async () => {

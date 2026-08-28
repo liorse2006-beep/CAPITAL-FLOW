@@ -1,7 +1,6 @@
 // Fundamentals lookup — swing-trading-relevant company data (Float, Short
-// Interest, P/E, Debt/Equity, 5-year revenue growth, next earnings date) for
+// Interest, current/forward P/E, PEG, Debt/Equity, 5-year revenue growth, next earnings date) for
 // a ticker the customer picked themselves. Deliberately NOT the same
-// six-metric deep-value screen a long-term investor would want: no PEG, no
 // institutional ownership, no multi-year balance-sheet detail — just the
 // handful of numbers that matter for a position measured in days-to-weeks,
 // not years. And deliberately no market-cap floor here either — if the
@@ -25,7 +24,7 @@ const finnhub = require('./finnhub');
 
 // Finnhub's 24h-cached metric=all payload carries P/E, debt/equity, and 5yr
 // revenue growth (see finnhub.js's fetchFinnhubMetric) — no separate Yahoo
-// call for those. Float, short interest, and next earnings date all live in
+// call for those. Float, short interest, forward P/E, PEG, and next earnings date all live in
 // one combined Yahoo quoteSummary call instead (defaultKeyStatistics +
 // calendarEvents) — one request instead of two, same 24h cache.
 const METRIC_TTL_MS = 24 * 60 * 60 * 1000;
@@ -40,6 +39,11 @@ function slowSet(cache, symbol, data) {
   cache.set(symbol, { data, fetchedAt: Date.now() });
 }
 
+function numericValue(value) {
+  var raw = typeof value === 'number' ? value : value && typeof value.raw === 'number' ? value.raw : NaN;
+  return Number.isFinite(raw) ? raw : 0;
+}
+
 // Returns null only when Yahoo genuinely has no such data for this symbol
 // (a real, successful response with empty fields) — throws are left to the
 // caller, which is what distinguishes "not reported" from "couldn't check".
@@ -50,6 +54,8 @@ async function fetchKeyStatsAndEarnings(symbol) {
   return {
     floatShares: stats.floatShares || 0,
     shortPercent: stats.shortPercentOfFloat != null ? stats.shortPercentOfFloat : 0,
+    forwardPE: numericValue(stats.forwardPE),
+    pegRatio: numericValue(stats.pegRatio),
     nextEarningsDate: dates && dates.length ? new Date(dates[0]).toISOString().slice(0, 10) : null,
   };
 }
@@ -115,6 +121,11 @@ async function scanFundamentals(tickers) {
         shortPercent: (keyStats && keyStats.shortPercent) || 0,
         nextEarningsDate: (keyStats && keyStats.nextEarningsDate) || null,
         peRatio: (metric && metric.peRatio) || 0,
+        // Keep forward P/E and PEG as raw provider values. The UI places
+        // forward P/E inside the current P/E tile, while PEG remains a
+        // separately selectable metric.
+        forwardPE: (keyStats && keyStats.forwardPE) || 0,
+        pegRatio: (keyStats && keyStats.pegRatio) || 0,
         debtToEquity: (metric && metric.debtToEquity) || 0,
         revenueGrowth5Y: metric && metric.revenueGrowth5Y != null ? metric.revenueGrowth5Y : null,
         // Which groups genuinely failed to load (network/API error) rather
@@ -126,6 +137,8 @@ async function scanFundamentals(tickers) {
           revenueGrowth5Y: metricFailed,
           floatShares: keyStatsFailed,
           shortPercent: keyStatsFailed,
+          forwardPE: keyStatsFailed,
+          pegRatio: keyStatsFailed,
           nextEarningsDate: keyStatsFailed,
         },
       });

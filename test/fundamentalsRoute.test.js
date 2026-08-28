@@ -146,6 +146,7 @@ test('GET /api/fundamentals returns a real result for a Premium user looking up 
     revenueGrowth5Y: 8.9,
   }));
   t.mock.method(yahoo, 'quoteSummary', async () => ({
+    defaultKeyStatistics: { forwardPE: 24.8, pegRatio: 1.6 },
     calendarEvents: { earnings: { earningsDate: ['2026-11-05T00:00:00.000Z'] } },
   }));
   try {
@@ -154,6 +155,8 @@ test('GET /api/fundamentals returns a real result for a Premium user looking up 
     const body = await res.json();
     assert.strictEqual(body.result.symbol, 'AAPL', 'lowercase input is normalized to uppercase');
     assert.strictEqual(body.result.peRatio, 31.2);
+    assert.strictEqual(body.result.forwardPE, 24.8);
+    assert.strictEqual(body.result.pegRatio, 1.6);
     assert.strictEqual(body.result.nextEarningsDate, '2026-11-05');
   } finally {
     server.close();

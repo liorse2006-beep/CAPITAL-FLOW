@@ -4,13 +4,14 @@ import { friendlyError } from '../../utils/format';
 
 const SYMBOL_RE = /^[A-Za-z0-9.-]{1,10}$/;
 
-// Swing-trading fundamentals only — no PEG, no institutional ownership, no
+// Swing-trading fundamentals only — no institutional ownership, no
 // multi-year balance-sheet detail. Just the handful of numbers that matter
 // for a position measured in days-to-weeks: liquidity/squeeze setup (Float,
-// Short %), a quick valuation sanity check (P/E), balance-sheet risk
-// (Debt/Equity), a growth signal (5Y revenue growth), and the next
-// volatility catalyst (earnings date). The customer picks which to see; the
-// header (name/price/change/cap) is always-on baseline context.
+// Short %), valuation context (current P/E with an optional forward P/E and
+// PEG), balance-sheet risk (Debt/Equity), a growth signal (5Y revenue
+// growth), and the next volatility catalyst (earnings date). The customer
+// picks which to see; the header (name/price/change/cap) is always-on baseline
+// context.
 //
 // Each metric can carry a `hint(value)` — a short, plain-language read that
 // turns a bare number into a swing-relevant signal (a high short interest,
@@ -23,6 +24,7 @@ const ICONS = {
   float: 'M3 6h18M3 12h18M3 18h18',
   short: 'M3 7l6 6 4-4 8 8M21 17v-4h-4',
   pe: 'M12 3v18M5 8h14M7 8l-3 6a3 3 0 0 0 6 0zM17 8l-3 6a3 3 0 0 0 6 0z',
+  peg: 'M4 6h16M4 12h11M4 18h7M18 15l2 2 3-4',
   debt: 'M12 3v18M4 7h16M6 21h12M8 7l-2 7a2.5 2.5 0 0 0 5 0zM16 7l-2 7a2.5 2.5 0 0 0 5 0z',
   growth: 'M3 17l6-6 4 4 8-8M15 7h6v6',
   earnings: 'M3 4h18v18H3zM3 10h18M8 2v4M16 2v4',
@@ -39,6 +41,7 @@ const SELECTABLE_METRICS = [
     hint: hintShort,
   },
   { key: 'peRatio', label: 'P/E Ratio', sub: 'Price / earnings', icon: ICONS.pe, fmt: fmtRatio, hint: hintPE },
+  { key: 'pegRatio', label: 'PEG Ratio', sub: 'P/E / growth', icon: ICONS.peg, fmt: fmtRatio },
   {
     key: 'debtToEquity',
     label: 'Debt / Equity',
@@ -159,6 +162,28 @@ function hintEarnings(v) {
     return { text: 'In ' + days + ' day' + (days === 1 ? '' : 's') + ' — expect volatility', tone: 'warn' };
   if (days <= 21) return { text: 'In ' + days + ' days', tone: 'muted' };
   return null;
+}
+
+function ForwardMultiple({ result }) {
+  const unverified = result.unverified && result.unverified.forwardPE;
+
+  if (unverified) {
+    return (
+      <div className="fund-tile-secondary is-unverified">
+        <span>Forward P/E</span>
+        <span>Not verified — try again in a few minutes</span>
+      </div>
+    );
+  }
+
+  if (!result.forwardPE) return null;
+
+  return (
+    <div className="fund-tile-secondary">
+      <span>Forward P/E</span>
+      <span>{fmtRatio(result.forwardPE)}</span>
+    </div>
+  );
 }
 
 // Quick-access chips for the last few tickers looked up — a device-local
@@ -455,7 +480,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
             </div>
           </div>
           <div className="fund-grid">
-            {(visibleMetrics.length ? visibleMetrics : SELECTABLE_METRICS.slice(0, 6)).map((m) => (
+            {(visibleMetrics.length ? visibleMetrics : SELECTABLE_METRICS).map((m) => (
               <div key={m.key} className="fund-tile">
                 <div className="fund-tile-top">
                   <span className="skel-bar skel-tile-label" />
@@ -513,6 +538,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
                         {hint && <div className={'fund-tile-hint tone-' + hint.tone}>{hint.text}</div>}
                       </>
                     )}
+                    {m.key === 'peRatio' && <ForwardMultiple result={result} />}
                   </div>
                 );
               })}

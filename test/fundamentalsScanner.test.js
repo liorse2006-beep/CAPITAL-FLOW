@@ -1,6 +1,6 @@
 // server/services/fundamentalsScanner.js — swing-trading fundamentals
-// (float, short interest, P/E, debt/equity, 5yr revenue growth, next
-// earnings date) for a ticker the customer picked themselves.
+// (float, short interest, current/forward P/E, PEG, debt/equity, 5yr revenue
+// growth, next earnings date) for a ticker the customer picked themselves.
 //
 // Regression coverage: floatShares/shortPercentOfFloat do NOT exist on
 // Yahoo's plain quote() response (they live only in quoteSummary's
@@ -41,7 +41,12 @@ function quotesMapFor(entries) {
 function keyStats(overrides) {
   return Object.assign(
     {
-      defaultKeyStatistics: { floatShares: 2e7, shortPercentOfFloat: 0.08 },
+      defaultKeyStatistics: {
+        floatShares: 2e7,
+        shortPercentOfFloat: 0.08,
+        forwardPE: 24.8,
+        pegRatio: 1.6,
+      },
       calendarEvents: { earnings: { earningsDate: [] } },
     },
     overrides
@@ -69,7 +74,12 @@ test('scanFundamentals reads float and short interest from quoteSummary (default
   }));
   t.mock.method(yahoo, 'quoteSummary', async () =>
     keyStats({
-      defaultKeyStatistics: { floatShares: 1.44e10, shortPercentOfFloat: 0.01 },
+      defaultKeyStatistics: {
+        floatShares: 1.44e10,
+        shortPercentOfFloat: 0.01,
+        forwardPE: 24.8,
+        pegRatio: 1.6,
+      },
       calendarEvents: { earnings: { earningsDate: ['2026-11-05T00:00:00.000Z'] } },
     })
   );
@@ -80,14 +90,14 @@ test('scanFundamentals reads float and short interest from quoteSummary (default
   assert.strictEqual(r.floatShares, 1.44e10);
   assert.strictEqual(r.shortPercent, 0.01);
   assert.strictEqual(r.peRatio, 31.2);
+  assert.strictEqual(r.forwardPE, 24.8);
+  assert.strictEqual(r.pegRatio, 1.6);
   assert.strictEqual(r.debtToEquity, 1.45);
   assert.strictEqual(r.revenueGrowth5Y, 8.9);
   assert.strictEqual(r.nextEarningsDate, '2026-11-05');
-  assert.deepStrictEqual(
-    Object.values(r.unverified),
-    [false, false, false, false, false, false],
-    'every group loaded successfully'
-  );
+  Object.entries(r.unverified).forEach(([key, value]) => {
+    assert.strictEqual(value, false, `${key} loaded successfully`);
+  });
 });
 
 test('scanFundamentals never fabricates a value Finnhub/Yahoo did not report', async (t) => {
@@ -103,6 +113,8 @@ test('scanFundamentals never fabricates a value Finnhub/Yahoo did not report', a
   assert.strictEqual(r.revenueGrowth5Y, null, 'null, not 0 — 0% growth and "unknown" must stay distinguishable');
   assert.strictEqual(r.nextEarningsDate, null);
   assert.strictEqual(r.floatShares, 0);
+  assert.strictEqual(r.forwardPE, 0);
+  assert.strictEqual(r.pegRatio, 0);
 });
 
 test('scanFundamentals flags a group as unverified (not "—") when the source genuinely fails to answer', async (t) => {
@@ -117,6 +129,8 @@ test('scanFundamentals flags a group as unverified (not "—") when the source g
   assert.strictEqual(r.unverified.peRatio, true, 'Finnhub failing must not look identical to "no P/E reported"');
   assert.strictEqual(r.unverified.debtToEquity, true);
   assert.strictEqual(r.unverified.revenueGrowth5Y, true);
+  assert.strictEqual(r.unverified.forwardPE, false);
+  assert.strictEqual(r.unverified.pegRatio, false);
   assert.strictEqual(r.unverified.floatShares, false, 'the Yahoo-sourced group succeeded independently');
 });
 
