@@ -1,68 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import bodyHtml from './landing/landing.body.html?raw';
-import SpecularButton from '../components/SpecularButton';
 import Topography from '../components/Topography';
 import { initLandingEffects } from './landing/effects';
 import { track } from '../analytics';
 import './landing/landing.scoped.css';
-
-function mountSpecularCtas(root) {
-  const mounted = [];
-  const ctas = root.querySelectorAll('.cf-btn[data-cta-location]');
-
-  ctas.forEach((button) => {
-    const ctaLocation = button.getAttribute('data-cta-location');
-    const label = button.textContent.replace(/\s+/g, ' ').trim();
-    const isNav = button.classList.contains('cf-nav-cta');
-    const isLarge = button.classList.contains('cf-btn-large');
-    const isOutline = button.classList.contains('cf-btn-outline');
-    const isPlan = Boolean(button.closest('.cf-plan-card'));
-    const variant = isNav ? 'nav' : isPlan ? 'plan' : isOutline ? 'outline' : 'primary';
-    const size = isNav ? 'sm' : isPlan ? 'md' : 'lg';
-    const mount = document.createElement('span');
-    mount.className = 'cf-specular-cta-mount';
-    const reactRoot = createRoot(mount);
-
-    button.replaceWith(mount);
-    reactRoot.render(
-      <SpecularButton
-        size={size}
-        radius={18}
-        tint="#ffffff"
-        tintOpacity={isOutline ? 0.04 : 0.02}
-        blur={0}
-        // Keep the label bright: the specular rim is transparent by design,
-        // so a dark label disappears against the landing page background.
-        textColor="#fff4dd"
-        lineColor="#fff1c5"
-        baseColor={isOutline ? '#6e522b' : '#a96b1d'}
-        intensity={1.15}
-        shineSize={10}
-        shineFade={40}
-        thickness={1}
-        speed={0.35}
-        followMouse
-        proximity={250}
-        autoAnimate={false}
-        type={button.getAttribute('type') || 'button'}
-        className={`cf-specular-cta cf-specular-cta--${variant}${isLarge ? ' cf-specular-cta--large' : ''}`}
-        data-cta-location={ctaLocation}
-      >
-        {label}
-      </SpecularButton>
-    );
-
-    mounted.push({ button, mount, reactRoot });
-  });
-
-  return () => {
-    mounted.forEach(({ button, mount, reactRoot }) => {
-      reactRoot.unmount();
-      if (mount.parentNode) mount.replaceWith(button);
-    });
-  };
-}
 
 function mountTopography(root) {
   const mount = root.querySelector('#cfTopography');
@@ -108,9 +50,18 @@ export default function LandingPage({ onGetStarted }) {
 
   useEffect(() => {
     const root = rootRef.current;
-    const cleanupSpecularCtas = mountSpecularCtas(root);
     const cleanupTopography = mountTopography(root);
     const cleanup = initLandingEffects(root, onGetStarted);
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverflowY = html.style.overflowY;
+    const previousBodyOverflowY = body.style.overflowY;
+
+    // Keep one native scroll container for the landing page. The global app
+    // shell reserves a scrollbar by making body scrollable, but on this long
+    // marketing page that leaves body and html competing for wheel input.
+    html.style.overflowY = 'auto';
+    body.style.overflowY = 'visible';
     const previousTitle = document.title;
     const description = document.querySelector('meta[name="description"]');
     const previousDescription = description ? description.getAttribute('content') : null;
@@ -140,7 +91,8 @@ export default function LandingPage({ onGetStarted }) {
       root.removeEventListener('click', onMarketingClick);
       cleanup();
       cleanupTopography();
-      cleanupSpecularCtas();
+      html.style.overflowY = previousHtmlOverflowY;
+      body.style.overflowY = previousBodyOverflowY;
       document.title = previousTitle;
       if (description && previousDescription !== null) description.setAttribute('content', previousDescription);
     };
