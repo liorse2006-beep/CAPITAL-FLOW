@@ -68,13 +68,19 @@ describe('CapitalFlowRadar schedule picker', () => {
     const either = screen.getByRole('radio', { name: /either condition/i });
     expect(both).toBeChecked();
     expect(either).not.toBeChecked();
+    expect(both.closest('label')).toHaveClass('active');
+    expect(either.closest('label')).not.toHaveClass('active');
     expect(screen.getByText(/^ALERT LOGIC$/)).toBeInTheDocument();
-    expect(screen.queryByText(/capital flow and moving average must both match before an alert/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/capital flow and moving average must both match before an alert/i)
+    ).not.toBeInTheDocument();
     expect(screen.getByText(/only a match from both layers sends an alert/i)).toBeInTheDocument();
 
     await user.click(either);
     expect(either).toBeChecked();
     expect(both).not.toBeChecked();
+    expect(either.closest('label')).toHaveClass('active');
+    expect(both.closest('label')).not.toHaveClass('active');
     expect(screen.getByText(/one match sends an alert/i)).toBeInTheDocument();
     expect(screen.queryByText(/^OR$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/^AND$/)).not.toBeInTheDocument();

@@ -13822,9 +13822,17 @@ html.a11y-highlight-links a {
 }
 
 .cfr-radar-logic-option-copy b {
-  color: var(--text, #f5f5f5);
+  color: var(--text-2, #a1a1aa);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
+  transition:
+    color 160ms ease,
+    font-weight 160ms ease;
+}
+
+.cfr-radar-logic-option.active .cfr-radar-logic-option-copy b {
+  color: var(--text, #f5f5f5);
+  font-weight: 800;
 }
 
 .cfr-radar-logic-option-copy small {
