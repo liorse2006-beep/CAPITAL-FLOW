@@ -12865,7 +12865,7 @@ html.a11y-highlight-links a {
 }
 .tier-matrix-feature {
   display: grid;
-  grid-template-columns: 13px minmax(0, 1fr) minmax(0, 42%);
+  grid-template-columns: 13px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
   min-height: 29px;
@@ -12882,6 +12882,7 @@ html.a11y-highlight-links a {
 }
 .tier-matrix-feature-name {
   grid-column: 2;
+  grid-row: 1;
   min-width: 0;
   color: var(--text-1);
   font-family: var(--font);
@@ -12892,6 +12893,16 @@ html.a11y-highlight-links a {
   text-align: left;
   text-transform: none;
   overflow-wrap: anywhere;
+}
+.tier-matrix-feature-specific {
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 0.88em;
+  font-weight: 600;
+  white-space: normal;
+}
+.tier-matrix-feature.is-excluded .tier-matrix-feature-name {
+  color: var(--text-3);
 }
 .tier-matrix-access {
   display: inline-flex;
@@ -12924,23 +12935,6 @@ html.a11y-highlight-links a {
   color: var(--text-3);
 }
 .tier-matrix-access.is-excluded .tier-matrix-status {
-  color: var(--text-3);
-}
-.tier-matrix-value {
-  grid-column: 3;
-  grid-row: 1;
-  justify-self: end;
-  max-width: 100%;
-  min-width: 0;
-  color: var(--text-1);
-  font-family: var(--mono);
-  font-size: 8px;
-  line-height: 1.15;
-  text-align: right;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-.tier-matrix-value.is-excluded {
   color: var(--text-3);
 }
 .tier-matrix-plan-footer {
@@ -13003,7 +12997,7 @@ html.a11y-highlight-links a {
     padding: 7px 6px 6px;
   }
   .tier-matrix-feature {
-    grid-template-columns: 10px minmax(0, 1fr) minmax(0, 43%);
+    grid-template-columns: 10px minmax(0, 1fr);
     gap: 3px;
     min-height: 25px;
     padding: 3px 4px;
@@ -13025,9 +13019,8 @@ html.a11y-highlight-links a {
     width: 10px;
     height: 10px;
   }
-  .tier-matrix-value {
-    font-size: 6.5px;
-    line-height: 1.1;
+  .tier-matrix-feature-specific {
+    font-size: 0.86em;
   }
   .tier-matrix-plan-name {
     font-size: 9px;

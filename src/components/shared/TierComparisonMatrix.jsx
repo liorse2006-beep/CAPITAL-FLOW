@@ -3,6 +3,7 @@ import { TIER_COLUMNS, TIER_ROWS } from '../../constants/tierFeatures';
 
 const TIER_RANK = { free: 0, premium: 1, elite: 2 };
 const UPGRADE_COLUMNS = TIER_COLUMNS.filter((column) => column.key !== 'free');
+const GENERIC_MATRIX_VALUES = new Set(['Included', 'Signed-in access']);
 
 function CheckIcon() {
   return (
@@ -50,13 +51,9 @@ function AccessCell({ value }) {
   );
 }
 
-function AccessValue({ value }) {
-  const included = value !== false;
-  return (
-    <span className={'tier-matrix-value ' + (included ? 'is-included' : 'is-excluded')}>
-      {included ? value : 'Not included'}
-    </span>
-  );
+function getVisibleFeatureDetail(value) {
+  if (value === false || GENERIC_MATRIX_VALUES.has(value)) return null;
+  return value;
 }
 
 function PlanAction({ column, userTier, trialEnded, payingTier, onCheckout }) {
@@ -95,13 +92,20 @@ function PlanCard({ column, userTier, trialEnded, payingTier, onCheckout }) {
       </header>
 
       <ul className="tier-matrix-feature-list">
-        {TIER_ROWS.map((row) => (
-          <li key={row.label} className="tier-matrix-feature">
-            <AccessCell value={row[column.key]} />
-            <span className="tier-matrix-feature-name">{row.label}</span>
-            <AccessValue value={row[column.key]} />
-          </li>
-        ))}
+        {TIER_ROWS.map((row) => {
+          const featureValue = row[column.key];
+          const specificValue = getVisibleFeatureDetail(featureValue);
+
+          return (
+            <li key={row.label} className={'tier-matrix-feature ' + (featureValue === false ? 'is-excluded' : '')}>
+              <AccessCell value={featureValue} />
+              <span className="tier-matrix-feature-name">
+                {row.label}
+                {specificValue && <span className="tier-matrix-feature-specific"> · {specificValue}</span>}
+              </span>
+            </li>
+          );
+        })}
       </ul>
 
       <footer className="tier-matrix-plan-footer">
