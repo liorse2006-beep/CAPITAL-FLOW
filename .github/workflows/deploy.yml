@@ -55,3 +55,26 @@ jobs:
     steps:
       - name: Deploy to Render
         run: curl --fail --silent --show-error -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}" --max-time 30
+
+      # A successful deploy-hook POST only means Render accepted the request;
+      # it does not mean the new container is serving traffic yet. Poll the
+      # public canonical origin and require its runtime commit to equal the
+      # exact SHA that passed the gates above. This prevents a stale/wrong
+      # service or an incomplete rollout from being reported as successful.
+      - name: Verify public release commit
+        env:
+          EXPECTED_COMMIT: ${{ github.sha }}
+          HEALTH_URL: https://capitalflow.vip/health
+        run: |
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
+            body="$(curl --fail --silent --show-error --location --max-time 30 "$HEALTH_URL" || true)"
+            actual="$(printf '%s' "$body" | sed -n 's/.*"releaseCommit":"\([^"]*\)".*/\1/p')"
+            if [ "$actual" = "$EXPECTED_COMMIT" ]; then
+              echo "Public release verified: $actual"
+              exit 0
+            fi
+            echo "Public release is not ready (attempt $attempt/30; expected=$EXPECTED_COMMIT; actual=${actual:-unavailable}). Waiting 20s."
+            sleep 20
+          done
+          echo "Public release verification failed: $HEALTH_URL did not serve $EXPECTED_COMMIT within 10 minutes."
+          exit 1
