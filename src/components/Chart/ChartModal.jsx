@@ -205,11 +205,12 @@ export default function ChartModal({ symbol, name, onClose }) {
   const [quote, setQuote] = useState(null);
 
   const load = useCallback(
-    (p) => {
+    (p, signal) => {
       setLoading(true);
       setError(null);
       fetch(`/api/chart/${encodeURIComponent(symbol)}?period=${p}`, {
         headers: { Authorization: 'Bearer ' + getToken() },
+        signal,
       })
         .then((r) =>
           r.ok
@@ -219,6 +220,9 @@ export default function ChartModal({ symbol, name, onClose }) {
               })
         )
         .then((d) => {
+          if (!Array.isArray(d.quotes) || d.quotes.length === 0) {
+            throw new Error('Chart data is not available right now. Try again in a few minutes.');
+          }
           dataRef.current = d;
           setQuote(d.currentPrice);
           setLoading(false);
@@ -227,15 +231,18 @@ export default function ChartModal({ symbol, name, onClose }) {
           });
         })
         .catch((e) => {
+          if (e.name === 'AbortError') return;
           setError(e.message);
           setLoading(false);
         });
     },
-    [symbol]
+    [getToken, symbol]
   );
 
   useEffect(() => {
-    load(period);
+    const controller = new AbortController();
+    load(period, controller.signal);
+    return () => controller.abort();
   }, [period, load]);
 
   // Redraw on resize
@@ -272,6 +279,7 @@ export default function ChartModal({ symbol, name, onClose }) {
 
     // Draw crosshair on overlay canvas
     const oc = overlayRef.current;
+    if (!oc) return;
     const dpr = window.devicePixelRatio || 1;
     oc.width = canvasRef.current.offsetWidth * dpr;
     oc.height = canvasRef.current.offsetHeight * dpr;
@@ -301,7 +309,10 @@ export default function ChartModal({ symbol, name, onClose }) {
     ctx.arc(x, y, 4, 0, Math.PI * 2);
     ctx.fill();
 
-    setTooltip({ q, x: e.clientX - rect.left, y: e.clientY - rect.top, i: closestI });
+    const xInCanvas = e.clientX - rect.left;
+    const tooltipWidth = 140;
+    const tooltipLeft = Math.max(8, Math.min(xInCanvas + 12, Math.max(8, rect.width - tooltipWidth - 8)));
+    setTooltip({ q, x: tooltipLeft, y: e.clientY - rect.top, i: closestI });
   }
 
   function handleMouseLeave() {
@@ -313,7 +324,7 @@ export default function ChartModal({ symbol, name, onClose }) {
     }
   }
 
-  const isUp = quote ? quote.change >= 0 : true;
+  const isUp = quote && quote.change != null ? quote.change >= 0 : true;
   const chgColor = isUp ? '#22C55E' : '#EF4444';
 
   return React.createElement(
@@ -352,11 +363,15 @@ export default function ChartModal({ symbol, name, onClose }) {
             React.createElement(
               React.Fragment,
               null,
-              React.createElement('span', { className: 'chart-modal-price' }, `$${quote.price.toFixed(2)}`),
+              React.createElement(
+                'span',
+                { className: 'chart-modal-price' },
+                quote.price == null ? '—' : `$${quote.price.toFixed(2)}`
+              ),
               React.createElement(
                 'span',
                 { className: 'chart-modal-change', style: { color: chgColor } },
-                `${quote.change >= 0 ? '+' : ''}${quote.change.toFixed(2)}%`
+                quote.change == null ? '—' : `${quote.change >= 0 ? '+' : ''}${quote.change.toFixed(2)}%`
               )
             ),
           // MA legend
@@ -412,7 +427,7 @@ export default function ChartModal({ symbol, name, onClose }) {
             {
               className: 'chart-tooltip',
               style: {
-                left: Math.min(tooltip.x + 12, (canvasRef.current?.offsetWidth ?? 600) - 140),
+                left: tooltip.x,
                 top: Math.max(tooltip.y - 80, 8),
               },
             },

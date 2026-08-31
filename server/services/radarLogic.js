@@ -165,7 +165,11 @@ function evaluateRadarTransitions(radar, results, states, options) {
   );
   const checked = new Set(
     (Array.isArray(opts.checkedSymbols) ? opts.checkedSymbols : [])
-      .map((value) => String(value || '').trim().toUpperCase())
+      .map((value) =>
+        String(value || '')
+          .trim()
+          .toUpperCase()
+      )
       .filter(Boolean)
   );
   const currentMatches = new Map();
@@ -205,7 +209,11 @@ function evaluateRadarTransitions(radar, results, states, options) {
     // required inputs may be re-armed. Missing symbols must remain untouched;
     // otherwise a temporary gap would create a false exit followed by a false
     // re-entry when the provider recovers.
-    if (currentMatches.has(symbol) || unavailable.has(symbol) || (opts.dataStatus === 'partial' && !checked.has(symbol)))
+    if (
+      currentMatches.has(symbol) ||
+      unavailable.has(symbol) ||
+      (opts.dataStatus === 'partial' && !checked.has(symbol))
+    )
       return;
     const state = normalizeState(rawState);
     if (!state.matches) return;

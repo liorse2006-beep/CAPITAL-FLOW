@@ -1,91 +1,132 @@
 #!/usr/bin/env node
-// Restores a database dump produced by server/services/dbBackup.js
-// (the .json.gz attachment emailed daily to ADMIN_EMAIL).
+// Restore a database dump produced by server/services/dbBackup.js.
 //
-// This did not exist before — the backup email told the admin to "ungzip
-// the attachment and read the JSON", with no actual tooling to put that
-// data back into the database during a real incident. Hand-writing SQL
-// under pressure while production is down is exactly how a bad restore
-// makes things worse.
-//
-// Usage:
-//   node restoreDb.js path/to/capital-flow-backup-2026-01-01.json.gz --confirm
-//
-// Without --confirm, this only prints what it WOULD do and exits — this is
-// a destructive operation (wipes and replaces every row in every table the
-// backup contains) and must never run by accident. Connects through the
-// same server/db abstraction the app itself uses, so it targets whichever
-// database TURSO_DB_URL/TURSO_AUTH_TOKEN in the environment point at —
-// double-check those before running this against production.
+// The confirmed operation is intentionally all-or-nothing: every DELETE and
+// INSERT is sent through the shared libSQL write transaction. The default is a
+// dry run, so opening a backup file can never mutate a database accidentally.
 const fs = require('fs');
 const zlib = require('zlib');
 const path = require('path');
+const { BACKUP_TABLES } = require('./server/services/backupTables');
 
-async function main() {
-  const args = process.argv.slice(2);
-  const confirmed = args.includes('--confirm');
-  const filePath = args.find((a) => !a.startsWith('--'));
+const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const BACKUP_TABLE_SET = new Set(BACKUP_TABLES);
 
-  if (!filePath) {
-    console.error('Usage: node restoreDb.js <path-to-backup.json.gz> [--confirm]');
-    process.exit(1);
-  }
-
-  const resolved = path.resolve(filePath);
-  if (!fs.existsSync(resolved)) {
-    console.error(`File not found: ${resolved}`);
-    process.exit(1);
-  }
-
-  console.log(`Reading ${resolved} ...`);
-  const gzipped = fs.readFileSync(resolved);
-  const json = zlib.gunzipSync(gzipped).toString('utf8');
-  const dump = JSON.parse(json);
-
-  const tables = Object.keys(dump.tables || {});
-  if (tables.length === 0) {
-    console.error('This backup file contains no tables — nothing to restore.');
-    process.exit(1);
-  }
-
-  console.log(`Backup created at: ${dump.createdAt}`);
-  console.log(`Tables in this backup (${tables.length}):`);
-  for (const table of tables) {
-    console.log(`  - ${table}: ${dump.tables[table].length} row(s)`);
-  }
-
-  if (!confirmed) {
-    console.log('\nDRY RUN — no changes made. This will DELETE every row currently in each');
-    console.log('table listed above and replace it with the rows from this backup, on');
-    console.log('whichever database TURSO_DB_URL currently points at. Re-run with --confirm');
-    console.log('to actually perform the restore.');
-    process.exit(0);
-  }
-
-  // Required only now, after the dry-run summary already printed — a typo
-  // in the filepath arg shouldn't force loading DB config unnecessarily.
-  const db = require('./server/db');
-  await db.ready;
-
-  console.log('\n--confirm passed. Restoring now...');
-  for (const table of tables) {
-    const rows = dump.tables[table];
-    await db.prepare(`DELETE FROM ${table}`).run();
-    for (const row of rows) {
-      const columns = Object.keys(row);
-      if (columns.length === 0) continue;
-      const placeholders = columns.map(() => '?').join(', ');
-      const values = columns.map((c) => row[c]);
-      await db.prepare(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`).run(...values);
-    }
-    console.log(`  ✓ Restored ${table}: ${rows.length} row(s)`);
-  }
-
-  console.log('\nRestore complete.');
-  process.exit(0);
+function quoteIdentifier(identifier) {
+  if (!IDENTIFIER.test(identifier)) throw new Error(`Unsafe SQL identifier: ${identifier}`);
+  return `"${identifier}"`;
 }
 
-main().catch((err) => {
-  console.error('[restoreDb] FAILED:', err);
-  process.exit(1);
-});
+function validateDump(dump) {
+  if (!dump || typeof dump !== 'object' || Array.isArray(dump)) {
+    throw new Error('Backup payload must be a JSON object');
+  }
+  if (!dump.tables || typeof dump.tables !== 'object' || Array.isArray(dump.tables)) {
+    throw new Error('Backup payload does not contain a tables object');
+  }
+
+  const tables = Object.keys(dump.tables);
+  if (tables.length === 0) throw new Error('This backup file contains no tables — nothing to restore.');
+  for (const table of tables) {
+    if (!BACKUP_TABLE_SET.has(table)) {
+      throw new Error(`Backup contains a table outside the restore allowlist: ${table}`);
+    }
+    if (!Array.isArray(dump.tables[table])) {
+      throw new Error(`Backup table ${table} must contain an array of rows`);
+    }
+    for (const row of dump.tables[table]) {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) {
+        throw new Error(`Backup table ${table} contains a non-object row`);
+      }
+      const columns = Object.keys(row);
+      if (columns.length === 0) throw new Error(`Backup table ${table} contains an empty row`);
+      for (const column of columns) quoteIdentifier(column);
+    }
+  }
+  return tables;
+}
+
+async function validateSchema(db, tables, dump) {
+  for (const table of tables) {
+    const schemaRows = await db.prepare(`PRAGMA table_info(${quoteIdentifier(table)})`).all();
+    const schemaColumns = new Set(schemaRows.map((column) => column.name));
+    if (schemaColumns.size === 0) throw new Error(`Target database is missing table: ${table}`);
+    for (const row of dump.tables[table]) {
+      for (const column of Object.keys(row)) {
+        if (!schemaColumns.has(column)) {
+          throw new Error(`Backup table ${table} contains unknown column: ${column}`);
+        }
+      }
+    }
+  }
+}
+
+function buildRestoreStatements(dump, tables) {
+  const statements = [];
+  for (const table of tables) {
+    const quotedTable = quoteIdentifier(table);
+    statements.push({ sql: `DELETE FROM ${quotedTable}`, args: [] });
+    for (const row of dump.tables[table]) {
+      const columns = Object.keys(row);
+      const quotedColumns = columns.map(quoteIdentifier).join(', ');
+      const placeholders = columns.map(() => '?').join(', ');
+      statements.push({
+        sql: `INSERT INTO ${quotedTable} (${quotedColumns}) VALUES (${placeholders})`,
+        args: columns.map((column) => row[column]),
+      });
+    }
+  }
+  return statements;
+}
+
+async function restoreDump(db, dump) {
+  const tables = validateDump(dump);
+  await db.ready;
+  await validateSchema(db, tables, dump);
+  const statements = buildRestoreStatements(dump, tables);
+  await db.transaction(statements);
+  return { tables, statementCount: statements.length };
+}
+
+function readDumpFile(filePath) {
+  const resolved = path.resolve(filePath);
+  if (!fs.existsSync(resolved)) throw new Error(`File not found: ${resolved}`);
+  const gzipped = fs.readFileSync(resolved);
+  return { resolved, dump: JSON.parse(zlib.gunzipSync(gzipped).toString('utf8')) };
+}
+
+async function main(argv = process.argv.slice(2)) {
+  const confirmed = argv.includes('--confirm');
+  const filePaths = argv.filter((arg) => !arg.startsWith('--'));
+  if (filePaths.length !== 1) {
+    throw new Error('Usage: node restoreDb.js <path-to-backup.json.gz> [--confirm]');
+  }
+
+  const { resolved, dump } = readDumpFile(filePaths[0]);
+  const tables = validateDump(dump);
+  console.log(`Reading ${resolved} ...`);
+  console.log(`Backup created at: ${dump.createdAt || 'unknown'}`);
+  console.log(`Tables in this backup (${tables.length}):`);
+  for (const table of tables) console.log(`  - ${table}: ${dump.tables[table].length} row(s)`);
+
+  if (!confirmed) {
+    console.log('\nDRY RUN — no changes made. Re-run with --confirm only after verifying');
+    console.log('the database target and the backup summary. The confirmed restore is atomic.');
+    return;
+  }
+
+  // Loading the DB only after validation keeps dry-run and malformed-file
+  // paths independent of production credentials and database availability.
+  const db = require('./server/db');
+  await restoreDump(db, dump);
+  console.log('\nRestore complete (atomic transaction committed).');
+}
+
+if (require.main === module) {
+  main().catch((err) => {
+    console.error('[restoreDb] FAILED:', err.message || 'restore failed');
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { BACKUP_TABLES, buildRestoreStatements, main, readDumpFile, restoreDump, validateDump };

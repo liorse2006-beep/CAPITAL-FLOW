@@ -33,6 +33,11 @@ function sign(
   return { 'webhook-id': id, 'webhook-timestamp': ts, 'webhook-signature': `v1,${sig}` };
 }
 
+function paymentData(userId, tier, extra = {}) {
+  const planId = tier === 'premium' ? 'plan_premium_test' : 'plan_elite_test';
+  return { plan: { id: planId }, metadata: { userId, tier, ...extra } };
+}
+
 function startWebhookApp() {
   const app = express();
   app.use('/api/webhooks/whop', express.raw({ type: 'application/json' }));
@@ -106,7 +111,7 @@ test('webhook upgrades the user tier on payment_succeeded and redeems the coupon
 
   const payload = JSON.stringify({
     type: 'payment_succeeded',
-    data: { metadata: { userId: user.id, tier: 'premium', couponCode: 'WEBHOOK1' } },
+    data: paymentData(user.id, 'premium', { couponCode: 'WEBHOOK1' }),
   });
 
   const server = await startWebhookApp();
@@ -130,6 +135,29 @@ test('webhook upgrades the user tier on payment_succeeded and redeems the coupon
   }
 });
 
+test('webhook refuses to grant access when the signed payment plan is missing or mismatched', async () => {
+  const user = await makeUser('webhook-plan-mismatch@test.local', 'free');
+  const payload = JSON.stringify({
+    type: 'payment.succeeded',
+    data: { plan: { id: 'plan_not_configured' }, metadata: { userId: user.id, tier: 'elite' } },
+  });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(payload, { id: 'wh_plan_mismatch_1' }) },
+      body: payload,
+    });
+    assert.strictEqual(res.status, 422);
+    const unchanged = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
+    assert.deepStrictEqual(unchanged, { tier: 'free', is_premium: 0 });
+  } finally {
+    server.close();
+  }
+});
+
 test('payment_succeeded emails the admin and logs a self_service_upgrade audit entry', async (t) => {
   const alertCalls = [];
   t.mock.method(email, 'sendAdminUpgradeAlert', async (...args) => {
@@ -139,7 +167,7 @@ test('payment_succeeded emails the admin and logs a self_service_upgrade audit e
   const user = await makeUser('webhook-alert@test.local', 'free');
   const payload = JSON.stringify({
     type: 'payment_succeeded',
-    data: { metadata: { userId: user.id, tier: 'elite' } },
+    data: paymentData(user.id, 'elite'),
   });
 
   const server = await startWebhookApp();
@@ -177,7 +205,7 @@ test('webhook redelivery with the same webhook-id does not double-redeem the cou
 
   const payload = JSON.stringify({
     type: 'payment_succeeded',
-    data: { metadata: { userId: user.id, tier: 'premium', couponCode: 'WEBHOOK2' } },
+    data: paymentData(user.id, 'premium', { couponCode: 'WEBHOOK2' }),
   });
   const headers = sign(payload, { id: 'wh_redelivery_test_1' });
 
@@ -217,13 +245,13 @@ test('a webhook event claimed but never completed (process killed mid-deploy) is
   const user = await makeUser('webhook-stuckclaim@test.local', 'free');
   const payload = JSON.stringify({
     type: 'payment_succeeded',
-    data: { metadata: { userId: user.id, tier: 'elite' } },
+    data: paymentData(user.id, 'elite'),
   });
   const headers = sign(payload, { id: 'wh_stuck_claim_1' });
 
   await db
-    .prepare('INSERT INTO processed_webhook_events (event_id, completed_at) VALUES (?, NULL)')
-    .run('wh_stuck_claim_1');
+    .prepare('INSERT INTO processed_webhook_events (event_id, processed_at, completed_at) VALUES (?, ?, NULL)')
+    .run('wh_stuck_claim_1', Math.floor(Date.now() / 1000) - 120);
 
   const server = await startWebhookApp();
   const port = server.address().port;
@@ -262,13 +290,13 @@ test('two concurrent retries of the same stuck (never-completed) claim only run 
   const user = await makeUser('webhook-stuckrace@test.local', 'free');
   const payload = JSON.stringify({
     type: 'payment_succeeded',
-    data: { metadata: { userId: user.id, tier: 'elite' } },
+    data: paymentData(user.id, 'elite'),
   });
   const headers = sign(payload, { id: 'wh_stuck_race_1' });
 
   await db
-    .prepare('INSERT INTO processed_webhook_events (event_id, completed_at) VALUES (?, NULL)')
-    .run('wh_stuck_race_1');
+    .prepare('INSERT INTO processed_webhook_events (event_id, processed_at, completed_at) VALUES (?, ?, NULL)')
+    .run('wh_stuck_race_1', Math.floor(Date.now() / 1000) - 120);
 
   const server = await startWebhookApp();
   const port = server.address().port;
@@ -305,7 +333,7 @@ test('two truly concurrent deliveries of the same webhook-id only redeem the cou
 
   const payload = JSON.stringify({
     type: 'payment_succeeded',
-    data: { metadata: { userId: user.id, tier: 'premium', couponCode: 'WEBHOOKRACE' } },
+    data: paymentData(user.id, 'premium', { couponCode: 'WEBHOOKRACE' }),
   });
   const headers = sign(payload, { id: 'wh_concurrent_test_1' });
 
@@ -346,7 +374,7 @@ test('payment_succeeded for a user that no longer exists alerts the admin instea
   const deletedUserId = 999999999; // never inserted — simulates the account being deleted before delivery
   const payload = JSON.stringify({
     type: 'payment_succeeded',
-    data: { metadata: { userId: deletedUserId, tier: 'elite' } },
+    data: paymentData(deletedUserId, 'elite'),
   });
 
   const server = await startWebhookApp();
@@ -397,7 +425,7 @@ test('webhook ignores event types other than payment_succeeded', async () => {
   const user = await makeUser('webhook-ignore@test.local', 'free');
   const payload = JSON.stringify({
     type: 'payment_created',
-    data: { metadata: { userId: user.id, tier: 'elite' } },
+    data: paymentData(user.id, 'elite'),
   });
   const server = await startWebhookApp();
   const port = server.address().port;
@@ -421,7 +449,7 @@ test('payment_refunded downgrades the user whose current tier matches the refund
 
   const payload = JSON.stringify({
     type: 'payment_refunded',
-    data: { metadata: { userId: user.id, tier: 'elite' } },
+    data: paymentData(user.id, 'elite'),
   });
 
   const server = await startWebhookApp();
@@ -452,7 +480,7 @@ test('refunding an old premium payment does NOT strip a user who since upgraded 
 
   const payload = JSON.stringify({
     type: 'payment_refunded',
-    data: { metadata: { userId: user.id, tier: 'premium' } },
+    data: paymentData(user.id, 'premium'),
   });
 
   const server = await startWebhookApp();

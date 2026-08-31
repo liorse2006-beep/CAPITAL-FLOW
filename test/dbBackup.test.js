@@ -58,6 +58,8 @@ test('dumpTables includes every user-facing and operational table, not just the 
     'notifications',
     'admin_audit_log',
     'processed_webhook_events',
+    'ai_usage',
+    'scan_reservations',
     'site_visits',
     'app_meta',
     'capital_flow_radars',

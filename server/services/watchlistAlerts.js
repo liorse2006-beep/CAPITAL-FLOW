@@ -111,26 +111,33 @@ async function setAlert(userId, symbol, alert) {
     throw error;
   }
 
-  const existing = await db
-    .prepare('SELECT 1 FROM watchlist_alerts WHERE user_id = ? AND symbol = ?')
-    .get(userId, symbol);
-  if (!existing) {
-    const count = await db.prepare('SELECT COUNT(*) AS count FROM watchlist_alerts WHERE user_id = ?').get(userId);
-    if (Number(count && count.count) >= MAX_ALERTS_PER_USER) {
-      const error = new Error(`Maximum ${MAX_ALERTS_PER_USER} alerts per user`);
-      error.code = 'ALERT_LIMIT';
-      throw error;
-    }
-  }
   const minRatio = alert.type === 'price' ? 0 : alert.minRatio;
   const targetPrice = alert.type === 'price' ? alert.targetPrice : null;
   const startingSide = alert.type === 'price' ? alert.startingSide : null;
-  await db
+  // Keep the cap decision inside the same INSERT that writes the row. A
+  // SELECT-then-INSERT check lets two concurrent requests both observe 49
+  // existing alerts and create 51. Existing symbols remain updatable even at
+  // the cap; only a genuinely new symbol is rejected by the conditional
+  // SELECT. `changes()` is not needed here because the caller only needs the
+  // distinction between one inserted/updated row and a cap-rejected insert.
+  const result = await db
     .prepare(
-      `INSERT INTO watchlist_alerts (user_id, symbol, min_ratio, type, target_price, starting_side) VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT(user_id, symbol) DO UPDATE SET min_ratio = excluded.min_ratio, type = excluded.type, target_price = excluded.target_price, starting_side = excluded.starting_side`
+      `INSERT INTO watchlist_alerts (user_id, symbol, min_ratio, type, target_price, starting_side)
+       SELECT ?, ?, ?, ?, ?, ?
+        WHERE EXISTS (SELECT 1 FROM watchlist_alerts WHERE user_id = ? AND symbol = ?)
+           OR (SELECT COUNT(*) FROM watchlist_alerts WHERE user_id = ?) < ?
+       ON CONFLICT(user_id, symbol) DO UPDATE SET
+         min_ratio = excluded.min_ratio,
+         type = excluded.type,
+         target_price = excluded.target_price,
+         starting_side = excluded.starting_side`
     )
-    .run(userId, symbol, minRatio, alert.type, targetPrice, startingSide);
+    .run(userId, symbol, minRatio, alert.type, targetPrice, startingSide, userId, symbol, userId, MAX_ALERTS_PER_USER);
+  if (!result || result.changes !== 1) {
+    const error = new Error(`Maximum ${MAX_ALERTS_PER_USER} alerts per user`);
+    error.code = 'ALERT_LIMIT';
+    throw error;
+  }
 }
 
 async function removeAlert(userId, symbol) {

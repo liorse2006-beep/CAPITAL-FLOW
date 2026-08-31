@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { fmt, alertLevelLabel } from '../../utils/format';
+import { fmt, alertLevelLabel, formatSignedPercent } from '../../utils/format';
 import AddTickerModal from './AddTickerModal';
 
 function RatioPill({ ratio }) {
@@ -332,8 +332,8 @@ export default function WatchlistPage({
                         <>
                           <td className="col-name">{d.name}</td>
                           <td>{'$' + d.price.toFixed(2)}</td>
-                          <td className={d.change >= 0 ? 'col-pos' : 'col-neg'}>
-                            {(d.change >= 0 ? '+' : '') + d.change.toFixed(2) + '%'}
+                          <td className={d.change == null ? '' : d.change >= 0 ? 'col-pos' : 'col-neg'}>
+                            {formatSignedPercent(d.change)}
                           </td>
                           <td>
                             <RatioPill ratio={d.volumeRatio} />
@@ -443,8 +443,10 @@ export default function WatchlistPage({
                       </div>
                       <div className="mobile-result-card-quote-item mobile-result-card-quote-item-end">
                         <span className="mobile-result-card-label">CHANGE</span>
-                        <span className={'mobile-card-change ' + (d.change >= 0 ? 'pos' : 'neg')}>
-                          {(d.change >= 0 ? '+' : '') + d.change.toFixed(2) + '%'}
+                        <span
+                          className={'mobile-card-change ' + (d.change == null ? '' : d.change >= 0 ? 'pos' : 'neg')}
+                        >
+                          {formatSignedPercent(d.change)}
                         </span>
                       </div>
                     </div>

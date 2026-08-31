@@ -8,7 +8,7 @@ import CapitalFlowRadar from './CapitalFlowRadar';
 import useIsMobile from '../../hooks/useIsMobile';
 import useSmoothProgress from '../../hooks/useSmoothProgress';
 import MobileResultSort from '../shared/MobileResultSort';
-import { fmt, friendlyError, alertLevelLabel } from '../../utils/format';
+import { fmt, friendlyError, alertLevelLabel, formatSignedPercent } from '../../utils/format';
 
 const ALL_SECTORS = [
   'Technology',
@@ -171,6 +171,8 @@ export default function ScannerPage({
   deletePreset,
   marketClosed,
   scanTime,
+  scanDataStatus,
+  scanDataAsOf,
   fromCache,
   cacheAge,
   restoredFromLastScan,
@@ -335,8 +337,16 @@ export default function ScannerPage({
                       <div className="live-feed-right">
                         <span className="live-feed-ratio">{r.volumeRatio + 'x'}</span>
                         <span className="live-feed-price">{'$' + r.price.toFixed(2)}</span>
-                        <span className={r.change >= 0 ? 'live-feed-chg up' : 'live-feed-chg down'}>
-                          {(r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '%'}
+                        <span
+                          className={
+                            r.change == null
+                              ? 'live-feed-chg'
+                              : r.change >= 0
+                                ? 'live-feed-chg up'
+                                : 'live-feed-chg down'
+                          }
+                        >
+                          {formatSignedPercent(r.change)}
                         </span>
                       </div>
                     </div>
@@ -698,7 +708,8 @@ export default function ScannerPage({
                 {scanTime &&
                   currentTime &&
                   (() => {
-                    const ageMs = currentTime.getTime() - new Date(scanTime).getTime();
+                    const freshnessTime = scanDataAsOf || scanTime;
+                    const ageMs = currentTime.getTime() - new Date(freshnessTime).getTime();
                     const ageMins = Math.round(ageMs / 60000);
 
                     // Shared-cache results are normal, expected behavior (see
@@ -743,7 +754,9 @@ export default function ScannerPage({
                         style={isStale ? { color: 'var(--accent)', fontWeight: 600 } : undefined}
                         title={isStale ? 'Data may not reflect current market activity' : undefined}
                       >
-                        {isStale ? `⚠ Data is ${ageMins} min old` : 'Scanned ' + new Date(scanTime).toLocaleString()}
+                        {isStale
+                          ? `⚠ Data is ${ageMins} min old`
+                          : 'Data as of ' + new Date(freshnessTime).toLocaleString()}
                       </span>
                     );
                   })()}
@@ -768,8 +781,20 @@ export default function ScannerPage({
               </div>
             </div>
 
+            {scanDataStatus && scanDataStatus !== 'complete' && (
+              <div className={'data-status-banner ' + scanDataStatus} role="status">
+                {scanDataStatus === 'unavailable'
+                  ? 'Market data is temporarily unavailable. Please try again in a few minutes.'
+                  : 'Some market data could not be verified. Review results with caution.'}
+              </div>
+            )}
+
             {sorted.length === 0 ? (
-              <div className="no-match">No stocks matched your filters.</div>
+              <div className="no-match">
+                {scanDataStatus === 'unavailable'
+                  ? 'No verified market data is available right now. Please try again in a few minutes.'
+                  : 'No stocks matched your filters.'}
+              </div>
             ) : (
               <>
                 <MobileResultSort
@@ -961,8 +986,8 @@ export default function ScannerPage({
                             {r.marketCap > 0 ? fmt(r.marketCap) : '—'}
                           </td>
                           <td>{'$' + r.price.toFixed(2)}</td>
-                          <td className={r.change >= 0 ? 'col-pos' : 'col-neg'}>
-                            {(r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '%'}
+                          <td className={r.change == null ? '' : r.change >= 0 ? 'col-pos' : 'col-neg'}>
+                            {formatSignedPercent(r.change)}
                           </td>
                           <td>
                             <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start' }}>
@@ -1247,8 +1272,10 @@ export default function ScannerPage({
                         </div>
                         <div className="mobile-card-mid">
                           <span className="mobile-card-price">{'$' + r.price.toFixed(2)}</span>
-                          <span className={'mobile-card-change ' + (r.change >= 0 ? 'pos' : 'neg')}>
-                            {(r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '%'}
+                          <span
+                            className={'mobile-card-change ' + (r.change == null ? '' : r.change >= 0 ? 'pos' : 'neg')}
+                          >
+                            {formatSignedPercent(r.change)}
                           </span>
                         </div>
                         <div className="mobile-result-card-grid">

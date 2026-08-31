@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import ChatWidget from './ChatWidget';
 
 // Regression coverage for the bug where Capi's teaser stopped reappearing
@@ -8,6 +8,7 @@ import ChatWidget from './ChatWidget';
 // TEASER_READY_DELAY_MS in ChatWidget.jsx).
 
 const USER = { id: 1, email: 'a@b.com' };
+const ORIGINAL_FETCH = globalThis.fetch;
 
 function historyFetchMock(rows = []) {
   return vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(rows) }));
@@ -18,6 +19,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  globalThis.fetch = ORIGINAL_FETCH;
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -132,5 +134,105 @@ describe('ChatWidget', () => {
     } finally {
       window.matchMedia = originalMatchMedia;
     }
+  });
+
+  it('renders streamed Capi text into one assistant bubble and uses the canonical completion', async () => {
+    vi.useRealTimers();
+    const encoder = new TextEncoder();
+    const streamBody = [
+      'event: ready\ndata: {"status":"connected"}\n\n',
+      'event: delta\ndata: {"text":"First "}\n\n',
+      'event: delta\ndata: {"text":"second."}\n\n',
+      'event: complete\ndata: {"reply":"First second."}\n\n',
+    ].join('');
+    globalThis.fetch = vi.fn((url) => {
+      if (url === '/api/chat/history') return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url === '/api/chat/message/stream') {
+        return Promise.resolve({
+          ok: true,
+          body: new ReadableStream({
+            start(controller) {
+              const split = streamBody.indexOf('event: delta');
+              controller.enqueue(encoder.encode(streamBody.slice(0, split)));
+              setTimeout(() => {
+                controller.enqueue(encoder.encode(streamBody.slice(split)));
+                controller.close();
+              }, 0);
+            },
+          }),
+        });
+      }
+      return Promise.reject(new Error('unexpected request: ' + url));
+    });
+
+    const { container } = render(<ChatWidget user={USER} isElite getToken={() => 't'} />);
+    fireEvent.click(container.querySelector('.chat-fab'));
+    const input = await screen.findByPlaceholderText('Message Capi…');
+    fireEvent.change(input, { target: { value: 'Explain unusual volume.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => expect(screen.getByText('First second.')).toBeInTheDocument());
+    expect(screen.getAllByText('First second.')).toHaveLength(1);
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/chat/message/stream',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ message: 'Explain unusual volume.' }) })
+    );
+  });
+
+  it('keeps a streamed optimistic answer when the slower history prefetch finishes later', async () => {
+    vi.useRealTimers();
+    let resolveHistory;
+    const historyPromise = new Promise((resolve) => {
+      resolveHistory = resolve;
+    });
+    const encoder = new TextEncoder();
+    globalThis.fetch = vi.fn((url) => {
+      if (url === '/api/chat/history') return historyPromise;
+      if (url === '/api/chat/message/stream') {
+        const body =
+          'event: ready\ndata: {"status":"connected"}\n\n' +
+          'event: delta\ndata: {"text":"Streamed answer"}\n\n' +
+          'event: complete\ndata: {"reply":"Streamed answer"}\n\n';
+        return Promise.resolve({
+          ok: true,
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(encoder.encode(body));
+              controller.close();
+            },
+          }),
+        });
+      }
+      return Promise.reject(new Error('unexpected request: ' + url));
+    });
+
+    const { container } = render(<ChatWidget user={USER} isElite getToken={() => 't'} />);
+    fireEvent.click(container.querySelector('.chat-fab'));
+    const input = await screen.findByPlaceholderText('Message Capi…');
+    fireEvent.change(input, { target: { value: 'Keep this answer.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(screen.getByText('Streamed answer')).toBeInTheDocument());
+
+    resolveHistory({ ok: true, json: () => Promise.resolve([{ id: 10, role: 'user', content: 'Older turn' }]) });
+    await waitFor(() => expect(screen.getByText('Older turn')).toBeInTheDocument());
+    expect(screen.getByText('Streamed answer')).toBeInTheDocument();
+    expect(screen.getByText('Keep this answer.')).toBeInTheDocument();
+  });
+
+  it('clears the previous account conversation when the signed-in account changes', async () => {
+    vi.useRealTimers();
+    let rows = [{ id: 11, role: 'user', content: 'Private first-account turn' }];
+    globalThis.fetch = vi.fn((url) => {
+      if (url === '/api/chat/history') return Promise.resolve({ ok: true, json: () => Promise.resolve(rows) });
+      return Promise.reject(new Error('unexpected request: ' + url));
+    });
+
+    const { container, rerender } = render(<ChatWidget user={USER} isElite getToken={() => 'first-token'} />);
+    fireEvent.click(container.querySelector('.chat-fab'));
+    expect(await screen.findByText('Private first-account turn')).toBeInTheDocument();
+
+    rows = [];
+    rerender(<ChatWidget user={{ id: 2, email: 'second@example.com' }} isElite getToken={() => 'second-token'} />);
+    await waitFor(() => expect(screen.queryByText('Private first-account turn')).not.toBeInTheDocument());
   });
 });

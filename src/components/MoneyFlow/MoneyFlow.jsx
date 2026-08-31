@@ -3,7 +3,7 @@ import SectorHeatmap from './SectorHeatmap';
 import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
 import MobileResultSort from '../shared/MobileResultSort';
-import { fmt, friendlyError } from '../../utils/format';
+import { fmt, friendlyError, formatSignedPercent } from '../../utils/format';
 import { categoryQuota } from '../../utils/quota';
 import { SECTOR_ETFS } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
@@ -26,6 +26,7 @@ export default function MoneyFlow({
   const [flowData, setFlowData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [fetchTime, setFetchTime] = useState(null);
+  const [flowDataStatus, setFlowDataStatus] = useState(null);
   const [error, setError] = useState(null);
   const [expandedETF, setExpandedETF] = useState(null);
   const [flowSort, setFlowSort] = useState('volRatio');
@@ -71,6 +72,7 @@ export default function MoneyFlow({
         .then(function (d) {
           setFlowData(d.results);
           setFetchTime(d.fetchTime);
+          setFlowDataStatus(d.dataStatus || 'complete');
           setScanMeta({ tier: d.tier, isPremium: d.isPremium, premium: d.premium, free: d.free });
         })
         .catch(function (e) {
@@ -259,6 +261,7 @@ export default function MoneyFlow({
             onSectorClick: function (cell) {
               setExpandedETF(expandedETF === cell.symbol ? null : cell.symbol);
             },
+            dataStatus: flowDataStatus,
           })
         )}
 
@@ -278,7 +281,12 @@ export default function MoneyFlow({
               bv = b[flowSort];
             }
             if (typeof av === 'string') return flowSortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
-            return flowSortDir === 'asc' ? av - bv : bv - av;
+            const aNumber = typeof av === 'number' && Number.isFinite(av) ? av : null;
+            const bNumber = typeof bv === 'number' && Number.isFinite(bv) ? bv : null;
+            if (aNumber === null && bNumber === null) return 0;
+            if (aNumber === null) return 1;
+            if (bNumber === null) return -1;
+            return flowSortDir === 'asc' ? aNumber - bNumber : bNumber - aNumber;
           });
           var FTH = function (props) {
             return (
@@ -354,11 +362,11 @@ export default function MoneyFlow({
                             { className: 'col-name', style: { fontFamily: 'var(--font)' } },
                             (etf && etf.name) || d.symbol
                           ),
-                          React.createElement('td', null, '$' + d.price.toFixed(2)),
+                          React.createElement('td', null, d.price != null ? '$' + Number(d.price).toFixed(2) : '—'),
                           React.createElement(
                             'td',
-                            { className: d.change >= 0 ? 'col-pos' : 'col-neg' },
-                            (d.change >= 0 ? '+' : '') + d.change + '%'
+                            { className: d.change == null ? '' : d.change >= 0 ? 'col-pos' : 'col-neg' },
+                            formatSignedPercent(d.change, 2)
                           ),
                           React.createElement(
                             'td',
@@ -367,9 +375,16 @@ export default function MoneyFlow({
                               'span',
                               {
                                 className:
-                                  'ratio-pill ' + (d.volRatio >= 2 ? 'hot' : d.volRatio >= 1.2 ? 'warm' : 'ok'),
+                                  'ratio-pill ' +
+                                  (d.volRatio == null
+                                    ? 'unavailable'
+                                    : d.volRatio >= 2
+                                      ? 'hot'
+                                      : d.volRatio >= 1.2
+                                        ? 'warm'
+                                        : 'ok'),
                               },
-                              d.volRatio + 'x'
+                              d.volRatio != null ? Number(d.volRatio).toFixed(2) + 'x' : '—'
                             )
                           ),
                           React.createElement(
@@ -544,8 +559,10 @@ export default function MoneyFlow({
                         </div>
                         <div className="mobile-result-card-quote-item mobile-result-card-quote-item-end">
                           <span className="mobile-result-card-label">CHANGE</span>
-                          <span className={'mobile-card-change ' + (d.change >= 0 ? 'pos' : 'neg')}>
-                            {(d.change >= 0 ? '+' : '') + d.change + '%'}
+                          <span
+                            className={'mobile-card-change ' + (d.change == null ? '' : d.change >= 0 ? 'pos' : 'neg')}
+                          >
+                            {formatSignedPercent(d.change, 2)}
                           </span>
                         </div>
                       </div>
@@ -553,9 +570,18 @@ export default function MoneyFlow({
                         <div className="mobile-result-card-stat">
                           <span className="mobile-result-card-label">VOL RATIO</span>
                           <span
-                            className={'ratio-pill ' + (d.volRatio >= 2 ? 'hot' : d.volRatio >= 1.2 ? 'warm' : 'ok')}
+                            className={
+                              'ratio-pill ' +
+                              (d.volRatio == null
+                                ? 'unavailable'
+                                : d.volRatio >= 2
+                                  ? 'hot'
+                                  : d.volRatio >= 1.2
+                                    ? 'warm'
+                                    : 'ok')
+                            }
                           >
-                            {d.volRatio + 'x'}
+                            {d.volRatio != null ? Number(d.volRatio).toFixed(2) + 'x' : '—'}
                           </span>
                         </div>
                         <div className="mobile-result-card-stat">

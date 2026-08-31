@@ -136,3 +136,10 @@ test('the watchlist is capped at 50 tickers', async () => {
     server.close();
   }
 });
+
+test('concurrent watchlist additions cannot bypass the 50-ticker cap', async () => {
+  const user = await makeUser('wl-concurrent-cap@test.local');
+  const symbols = Array.from({ length: 60 }, (_, i) => 'CON' + String(i).padStart(2, '0'));
+  await Promise.all(symbols.map((symbol) => addToWatchlist(user, symbol).catch((err) => err)));
+  assert.strictEqual((await getWatchlist(user)).length, 50);
+});

@@ -1,32 +1,36 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { fmt } from '../../utils/format';
+import React, { useState, useEffect } from 'react';
+import { fmt, formatSignedPercent } from '../../utils/format';
 
 export default function SectorHeatmap(props) {
   var flowData = props.flowData || [];
   var etfMap = props.etfMap || {};
   var onSectorClick = props.onSectorClick || function () {};
+  var dataStatus = props.dataStatus || 'complete';
 
-  var forceUpdate = useState(0)[1];
-  var tickRef = useRef(0);
+  var pulseState = useState(0);
+  var pulseTick = pulseState[0];
+  var setPulseTick = pulseState[1];
 
   // Animation tick for pulsing cells
-  useEffect(function () {
-    var raf;
-    function tick() {
-      tickRef.current = (tickRef.current + 1) % 120;
-      if (tickRef.current % 4 === 0)
-        forceUpdate(function (n) {
-          return n + 1;
-        });
+  useEffect(
+    function () {
+      var raf;
+      var frame = 0;
+      function tick() {
+        frame = (frame + 1) % 120;
+        if (frame % 4 === 0) setPulseTick(frame);
+        raf = requestAnimationFrame(tick);
+      }
       raf = requestAnimationFrame(tick);
-    }
-    raf = requestAnimationFrame(tick);
-    return function () {
-      cancelAnimationFrame(raf);
-    };
-  }, []);
+      return function () {
+        cancelAnimationFrame(raf);
+      };
+    },
+    [setPulseTick]
+  );
 
   function getChangeColor(change) {
+    if (typeof change !== 'number' || !Number.isFinite(change)) return 'var(--text-3)';
     if (change >= 3) return '#22C55E';
     if (change >= 1) return 'rgba(34,197,94,0.6)';
     if (change >= 0) return 'rgba(34,197,94,0.2)';
@@ -36,6 +40,7 @@ export default function SectorHeatmap(props) {
   }
 
   function getChangeBg(change) {
+    if (typeof change !== 'number' || !Number.isFinite(change)) return 'rgba(113,113,122,0.08)';
     if (change >= 3) return 'rgba(34,197,94,0.18)';
     if (change >= 1) return 'rgba(34,197,94,0.10)';
     if (change >= 0) return 'rgba(34,197,94,0.05)';
@@ -51,17 +56,18 @@ export default function SectorHeatmap(props) {
       symbol: d.symbol,
       name: info.name || d.symbol,
       color: info.color || '#444',
-      change: typeof d.change === 'number' ? d.change : 0,
-      volume: typeof d.volume === 'number' ? d.volume : 0,
-      avgVolume: typeof d.avgVolume === 'number' ? d.avgVolume : 0,
-      volRatio: typeof d.volRatio === 'number' ? d.volRatio : 1,
-      flow: d.flow || 'neutral',
+      change: typeof d.change === 'number' && Number.isFinite(d.change) ? d.change : null,
+      volume: typeof d.volume === 'number' && Number.isFinite(d.volume) ? d.volume : null,
+      avgVolume: typeof d.avgVolume === 'number' && Number.isFinite(d.avgVolume) ? d.avgVolume : null,
+      volRatio: typeof d.volRatio === 'number' && Number.isFinite(d.volRatio) ? d.volRatio : null,
+      flow: ['inflow', 'outflow', 'neutral', 'unavailable'].includes(d.flow) ? d.flow : 'unavailable',
       price: d.price,
       dayHigh: d.dayHigh,
       dayLow: d.dayLow,
       prevClose: d.prevClose,
       lastSession: !!d.lastSession,
       desc: info.desc || '',
+      dataStatus: d.dataStatus || 'complete',
     };
   });
 
@@ -94,15 +100,17 @@ export default function SectorHeatmap(props) {
 
   // Sort by volume descending so biggest cells come first
   cells.sort(function (a, b) {
-    return b.volume - a.volume;
+    return (b.volume ?? -1) - (a.volume ?? -1);
   });
 
-  var maxVol = cells[0] ? cells[0].volume : 1;
-  var minVol = cells[cells.length - 1] ? cells[cells.length - 1].volume : 0;
+  var maxVol = cells[0] && typeof cells[0].volume === 'number' ? cells[0].volume : 0;
+  var minVol =
+    cells[cells.length - 1] && typeof cells[cells.length - 1].volume === 'number' ? cells[cells.length - 1].volume : 0;
   var volRange = maxVol - minVol || 1;
 
   // Assign column span 1–3 based on relative volume
   function getColSpan(cell) {
+    if (typeof cell.volume !== 'number') return 1;
     var ratio = (cell.volume - minVol) / volRange;
     if (ratio > 0.7) return 3;
     if (ratio > 0.35) return 2;
@@ -110,25 +118,27 @@ export default function SectorHeatmap(props) {
   }
 
   // Pulse opacity for high volRatio cells
-  var t = tickRef.current / 120; // 0..1 cycle
+  var t = pulseTick / 120; // 0..1 cycle
   var pulse = Math.sin(t * Math.PI * 2) * 0.5 + 0.5; // 0..1
 
   var cellNodes = cells.map(function (cell) {
     var isHovered = false; // hover interactions disabled — cards render static
-    var isPulsing = cell.volRatio > 1.5;
+    var hasChange = typeof cell.change === 'number' && Number.isFinite(cell.change);
+    var isPulsing = typeof cell.volRatio === 'number' && cell.volRatio > 1.5;
     var changeColor = getChangeColor(cell.change);
     var changeBg = getChangeBg(cell.change);
     var colSpan = getColSpan(cell);
-    var changeSign = cell.change >= 0 ? '+' : '';
-    var flowIcon = cell.flow === 'inflow' ? '▲' : cell.flow === 'outflow' ? '▼' : '■';
+    var flowIcon =
+      cell.flow === 'inflow' ? '▲' : cell.flow === 'outflow' ? '▼' : cell.flow === 'unavailable' ? '—' : '■';
     var flowColor = cell.flow === 'inflow' ? '#22C55E' : cell.flow === 'outflow' ? '#EF4444' : '#71717A';
 
     // Glow intensity for pulsing
     var glowAlpha = isPulsing ? 0.15 + pulse * 0.25 : 0;
     var borderAlpha = isPulsing ? 0.3 + pulse * 0.4 : isHovered ? 0.4 : 0.08;
-    var glowColor = cell.change >= 0 ? 'rgba(34,197,94,' + glowAlpha + ')' : 'rgba(239,68,68,' + glowAlpha + ')';
+    var glowColor =
+      hasChange && cell.change >= 0 ? 'rgba(34,197,94,' + glowAlpha + ')' : 'rgba(239,68,68,' + glowAlpha + ')';
     var borderColor = isPulsing
-      ? cell.change >= 0
+      ? hasChange && cell.change >= 0
         ? 'rgba(34,197,94,' + borderAlpha + ')'
         : 'rgba(239,68,68,' + borderAlpha + ')'
       : isHovered
@@ -154,7 +164,7 @@ export default function SectorHeatmap(props) {
       minHeight: colSpan === 3 ? 100 : colSpan === 2 ? 84 : 72,
     };
 
-    var accentBarColor = cell.change >= 0 ? '#22C55E' : '#EF4444';
+    var accentBarColor = hasChange ? (cell.change >= 0 ? '#22C55E' : '#EF4444') : '#71717A';
 
     return React.createElement(
       'div',
@@ -229,7 +239,8 @@ export default function SectorHeatmap(props) {
           ),
 
           // VolRatio badge
-          cell.volRatio > 1.0 &&
+          typeof cell.volRatio === 'number' &&
+            cell.volRatio > 1.0 &&
             React.createElement(
               'div',
               {
@@ -275,7 +286,7 @@ export default function SectorHeatmap(props) {
               letterSpacing: '-0.02em',
             },
           },
-          changeSign + cell.change.toFixed(2) + '%'
+          hasChange ? formatSignedPercent(cell.change, 2) : '—'
         ),
 
         // Footer row — volume and flow (always shown) / extra on hover
@@ -323,11 +334,14 @@ export default function SectorHeatmap(props) {
   var totalOutflow = cells.filter(function (c) {
     return c.flow === 'outflow';
   }).length;
-  var avgChange =
-    cells.reduce(function (s, c) {
-      return s + c.change;
-    }, 0) / (cells.length || 1);
-  var avgSign = avgChange >= 0 ? '+' : '';
+  var validChanges = cells.filter(function (c) {
+    return typeof c.change === 'number' && Number.isFinite(c.change);
+  });
+  var avgChange = validChanges.length
+    ? validChanges.reduce(function (s, c) {
+        return s + c.change;
+      }, 0) / validChanges.length
+    : null;
 
   return React.createElement(
     'div',
@@ -415,11 +429,11 @@ export default function SectorHeatmap(props) {
                 fontSize: 11,
                 fontFamily: 'var(--mono)',
                 fontWeight: 700,
-                color: avgChange >= 0 ? '#22C55E' : '#EF4444',
+                color: avgChange === null ? 'var(--text-3)' : avgChange >= 0 ? '#22C55E' : '#EF4444',
                 letterSpacing: '0.03em',
               },
             },
-            avgSign + avgChange.toFixed(2) + '%'
+            avgChange === null ? '—' : formatSignedPercent(avgChange, 2)
           )
         ),
         React.createElement(
@@ -453,6 +467,27 @@ export default function SectorHeatmap(props) {
         )
       )
     ),
+
+    // Tell the customer when the provider returned an incomplete snapshot.
+    dataStatus !== 'complete' &&
+      React.createElement(
+        'div',
+        {
+          role: 'status',
+          style: {
+            padding: '8px 14px',
+            borderBottom: '1px solid rgba(245,158,11,0.24)',
+            background: dataStatus === 'unavailable' ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.08)',
+            color: dataStatus === 'unavailable' ? '#FCA5A5' : '#FBBF24',
+            fontSize: 11,
+            fontFamily: 'var(--mono)',
+            letterSpacing: '0.04em',
+          },
+        },
+        dataStatus === 'unavailable'
+          ? 'SECTOR DATA UNAVAILABLE — try again in a few minutes'
+          : 'PARTIAL SECTOR DATA — some values could not be verified'
+      ),
 
     // Last-session banner (shown when market is closed and data is from prior day)
     showingLastSession &&

@@ -59,7 +59,7 @@ router.post('/scheduled-scans', requireEliteOrTrial, async (req, res) => {
   if (!VALID_TYPES.includes(scan_type)) {
     return res.status(400).json({ error: 'Invalid scan_type' });
   }
-  if (!TIME_RE.test(scan_time || '')) {
+  if (typeof scan_time !== 'string' || !TIME_RE.test(scan_time)) {
     return res.status(400).json({ error: 'scan_time must be HH:MM' });
   }
   // scan_date is optional — omitted means "every day" (the original,
@@ -75,15 +75,20 @@ router.post('/scheduled-scans', requireEliteOrTrial, async (req, res) => {
   }
   const dateToStore = scan_date || null;
   try {
-    const count = await db
-      .prepare('SELECT COUNT(*) as cnt FROM scheduled_scans WHERE user_id = ? AND active = 1')
-      .get(req.user.id);
-    if (count.cnt >= MAX_SCHEDULES) {
+    // Keep the cap in the write itself. A count-then-insert pair allows two
+    // concurrent requests to both observe two active schedules and create a
+    // fourth one. SQLite/Turso serializes this conditional INSERT, so the
+    // limit remains true under double-clicks and multiple tabs.
+    const result = await db
+      .prepare(
+        `INSERT INTO scheduled_scans (user_id, scan_type, scan_time, scan_date)
+         SELECT ?, ?, ?, ?
+         WHERE (SELECT COUNT(*) FROM scheduled_scans WHERE user_id = ? AND active = 1) < ?`
+      )
+      .run(req.user.id, scan_type, scan_time, dateToStore, req.user.id, MAX_SCHEDULES);
+    if (!result.changes) {
       return res.status(400).json({ error: `Maximum ${MAX_SCHEDULES} active schedules` });
     }
-    const result = await db
-      .prepare('INSERT INTO scheduled_scans (user_id, scan_type, scan_time, scan_date) VALUES (?, ?, ?, ?)')
-      .run(req.user.id, scan_type, scan_time, dateToStore);
     res.json({
       id: result.lastInsertRowid,
       scan_type,
@@ -111,22 +116,39 @@ router.put('/scheduled-scans/:id', requireEliteOrTrial, async (req, res) => {
     const newActive = typeof active === 'boolean' ? (active ? 1 : 0) : existing.active;
     let newTime = existing.scan_time;
     if (scan_time !== undefined) {
-      if (!TIME_RE.test(scan_time || '')) return res.status(400).json({ error: 'scan_time must be HH:MM' });
+      if (typeof scan_time !== 'string' || !TIME_RE.test(scan_time)) {
+        return res.status(400).json({ error: 'scan_time must be HH:MM' });
+      }
       newTime = scan_time;
     }
 
-    if (newActive && !existing.active) {
-      const count = await db
-        .prepare('SELECT COUNT(*) as cnt FROM scheduled_scans WHERE user_id = ? AND active = 1')
-        .get(req.user.id);
-      if (count.cnt >= MAX_SCHEDULES) {
+    // Reactivation uses the same conditional write as creation. The current
+    // row is excluded from the count, so editing an already-active schedule
+    // remains allowed while an inactive row cannot race the cap.
+    const result = await db
+      .prepare(
+        `UPDATE scheduled_scans
+            SET active = ?, scan_time = ?
+          WHERE id = ? AND user_id = ?
+            AND (
+              ? = 0
+              OR active = 1
+              OR (SELECT COUNT(*) FROM scheduled_scans
+                    WHERE user_id = ? AND active = 1 AND id != ?) < ?
+            )`
+      )
+      .run(newActive, newTime, existing.id, req.user.id, newActive, req.user.id, existing.id, MAX_SCHEDULES);
+    if (!result.changes) {
+      // A no-op UPDATE can report zero changes on some SQLite/libSQL
+      // versions. Distinguish that harmless case from a real cap rejection.
+      const current = await db
+        .prepare('SELECT active FROM scheduled_scans WHERE id = ? AND user_id = ?')
+        .get(existing.id, req.user.id);
+      if (!current) return res.status(404).json({ error: 'Not found' });
+      if (newActive && !current.active) {
         return res.status(400).json({ error: `Maximum ${MAX_SCHEDULES} active schedules` });
       }
     }
-
-    await db
-      .prepare('UPDATE scheduled_scans SET active = ?, scan_time = ? WHERE id = ?')
-      .run(newActive, newTime, existing.id);
     res.json({ id: existing.id, scan_type: existing.scan_type, scan_time: newTime, active: newActive });
   } catch (err) {
     reportError(err, '[scheduled-scans PUT]');

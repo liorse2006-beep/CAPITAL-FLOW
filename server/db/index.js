@@ -329,6 +329,7 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS processed_webhook_events (
       event_id     TEXT    PRIMARY KEY,
       processed_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      claim_token  TEXT,
       completed_at INTEGER
     );
 
@@ -384,6 +385,21 @@ async function initDb() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_ai_usage_retention ON ai_usage(usage_date);
+
+    -- One durable row per Premium scan-slot reservation. The middleware
+    -- reserves before the route starts doing provider work, keeping the
+    -- reservation id lets a cache-hit/error refund exactly its own slot,
+    -- even when several requests for the same account overlap.
+    CREATE TABLE IF NOT EXISTS scan_reservations (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id       INTEGER NOT NULL,
+      window_start  INTEGER NOT NULL,
+      created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+      refunded_at   INTEGER
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_scan_reservations_user ON scan_reservations(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_scan_reservations_retention ON scan_reservations(created_at);
 
     -- Small durable key/value store for app-level facts that need to survive
     -- restarts (Render's filesystem doesn't) but don't warrant their own
@@ -664,6 +680,11 @@ async function initDb() {
     // exists and gives up, silently dropping a paid upgrade forever. See
     // routes/webhooks.js.
     `ALTER TABLE processed_webhook_events ADD COLUMN completed_at INTEGER`,
+    // A random owner token lets completion and failure cleanup affect only
+    // the request that currently owns the event. processed_at is the
+    // lease-start timestamp used to recover a claim abandoned by a crashed
+    // process after the retry window has elapsed.
+    `ALTER TABLE processed_webhook_events ADD COLUMN claim_token TEXT`,
     `ALTER TABLE status_checks ADD COLUMN cycle_id TEXT`,
     `ALTER TABLE status_checks ADD COLUMN final_result INTEGER NOT NULL DEFAULT 1`,
     `ALTER TABLE capital_flow_radars ADD COLUMN schedule_time_1 TEXT`,
@@ -706,8 +727,12 @@ async function initDb() {
   // the user base grows.
   await client.execute('CREATE INDEX IF NOT EXISTS idx_users_notification_time ON users(notification_time)');
   await client.execute('CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON chat_messages(user_id, id)');
-  await client.execute('CREATE INDEX IF NOT EXISTS idx_radar_schedule_runs_lease ON radar_schedule_runs(status, lease_until)');
-  await client.execute('CREATE INDEX IF NOT EXISTS idx_capital_flow_radars_data_status ON capital_flow_radars(last_data_status, active)');
+  await client.execute(
+    'CREATE INDEX IF NOT EXISTS idx_radar_schedule_runs_lease ON radar_schedule_runs(status, lease_until)'
+  );
+  await client.execute(
+    'CREATE INDEX IF NOT EXISTS idx_capital_flow_radars_data_status ON capital_flow_radars(last_data_status, active)'
+  );
 
   // Existing deployments may have been created before the one-live-Radar
   // invariant existed. Preserve every recipe and its history, but pause older
@@ -732,9 +757,13 @@ async function initDb() {
          WHERE active = 1`
     );
   } catch (err) {
-    // Keep startup resilient if a remote database temporarily rejects DDL;
-    // route/service guards still fail closed while the next boot retries it.
-    console.warn('[db] Radar single-active invariant setup skipped:', safeErrorSummary(err));
+    // This index is the database-level guarantee behind the product rule that
+    // a user can have only one active Radar. Serving traffic without it would
+    // turn a transient DDL/provider failure into a silent quota bypass. Let
+    // initDbWithRetry handle transient SQLite locks; every other failure must
+    // fail readiness and stop the process before routes can accept writes.
+    console.error('[db] Radar single-active invariant setup failed:', safeErrorSummary(err));
+    throw err;
   }
 
   // One-time data migration: carry over ma_scan_count → free_scan_count

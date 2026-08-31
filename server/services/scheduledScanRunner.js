@@ -158,9 +158,8 @@ async function claimRadarRun(radarId, runDate, scheduledTime, nowSeconds) {
 
 async function finishRadarRuns(runs, status, resultCount, errorCode, metadata = {}) {
   const completedAt = Number.isSafeInteger(metadata.completedAt) ? metadata.completedAt : Math.floor(Date.now() / 1000);
-  const errorJson = Array.isArray(metadata.errors) && metadata.errors.length > 0
-    ? JSON.stringify(metadata.errors.slice(0, 100))
-    : null;
+  const errorJson =
+    Array.isArray(metadata.errors) && metadata.errors.length > 0 ? JSON.stringify(metadata.errors.slice(0, 100)) : null;
   await Promise.all(
     runs.map((run) =>
       db
@@ -271,7 +270,12 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
   const nowSeconds = Math.floor(referenceNow.getTime() / 1000);
   for (const row of rows) {
     for (const scheduledTime of [row.schedule_time_1, row.schedule_time_2]) {
-      if (!scheduledTime || (!isDue(scheduledTime, nowMinutes) && !(await hasRecoverableRadarRun(row.id, runDate, scheduledTime, nowSeconds)))) continue;
+      if (
+        !scheduledTime ||
+        (!isDue(scheduledTime, nowMinutes) &&
+          !(await hasRecoverableRadarRun(row.id, runDate, scheduledTime, nowSeconds)))
+      )
+        continue;
       try {
         if (await claimRadarRun(row.id, runDate, scheduledTime, nowSeconds)) {
           const recipe = normalizedRadarRecipe(row);
@@ -315,8 +319,15 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
   const capitalFlowResults = Array.isArray(capitalFlowScan.results) ? capitalFlowScan.results : [];
   const capitalFlowErrors = Array.isArray(capitalFlowScan.errors) ? capitalFlowScan.errors : [];
   const capitalFlowChecked = new Set(
-    (Array.isArray(capitalFlowScan.checkedSymbols) ? capitalFlowScan.checkedSymbols : ALL_TICKERS.filter((symbol) => !capitalFlowErrors.includes(symbol)))
-      .map((symbol) => String(symbol || '').trim().toUpperCase())
+    (Array.isArray(capitalFlowScan.checkedSymbols)
+      ? capitalFlowScan.checkedSymbols
+      : ALL_TICKERS.filter((symbol) => !capitalFlowErrors.includes(symbol))
+    )
+      .map((symbol) =>
+        String(symbol || '')
+          .trim()
+          .toUpperCase()
+      )
       .filter(Boolean)
   );
   const capitalFlowAsOf = capitalFlowScan.dataAsOf || new Date().toISOString();
@@ -334,8 +345,10 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
   for (const runs of groups.values()) {
     const first = runs[0];
     const groupIds = [...new Set(runs.map((run) => run.radarId))];
-    const scanId = `radar-${runDate}-${first.maPeriod}-${first.maDistance}-${first.maInterval}-${Date.now()}`
-      .replace(/[^a-zA-Z0-9_-]/g, '_');
+    const scanId = `radar-${runDate}-${first.maPeriod}-${first.maDistance}-${first.maInterval}-${Date.now()}`.replace(
+      /[^a-zA-Z0-9_-]/g,
+      '_'
+    );
     let maScan;
     try {
       const { scanMA } = require('./maScanner');
@@ -362,7 +375,12 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
     const maResults = Array.isArray(maScan.results) ? maScan.results : [];
     const capitalFlowBySymbol = new Map(
       capitalFlowResults
-        .map((row) => [String(row && row.symbol ? row.symbol : '').trim().toUpperCase(), row])
+        .map((row) => [
+          String(row && row.symbol ? row.symbol : '')
+            .trim()
+            .toUpperCase(),
+          row,
+        ])
         .filter(([symbol]) => symbol)
     );
 
@@ -376,7 +394,9 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
       const { enrichSector } = require('./scanner');
       enrichedMaResults = await Promise.all(
         maResults.map(async (row) => {
-          const symbol = String(row && row.symbol ? row.symbol : '').trim().toUpperCase();
+          const symbol = String(row && row.symbol ? row.symbol : '')
+            .trim()
+            .toUpperCase();
           if (!symbol || capitalFlowBySymbol.has(symbol)) return row;
           return { ...row, sector: await enrichSector(symbol) };
         })
@@ -385,15 +405,15 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
 
     const maBySymbol = new Map(
       enrichedMaResults
-        .map((row) => [String(row && row.symbol ? row.symbol : '').trim().toUpperCase(), row])
+        .map((row) => [
+          String(row && row.symbol ? row.symbol : '')
+            .trim()
+            .toUpperCase(),
+          row,
+        ])
         .filter(([symbol]) => symbol)
     );
-    const compositeSymbols = [
-      ...new Set([
-        ...capitalFlowBySymbol.keys(),
-        ...maBySymbol.keys(),
-      ]),
-    ];
+    const compositeSymbols = [...new Set([...capitalFlowBySymbol.keys(), ...maBySymbol.keys()])];
     const compositeResults = compositeSymbols.map((symbol) => {
       const capitalFlowRow = capitalFlowBySymbol.get(symbol);
       const maRow = maBySymbol.get(symbol);
@@ -414,8 +434,15 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
 
     const maErrors = Array.isArray(maScan.errors) ? maScan.errors : [];
     const maChecked = new Set(
-      (Array.isArray(maScan.checkedSymbols) ? maScan.checkedSymbols : ALL_TICKERS.filter((symbol) => !maErrors.includes(symbol)))
-        .map((symbol) => String(symbol || '').trim().toUpperCase())
+      (Array.isArray(maScan.checkedSymbols)
+        ? maScan.checkedSymbols
+        : ALL_TICKERS.filter((symbol) => !maErrors.includes(symbol))
+      )
+        .map((symbol) =>
+          String(symbol || '')
+            .trim()
+            .toUpperCase()
+        )
         .filter(Boolean)
     );
     const checkedSymbols = [...capitalFlowChecked].filter((symbol) => maChecked.has(symbol));
@@ -425,11 +452,22 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
     const sourceIsPartial =
       errors.length > 0 || capitalFlowScan.dataStatus === 'partial' || maScan.dataStatus === 'partial';
     const dataStatus =
-      capitalFlowUnavailable && maUnavailable ? 'unavailable' : sourceIsPartial || capitalFlowUnavailable || maUnavailable ? 'partial' : 'complete';
+      capitalFlowUnavailable && maUnavailable
+        ? 'unavailable'
+        : sourceIsPartial || capitalFlowUnavailable || maUnavailable
+          ? 'partial'
+          : 'complete';
     const conditionStatusByRadarId = {};
     runs.forEach((run) => {
-      const unavailable = run.conditionMode === 'either' ? capitalFlowUnavailable && maUnavailable : capitalFlowUnavailable || maUnavailable;
-      conditionStatusByRadarId[String(run.radarId)] = unavailable ? 'unavailable' : sourceIsPartial ? 'partial' : 'complete';
+      const unavailable =
+        run.conditionMode === 'either'
+          ? capitalFlowUnavailable && maUnavailable
+          : capitalFlowUnavailable || maUnavailable;
+      conditionStatusByRadarId[String(run.radarId)] = unavailable
+        ? 'unavailable'
+        : sourceIsPartial
+          ? 'partial'
+          : 'complete';
     });
     const maAsOf = maScan.dataAsOf || scanStartedAt;
     const scanTime = maAsOf > capitalFlowAsOf ? maAsOf : capitalFlowAsOf;
@@ -537,7 +575,7 @@ async function runScanForType(scanType) {
   if (scanType === 'maScanner') {
     const { scanMA } = require('./maScanner');
     const res = await scanMA(ALL_TICKERS, { ma: 20, distance: 2, interval: '1d', direction: 'all' });
-    return res.results || [];
+    return normalizeScheduledScanResult(res);
   }
   const { scanTickers } = require('./scanner');
   const params =
@@ -545,15 +583,65 @@ async function runScanForType(scanType) {
       ? { minVolumeRatio: 2.0, minMarketCap: 500_000_000 }
       : { minVolumeRatio: 2.5, minMarketCap: 1_000_000_000 };
   const res = await scanTickers(ALL_TICKERS, params);
-  return res.results || [];
+  return normalizeScheduledScanResult(res);
 }
 
-function payloadForType(scanType, results) {
+function normalizeScheduledScanResult(scan) {
+  const results = Array.isArray(scan) ? scan : Array.isArray(scan?.results) ? scan.results : [];
+  const errors = Array.isArray(scan) || !Array.isArray(scan?.errors) ? [] : scan.errors;
+  const uniqueSymbols = new Set(
+    errors
+      .map((symbol) =>
+        String(symbol || '')
+          .trim()
+          .toUpperCase()
+      )
+      .filter(Boolean)
+  );
+  const scannedSymbols = Array.isArray(scan)
+    ? results.length
+    : Number(scan?.processed || scan?.checkedSymbols?.length || 0);
+  const dataStatus =
+    scan?.dataStatus ||
+    (errors.length === 0
+      ? 'complete'
+      : scannedSymbols > 0 && uniqueSymbols.size >= scannedSymbols
+        ? 'unavailable'
+        : 'partial');
+  return {
+    results,
+    errors,
+    dataStatus,
+    dataAsOf: scan?.dataAsOf || null,
+  };
+}
+
+function payloadForType(scanType, scan) {
+  const results = Array.isArray(scan) ? scan : scan?.results || [];
+  const dataStatus = Array.isArray(scan) ? 'complete' : scan?.dataStatus || 'complete';
+  if (dataStatus === 'unavailable') {
+    const label =
+      scanType === 'maScanner' ? 'MA Scanner' : scanType === 'sectorMoving' ? 'Hot Sectors' : 'Capital Flow';
+    return {
+      title: `${label} — Data unavailable`,
+      body: 'Market data is temporarily unavailable. No result was generated. Try again in a few minutes.',
+    };
+  }
+  if (dataStatus === 'partial' && results.length === 0) {
+    const label =
+      scanType === 'maScanner' ? 'MA Scanner' : scanType === 'sectorMoving' ? 'Hot Sectors' : 'Capital Flow';
+    return {
+      title: `${label} — Partial data`,
+      body: 'Some market data could not be verified. No complete result set was generated. Try again later.',
+    };
+  }
+  const partialNote =
+    dataStatus === 'partial' ? ' Some market data could not be verified; review the results with caution.' : '';
   if (scanType === 'maScanner') {
     return results.length > 0
       ? {
           title: `MA signal detected — ${results[0].symbol}`,
-          body: `${results.length} stocks near their moving average. Tap to see the full scan.`,
+          body: `${results.length} stocks near their moving average.${partialNote} Tap to see the full scan.`,
         }
       : { title: 'MA Scanner — Daily Scan', body: 'No MA signals right now. Check back later.' };
   }
@@ -561,22 +649,24 @@ function payloadForType(scanType, results) {
     return results.length > 0
       ? {
           title: `Sector flow detected — ${results[0].symbol}`,
-          body: `${results.length} sector movers right now. Tap to see the full scan.`,
+          body: `${results.length} sector movers right now.${partialNote} Tap to see the full scan.`,
         }
       : { title: 'Hot Sectors — Daily Scan', body: 'No sector flow right now. Markets look quiet.' };
   }
   return results.length > 0
     ? {
         title: `Volume spike detected — ${results[0].symbol} ${results[0].volumeRatio.toFixed(1)}×`,
-        body: `${results.length} stocks moving right now. Tap to see the full scan.`,
+        body: `${results.length} stocks moving right now.${partialNote} Tap to see the full scan.`,
       }
     : { title: 'Capital Flow — Daily Scan', body: 'No unusual volume right now. Markets look quiet.' };
 }
 
 const SCAN_URL = { capitalFlow: '/scanner', maScanner: '/ma', sectorMoving: '/flow' };
 
-async function notifyScheduledUser(sched, results) {
-  const { title, body } = payloadForType(sched.scan_type, results);
+async function notifyScheduledUser(sched, scan) {
+  const normalized = normalizeScheduledScanResult(scan);
+  const { results } = normalized;
+  const { title, body } = payloadForType(sched.scan_type, normalized);
 
   // A one-time schedule (scan_date set) has done its one job — deactivate it
   // the moment it fires so it can't run again. A recurring one (scan_date
@@ -629,7 +719,9 @@ async function notifyScheduledUser(sched, results) {
     reportError(pushErr, '[ScheduledScans] Push failed');
   }
 
-  console.log(`[ScheduledScans] scan_id=${sched.id} type=${sched.scan_type} results=${results.length} → push sent`);
+  console.log(
+    `[ScheduledScans] scan_id=${sched.id} type=${sched.scan_type} status=${normalized.dataStatus} results=${results.length} → push sent`
+  );
 }
 
 async function runScheduledScansCycle() {
@@ -665,18 +757,26 @@ async function runScheduledScansCycle() {
   });
 
   for (const [scanType, scheds] of byType) {
-    let results;
+    let scan;
     try {
-      results = await runScanForType(scanType);
+      scan = await runScanForType(scanType);
     } catch (err) {
       reportError(err, `[ScheduledScans] ${scanType} scan failed`);
-      continue;
+      // A provider failure is a real user-visible outcome. Stamp and notify
+      // the schedule instead of silently leaving it due for the next tick or
+      // telling the user there were simply no signals.
+      scan = {
+        results: [],
+        errors: ['PROVIDER_UNAVAILABLE'],
+        dataStatus: 'unavailable',
+        dataAsOf: new Date().toISOString(),
+      };
     }
     // Fan out to every subscriber concurrently (bounded), so a 16:30 window
     // shared by hundreds of users clears in a fraction of the time a
     // sequential loop would take — and one slow/failed push never blocks the
     // rest.
-    await mapWithConcurrency(scheds, 10, (sched) => notifyScheduledUser(sched, results));
+    await mapWithConcurrency(scheds, 10, (sched) => notifyScheduledUser(sched, scan));
   }
 }
 

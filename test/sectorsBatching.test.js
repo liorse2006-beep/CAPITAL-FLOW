@@ -129,3 +129,32 @@ test('GET /api/sector-flow degrades per-symbol via the chart fallback if the bat
     server.close();
   }
 });
+
+test('GET /api/sector-flow marks a total provider outage unavailable instead of returning zeroes', async (t) => {
+  delete require.cache[require.resolve('../server/routes/sectors')];
+  const freshSectorsRouter = require('../server/routes/sectors');
+
+  t.mock.method(yahoo, 'quote', async () => {
+    throw new Error('Yahoo unavailable');
+  });
+  t.mock.method(yahoo, 'chart', async () => ({ quotes: [] }));
+  const user = await makeEliteUser('sectors-total-outage@test.local');
+  const token = (await issueToken(user)).accessToken;
+  const server = await startTestApp(freshSectorsRouter);
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/sector-flow`, {
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    assert.strictEqual(res.status, 200);
+    const body = await res.json();
+    assert.strictEqual(body.dataStatus, 'unavailable');
+    assert.strictEqual(body.results.length, 15);
+    assert.ok(body.results.every((row) => row.dataStatus === 'unavailable'));
+    assert.strictEqual(body.results[0].price, null);
+    assert.strictEqual(body.results[0].change, null);
+    assert.strictEqual(body.results[0].flow, 'unavailable');
+  } finally {
+    server.close();
+  }
+});

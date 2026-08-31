@@ -32,6 +32,75 @@ function renderCapiMessage(text) {
   });
 }
 
+function parseCapiSseBlock(block) {
+  var eventType = null;
+  var dataLines = [];
+  String(block || '')
+    .split(/\r?\n/)
+    .forEach(function (line) {
+      if (line.startsWith('event:')) eventType = line.slice(6).trim();
+      else if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart());
+    });
+  if (!dataLines.length) return null;
+  var raw = dataLines.join('\n').trim();
+  if (raw === '[DONE]') return { eventType: 'done', data: null };
+  try {
+    return { eventType: eventType, data: JSON.parse(raw) };
+  } catch {
+    return { eventType: eventType, data: null, parseError: true };
+  }
+}
+
+async function readCapiStream(response, handlers) {
+  if (!response.ok) {
+    var errorPayload = {};
+    try {
+      errorPayload = await response.json();
+    } catch (_) {}
+    throw new Error(errorPayload.error || 'Capi request failed');
+  }
+  if (!response.body || typeof response.body.getReader !== 'function') {
+    throw new Error('Capi streaming is unavailable');
+  }
+
+  var reader = response.body.getReader();
+  var decoder = new TextDecoder();
+  var buffer = '';
+  var finished = false;
+
+  function consume(block) {
+    var parsed = parseCapiSseBlock(block);
+    if (!parsed || parsed.parseError) throw new Error('Invalid Capi stream');
+    if (parsed.eventType === 'delta' && parsed.data && typeof parsed.data.text === 'string') {
+      if (handlers.onDelta) handlers.onDelta(parsed.data.text);
+    } else if (parsed.eventType === 'complete') {
+      if (!parsed.data || typeof parsed.data.reply !== 'string') throw new Error('Incomplete Capi response');
+      finished = true;
+      if (handlers.onComplete) handlers.onComplete(parsed.data.reply);
+    } else if (parsed.eventType === 'error') {
+      if (!parsed.data || typeof parsed.data.reply !== 'string') throw new Error('Capi provider error');
+      finished = true;
+      if (handlers.onError) handlers.onError(parsed.data.reply);
+    }
+  }
+
+  while (!finished) {
+    var result = await reader.read();
+    if (result.done) break;
+    buffer += decoder.decode(result.value, { stream: true });
+    var separator;
+    while ((separator = buffer.search(/\r?\n\r?\n/)) !== -1) {
+      var block = buffer.slice(0, separator);
+      buffer = buffer.slice(separator).replace(/^\r?\n\r?\n/, '');
+      consume(block);
+      if (finished) break;
+    }
+  }
+  buffer += decoder.decode();
+  if (buffer.trim() && !finished) consume(buffer);
+  if (!finished) throw new Error('Capi stream ended before completion');
+}
+
 // The teaser is a permanent fixture next to the launcher, not a one-time
 // intro — it's showing any time the chat is closed. "dismissed" only hides
 // it for the current closed stretch: opening the chat and closing it again
@@ -58,7 +127,26 @@ export default function ChatWidget({
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef(null);
-  const historyLoadingRef = useRef(false);
+  const historyPromiseRef = useRef(null);
+  const messageIdRef = useRef(0);
+  const conversationGenerationRef = useRef(0);
+  const accountKey = user && user.id != null ? String(user.id) : null;
+  const accountKeyRef = useRef(accountKey);
+
+  useEffect(
+    function () {
+      if (accountKeyRef.current === accountKey) return;
+      accountKeyRef.current = accountKey;
+      conversationGenerationRef.current += 1;
+      historyPromiseRef.current = null;
+      setMessages([]);
+      setHistoryLoaded(false);
+      setInput('');
+      setSending(false);
+      setOpen(false);
+    },
+    [accountKey]
+  );
 
   useEffect(function () {
     // Shown to everyone, signed in or not — a guest who taps it gets asked
@@ -96,16 +184,40 @@ export default function ChatWidget({
 
   var showTeaser = teaserReady && !open && !teaserDismissed;
 
+  function nextMessageId(prefix) {
+    messageIdRef.current += 1;
+    return prefix + '-' + messageIdRef.current;
+  }
+
   function loadHistory() {
-    if (historyLoadingRef.current) return Promise.resolve();
-    historyLoadingRef.current = true;
-    return fetch('/api/chat/history', { headers: { Authorization: 'Bearer ' + getToken() } })
+    if (historyPromiseRef.current) return historyPromiseRef.current;
+    var generation = conversationGenerationRef.current;
+    historyPromiseRef.current = fetch('/api/chat/history', {
+      headers: { Authorization: 'Bearer ' + getToken() },
+    })
       .then((r) => (r.ok ? r.json() : []))
       .then((rows) => {
-        setMessages((rows || []).map((r) => ({ role: r.role, content: r.content })));
+        if (conversationGenerationRef.current !== generation) return;
+        var historyRows = (rows || []).map((r, i) => ({
+          clientId: 'history-' + (r.id || i),
+          role: r.role,
+          content: r.content,
+          pending: false,
+        }));
+        // A user can send before the prefetch/open request completes. Never
+        // let the late history response overwrite those optimistic bubbles,
+        // including an assistant bubble that has already received its first
+        // streamed delta and is no longer technically pending.
+        setMessages((prev) => historyRows.concat(prev.filter((m) => m.optimistic)));
         setHistoryLoaded(true);
       })
-      .catch(() => setHistoryLoaded(true));
+      .catch(() => {
+        if (conversationGenerationRef.current === generation) setHistoryLoaded(true);
+      })
+      .finally(() => {
+        if (conversationGenerationRef.current === generation) historyPromiseRef.current = null;
+      });
+    return historyPromiseRef.current;
   }
 
   useEffect(
@@ -114,6 +226,31 @@ export default function ChatWidget({
       loadHistory();
     },
     [open]
+  );
+
+  // Warm only the authenticated Elite/trial path. This is a cheap read, not
+  // an AI call, and moves the history request out of the user's first click.
+  useEffect(
+    function () {
+      if (!user || !isElite || trialEnded || isMobile || historyLoaded) return;
+      var cancelled = false;
+      var idleId = null;
+      var timerId = null;
+      var start = function () {
+        if (!cancelled) loadHistory();
+      };
+      if (typeof window.requestIdleCallback === 'function') {
+        idleId = window.requestIdleCallback(start, { timeout: 1200 });
+      } else {
+        timerId = window.setTimeout(start, 250);
+      }
+      return function () {
+        cancelled = true;
+        if (idleId != null && typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idleId);
+        if (timerId != null) window.clearTimeout(timerId);
+      };
+    },
+    [user, isElite, trialEnded, isMobile, historyLoaded]
   );
 
   useEffect(
@@ -130,22 +267,57 @@ export default function ChatWidget({
   function send(overrideText) {
     var text = (typeof overrideText === 'string' ? overrideText : input).trim();
     if (!text || sending) return;
+    var generation = conversationGenerationRef.current;
+    var userMessageId = nextMessageId('user');
+    var assistantMessageId = nextMessageId('assistant');
+    var streamedText = '';
     setInput('');
-    setMessages((prev) => prev.concat([{ role: 'user', content: text }]));
+    setMessages((prev) =>
+      prev.concat([
+        { clientId: userMessageId, role: 'user', content: text, pending: true, optimistic: true },
+        {
+          clientId: assistantMessageId,
+          role: 'assistant',
+          content: '',
+          streaming: true,
+          pending: true,
+          optimistic: true,
+        },
+      ])
+    );
     setSending(true);
-    fetch('/api/chat/message', {
+    function updateAssistant(content, streaming) {
+      if (conversationGenerationRef.current !== generation) return;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.clientId === assistantMessageId ? { ...m, content: content, streaming: streaming, pending: false } : m
+        )
+      );
+    }
+
+    fetch('/api/chat/message/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
       body: JSON.stringify({ message: text }),
     })
-      .then((r) => r.json())
-      .then((d) => {
-        setMessages((prev) => prev.concat([{ role: 'assistant', content: d.reply || 'Sorry, something went wrong.' }]));
-      })
+      .then((response) =>
+        readCapiStream(response, {
+          onDelta: function (chunk) {
+            streamedText += chunk;
+            updateAssistant(streamedText, true);
+          },
+          onComplete: function (reply) {
+            // The completion payload is the server's canonical assembled
+            // answer; use it to protect against any client-side chunk issue.
+            updateAssistant(reply, false);
+          },
+          onError: function (reply) {
+            updateAssistant(reply, false);
+          },
+        })
+      )
       .catch(() => {
-        setMessages((prev) =>
-          prev.concat([{ role: 'assistant', content: "Sorry, I couldn't send that — try again." }])
-        );
+        updateAssistant("Sorry, I couldn't send that — try again.", false);
       })
       .finally(() => setSending(false));
   }
@@ -158,13 +330,15 @@ export default function ChatWidget({
     function () {
       if (isMobile || !externalPrompt || !user) return;
       setOpen(true);
+      var generation = conversationGenerationRef.current;
       var ready = historyLoaded ? Promise.resolve() : loadHistory();
       ready.then(function () {
+        if (conversationGenerationRef.current !== generation || accountKeyRef.current !== accountKey) return;
         send(externalPrompt);
       });
       if (onExternalPromptSent) onExternalPromptSent();
     },
-    [externalPrompt, isMobile]
+    [externalPrompt, isMobile, accountKey]
   );
 
   // App also avoids mounting the widget at phone widths. Keep this guard in
@@ -230,23 +404,21 @@ export default function ChatWidget({
               </div>
             )}
             {messages.map((m, i) => (
-              <div key={i} className={'chat-bubble-row ' + m.role}>
+              <div key={m.clientId || i} className={'chat-bubble-row ' + m.role}>
                 {m.role === 'assistant' && <img src="/icon-192.png" alt="" className="chat-msg-avatar" />}
-                <div className={'chat-bubble ' + m.role}>
-                  {m.role === 'assistant' ? renderCapiMessage(m.content) : m.content}
-                </div>
+                {m.streaming && !m.content ? (
+                  <div className="chat-bubble assistant chat-typing">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                ) : (
+                  <div className={'chat-bubble ' + m.role}>
+                    {m.role === 'assistant' ? renderCapiMessage(m.content) : m.content}
+                  </div>
+                )}
               </div>
             ))}
-            {sending && (
-              <div className="chat-bubble-row assistant">
-                <img src="/icon-192.png" alt="" className="chat-msg-avatar" />
-                <div className="chat-bubble assistant chat-typing">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-              </div>
-            )}
           </div>
           <div className="chat-panel-input">
             <input

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CapitalFlowRadar from './CapitalFlowRadar';
 
@@ -171,6 +171,109 @@ describe('CapitalFlowRadar schedule picker', () => {
     expect(screen.queryByText(/one alert per new entry/i)).not.toBeInTheDocument();
   });
 
+  it('renders Radar entries as condition-first signal cards without invented metrics', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: async () => ({
+            radars: [
+              {
+                id: 1,
+                name: 'Capital Flow Radar',
+                mode: 'all',
+                selectedSectors: [],
+                minVolumeRatio: 1.5,
+                minMarketCap: 1_000_000_000,
+                maPeriod: 20,
+                maDistance: 2,
+                maInterval: '1d',
+                conditionMode: 'both',
+                scheduleTime1: '11:00',
+                scheduleTime2: null,
+                expiresOn: '2026-12-31',
+                active: true,
+                dataStatus: 'ready',
+                lastCheckAt: '2026-08-30T09:32:00.000Z',
+                events: [
+                  {
+                    id: 8,
+                    symbol: 'LEN',
+                    scanTime: '2026-08-30T09:32:00.000Z',
+                    data: {
+                      symbol: 'LEN',
+                      exchange: 'NYSE',
+                      sector: 'Building Products',
+                      price: 84.21,
+                      change: 2.14,
+                      volumeRatio: 2.48,
+                      maPeriod: 20,
+                      maDistance: 1.34,
+                      matchedConditions: ['Capital Flow', 'Moving Average'],
+                    },
+                  },
+                ],
+              },
+            ],
+          }),
+        })
+      )
+    );
+
+    render(<CapitalFlowRadar {...baseProps()} />);
+
+    expect(await screen.findByText('WHY RADAR SURFACED THIS')).toBeInTheDocument();
+    expect(screen.getByRole('article', { name: 'LEN Radar entry' })).toBeInTheDocument();
+    expect(screen.getByText('RVOL 2.48x ≥ 1.5x minimum')).toBeInTheDocument();
+    expect(screen.getByText('Price 1.34% above SMA20 · limit ±2%')).toBeInTheDocument();
+    expect(screen.getByText('$84.21')).toBeInTheDocument();
+    expect(screen.getByText('+2.14%')).toBeInTheDocument();
+    expect(screen.getByText('2.48x')).toBeInTheDocument();
+    expect(screen.queryByText(/undefined|NaN/)).not.toBeInTheDocument();
+  });
+
+  it('renders unavailable Radar metrics as dashes instead of fabricated zeroes', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: async () => ({
+            radars: [
+              {
+                id: 3,
+                name: 'Unavailable metrics',
+                mode: 'all',
+                selectedSectors: [],
+                minVolumeRatio: 1.5,
+                minMarketCap: 1_000_000_000,
+                maPeriod: 20,
+                maDistance: 2,
+                conditionMode: 'both',
+                dataStatus: 'ready',
+                events: [
+                  {
+                    id: 9,
+                    symbol: 'MISSING',
+                    data: { symbol: 'MISSING', price: null, change: null, volumeRatio: null },
+                  },
+                ],
+              },
+            ],
+          }),
+        })
+      )
+    );
+
+    render(<CapitalFlowRadar {...baseProps()} />);
+
+    const card = await screen.findByRole('article', { name: 'MISSING Radar entry' });
+    expect(within(card).getAllByText('—').length).toBeGreaterThanOrEqual(3);
+    expect(within(card).queryByText('0.00x')).not.toBeInTheDocument();
+    expect(within(card).queryByText('$0.00')).not.toBeInTheDocument();
+  });
+
   it('does not offer a second Radar while one saved scan exists', async () => {
     vi.stubGlobal(
       'fetch',
@@ -207,5 +310,58 @@ describe('CapitalFlowRadar schedule picker', () => {
     expect(await screen.findByText('Existing Radar')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /activate this scan as radar/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /save another radar/i })).not.toBeInTheDocument();
+  });
+
+  it('uses an in-app confirmation dialog before removing a saved Radar', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({
+          radars: [
+            {
+              id: 2,
+              name: 'Existing Radar',
+              mode: 'all',
+              selectedSectors: [],
+              minVolumeRatio: 1.5,
+              minMarketCap: 1_000_000_000,
+              maPeriod: 20,
+              maDistance: 2,
+              conditionMode: 'both',
+              scheduleTime1: '11:00',
+              scheduleTime2: null,
+              expiresOn: '2026-12-31',
+              active: true,
+              dataStatus: 'ready',
+              events: [],
+            },
+          ],
+        }),
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const user = userEvent.setup();
+    render(<CapitalFlowRadar {...baseProps()} />);
+
+    await user.click(await screen.findByRole('button', { name: 'Remove', exact: true }));
+
+    const dialog = screen.getByRole('alertdialog', { name: /remove this radar/i });
+    expect(dialog).toBeInTheDocument();
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Keep Radar', exact: true }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Remove', exact: true }));
+    const secondDialog = screen.getByRole('alertdialog', { name: /remove this radar/i });
+    await user.click(within(secondDialog).getByRole('button', { name: 'Remove Radar', exact: true }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/radars/2', expect.objectContaining({ method: 'DELETE' }));
+    });
+    expect(screen.queryByText('Existing Radar')).not.toBeInTheDocument();
   });
 });

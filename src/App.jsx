@@ -34,7 +34,7 @@ const AuthModal = lazy(() => import('./components/Auth/AuthModal'));
 const ChatWidget = lazy(() => import('./components/shared/ChatWidget'));
 const WelcomeTierModal = lazy(() => import('./components/shared/WelcomeTierModal'));
 const ScheduledScanResultsModal = lazy(() => import('./components/shared/ScheduledScanResultsModal'));
-const LandingPage = lazy(() => import('./pages/LandingPage'));
+const LandingPage = lazy(() => import('./pages/LandingPage?landing-preview-v2'));
 
 /* ── Main App ── */
 function App() {
@@ -62,6 +62,7 @@ function App() {
   }
 
   const navigate = useNavigate();
+  const landingGetStarted = useCallback(() => navigate('/scanner'), [navigate]);
   const location = useLocation();
   const isMobile = useIsMobile();
   // Derived from the URL rather than its own state — keeps every existing
@@ -139,6 +140,8 @@ function App() {
     });
   }
   const [scanTime, setScanTime] = useState(null);
+  const [scanDataStatus, setScanDataStatus] = useState(null);
+  const [scanDataAsOf, setScanDataAsOf] = useState(null);
   const [marketClosed, setMarketClosed] = useState(false);
   const [fromCache, setFromCache] = useState(false);
   const [cacheAge, setCacheAge] = useState(0);
@@ -923,6 +926,8 @@ function App() {
           if (d && d.results && d.results.length) {
             setResults(d.results);
             setScanTime(d.scanTime);
+            setScanDataStatus(d.dataStatus || null);
+            setScanDataAsOf(d.dataAsOf || d.scanTime || null);
             setRestoredFromLastScan(true);
           }
         })
@@ -1161,6 +1166,8 @@ function App() {
         .then(function (d) {
           setResults(d.results);
           setScanTime(d.scanTime);
+          setScanDataStatus(d.dataStatus || null);
+          setScanDataAsOf(d.dataAsOf || d.scanTime || null);
           setMarketClosed(!!d.marketClosed);
           setFromCache(!!d.fromCache);
           setCacheAge(d.cacheAge || 0);
@@ -1201,6 +1208,8 @@ function App() {
       setRestoredFromLastScan,
       setResults,
       setScanTime,
+      setScanDataStatus,
+      setScanDataAsOf,
       setMarketClosed,
       setFromCache,
       setCacheAge,
@@ -1341,7 +1350,7 @@ function App() {
 
       {isGuestLanding ? (
         <Suspense fallback={<div className="page-loading">Loading…</div>}>
-          <LandingPage onGetStarted={() => navigate('/scanner')} />
+          <LandingPage onGetStarted={landingGetStarted} />
         </Suspense>
       ) : (
         <div className="app">
@@ -1498,6 +1507,8 @@ function App() {
                   deletePreset={deletePreset}
                   marketClosed={marketClosed}
                   scanTime={scanTime}
+                  scanDataStatus={scanDataStatus}
+                  scanDataAsOf={scanDataAsOf}
                   fromCache={fromCache}
                   cacheAge={cacheAge}
                   restoredFromLastScan={restoredFromLastScan}

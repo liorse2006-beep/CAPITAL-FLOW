@@ -4,6 +4,7 @@ const db = require('../db');
 const { GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_EMAIL, RESEND_API_KEY } = require('../config');
 const { reportError } = require('../utils/reportError');
 const { sendApplicationBackupEmail, sendApplicationBackupFailureEmail } = require('./email');
+const { BACKUP_TABLES: TABLES } = require('./backupTables');
 
 // Render's filesystem is ephemeral — anything written to disk there is gone
 // on the next deploy or restart, so a backup can only be useful if it leaves
@@ -21,28 +22,6 @@ const { sendApplicationBackupEmail, sendApplicationBackupFailureEmail } = requir
 // starred watchlists, chat history, in-app notifications, the admin audit
 // trail, or the webhook idempotency ledger (risking a replayed Whop event
 // being reprocessed after restore) is not actually a usable backup.
-const TABLES = [
-  'users',
-  'watchlist',
-  'watchlist_alerts',
-  'pilot_allowlist',
-  'push_subscriptions',
-  'feedback',
-  'coupons',
-  'scheduled_scans',
-  'capital_flow_radars',
-  'radar_states',
-  'radar_events',
-  'radar_schedule_runs',
-  'radar_run_snapshots',
-  'chat_messages',
-  'notifications',
-  'admin_audit_log',
-  'processed_webhook_events',
-  'site_visits',
-  'app_meta',
-];
-
 // Gmail rejects attachments over 25MB — silently, from this app's point of
 // view (sendMail rejects, the generic catch in runBackupTick's caller just
 // logs it, and nobody notices the backup stopped actually happening). Warn
@@ -155,4 +134,4 @@ function startScheduledBackup() {
   setInterval(maybeRunBackup, CHECK_INTERVAL_MS);
 }
 
-module.exports = { dumpTables, runBackupTick, startScheduledBackup };
+module.exports = { dumpTables, runBackupTick, startScheduledBackup, TABLES };

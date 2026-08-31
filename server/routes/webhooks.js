@@ -1,9 +1,44 @@
 const router = require('express').Router();
+const crypto = require('crypto');
 const db = require('../db');
 const whop = require('../services/whop');
 const { redeemCoupon } = require('../services/coupons');
 const email = require('../services/email');
 const { reportError } = require('../utils/reportError');
+const { WHOP_ELITE_PLAN_ID, WHOP_ELITE_UPGRADE_PLAN_ID, WHOP_PREMIUM_PLAN_ID } = require('../config');
+
+// A webhook handler should finish well inside this lease. If the process is
+// killed after claiming but before completion, a later Whop retry may take
+// over only after the lease expires. Without the lease, two deliveries that
+// arrive while the first is still running can both execute payment side
+// effects. Keep the value comfortably below the five-minute signature age so
+// a valid retry still has a chance to recover a crashed process.
+const WEBHOOK_CLAIM_LEASE_SEC = 60;
+
+function planIdFromPayment(event) {
+  const data = event?.data;
+  if (typeof data?.plan === 'string') return data.plan;
+  return data?.plan?.id || data?.plan_id || data?.planId || null;
+}
+
+function expectedPlanIds(tier) {
+  if (tier === 'premium') return [WHOP_PREMIUM_PLAN_ID].filter(Boolean);
+  if (tier === 'elite') return [WHOP_ELITE_PLAN_ID, WHOP_ELITE_UPGRADE_PLAN_ID].filter(Boolean);
+  return [];
+}
+
+function assertExpectedPlan(event, tier) {
+  const planId = planIdFromPayment(event);
+  const expected = expectedPlanIds(tier);
+  if (!planId || expected.length === 0 || !expected.includes(String(planId))) {
+    // Never grant or revoke access based only on client-controlled metadata.
+    // Whop's payment webhook includes the authoritative plan object; require
+    // it to match the plan that our checkout endpoint issued for this tier.
+    const error = new Error('Whop payment plan could not be verified');
+    error.code = 'WHOP_PLAN_MISMATCH';
+    throw error;
+  }
+}
 
 function safeMetadataSummary(metadata) {
   return {
@@ -37,17 +72,23 @@ router.post('/webhooks/whop', async (req, res) => {
     // before either has inserted, and both run the business logic below
     // (double-crediting a coupon redemption, double-sending an email).
     // INSERT ... ON CONFLICT DO NOTHING is atomic — only one concurrent
-    // request can ever claim a given event_id, and `changes` tells us which
-    // one. If business logic then fails, the claim is released (deleted) so
-    // a genuine retry (a new HTTP request from Whop, not the concurrent one
-    // that just lost the race) can still claim and complete it — a
-    // transient DB/email failure never permanently discards a paid upgrade.
+    // request can initially claim a given event_id. A claim token and a
+    // short lease make the recovery path atomic too: a concurrent delivery
+    // cannot steal a live claim, while a retry after a crashed process can
+    // take over an old one. If business logic then fails, only the request
+    // owning that token releases the claim, so a transient DB/email failure
+    // never permanently discards a paid upgrade and never deletes a newer
+    // retry's claim.
     const webhookId = req.headers['webhook-id'];
+    const claimToken = crypto.randomUUID();
+    const claimStartedAt = Math.floor(Date.now() / 1000);
     let shouldProcess = true;
     if (webhookId) {
       const claim = await db
-        .prepare('INSERT INTO processed_webhook_events (event_id) VALUES (?) ON CONFLICT(event_id) DO NOTHING')
-        .run(webhookId);
+        .prepare(
+          'INSERT INTO processed_webhook_events (event_id, processed_at, claim_token) VALUES (?, ?, ?) ON CONFLICT(event_id) DO NOTHING'
+        )
+        .run(webhookId, claimStartedAt, claimToken);
       if (claim.changes === 0) {
         // The row already existed. Two possibilities: a genuine duplicate
         // delivery of an event that already finished (completed_at set) —
@@ -57,11 +98,13 @@ router.post('/webhooks/whop', async (req, res) => {
         // exactly like the first — Whop's retry saw the row, gave up, and
         // the payment/tier-grant it carried was silently dropped forever.
         // The UPDATE's WHERE guard makes "does THIS request get to retry
-        // it" atomic across concurrent deliveries (same pattern as
-        // services/scanQuota.js's reserveScan) — only one can ever win it.
+        // it" atomic across concurrent deliveries — only one can ever win
+        // the stale lease, and a still-live claim is treated as a duplicate.
         const retryClaim = await db
-          .prepare('UPDATE processed_webhook_events SET processed_at = ? WHERE event_id = ? AND completed_at IS NULL')
-          .run(Math.floor(Date.now() / 1000), webhookId);
+          .prepare(
+            'UPDATE processed_webhook_events SET processed_at = ?, claim_token = ? WHERE event_id = ? AND completed_at IS NULL AND processed_at <= ?'
+          )
+          .run(claimStartedAt, claimToken, webhookId, claimStartedAt - WEBHOOK_CLAIM_LEASE_SEC);
         shouldProcess = retryClaim.changes > 0;
       }
     }
@@ -74,16 +117,24 @@ router.post('/webhooks/whop', async (req, res) => {
       await handleWhopEvent(event);
       if (webhookId) {
         await db
-          .prepare('UPDATE processed_webhook_events SET completed_at = ? WHERE event_id = ?')
-          .run(Math.floor(Date.now() / 1000), webhookId);
+          .prepare(
+            'UPDATE processed_webhook_events SET completed_at = ? WHERE event_id = ? AND claim_token = ? AND completed_at IS NULL'
+          )
+          .run(Math.floor(Date.now() / 1000), webhookId, claimToken);
       }
     } catch (err) {
-      if (webhookId) await db.prepare('DELETE FROM processed_webhook_events WHERE event_id = ?').run(webhookId);
+      if (webhookId)
+        await db
+          .prepare('DELETE FROM processed_webhook_events WHERE event_id = ? AND claim_token = ?')
+          .run(webhookId, claimToken);
       throw err;
     }
 
     res.json({ ok: true });
   } catch (err) {
+    if (err.code === 'WHOP_PLAN_MISMATCH') {
+      return res.status(422).json({ error: 'Payment plan could not be verified' });
+    }
     reportError(err, '[webhooks/whop]');
     res.status(500).json({ error: 'Server error' });
   }
@@ -94,6 +145,7 @@ async function handleWhopEvent(event) {
     const metadata = event.data && event.data.metadata;
     if (metadata && metadata.userId && metadata.tier) {
       const tier = metadata.tier;
+      assertExpectedPlan(event, tier);
       const buyer = await db.prepare('SELECT email FROM users WHERE id = ?').get(metadata.userId);
       if (!buyer) {
         // The account existed at checkout time but is gone by the time Whop
@@ -153,6 +205,7 @@ async function handleWhopEvent(event) {
   ) {
     const metadata = event.data && event.data.metadata;
     if (metadata && metadata.userId && metadata.tier) {
+      assertExpectedPlan(event, metadata.tier);
       const user = await db.prepare('SELECT id, tier FROM users WHERE id = ?').get(metadata.userId);
       // Only strip the tier this refunded payment actually bought — a user
       // who bought Premium, upgraded to Elite, then refunded the OLD

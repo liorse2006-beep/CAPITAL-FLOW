@@ -126,6 +126,35 @@ function mockGemini(replyText, interactionId) {
   };
 }
 
+function mockGeminiStream(chunks, status = 'completed') {
+  global.fetch = async (url, opts) => {
+    if (typeof url === 'string' && url.includes('generativelanguage.googleapis.com')) {
+      const encoder = new TextEncoder();
+      const frames = [
+        'event: interaction.created\ndata: {"interaction":{"status":"in_progress"}}\n\n',
+        ...chunks.map((text) => `event: step.delta\ndata: ${JSON.stringify({ delta: { type: 'text', text } })}\n\n`),
+        `event: interaction.completed\ndata: ${JSON.stringify({ interaction: { status } })}\n\n`,
+        'event: done\ndata: [DONE]\n\n',
+      ];
+      const body = frames.join('');
+      return {
+        ok: true,
+        body: new ReadableStream({
+          start(controller) {
+            // Split the first frame in the middle to prove the parser does
+            // not assume a network chunk is the same thing as an SSE event.
+            const midpoint = Math.max(1, Math.floor(body.length / 3));
+            controller.enqueue(encoder.encode(body.slice(0, midpoint)));
+            controller.enqueue(encoder.encode(body.slice(midpoint)));
+            controller.close();
+          },
+        }),
+      };
+    }
+    return originalFetch(url, opts);
+  };
+}
+
 test('POST /api/chat/message persists both the user message and the reply, GET returns them in order', async () => {
   mockGemini('Capital Flow scans for unusual volume.');
 
@@ -140,7 +169,7 @@ test('POST /api/chat/message persists both the user message and the reply, GET r
     const postRes = await fetch(`http://127.0.0.1:${port}/api/chat/message`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ message: 'What does Capital Flow do?' }),
+      body: JSON.stringify({ message: 'Explain unusual volume in one sentence.' }),
     });
     assert.strictEqual(postRes.status, 200);
     const postBody = await postRes.json();
@@ -150,9 +179,75 @@ test('POST /api/chat/message persists both the user message and the reply, GET r
     const history = await getRes.json();
     assert.strictEqual(history.length, 2);
     assert.strictEqual(history[0].role, 'user');
-    assert.strictEqual(history[0].content, 'What does Capital Flow do?');
+    assert.strictEqual(history[0].content, 'Explain unusual volume in one sentence.');
     assert.strictEqual(history[1].role, 'assistant');
     assert.strictEqual(history[1].content, 'Capital Flow scans for unusual volume.');
+  } finally {
+    server.close();
+  }
+});
+
+test('the exact product FAQ fast path skips Gemini and persists both messages atomically', async () => {
+  let providerCalled = false;
+  global.fetch = async (url, opts) => {
+    if (typeof url === 'string' && url.includes('generativelanguage.googleapis.com')) providerCalled = true;
+    return originalFetch(url, opts);
+  };
+
+  const user = await makeUser('chat-fast-faq@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: 'Bearer ' + (await issueToken(user)).accessToken,
+  };
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/chat/message`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ message: 'What does Capital Flow do?' }),
+    });
+    assert.strictEqual(response.status, 200);
+    const body = await response.json();
+    assert.match(body.reply, /unusual trading volume/i);
+    assert.strictEqual(providerCalled, false);
+
+    const history = await (await fetch(`http://127.0.0.1:${port}/api/chat/history`, { headers })).json();
+    assert.strictEqual(history.length, 2);
+    assert.strictEqual(history[0].role, 'user');
+    assert.strictEqual(history[1].role, 'assistant');
+  } finally {
+    server.close();
+  }
+});
+
+test('POST /api/chat/message/stream forwards text deltas and persists the completed answer', async () => {
+  mockGeminiStream(['The first part ', 'and the second part.']);
+
+  const user = await makeUser('chat-stream@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: 'Bearer ' + (await issueToken(user)).accessToken,
+  };
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/chat/message/stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ message: 'Explain why volume confirmation matters.' }),
+    });
+    assert.strictEqual(response.status, 200);
+    assert.match(response.headers.get('content-type'), /text\/event-stream/);
+    const body = await response.text();
+    assert.match(body, /event: ready/);
+    assert.match(body, /"text":"The first part "/);
+    assert.match(body, /"text":"and the second part\."/);
+    assert.match(body, /event: complete/);
+
+    const history = await (await fetch(`http://127.0.0.1:${port}/api/chat/history`, { headers })).json();
+    assert.strictEqual(history.length, 2);
+    assert.strictEqual(history[1].content, 'The first part and the second part.');
   } finally {
     server.close();
   }

@@ -16,6 +16,8 @@ function newState() {
     liveResults: [],
     lastResults: null,
     lastScanTime: null,
+    lastDataStatus: null,
+    lastDataAsOf: null,
     touchedAt: Date.now(),
   };
 }

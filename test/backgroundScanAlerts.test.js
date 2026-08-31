@@ -17,6 +17,7 @@ before(async () => {
 });
 
 const { setAlert, getWatchlistAlerts } = require('../server/services/watchlistAlerts');
+const { getNotifications } = require('../server/services/notifications');
 const webPush = require('../server/services/webPush');
 const { checkWatchlistAlerts } = require('../server/services/backgroundScan');
 
@@ -106,6 +107,41 @@ test('checkWatchlistAlerts absorbs a rejected push delivery without crashing the
     await assert.doesNotReject(() =>
       checkWatchlistAlerts([{ symbol: 'NVDA', name: 'NVIDIA', volumeRatio: 4.0, change: 2.5, price: 120 }])
     );
+  } finally {
+    webPush.sendPushToUser = originalSend;
+  }
+});
+
+test('checkWatchlistAlerts keeps an alert honest when the quote has no change percent', async () => {
+  const userId = await makeUser('bg-alert-missing-change@test.local');
+  await setAlert(userId, 'AMD', { type: 'volume', minRatio: 2.0 });
+
+  const originalSend = webPush.sendPushToUser;
+  webPush.sendPushToUser = () => {};
+  try {
+    await assert.doesNotReject(() =>
+      checkWatchlistAlerts([{ symbol: 'AMD', name: 'AMD', volumeRatio: 3.2, change: null, price: 120 }])
+    );
+    assert.strictEqual((await getWatchlistAlerts(userId)).AMD, undefined, 'the alert is consumed once it is persisted');
+    const notifications = await getNotifications(userId, 10);
+    assert.match(notifications[0].body, /change unavailable/);
+  } finally {
+    webPush.sendPushToUser = originalSend;
+  }
+});
+
+test('concurrent alert checks consume one threshold and create one notification', async () => {
+  const userId = await makeUser('bg-alert-race@test.local');
+  await setAlert(userId, 'META', { type: 'volume', minRatio: 2.0 });
+
+  const originalSend = webPush.sendPushToUser;
+  webPush.sendPushToUser = () => {};
+  try {
+    const result = [{ symbol: 'META', name: 'Meta', volumeRatio: 3.2, change: 1.1, price: 500 }];
+    await Promise.all([checkWatchlistAlerts(result), checkWatchlistAlerts(result)]);
+    assert.strictEqual((await getWatchlistAlerts(userId)).META, undefined);
+    const notifications = await getNotifications(userId, 10);
+    assert.strictEqual(notifications.length, 1, 'only one worker may consume the one-shot alert');
   } finally {
     webPush.sendPushToUser = originalSend;
   }

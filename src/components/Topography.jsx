@@ -266,6 +266,8 @@ const Topography = ({
     let raf = 0;
     let isVisible = true;
     let isPageVisible = !document.hidden;
+    let isScrolling = false;
+    let scrollResumeTimer = 0;
     const t0 = performance.now();
     const loop = (time) => {
       const elapsed = (time - t0) * 0.001;
@@ -293,7 +295,7 @@ const Topography = ({
     };
 
     const tryStart = () => {
-      if (reduceMotion) return;
+      if (reduceMotion || isScrolling) return;
       if (isVisible && isPageVisible && raf === 0) raf = requestAnimationFrame(loop);
     };
     const tryStop = () => {
@@ -302,6 +304,21 @@ const Topography = ({
         raf = 0;
       }
     };
+
+    // Give native wheel/touch scrolling a clean frame budget. The canvas is
+    // decorative, so stop its entire loop while the user is actively moving
+    // through the page and resume as soon as the gesture settles.
+    const onScroll = () => {
+      isScrolling = true;
+      tryStop();
+      if (scrollResumeTimer) window.clearTimeout(scrollResumeTimer);
+      scrollResumeTimer = window.setTimeout(() => {
+        isScrolling = false;
+        scrollResumeTimer = 0;
+        tryStart();
+      }, 140);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
     const intersectionObserver = new IntersectionObserver(([entry]) => {
       isVisible = entry.isIntersecting;
       isVisible ? tryStart() : tryStop();
@@ -316,9 +333,11 @@ const Topography = ({
 
     return () => {
       tryStop();
+      if (scrollResumeTimer) window.clearTimeout(scrollResumeTimer);
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('scroll', onScroll);
       canvas.removeEventListener('mousemove', onMouseMove);
       canvas.removeEventListener('mouseleave', onMouseLeave);
       delete canvas.__topographyContext;

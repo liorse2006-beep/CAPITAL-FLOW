@@ -4,7 +4,7 @@ import bodyHtml from './landing/landing.body.html?raw';
 import Topography from '../components/Topography';
 import { initLandingEffects } from './landing/effects';
 import { track } from '../analytics';
-import './landing/landing.scoped.css';
+import './landing/landing.scoped.css?landing-style-v2';
 
 function mountTopography(root) {
   const mount = root.querySelector('#cfTopography');
@@ -45,7 +45,7 @@ function mountTopography(root) {
 // visual/marketing copy with no app state, so the highest-fidelity path was
 // to keep the markup and its effects (tilt cards, FAQ accordion, entrance
 // animation) intact and just give them a React mount/unmount lifecycle.
-export default function LandingPage({ onGetStarted }) {
+function LandingPage({ onGetStarted }) {
   const rootRef = useRef(null);
 
   useEffect(() => {
@@ -103,3 +103,5 @@ export default function LandingPage({ onGetStarted }) {
     <div className="cf-landing-page" dir="rtl" lang="he" ref={rootRef} dangerouslySetInnerHTML={{ __html: bodyHtml }} />
   );
 }
+
+export default React.memo(LandingPage);

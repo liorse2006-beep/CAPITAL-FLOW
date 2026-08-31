@@ -17,6 +17,7 @@ const {
   removeAlert,
   clearAlerts,
   getAllAlertsGrouped,
+  MAX_ALERTS_PER_USER,
 } = require('../server/services/watchlistAlerts');
 
 async function makeUser(email) {
@@ -87,4 +88,15 @@ test('getAllAlertsGrouped groups every alert under its owning user id', async ()
   const grouped = await getAllAlertsGrouped();
   assert.deepStrictEqual(grouped[hank].AMD, { type: 'volume', minRatio: 1.5 });
   assert.deepStrictEqual(grouped[ivy].AMD, { type: 'price', targetPrice: 150, startingSide: 'above' });
+});
+
+test('concurrent new alerts cannot bypass the per-user cap', async () => {
+  const user = await makeUser('alerts-concurrent-cap@test.local');
+  const symbols = Array.from({ length: MAX_ALERTS_PER_USER + 10 }, (_, i) => 'AL' + String(i).padStart(2, '0'));
+
+  await Promise.all(
+    symbols.map((symbol) => setAlert(user, symbol, { type: 'volume', minRatio: 2 }).catch((err) => err))
+  );
+
+  assert.strictEqual(Object.keys(await getWatchlistAlerts(user)).length, MAX_ALERTS_PER_USER);
 });

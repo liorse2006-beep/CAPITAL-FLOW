@@ -1,6 +1,6 @@
 const { verifyToken } = require('../services/auth');
 const db = require('../db');
-const { reserveScan, quotaFor, freeTrialActive } = require('../services/scanQuota');
+const { reserveScanWithToken, quotaFor, freeTrialActive } = require('../services/scanQuota');
 const { ADMIN_EMAIL, SESSION_SECRET } = require('../config');
 const crypto = require('crypto');
 const { publish, subscribe } = require('../services/clusterBus');
@@ -378,7 +378,9 @@ async function requirePremiumSSE(req, res, next) {
  * every category for a 7-day trial from signup, then blocked entirely.
  * Premium: shared pool of 5 scans per rolling 24h. Elite: unlimited.
  * Returns a middleware bound to the given category — mount as
- * requireScanQuota('capitalFlow'), not requireScanQuota directly.
+ * requireScanQuota('capitalFlow'), not requireScanQuota directly. A Premium
+ * reservation token is attached to req.scanReservation so a later refund can
+ * only return the slot reserved by this request.
  *
  * reserveScan spends the slot atomically right here, before the (possibly
  * slow) scan even starts — not after it finishes. That closes a real race:
@@ -386,8 +388,8 @@ async function requirePremiumSSE(req, res, next) {
  * concurrent requests could all read "under the limit" before any of them
  * had finished long enough to increment it, letting a Premium user run far
  * more than 5 scans/24h. The route handler is responsible for calling
- * refundScan(req.user) if the scan itself then fails, so a slot reserved
- * here isn't permanently lost to an upstream error.
+ * refundScan(req.user, req.scanReservation) if the scan itself then fails, so
+ * a slot reserved here isn't permanently lost to an upstream error.
  */
 function requireScanQuota(category) {
   return async function (req, res, next) {
@@ -397,7 +399,8 @@ function requireScanQuota(category) {
     }
     const user = await resolveToken(header.slice(7));
     if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
-    if (!(await reserveScan(user, category))) {
+    const reservation = await reserveScanWithToken(user, category);
+    if (!reservation.reserved) {
       return res.status(403).json({
         error: 'Scan limit reached',
         code: 'SCAN_LIMIT',
@@ -405,6 +408,7 @@ function requireScanQuota(category) {
       });
     }
     req.user = user;
+    req.scanReservation = reservation.reservation;
     next();
   };
 }

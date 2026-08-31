@@ -33,6 +33,37 @@ async function addNotification(userId, { symbol, title, body, scanType, results 
   return res.lastInsertRowid;
 }
 
+/**
+ * Atomically consume a one-shot watchlist alert and persist its notification.
+ * The conditional INSERT uses SQLite's changes() from the immediately
+ * preceding DELETE, so concurrent background workers cannot both consume the
+ * same alert. If the notification insert fails, the write transaction rolls
+ * the alert deletion back and the next scan can retry it safely.
+ */
+async function consumeWatchlistAlert(userId, symbol, { title, body }) {
+  const rows = await db.transaction([
+    {
+      sql: 'DELETE FROM watchlist_alerts WHERE user_id = ? AND symbol = ?',
+      args: [userId, symbol],
+    },
+    {
+      sql: `INSERT INTO notifications (user_id, symbol, title, body, scan_type, results_json)
+            SELECT ?, ?, ?, ?, NULL, NULL
+             WHERE changes() > 0`,
+      args: [userId, symbol, title, body],
+    },
+    {
+      sql: `DELETE FROM notifications WHERE user_id = ? AND id NOT IN (
+              SELECT id FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?
+            )`,
+      args: [userId, userId, MAX_PER_USER],
+    },
+  ]);
+  const deleted = Number(rows[0] && (rows[0].rowsAffected ?? rows[0].changes ?? 0));
+  const notificationId = rows[1] && rows[1].lastInsertRowid != null ? Number(rows[1].lastInsertRowid) : null;
+  return { consumed: deleted > 0 && notificationId != null, notificationId };
+}
+
 async function getNotifications(userId, limit) {
   return db
     .prepare(
@@ -91,6 +122,7 @@ async function clearAll(userId) {
 
 module.exports = {
   addNotification,
+  consumeWatchlistAlert,
   getNotifications,
   getNotificationDetail,
   getUnreadCount,

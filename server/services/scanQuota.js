@@ -76,47 +76,68 @@ const PREMIUM_WINDOW_SEC = PREMIUM_WINDOW_MS / 1000;
  * whatever `user.premium_scan_count` this request happened to read minutes
  * or seconds earlier while a previous scan was still running.
  *
- * Returns true if a slot was reserved (and mutates `user` to reflect the
- * new count for the response), false if the user is out of quota. Elite is
- * always true (no bookkeeping); Free is gated purely by trial-window age,
- * also with no bookkeeping needed.
+ * reserveScanWithToken returns the admission decision plus a durable
+ * reservation id for Premium. The id is what lets a later cache-hit/error
+ * refund exactly this request's slot rather than decrementing whichever
+ * request happened to arrive next.
  */
-async function reserveScan(user, _category) {
-  if (user.tier === 'elite') return true;
-  if (user.tier === 'free') return freeTrialActive(user);
+async function reserveScanWithToken(user, _category) {
+  if (user.tier === 'elite') return { reserved: true, reservation: null };
+  if (user.tier === 'free') return { reserved: freeTrialActive(user), reservation: null };
 
   const nowSec = Math.floor(Date.now() / 1000);
-  const result = await db
-    .prepare(
-      `UPDATE users SET
-         premium_scan_count = CASE
-           WHEN premium_scan_window_start IS NULL OR ? - premium_scan_window_start >= ? THEN 1
-           ELSE premium_scan_count + 1
-         END,
-         premium_scan_window_start = CASE
-           WHEN premium_scan_window_start IS NULL OR ? - premium_scan_window_start >= ? THEN ?
-           ELSE premium_scan_window_start
-         END
-       WHERE id = ?
-         AND (
-           premium_scan_window_start IS NULL
-           OR ? - premium_scan_window_start >= ?
-           OR premium_scan_count < ?
-         )`
-    )
-    .run(
-      nowSec,
-      PREMIUM_WINDOW_SEC,
-      nowSec,
-      PREMIUM_WINDOW_SEC,
-      nowSec,
-      user.id,
-      nowSec,
-      PREMIUM_WINDOW_SEC,
-      PREMIUM_DAILY_LIMIT
-    );
+  // The UPDATE and its reservation ledger insert are one write transaction.
+  // `changes()` in the immediately following INSERT ... SELECT is the
+  // atomic admission decision: if the quota WHERE clause rejected the update,
+  // no reservation row is created. A caller can therefore refund by id, not
+  // by blindly decrementing whatever count happens to exist later.
+  const results = await db.transaction([
+    {
+      sql: 'DELETE FROM scan_reservations WHERE created_at < ?',
+      args: [nowSec - 3 * 24 * 60 * 60],
+    },
+    {
+      sql: `UPDATE users SET
+             premium_scan_count = CASE
+               WHEN premium_scan_window_start IS NULL OR ? - premium_scan_window_start >= ? THEN 1
+               ELSE premium_scan_count + 1
+             END,
+             premium_scan_window_start = CASE
+               WHEN premium_scan_window_start IS NULL OR ? - premium_scan_window_start >= ? THEN ?
+               ELSE premium_scan_window_start
+             END
+           WHERE id = ?
+             AND (
+               premium_scan_window_start IS NULL
+               OR ? - premium_scan_window_start >= ?
+               OR premium_scan_count < ?
+             )`,
+      args: [
+        nowSec,
+        PREMIUM_WINDOW_SEC,
+        nowSec,
+        PREMIUM_WINDOW_SEC,
+        nowSec,
+        user.id,
+        nowSec,
+        PREMIUM_WINDOW_SEC,
+        PREMIUM_DAILY_LIMIT,
+      ],
+    },
+    {
+      sql: `INSERT INTO scan_reservations (user_id, window_start, created_at)
+            SELECT ?, premium_scan_window_start, ?
+              FROM users
+             WHERE id = ? AND changes() = 1`,
+      args: [user.id, nowSec, user.id],
+    },
+  ]);
 
-  if (!result.changes) return false;
+  const reservationInsert = results[2];
+  const reservationId = Number(reservationInsert && reservationInsert.lastInsertRowid);
+  if (!reservationInsert || Number(reservationInsert.rowsAffected || 0) !== 1 || !Number.isSafeInteger(reservationId)) {
+    return { reserved: false, reservation: null };
+  }
 
   // Re-read so the response (quotaFor) reflects exactly what the atomic
   // write actually did, not a client-side guess at which CASE branch fired.
@@ -127,7 +148,17 @@ async function reserveScan(user, _category) {
     user.premium_scan_count = fresh.premium_scan_count;
     user.premium_scan_window_start = fresh.premium_scan_window_start;
   }
-  return true;
+  return {
+    reserved: true,
+    reservation: {
+      id: reservationId,
+      windowStart: Number(fresh && fresh.premium_scan_window_start),
+    },
+  };
+}
+
+async function reserveScan(user, category) {
+  return (await reserveScanWithToken(user, category)).reserved;
 }
 
 /**
@@ -137,10 +168,37 @@ async function reserveScan(user, _category) {
  * premium_scan_window_start, so a refund can't resurrect an already-expired
  * window. No-op for Elite/Free, which never reserved anything.
  */
-async function refundScan(user) {
-  if (user.tier === 'elite' || user.tier === 'free') return;
-  await db.prepare('UPDATE users SET premium_scan_count = MAX(0, premium_scan_count - 1) WHERE id = ?').run(user.id);
-  user.premium_scan_count = Math.max(0, (user.premium_scan_count || 0) - 1);
+async function refundScan(user, reservation) {
+  if (user.tier === 'elite' || user.tier === 'free' || !reservation || !reservation.id) return false;
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const results = await db.transaction([
+    {
+      sql: `UPDATE scan_reservations
+               SET refunded_at = ?
+             WHERE id = ? AND user_id = ? AND refunded_at IS NULL`,
+      args: [nowSec, reservation.id, user.id],
+    },
+    {
+      // A reservation from an expired window must never decrement the new
+      // window's count. The row is still marked refunded so a repeated error
+      // path cannot consume the same reservation twice.
+      sql: `UPDATE users
+               SET premium_scan_count = MAX(0, premium_scan_count - 1)
+             WHERE id = ? AND premium_scan_window_start = ? AND changes() = 1`,
+      args: [user.id, reservation.windowStart],
+    },
+  ]);
+
+  if (!results[0] || Number(results[0].rowsAffected || 0) !== 1) return false;
+  const fresh = await db
+    .prepare('SELECT premium_scan_count, premium_scan_window_start FROM users WHERE id = ?')
+    .get(user.id);
+  if (fresh) {
+    user.premium_scan_count = fresh.premium_scan_count;
+    user.premium_scan_window_start = fresh.premium_scan_window_start;
+  }
+  return true;
 }
 
 /** Full quota picture for the frontend, keyed by tier. */
@@ -179,6 +237,7 @@ module.exports = {
   CATEGORY_COLUMN,
   canScan,
   reserveScan,
+  reserveScanWithToken,
   refundScan,
   quotaFor,
   freeTrialActive,

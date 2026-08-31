@@ -58,6 +58,8 @@ export default function MAScannerPage({
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
   const [scanTime, setScanTime] = useState(null);
+  const [dataStatus, setDataStatus] = useState(null);
+  const [dataAsOf, setDataAsOf] = useState(null);
 
   const [sortField, setSort] = useState('maDistance');
   const [sortDir, setSortDir] = useState('asc');
@@ -67,6 +69,15 @@ export default function MAScannerPage({
 
   const pollRef = useRef(null);
   const authH = () => ({ Authorization: 'Bearer ' + getToken() });
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     refreshQuota();
@@ -111,6 +122,8 @@ export default function MAScannerPage({
       .then((d) => {
         setResults(d.results);
         setScanTime(d.scanTime);
+        setDataStatus(d.dataStatus || null);
+        setDataAsOf(d.dataAsOf || d.scanTime || null);
         setScanMeta({ tier: d.tier, isPremium: d.isPremium, premium: d.premium, free: d.free });
         setLoading(false);
         clearInterval(pollRef.current);
@@ -257,6 +270,10 @@ export default function MAScannerPage({
   const isLocked = !user;
 
   const selectedMarket = MARKET_OPTIONS.find((m) => m.key === market);
+  const noResultsText =
+    dataStatus === 'unavailable'
+      ? 'No verified market data is available right now. Please try again in a few minutes.'
+      : 'No results match your filters';
 
   // Guests can see every filter at full strength — touching any of them
   // (instead of hitting a persistent "sign in" banner up front) is what
@@ -292,7 +309,7 @@ export default function MAScannerPage({
           React.createElement(
             'span',
             { className: 'table-footer', style: { margin: 0 } },
-            'Last scan: ' + new Date(scanTime).toLocaleTimeString()
+            'Data as of: ' + new Date(dataAsOf || scanTime).toLocaleTimeString()
           ),
         !isLocked &&
           React.createElement(
@@ -645,6 +662,16 @@ export default function MAScannerPage({
             )
           ),
 
+          dataStatus &&
+            dataStatus !== 'complete' &&
+            React.createElement(
+              'div',
+              { className: 'data-status-banner ' + dataStatus, role: 'status' },
+              dataStatus === 'unavailable'
+                ? 'Market data is temporarily unavailable. Please try again in a few minutes.'
+                : 'Some market data could not be verified. Review results with caution.'
+            ),
+
           React.createElement(MobileResultSort, {
             options: [
               { value: 'symbol', label: 'Ticker' },
@@ -668,7 +695,7 @@ export default function MAScannerPage({
               ? React.createElement(
                   'div',
                   { className: 'empty', style: { padding: '32px 20px' } },
-                  React.createElement('p', null, 'No results match your filters')
+                  React.createElement('p', null, noResultsText)
                 )
               : sorted.map((r, i) => {
                   const isAbove = r.direction === 'above';
@@ -777,7 +804,7 @@ export default function MAScannerPage({
                             fontSize: 12,
                           },
                         },
-                        'No results match your filters'
+                        noResultsText
                       )
                     )
                   : sorted.map((r, i) => {

@@ -1,5 +1,5 @@
 const yahooFinance = require('./yahoo');
-const { getQuotes } = require('./quoteCache');
+const quoteCache = require('./quoteCache');
 const { fetchFinnhubQuote, fetchFinnhubMetric } = require('./finnhub');
 const { getETMinutes, calculateRVOL } = require('./rvol');
 
@@ -16,6 +16,12 @@ const SECTOR_TTL_MS = 7 * 24 * 60 * 60 * 1000; //  7 d — sector string
 const metricCache = new Map(); // symbol → { data, fetchedAt }
 const sparkCache = new Map(); // symbol → { data, fetchedAt }
 const sectorCache = new Map(); // symbol → { data, fetchedAt }
+
+function finiteOrNull(value) {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+}
 
 function slowGet(cache, symbol, ttl) {
   const e = cache.get(symbol);
@@ -77,7 +83,7 @@ async function scanTickers(tickers, options) {
   // ── Phase 1: batch-fetch all quotes (5–6 HTTP calls for 516 tickers) ────────
   if (onProgress) onProgress({ processed: 0, total: tickers.length, found: 0 });
 
-  var quotesMap = await getQuotes(tickers, function (fetched, fetchTotal) {
+  var quotesMap = await quoteCache.getQuotes(tickers, function (fetched, fetchTotal) {
     if (onProgress) {
       // Map fetch progress onto the first half of the progress bar
       var approx = Math.round((fetched / fetchTotal) * (tickers.length * 0.5));
@@ -117,7 +123,11 @@ async function scanTickers(tickers, options) {
       return;
     }
 
-    checkedSymbols.push(String(quote.symbol || symbol).trim().toUpperCase());
+    checkedSymbols.push(
+      String(quote.symbol || symbol)
+        .trim()
+        .toUpperCase()
+    );
     if (quoteMarketCap < minMarketCap) return;
 
     var volumeRatio = Math.round((quoteVolume / avgVolume) * 100) / 100;
@@ -134,7 +144,7 @@ async function scanTickers(tickers, options) {
       symbol: quote.symbol,
       name: quote.shortName || quote.longName || symbol,
       price: price,
-      change: quote.regularMarketChangePercent || 0,
+      change: finiteOrNull(quote.regularMarketChangePercent),
       volume: quoteVolume,
       avgVolume: avgVolume,
       volumeRatio: volumeRatio,
@@ -142,13 +152,13 @@ async function scanTickers(tickers, options) {
       marketCap: quoteMarketCap,
       sector: 'Pending',
       exchange: quote.exchange || 'N/A',
-      dayHigh: quote.regularMarketDayHigh || 0,
-      dayLow: quote.regularMarketDayLow || 0,
-      prevClose: quote.regularMarketPreviousClose || 0,
-      fiftyTwoWeekHigh: quote.fiftyTwoWeekHigh || 0,
-      fiftyTwoWeekLow: quote.fiftyTwoWeekLow || 0,
-      floatShares: quote.floatShares || 0,
-      shortPercent: quote.shortPercentOfFloat || 0,
+      dayHigh: finiteOrNull(quote.regularMarketDayHigh),
+      dayLow: finiteOrNull(quote.regularMarketDayLow),
+      prevClose: finiteOrNull(quote.regularMarketPreviousClose),
+      fiftyTwoWeekHigh: finiteOrNull(quote.fiftyTwoWeekHigh),
+      fiftyTwoWeekLow: finiteOrNull(quote.fiftyTwoWeekLow),
+      floatShares: finiteOrNull(quote.floatShares),
+      shortPercent: finiteOrNull(quote.shortPercentOfFloat),
       sparkline: [],
     };
 
@@ -232,10 +242,10 @@ async function scanTickers(tickers, options) {
           } else {
             r.price = fQuote.price;
           }
-          r.change = fQuote.change;
-          if (fQuote.dayHigh > 0) r.dayHigh = fQuote.dayHigh;
-          if (fQuote.dayLow > 0) r.dayLow = fQuote.dayLow;
-          if (fQuote.prevClose > 0) r.prevClose = fQuote.prevClose;
+          if (fQuote.change !== null) r.change = fQuote.change;
+          if (fQuote.dayHigh !== null) r.dayHigh = fQuote.dayHigh;
+          if (fQuote.dayLow !== null) r.dayLow = fQuote.dayLow;
+          if (fQuote.prevClose !== null) r.prevClose = fQuote.prevClose;
         }
 
         if (fMetric) {
@@ -293,14 +303,28 @@ async function scanTickers(tickers, options) {
     results: results,
     errors: errors,
     checkedSymbols: [...new Set(checkedSymbols)],
-    dataStatus: errors.length > 0 ? 'partial' : 'complete',
+    // An all-symbol failure is not a valid empty scan. Mark it unavailable so
+    // scheduled jobs and Radar never present a provider outage as "no hits".
+    dataStatus:
+      errors.length === 0
+        ? 'complete'
+        : errors.length >=
+            new Set(
+              tickers.map((symbol) =>
+                String(symbol || '')
+                  .trim()
+                  .toUpperCase()
+              )
+            ).size
+          ? 'unavailable'
+          : 'partial',
     dataAsOf: new Date().toISOString(),
     processed: tickers.length,
   };
 }
 
 async function quickScan(symbols) {
-  var quotesMap = await getQuotes(symbols);
+  var quotesMap = await quoteCache.getQuotes(symbols);
   var results = [];
 
   symbols.forEach(function (symbol) {
@@ -309,25 +333,25 @@ async function quickScan(symbols) {
       return;
     }
 
-    var avgVolume = quote.averageDailyVolume10Day || 0;
-    var volumeRatio = avgVolume > 0 ? Math.round((quote.regularMarketVolume / avgVolume) * 100) / 100 : 0;
+    var avgVolume = finiteOrNull(quote.averageDailyVolume10Day);
+    var volumeRatio = avgVolume > 0 ? Math.round((quote.regularMarketVolume / avgVolume) * 100) / 100 : null;
 
     results.push({
       symbol: quote.symbol,
       name: quote.shortName || quote.longName || symbol,
-      price: quote.regularMarketPrice || 0,
-      change: quote.regularMarketChangePercent || 0,
+      price: finiteOrNull(quote.regularMarketPrice),
+      change: finiteOrNull(quote.regularMarketChangePercent),
       volume: quote.regularMarketVolume,
       avgVolume: avgVolume,
       volumeRatio: volumeRatio,
-      marketCap: quote.marketCap || 0,
+      marketCap: finiteOrNull(quote.marketCap),
       sector: 'N/A',
       exchange: quote.exchange || 'N/A',
-      dayHigh: quote.regularMarketDayHigh || 0,
-      dayLow: quote.regularMarketDayLow || 0,
-      prevClose: quote.regularMarketPreviousClose || 0,
-      fiftyTwoWeekHigh: quote.fiftyTwoWeekHigh || 0,
-      fiftyTwoWeekLow: quote.fiftyTwoWeekLow || 0,
+      dayHigh: finiteOrNull(quote.regularMarketDayHigh),
+      dayLow: finiteOrNull(quote.regularMarketDayLow),
+      prevClose: finiteOrNull(quote.regularMarketPreviousClose),
+      fiftyTwoWeekHigh: finiteOrNull(quote.fiftyTwoWeekHigh),
+      fiftyTwoWeekLow: finiteOrNull(quote.fiftyTwoWeekLow),
     });
   });
 

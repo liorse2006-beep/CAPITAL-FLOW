@@ -165,6 +165,58 @@ test('POST /api/scheduled-scans rejects impossible times and calendar dates', as
   }
 });
 
+test('POST /api/scheduled-scans rejects non-string and partially numeric times', async () => {
+  const userId = await makeEliteUser('sched-route-time-types@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    for (const scan_time of [1230, ['09:00'], '09:00abc']) {
+      const res = await fetch(`http://127.0.0.1:${port}/api/scheduled-scans`, {
+        method: 'POST',
+        headers: await authHeaders(userId),
+        body: JSON.stringify({ scan_type: 'capitalFlow', scan_time }),
+      });
+      assert.strictEqual(res.status, 400);
+    }
+  } finally {
+    server.close();
+  }
+});
+
+test('POST /api/scheduled-scans enforces the active cap under concurrent requests', async () => {
+  const userId = await makeEliteUser('sched-route-concurrent-cap@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    const headers = await authHeaders(userId);
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, async (_, i) =>
+        fetch(`http://localhost:${port}/api/scheduled-scans`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ scan_type: 'capitalFlow', scan_time: `1${i}:00` }),
+        })
+      )
+    );
+    assert.strictEqual(
+      responses.filter((response) => response.status === 200).length,
+      3,
+      'at most three concurrent creations may succeed'
+    );
+    assert.strictEqual(
+      responses.filter((response) => response.status === 400).length,
+      2,
+      'requests beyond the cap must be rejected'
+    );
+    const count = await db
+      .prepare('SELECT COUNT(*) AS cnt FROM scheduled_scans WHERE user_id = ? AND active = 1')
+      .get(userId);
+    assert.strictEqual(count.cnt, 3);
+  } finally {
+    server.close();
+  }
+});
+
 test('PUT /api/scheduled-scans cannot reactivate a schedule beyond the active cap', async () => {
   const userId = await makeEliteUser('sched-route-reactivation-cap@test.local');
   const server = await startTestApp();

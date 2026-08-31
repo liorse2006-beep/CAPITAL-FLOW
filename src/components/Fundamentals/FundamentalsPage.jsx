@@ -89,24 +89,26 @@ function MetricIcon({ path }) {
 }
 
 function fmtCap(v) {
-  if (!v) return '—';
+  if (v == null || !Number.isFinite(Number(v))) return '—';
+  v = Number(v);
   if (v >= 1e12) return '$' + (v / 1e12).toFixed(2) + 'T';
   if (v >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B';
   if (v >= 1e6) return '$' + (v / 1e6).toFixed(0) + 'M';
   return '$' + v.toFixed(0);
 }
 function fmtShares(v) {
-  if (!v) return '—';
+  if (v == null || !Number.isFinite(Number(v))) return '—';
+  v = Number(v);
   if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
   if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
   if (v >= 1e3) return (v / 1e3).toFixed(0) + 'K';
   return String(v);
 }
 function fmtPct(v) {
-  return v ? v.toFixed(1) + '%' : '—';
+  return v == null || !Number.isFinite(Number(v)) ? '—' : Number(v).toFixed(1) + '%';
 }
 function fmtRatio(v) {
-  return v ? v.toFixed(2) : '—';
+  return v == null || !Number.isFinite(Number(v)) ? '—' : Number(v).toFixed(2);
 }
 // null (not reported) and 0% growth must stay visually distinguishable —
 // never collapse "unknown" into "zero".
@@ -176,7 +178,7 @@ function ForwardMultiple({ result }) {
     );
   }
 
-  if (!result.forwardPE) return null;
+  if (result.forwardPE == null) return null;
 
   return (
     <div className="fund-tile-secondary">
@@ -505,8 +507,14 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
             </div>
             <div className="fund-result-quote">
               <span className="fund-result-price">{'$' + result.price.toFixed(2)}</span>
-              <span className={'fund-result-change ' + (result.change >= 0 ? 'is-up' : 'is-down')}>
-                {(result.change >= 0 ? '▲ ' : '▼ ') + Math.abs(result.change).toFixed(2) + '%'}
+              <span
+                className={
+                  'fund-result-change ' + (result.change == null ? '' : result.change >= 0 ? 'is-up' : 'is-down')
+                }
+              >
+                {result.change == null
+                  ? '—'
+                  : (result.change >= 0 ? '▲ ' : '▼ ') + Math.abs(result.change).toFixed(2) + '%'}
               </span>
               <span className="fund-result-cap">{fmtCap(result.marketCap)} cap</span>
             </div>

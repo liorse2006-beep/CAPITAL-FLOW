@@ -52,6 +52,7 @@ const STRONG_SECRETS = {
   STATUS_INTERNAL_TOKEN: 'status-probe-test-token-which-is-long-enough',
   TURSO_DB_URL: 'libsql://production-test.example',
   TURSO_AUTH_TOKEN: 'turso-test-token',
+  FRONTEND_URL: 'https://capital-flow.test',
 };
 
 test('refuses to boot in production without the protected status probe credential', () => {
@@ -63,6 +64,7 @@ test('refuses to boot in production without the protected status probe credentia
     STATUS_INTERNAL_TOKEN: '',
     TURSO_DB_URL: 'libsql://production-test.example',
     TURSO_AUTH_TOKEN: 'turso-test-token',
+    FRONTEND_URL: 'https://capital-flow.test',
     GOOGLE_CLIENT_ID: '',
     GOOGLE_CLIENT_SECRET: '',
   });
@@ -199,4 +201,34 @@ test('independent status service does not require application JWT/session secret
     GOOGLE_CLIENT_SECRET: '',
   });
   assert.strictEqual(exitCode, 0, stderr);
+});
+
+test('refuses to start production with multiple HTTP workers and no shared rate-limit store', () => {
+  const serverEntry = path.join(__dirname, '../server.js');
+  const { exitCode, stderr } = (() => {
+    try {
+      execFileSync(process.execPath, ['-e', `require(${JSON.stringify(serverEntry)})`], {
+        env: {
+          ...process.env,
+          NODE_ENV: 'production',
+          CLUSTER_WORKERS: '2',
+          JWT_SECRET: 'a'.repeat(48),
+          SESSION_SECRET: 'b'.repeat(48),
+          RESEND_API_KEY: 'test-resend-key',
+          STATUS_INTERNAL_TOKEN: 'status-probe-test-token-which-is-long-enough',
+          TURSO_DB_URL: 'libsql://production-test.example',
+          TURSO_AUTH_TOKEN: 'turso-test-token',
+          FRONTEND_URL: 'https://capital-flow.test',
+          GOOGLE_CLIENT_ID: '',
+          GOOGLE_CLIENT_SECRET: '',
+        },
+        stdio: 'pipe',
+      });
+      return { exitCode: 0, stderr: '' };
+    } catch (err) {
+      return { exitCode: err.status, stderr: String(err.stderr) };
+    }
+  })();
+  assert.strictEqual(exitCode, 1);
+  assert.match(stderr, /CLUSTER_WORKERS|shared rate-limit/i);
 });

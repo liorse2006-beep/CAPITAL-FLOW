@@ -237,11 +237,10 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
       console.log('[google/callback] authentication succeeded');
       const { accessToken, refreshToken } = await issueToken(user);
       setRefreshCookie(res, refreshToken);
-      // If FRONTEND_URL is explicitly set use it; otherwise auto-detect from the
-      // request host so production works without needing the env var configured.
-      const dest =
-        process.env.FRONTEND_URL ||
-        (process.env.NODE_ENV === 'production' ? `https://${req.get('host')}` : 'http://localhost:5173');
+      // Use the validated configured origin. Falling back to the request Host
+      // header here would turn a missing production configuration into an
+      // open-redirect primitive.
+      const dest = FRONTEND_URL || 'http://localhost:5173';
       console.log('[google/callback] redirecting to configured frontend');
       // A URL fragment (#...), not a query string (?...) — the browser never
       // sends the fragment to any server (this one included, on the very
@@ -529,6 +528,7 @@ router.delete('/account', requireAuth, async (req, res) => {
       'notifications',
       'chat_messages',
       'ai_usage',
+      'scan_reservations',
     ].map((table) => ({ sql: `DELETE FROM ${table} WHERE user_id = ?`, args: [userId] }));
     statements.push(
       {

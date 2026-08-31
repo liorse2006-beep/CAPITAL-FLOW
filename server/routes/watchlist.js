@@ -2,11 +2,10 @@ const router = require('express').Router();
 const { quickScan } = require('../services/scanner');
 const { scanLimiter } = require('../middleware/rateLimiters');
 const { requireAuth } = require('../middleware/authMiddleware');
-const { getWatchlist, addToWatchlist, removeFromWatchlist } = require('../services/watchlist');
+const { getWatchlist, addToWatchlist, removeFromWatchlist, MAX_WATCHLIST_SIZE } = require('../services/watchlist');
 const { reportError } = require('../utils/reportError');
 
 var SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
-var MAX_WATCHLIST_SIZE = 50; // matches the /watchlist-quotes cap below
 
 router.get('/watchlist', requireAuth, async (req, res) => {
   try {
@@ -21,13 +20,12 @@ router.post('/watchlist/:symbol', requireAuth, async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase();
     if (!SYMBOL_RE.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
-    const current = await getWatchlist(req.user.id);
-    if (current.length >= MAX_WATCHLIST_SIZE && current.indexOf(symbol) === -1) {
-      return res.status(400).json({ error: 'Watchlist is full (max ' + MAX_WATCHLIST_SIZE + ' tickers)' });
-    }
     await addToWatchlist(req.user.id, symbol);
     res.json({ ok: true, symbol });
   } catch (err) {
+    if (err && err.code === 'WATCHLIST_LIMIT') {
+      return res.status(400).json({ error: `Watchlist is full (max ${MAX_WATCHLIST_SIZE} tickers)` });
+    }
     reportError(err, '[watchlist POST]');
     res.status(500).json({ error: 'Server error' });
   }

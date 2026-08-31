@@ -18,6 +18,12 @@ const CROSS_LOOKBACK_BARS = 10;
 const CLOSES_TTL_MS = 24 * 60 * 60 * 1000;
 const closesCache = new Map(); // `${symbol}|${interval}` → { closes, fetchedAt }
 
+function finiteOrNull(value) {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function getCachedCloses(symbol, interval, minBars) {
   const e = closesCache.get(symbol + '|' + interval);
   if (!e) return null;
@@ -97,7 +103,9 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
   const checkedSymbols = new Set();
 
   function addError(symbol) {
-    const normalized = String(symbol || '').trim().toUpperCase();
+    const normalized = String(symbol || '')
+      .trim()
+      .toUpperCase();
     if (normalized) errors.add(normalized);
   }
 
@@ -124,7 +132,11 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
       addError(sym);
       return;
     }
-    checkedSymbols.add(String(q.symbol || sym).trim().toUpperCase());
+    checkedSymbols.add(
+      String(q.symbol || sym)
+        .trim()
+        .toUpperCase()
+    );
     if (marketCap < MIN_MKT_CAP) return;
     qualified.push({ symbol: sym, q });
   });
@@ -174,10 +186,10 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
             symbol,
             name: q.shortName || q.longName || symbol,
             price,
-            change: q.regularMarketChangePercent || 0,
-            volume: q.regularMarketVolume || 0,
-            avgVolume: q.averageDailyVolume10Day || 0,
-            marketCap: q.marketCap || 0,
+            change: finiteOrNull(q.regularMarketChangePercent),
+            volume: finiteOrNull(q.regularMarketVolume),
+            avgVolume: finiteOrNull(q.averageDailyVolume10Day),
+            marketCap: finiteOrNull(q.marketCap),
             maValue: +maValue.toFixed(2),
             maDistance: +pctDist.toFixed(2),
             direction: pctDist >= 0 ? 'above' : 'below',
@@ -216,7 +228,21 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
     qualified: qualified.length,
     errors: [...errors],
     checkedSymbols: [...checkedSymbols],
-    dataStatus: errors.size > 0 ? 'partial' : 'complete',
+    // Do not turn a total quote/chart outage into a trustworthy empty result.
+    // The caller can still distinguish a subset outage as partial.
+    dataStatus:
+      errors.size === 0
+        ? 'complete'
+        : errors.size >=
+            new Set(
+              tickers.map((symbol) =>
+                String(symbol || '')
+                  .trim()
+                  .toUpperCase()
+              )
+            ).size
+          ? 'unavailable'
+          : 'partial',
     dataAsOf: new Date().toISOString(),
   };
 }

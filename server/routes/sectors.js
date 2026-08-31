@@ -7,18 +7,33 @@ const { reportError } = require('../utils/reportError');
 
 // Sector-flow has no per-user params — every caller gets the same 15 ETFs —
 // so a short shared cache turns N concurrent requests into 1 upstream fetch.
-var flowCache = { results: null, fetchTime: null, expiresAt: 0 };
+var flowCache = { results: null, fetchTime: null, dataStatus: null, dataAsOf: null, expiresAt: 0 };
 const CACHE_TTL_MS = 60 * 1000;
+
+function finiteOrNull(value) {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function roundOrNull(value, digits) {
+  const number = finiteOrNull(value);
+  if (number === null) return null;
+  const factor = 10 ** digits;
+  return Math.round(number * factor) / factor;
+}
 
 router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) => {
   if (flowCache.results && flowCache.expiresAt > Date.now()) {
     // Cache hit — free, same policy as the main scanner. requireScanQuota
     // already reserved a slot before we knew this would be a cache hit —
     // refund it.
-    await refundScan(req.user);
+    await refundScan(req.user, req.scanReservation);
     return res.json({
       results: flowCache.results,
       fetchTime: flowCache.fetchTime,
+      dataStatus: flowCache.dataStatus,
+      dataAsOf: flowCache.dataAsOf,
       fromCache: true,
       ...quotaFor(req.user),
     });
@@ -70,7 +85,7 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
           const quotes = chart && chart.quotes ? chart.quotes : [];
           const recent = quotes
             .filter(function (d) {
-              return d.volume && d.volume > 0;
+              return finiteOrNull(d.volume) !== null && finiteOrNull(d.volume) > 0 && finiteOrNull(d.close) !== null;
             })
             .sort(function (a, b) {
               return new Date(b.date) - new Date(a.date);
@@ -80,30 +95,31 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
             recent.length >= 3
               ? Math.round(
                   recent.reduce(function (s, d) {
-                    return s + d.volume;
+                    return s + Number(d.volume);
                   }, 0) / recent.length
                 )
-              : 0;
+              : null;
 
-          let vol = quote.regularMarketVolume || 0;
-          let change = quote.regularMarketChangePercent || 0;
-          let price = quote.regularMarketPrice || 0;
-          let dayHigh = quote.regularMarketDayHigh || 0;
-          let dayLow = quote.regularMarketDayLow || 0;
-          let prevClose = quote.regularMarketPreviousClose || 0;
+          let vol = finiteOrNull(quote.regularMarketVolume);
+          let change = finiteOrNull(quote.regularMarketChangePercent);
+          let price = finiteOrNull(quote.regularMarketPrice);
+          let dayHigh = finiteOrNull(quote.regularMarketDayHigh);
+          let dayLow = finiteOrNull(quote.regularMarketDayLow);
+          let prevClose = finiteOrNull(quote.regularMarketPreviousClose);
           let lastSession = false;
 
           // If market is closed (no live volume), fall back to the most recent session's data
-          if (vol === 0 && recent.length > 0) {
+          if ((!vol || vol <= 0) && recent.length > 0) {
             const last = recent[0];
-            vol = last.volume || 0;
-            price = last.close || price;
-            dayHigh = last.high || dayHigh;
-            dayLow = last.low || dayLow;
+            vol = finiteOrNull(last.volume);
+            price = finiteOrNull(last.close) ?? price;
+            dayHigh = finiteOrNull(last.high) ?? dayHigh;
+            dayLow = finiteOrNull(last.low) ?? dayLow;
             // Compute change from last two sessions if Yahoo isn't providing it
-            if (change === 0 && recent.length >= 2) {
-              const prev = recent[1].close;
-              if (prev > 0) change = ((last.close - prev) / prev) * 100;
+            if (change === null && recent.length >= 2) {
+              const previous = finiteOrNull(recent[1].close);
+              const close = finiteOrNull(last.close);
+              if (previous > 0 && close !== null) change = ((close - previous) / previous) * 100;
             }
             lastSession = true;
           }
@@ -111,24 +127,29 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
           try {
             const fRes = await finnhubFetch('https://finnhub.io/api/v1/quote?symbol=' + encodeURIComponent(symbol));
             const fData = fRes ? await fRes.json() : null;
-            if (fData && fData.c && fData.c > 0 && !fData.error) {
-              price = fData.c;
-              change = fData.dp || change;
-              dayHigh = fData.h || dayHigh;
-              dayLow = fData.l || dayLow;
-              prevClose = fData.pc || prevClose;
+            const finnhubPrice = finiteOrNull(fData && fData.c);
+            if (fData && finnhubPrice !== null && finnhubPrice > 0 && !fData.error) {
+              price = finnhubPrice;
+              change = finiteOrNull(fData.dp) ?? change;
+              dayHigh = finiteOrNull(fData.h) ?? dayHigh;
+              dayLow = finiteOrNull(fData.l) ?? dayLow;
+              prevClose = finiteOrNull(fData.pc) ?? prevClose;
             }
           } catch (e) {}
 
-          const volRatio = avgVol > 0 ? Math.round((vol / avgVol) * 100) / 100 : 0;
-          let flow = 'neutral';
-          if (change > 0.3 && volRatio > 1.1) flow = 'inflow';
-          else if (change < -0.3 && volRatio > 1.1) flow = 'outflow';
+          const volRatio = avgVol > 0 && vol > 0 ? roundOrNull(vol / avgVol, 2) : null;
+          const dataStatus = price > 0 && vol > 0 && avgVol > 0 ? 'complete' : 'unavailable';
+          let flow = 'unavailable';
+          if (dataStatus === 'complete') {
+            flow = 'neutral';
+            if (change !== null && change > 0.3 && volRatio > 1.1) flow = 'inflow';
+            else if (change !== null && change < -0.3 && volRatio > 1.1) flow = 'outflow';
+          }
 
           return {
             symbol: symbol,
             price: price,
-            change: Math.round(change * 100) / 100,
+            change: roundOrNull(change, 2),
             volume: vol,
             avgVolume: avgVol,
             volRatio: volRatio,
@@ -137,29 +158,40 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
             dayLow: dayLow,
             prevClose: prevClose,
             lastSession: lastSession,
+            dataStatus: dataStatus,
           };
         } catch (e) {
           return {
             symbol: symbol,
-            price: 0,
-            change: 0,
-            volume: 0,
-            avgVolume: 0,
-            volRatio: 0,
-            flow: 'neutral',
-            dayHigh: 0,
-            dayLow: 0,
-            prevClose: 0,
+            price: null,
+            change: null,
+            volume: null,
+            avgVolume: null,
+            volRatio: null,
+            flow: 'unavailable',
+            dayHigh: null,
+            dayLow: null,
+            prevClose: null,
             lastSession: false,
+            dataStatus: 'unavailable',
           };
         }
       })
     );
     var fetchTime = new Date().toISOString();
-    flowCache = { results: results, fetchTime: fetchTime, expiresAt: Date.now() + CACHE_TTL_MS };
-    res.json({ results: results, fetchTime: fetchTime, ...quotaFor(req.user) });
+    const unavailableCount = results.filter((result) => result.dataStatus === 'unavailable').length;
+    const dataStatus =
+      unavailableCount === results.length ? 'unavailable' : unavailableCount > 0 ? 'partial' : 'complete';
+    flowCache = {
+      results: results,
+      fetchTime: fetchTime,
+      dataStatus: dataStatus,
+      dataAsOf: fetchTime,
+      expiresAt: Date.now() + CACHE_TTL_MS,
+    };
+    res.json({ results: results, fetchTime: fetchTime, dataStatus, dataAsOf: fetchTime, ...quotaFor(req.user) });
   } catch (err) {
-    await refundScan(req.user);
+    await refundScan(req.user, req.scanReservation);
     reportError(err, '[sectors]');
     res.status(500).json({ error: 'Server error' });
   }

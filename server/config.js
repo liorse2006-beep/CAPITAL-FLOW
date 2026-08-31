@@ -165,6 +165,15 @@ module.exports = {
   // Turso cloud SQLite — set for production (Render). Omit for local dev (file-based).
   TURSO_DB_URL: env('TURSO_DB_URL'),
   TURSO_AUTH_TOKEN: env('TURSO_AUTH_TOKEN'),
+  // Only these proxy source networks may contribute X-Forwarded-For to
+  // req.ip. An empty list intentionally trusts no proxy, which is safer than
+  // trusting an arbitrary client-supplied forwarding header. For a local
+  // Nginx sidecar use 127.0.0.1,::1; configure the actual fixed ingress CIDRs
+  // for any hosted reverse proxy.
+  TRUSTED_PROXY_CIDRS: env('TRUSTED_PROXY_CIDRS')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean),
   PILOT_INVITE_CODE: env('PILOT_INVITE_CODE'),
 };
 
@@ -227,6 +236,39 @@ const statusFileDatabaseAllowed =
   process.env.INDEPENDENT_STATUS_SERVICE === 'true' &&
   process.env.STATUS_ALLOW_FILE_DB === 'true' &&
   /^file:/i.test(String(module.exports.TURSO_DB_URL || ''));
+
+// A localhost frontend fallback is useful in development but is a broken
+// production redirect target for OAuth, checkout, and transactional links.
+// Validate the origin once at boot so a missing, malformed, or accidentally
+// non-HTTPS production value cannot ship as a silent user-facing failure.
+function isSafeFrontendOrigin(value) {
+  try {
+    const url = new URL(String(value || ''));
+    return (
+      url.protocol === 'https:' &&
+      !url.username &&
+      !url.password &&
+      (url.pathname === '' || url.pathname === '/') &&
+      !url.search &&
+      !url.hash
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
+if (
+  process.env.NODE_ENV === 'production' &&
+  process.env.INDEPENDENT_STATUS_SERVICE !== 'true' &&
+  !isSafeFrontendOrigin(module.exports.FRONTEND_URL)
+) {
+  console.error(
+    '\n[FATAL] FRONTEND_URL must be an HTTPS origin in production. ' +
+      'Set it to the public app origin (for example https://capitalflow.vip) before starting.\n'
+  );
+  process.exit(1);
+}
+
 if (
   process.env.NODE_ENV === 'production' &&
   (!module.exports.TURSO_DB_URL || (!module.exports.TURSO_AUTH_TOKEN && !statusFileDatabaseAllowed))

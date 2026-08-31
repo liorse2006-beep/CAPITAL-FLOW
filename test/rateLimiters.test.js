@@ -6,7 +6,7 @@ require('./helpers/testEnv');
 const { test } = require('node:test');
 const assert = require('node:assert');
 const express = require('express');
-const { authLimiter, otpLimiter, scanLimiter, sseStreamLimiter } = require('../server/middleware/rateLimiters');
+const { authLimiter, otpLimiter, realIp, scanLimiter, sseStreamLimiter } = require('../server/middleware/rateLimiters');
 const { generateToken } = require('../server/services/auth');
 const { issueSseTicket } = require('../server/middleware/authMiddleware');
 
@@ -41,6 +41,17 @@ test('authLimiter blocks after its configured max (10) requests per window', asy
   } finally {
     server.close();
   }
+});
+
+test('realIp does not trust a spoofed Cloudflare forwarding header', () => {
+  assert.equal(
+    realIp({
+      headers: { 'cf-connecting-ip': '203.0.113.99' },
+      ip: '127.0.0.1',
+      socket: { remoteAddress: '127.0.0.1' },
+    }),
+    '127.0.0.1'
+  );
 });
 
 test('otpLimiter is stricter than authLimiter (max 5)', async () => {

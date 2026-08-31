@@ -178,6 +178,7 @@ router.delete(
       'notifications',
       'chat_messages',
       'ai_usage',
+      'scan_reservations',
     ].map((table) => ({ sql: `DELETE FROM ${table} WHERE user_id = ?`, args: [userId] }));
     statements.push(
       {

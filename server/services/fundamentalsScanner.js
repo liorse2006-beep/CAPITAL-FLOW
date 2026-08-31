@@ -41,7 +41,7 @@ function slowSet(cache, symbol, data) {
 
 function numericValue(value) {
   var raw = typeof value === 'number' ? value : value && typeof value.raw === 'number' ? value.raw : NaN;
-  return Number.isFinite(raw) ? raw : 0;
+  return Number.isFinite(raw) ? raw : null;
 }
 
 // Returns null only when Yahoo genuinely has no such data for this symbol
@@ -52,8 +52,8 @@ async function fetchKeyStatsAndEarnings(symbol) {
   var stats = summary.defaultKeyStatistics || {};
   var dates = summary.calendarEvents && summary.calendarEvents.earnings && summary.calendarEvents.earnings.earningsDate;
   return {
-    floatShares: stats.floatShares || 0,
-    shortPercent: stats.shortPercentOfFloat != null ? stats.shortPercentOfFloat : 0,
+    floatShares: numericValue(stats.floatShares),
+    shortPercent: numericValue(stats.shortPercentOfFloat),
     forwardPE: numericValue(stats.forwardPE),
     pegRatio: numericValue(stats.pegRatio),
     nextEarningsDate: dates && dates.length ? new Date(dates[0]).toISOString().slice(0, 10) : null,
@@ -88,10 +88,16 @@ async function scanFundamentals(tickers) {
       var metricPromise =
         cachedMetric !== null
           ? Promise.resolve(cachedMetric)
-          : finnhub.fetchFinnhubMetric(c.symbol).catch(function () {
-              metricFailed = true;
-              return null;
-            });
+          : finnhub
+              .fetchFinnhubMetric(c.symbol)
+              .then(function (value) {
+                if (value === null) metricFailed = true;
+                return value;
+              })
+              .catch(function () {
+                metricFailed = true;
+                return null;
+              });
 
       var cachedKeyStats = slowGet(keyStatsCache, c.symbol);
       var keyStatsPromise =
@@ -111,22 +117,22 @@ async function scanFundamentals(tickers) {
       results.push({
         symbol: c.symbol,
         name: c.quote.shortName || c.quote.longName || c.symbol,
-        price: c.quote.regularMarketPrice || 0,
-        change: c.quote.regularMarketChangePercent || 0,
-        marketCap: c.quote.marketCap || 0,
-        // 0/null means the source reported no value for this company —
+        price: c.quote.regularMarketPrice,
+        change: c.quote.regularMarketChangePercent ?? null,
+        marketCap: c.quote.marketCap ?? null,
+        // null means the source reported no value for this company —
         // rendered as "—", never a fabricated number. `Unverified` (below)
         // is a separate, distinct case: the source failed to answer at all.
-        floatShares: (keyStats && keyStats.floatShares) || 0,
-        shortPercent: (keyStats && keyStats.shortPercent) || 0,
+        floatShares: keyStats?.floatShares ?? null,
+        shortPercent: keyStats?.shortPercent ?? null,
         nextEarningsDate: (keyStats && keyStats.nextEarningsDate) || null,
-        peRatio: (metric && metric.peRatio) || 0,
+        peRatio: metric?.peRatio ?? null,
         // Keep forward P/E and PEG as raw provider values. The UI places
         // forward P/E inside the current P/E tile, while PEG remains a
         // separately selectable metric.
-        forwardPE: (keyStats && keyStats.forwardPE) || 0,
-        pegRatio: (keyStats && keyStats.pegRatio) || 0,
-        debtToEquity: (metric && metric.debtToEquity) || 0,
+        forwardPE: keyStats?.forwardPE ?? null,
+        pegRatio: keyStats?.pegRatio ?? null,
+        debtToEquity: metric?.debtToEquity ?? null,
         revenueGrowth5Y: metric && metric.revenueGrowth5Y != null ? metric.revenueGrowth5Y : null,
         // Which groups genuinely failed to load (network/API error) rather
         // than just having nothing to report — the UI shows these as "not

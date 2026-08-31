@@ -35,8 +35,10 @@ const MAX_EVENTS_PER_RADAR = 50;
 const DATA_UNAVAILABLE_MESSAGE = 'Data is not available right now. Try again in a few minutes.';
 const PARTIAL_DATA_MESSAGE = 'Some market data is unavailable right now. Try again in a few minutes.';
 const RADAR_SCHEDULE_MESSAGE = 'Choose one or two scan times and an expiry date before activating this Radar.';
-const RADAR_LIMIT_MESSAGE = 'Only one Radar scan can be saved per account. Edit or remove the current Radar before creating another.';
-const RADAR_ACTIVE_LIMIT_MESSAGE = 'Only one Radar scan can be active at a time. Edit or remove the current Radar before activating another.';
+const RADAR_LIMIT_MESSAGE =
+  'Only one Radar scan can be saved per account. Edit or remove the current Radar before creating another.';
+const RADAR_ACTIVE_LIMIT_MESSAGE =
+  'Only one Radar scan can be active at a time. Edit or remove the current Radar before activating another.';
 const RADAR_TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const RADAR_SLOT_START = 11 * 60;
 const RADAR_SLOT_END = 23 * 60;
@@ -69,7 +71,7 @@ function isActiveRadarUniqueError(error) {
   const code = String(error && error.code ? error.code : '');
   return (
     message.includes('idx_capital_flow_radars_one_active_user') ||
-    message.includes('capital_flow_radars.user_id') && code.includes('CONSTRAINT')
+    (message.includes('capital_flow_radars.user_id') && code.includes('CONSTRAINT'))
   );
 }
 
@@ -532,7 +534,11 @@ async function deleteRadar(userId, radarId) {
 }
 
 function eventPayload(row, scanTime, meta = {}) {
-  const numeric = (value) => (Number.isFinite(Number(value)) ? Number(value) : null);
+  const numeric = (value) => {
+    if (value == null || value === '') return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
   return {
     symbol: String(row.symbol || '').toUpperCase(),
     name: String(row.name || row.symbol || '').slice(0, 120),
@@ -674,8 +680,14 @@ async function processRadarScan(results, scanTime, meta) {
   // scheduled worker supplies explicit ids, so Radar never falls back to
   // continuous processing.
   if (radarIds.length === 0) return [];
-  const dataStatus = scanMeta.dataStatus || (Array.isArray(scanMeta.errors) && scanMeta.errors.length ? 'partial' : 'complete');
-  if (!Array.isArray(results) || !scanTime || Number.isNaN(new Date(scanTime).getTime()) || dataStatus === 'unavailable') {
+  const dataStatus =
+    scanMeta.dataStatus || (Array.isArray(scanMeta.errors) && scanMeta.errors.length ? 'partial' : 'complete');
+  if (
+    !Array.isArray(results) ||
+    !scanTime ||
+    Number.isNaN(new Date(scanTime).getTime()) ||
+    dataStatus === 'unavailable'
+  ) {
     await markRadarsUnavailable(radarIds);
     return [];
   }
@@ -715,7 +727,12 @@ async function processRadarScan(results, scanTime, meta) {
       const states = await getStates(config.id);
       const resultRowsBySymbol = new Map(
         results
-          .map((row) => [String(row && row.symbol ? row.symbol : '').trim().toUpperCase(), row])
+          .map((row) => [
+            String(row && row.symbol ? row.symbol : '')
+              .trim()
+              .toUpperCase(),
+            row,
+          ])
           .filter(([symbol]) => symbol)
       );
       const sectorUnavailableSymbols =
@@ -734,9 +751,8 @@ async function processRadarScan(results, scanTime, meta) {
         ...sectorUnavailableSymbols.map((symbol) => `SECTOR_DATA_UNAVAILABLE:${symbol}`),
       ];
       const radarConditionStatus = conditionStatusByRadarId[String(config.id)] || dataStatus;
-      const radarDataStatus = sectorUnavailableSymbols.length > 0 && radarConditionStatus === 'complete'
-        ? 'partial'
-        : radarConditionStatus;
+      const radarDataStatus =
+        sectorUnavailableSymbols.length > 0 && radarConditionStatus === 'complete' ? 'partial' : radarConditionStatus;
       const evaluation = evaluateRadarTransitions(config, results, states, {
         scanTime,
         unavailableSymbols: radarUnavailableSymbols,
@@ -872,9 +888,8 @@ async function markRadarsUnavailable(radarIds, metadata = {}) {
   if (ids.length === 0) return;
   const placeholders = ids.map(() => '?').join(',');
   const checkedAt = metadata.dataAsOf || new Date().toISOString();
-  const errorDetail = Array.isArray(metadata.errors) && metadata.errors.length > 0
-    ? JSON.stringify(metadata.errors.slice(0, 100))
-    : null;
+  const errorDetail =
+    Array.isArray(metadata.errors) && metadata.errors.length > 0 ? JSON.stringify(metadata.errors.slice(0, 100)) : null;
   await db
     .prepare(
       `UPDATE capital_flow_radars
@@ -905,6 +920,7 @@ module.exports = {
   createRadar,
   updateRadar,
   deleteRadar,
+  eventPayload,
   processRadarScan,
   markRadarsUnavailable,
   serializeRadar,

@@ -6,6 +6,8 @@ const { isMarketOpen, isPreMarket } = require('./marketCalendar');
 var backgroundCache = {
   results: null,
   scanTime: null,
+  dataStatus: null,
+  dataAsOf: null,
   running: false,
 };
 
@@ -71,12 +73,17 @@ function alertTriggered(alert, r) {
 }
 
 function alertNotificationPayload(alert, r) {
+  const numericChange =
+    r.change == null || (typeof r.change === 'string' && r.change.trim() === '') ? null : Number(r.change);
+  const change = Number.isFinite(numericChange)
+    ? `${numericChange >= 0 ? '+' : ''}${numericChange.toFixed(2)}%`
+    : 'change unavailable';
   if (alert.type === 'price') {
     return {
       symbol: r.symbol,
       name: r.name,
       title: `${r.symbol} Price Alert`,
-      body: `Crossed $${alert.targetPrice} — now $${r.price.toFixed(2)} (${r.change >= 0 ? '+' : ''}${r.change.toFixed(2)}%)`,
+      body: `Crossed $${alert.targetPrice} — now $${r.price.toFixed(2)} (${change})`,
       targetPrice: alert.targetPrice,
       change: r.change,
       price: r.price,
@@ -87,7 +94,7 @@ function alertNotificationPayload(alert, r) {
     symbol: r.symbol,
     name: r.name,
     title: `${r.symbol} Volume Spike`,
-    body: `${r.volumeRatio}x avg volume — ${r.change >= 0 ? '+' : ''}${r.change.toFixed(2)}% @ $${r.price.toFixed(2)}`,
+    body: `${r.volumeRatio}x avg volume — ${change} @ $${r.price.toFixed(2)}`,
     volumeRatio: r.volumeRatio,
     change: r.change,
     price: r.price,
@@ -98,7 +105,8 @@ function alertNotificationPayload(alert, r) {
 async function checkWatchlistAlerts(results) {
   var broadcastToUser = getBroadcastToUser();
   try {
-    const { getAllAlertsGrouped, removeAlert } = require('./watchlistAlerts');
+    const { getAllAlertsGrouped } = require('./watchlistAlerts');
+    const notifications = require('./notifications');
     const byUser = await getAllAlertsGrouped(); // { userId: { AAPL: {type,...}, ... }, ... }
     const bySymbol = new Map(results.map((r) => [r.symbol, r]));
 
@@ -106,25 +114,21 @@ async function checkWatchlistAlerts(results) {
       for (const [symbol, alert] of Object.entries(alerts)) {
         const r = bySymbol.get(symbol);
         if (!r || !alertTriggered(alert, r)) continue;
-        // One-shot: the threshold is a standing "order" the user placed —
-        // once it fires we cancel it immediately (delete the row) so it
-        // never re-fires on the next cycle while the condition stays true.
-        // The user has to re-arm it deliberately to watch for the next move.
-        // Awaited (not fire-and-forget) so the cancellation is guaranteed to
-        // have landed before the next scan cycle can possibly read it again.
-        await removeAlert(Number(userId), symbol);
         const alertPayload = alertNotificationPayload(alert, r);
+        // Consume and persist atomically. If the database cannot record the
+        // notification, the alert remains armed for a later retry instead of
+        // being lost between a delete and a failed notification write.
+        const consumed = await notifications.consumeWatchlistAlert(Number(userId), symbol, {
+          title: alertPayload.title,
+          body: alertPayload.body,
+        });
+        if (!consumed.consumed) continue;
         broadcastToUser(Number(userId), 'alert', alertPayload);
         try {
           await require('./webPush').sendPushToUser(Number(userId), alertPayload);
         } catch (err) {
           reportError(err, '[checkWatchlistAlerts push]');
         }
-        // Persisted so the alert still shows up in the in-app bell even if
-        // the push never reached the device (computer off, dismissed, etc).
-        require('./notifications')
-          .addNotification(Number(userId), { symbol: r.symbol, title: alertPayload.title, body: alertPayload.body })
-          .catch(() => {});
       }
     }
   } catch (err) {
@@ -171,20 +175,32 @@ async function runBackgroundScan() {
 
     backgroundCache.results = res.results;
     backgroundCache.scanTime = new Date().toISOString();
-    console.log(`[Background] ${res.results.length} results at ${backgroundCache.scanTime}`);
+    backgroundCache.dataStatus = res.dataStatus || (res.errors && res.errors.length ? 'partial' : 'complete');
+    backgroundCache.dataAsOf = res.dataAsOf || backgroundCache.scanTime;
+    console.log(
+      `[Background] ${res.results.length} results at ${backgroundCache.scanTime} ` +
+        `(data=${backgroundCache.dataStatus}, asOf=${backgroundCache.dataAsOf})`
+    );
 
     // Push live results to all connected SSE clients
     broadcast('scan-update', {
       results: res.results.slice(0, 50), // top 50 to keep payload light
       scanTime: backgroundCache.scanTime,
+      dataStatus: backgroundCache.dataStatus,
+      dataAsOf: backgroundCache.dataAsOf,
     });
 
     // Check watchlist thresholds
     await checkWatchlistAlerts(res.results);
-
   } catch (e) {
     reportError(e, '[Background] Scan failed');
-    broadcast('scan-status', { running: false, error: e.message });
+    // Provider/library errors can contain request URLs or other diagnostic
+    // details. They belong in redacted operator logs, never in a global SSE
+    // payload delivered to every signed-in browser.
+    broadcast('scan-status', {
+      running: false,
+      error: 'Market data is temporarily unavailable. Try again in a few minutes.',
+    });
   } finally {
     // Guaranteed to run even if the hard timeout above fired, or anything
     // else in the try block threw something unexpected — the scheduler must

@@ -170,23 +170,60 @@ function validateDump(dump) {
   return tables;
 }
 
+function quoteIdentifier(identifier) {
+  if (!IDENTIFIER.test(identifier)) throw new Error('Unsafe status-backup identifier: ' + identifier);
+  return '"' + identifier + '"';
+}
+
+async function validateStatusSchema(tables, dump) {
+  for (const table of tables) {
+    const schemaRows = await db.prepare('PRAGMA table_info(' + quoteIdentifier(table) + ')').all();
+    const schemaColumns = new Set(schemaRows.map((column) => column.name));
+    if (schemaColumns.size === 0) throw new Error('Target database is missing status table: ' + table);
+    for (const row of dump.tables[table]) {
+      for (const column of Object.keys(row)) {
+        if (!schemaColumns.has(column)) {
+          throw new Error('Status backup contains unknown column: ' + table + '.' + column);
+        }
+      }
+    }
+  }
+}
+
+function buildStatusRestoreStatements(dump, tables) {
+  const statements = [];
+  for (const table of tables) {
+    const quotedTable = quoteIdentifier(table);
+    statements.push({ sql: 'DELETE FROM ' + quotedTable, args: [] });
+    for (const row of dump.tables[table]) {
+      const columns = Object.keys(row);
+      const placeholders = columns.map(() => '?').join(', ');
+      statements.push({
+        sql:
+          'INSERT INTO ' +
+          quotedTable +
+          ' (' +
+          columns.map(quoteIdentifier).join(', ') +
+          ') VALUES (' +
+          placeholders +
+          ')',
+        args: columns.map((column) => row[column]),
+      });
+    }
+  }
+  return statements;
+}
+
 async function restoreStatusTables(dump, { confirm = false } = {}) {
   const tables = validateDump(dump);
   const summary = tables.map((table) => ({ table, rows: dump.tables[table].length }));
   if (!confirm) return { dryRun: true, createdAt: dump.createdAt || null, tables: summary };
 
   await db.ready;
-  for (const table of tables) {
-    await db.prepare('DELETE FROM ' + table).run();
-    for (const row of dump.tables[table]) {
-      const columns = Object.keys(row);
-      if (!columns.length) continue;
-      const placeholders = columns.map(() => '?').join(', ');
-      await db
-        .prepare('INSERT INTO ' + table + ' (' + columns.join(', ') + ') VALUES (' + placeholders + ')')
-        .run(...columns.map((column) => row[column]));
-    }
-  }
+  await validateStatusSchema(tables, dump);
+  // Restore every selected operational table as one transaction. A malformed
+  // or incompatible later row must never leave status history half-deleted.
+  await db.transaction(buildStatusRestoreStatements(dump, tables));
   return { dryRun: false, createdAt: dump.createdAt || null, tables: summary };
 }
 
@@ -194,6 +231,7 @@ module.exports = {
   STATUS_TABLES,
   dumpStatusTables,
   encodeStatusBackup,
+  buildStatusRestoreStatements,
   maybeRunStatusBackup,
   restoreStatusTables,
   runStatusBackup,

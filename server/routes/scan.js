@@ -120,6 +120,10 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
     (list === 'sectors' && sectors.length === 0) ||
     (maxPrice > 0 && minPrice > maxPrice)
   ) {
+    // The quota middleware reserves a Premium slot before this handler runs.
+    // Invalid input never reaches the scanner, so compensate the reservation
+    // instead of charging the user for a request that could not be executed.
+    await refundScan(req.user, req.scanReservation);
     return res.status(400).json({ error: 'Invalid scan filters' });
   }
 
@@ -152,17 +156,21 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
       const state = getUserScanState(req.user.id);
       state.lastResults = cachedFiltered;
       state.lastScanTime = backgroundCache.scanTime;
+      state.lastDataStatus = backgroundCache.dataStatus || 'complete';
+      state.lastDataAsOf = backgroundCache.dataAsOf || backgroundCache.scanTime;
       // Served from cache — no real work happened, so it costs no quota.
       // Premium's 5/day pool only ever pays for scans that hit the market.
       // requireScanQuota already reserved a slot before we knew this would
       // be a cache hit (the atomic reserve has to happen before the scan
       // for the race-fix to work at all) — refund it here.
-      await refundScan(req.user);
+      await refundScan(req.user, req.scanReservation);
       return res.json({
         results: cachedFiltered,
         scanTime: backgroundCache.scanTime,
         tickersScanned: ALL_TICKERS.length,
         errors: 0,
+        dataStatus: backgroundCache.dataStatus || 'complete',
+        dataAsOf: backgroundCache.dataAsOf || backgroundCache.scanTime,
         fromCache: true,
         cacheAge: Math.round(cacheAgeMs / 1000),
         marketClosed: !marketOpen,
@@ -188,7 +196,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
   const state = getUserScanState(req.user.id);
   // Double-click protection only — scans by OTHER users never block this one.
   if (state.running) {
-    await refundScan(req.user); // no scan actually happened for this request
+    await refundScan(req.user, req.scanReservation); // no scan actually happened for this request
     return res.status(409).json({ error: 'Scan already in progress' });
   }
 
@@ -205,11 +213,15 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
     let results;
     let errors = [];
     let processed = tickersToScan.length;
+    let dataStatus = 'complete';
+    let dataAsOf = null;
 
     if (canShare) {
       const raw = await joinSharedScan(universeKey, tickersToScan, state, userOpts);
       errors = raw.errors;
       processed = raw.processed;
+      dataStatus = raw.dataStatus || (errors.length ? 'partial' : 'complete');
+      dataAsOf = raw.dataAsOf || null;
       results = raw.results.filter((r) => rowPasses(r, userOpts));
       // The full-universe floor scan is byte-for-byte what the background
       // scheduler produces — refresh the shared cache so the next caller
@@ -217,6 +229,8 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
       if (universeKey === 'all') {
         backgroundCache.results = raw.results;
         backgroundCache.scanTime = new Date().toISOString();
+        backgroundCache.dataStatus = dataStatus;
+        backgroundCache.dataAsOf = dataAsOf || backgroundCache.scanTime;
       }
     } else {
       const raw = await scanner.scanTickers(tickersToScan, {
@@ -234,11 +248,15 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
       });
       errors = raw.errors;
       processed = raw.processed;
+      dataStatus = raw.dataStatus || (errors.length ? 'partial' : 'complete');
+      dataAsOf = raw.dataAsOf || null;
       results = raw.results;
     }
 
     state.lastResults = results;
     state.lastScanTime = new Date().toISOString();
+    state.lastDataStatus = dataStatus;
+    state.lastDataAsOf = dataAsOf || state.lastScanTime;
     state.running = false;
 
     res.json({
@@ -246,12 +264,14 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
       scanTime: state.lastScanTime,
       tickersScanned: processed,
       errors: errors.length,
+      dataStatus,
+      dataAsOf: dataAsOf || state.lastScanTime,
       marketClosed: !isMarketOpen(),
       ...quotaFor(req.user),
     });
   } catch (err) {
     state.running = false;
-    await refundScan(req.user); // the reserved slot bought nothing — give it back
+    await refundScan(req.user, req.scanReservation); // the reserved slot bought nothing — give it back
     reportError(err, '[scan]');
     res.status(500).json({ error: 'Server error' });
   }
@@ -271,6 +291,8 @@ router.get('/last-results', requireAuth, (req, res) => {
   res.json({
     results: state.lastResults,
     scanTime: state.lastScanTime,
+    dataStatus: state.lastDataStatus || null,
+    dataAsOf: state.lastDataAsOf || null,
   });
 });
 

@@ -4,14 +4,7 @@ var CACHE_NAME = 'vs-v5-brand-assets';
 // every build, so those can't be precached by name — they're picked up by
 // the runtime cache-on-fetch handler below instead, the first time they're
 // requested.
-var STATIC_ASSETS = [
-  '/',
-  '/manifest.json',
-  '/favicon.svg',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/default-avatar.svg',
-];
+var STATIC_ASSETS = ['/', '/manifest.json', '/favicon.svg', '/icon-192.png', '/icon-512.png', '/default-avatar.svg'];
 
 self.addEventListener('install', function (event) {
   event.waitUntil(

@@ -71,6 +71,9 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
     sectors.some((sector) => !Object.prototype.hasOwnProperty.call(SECTOR_TICKERS, sector)) ||
     (market === 'sectors' && sectors.length === 0)
   ) {
+    // Validation happens after requireScanQuota reserves a Premium slot. No
+    // market request is made for invalid filters, so do not charge the user.
+    await refundScan(req.user, req.scanReservation);
     return res.status(400).json({ error: 'Invalid moving-average scan filters' });
   }
 
@@ -80,7 +83,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
     // Cache hit — free, same policy as the main scanner. requireScanQuota
     // already reserved a slot before we knew this would be a cache hit —
     // refund it.
-    await refundScan(req.user);
+    await refundScan(req.user, req.scanReservation);
     return res.json({
       results: cached.results,
       scanTime: cached.scanTime,
@@ -116,7 +119,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
 
   // Prevent duplicate concurrent scans for same user
   if (scanProgress.get(userId)?.running) {
-    await refundScan(req.user); // no scan actually happened for this request
+    await refundScan(req.user, req.scanReservation); // no scan actually happened for this request
     return res.status(409).json({ error: 'Scan already in progress' });
   }
 
@@ -177,7 +180,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
     });
   } catch (err) {
     scanProgress.delete(userId);
-    await refundScan(req.user);
+    await refundScan(req.user, req.scanReservation);
     reportError(err, '[ma-scanner]');
     res.status(500).json({ error: 'Server error' });
   }

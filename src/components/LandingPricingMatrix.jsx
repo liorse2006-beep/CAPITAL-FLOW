@@ -3,11 +3,7 @@ import TierComparisonMatrix from './shared/TierComparisonMatrix';
 export default function LandingPricingMatrix({ onGetStarted }) {
   return (
     <div className="cf-landing-pricing-matrix">
-      <TierComparisonMatrix
-        userTier="free"
-        trialEnded={false}
-        onCheckout={() => onGetStarted()}
-      />
+      <TierComparisonMatrix userTier="free" trialEnded={false} onCheckout={() => onGetStarted()} />
       <div className="upgrade-trust-row">
         <span>Secure checkout</span>
         <span className="upgrade-trust-separator" />

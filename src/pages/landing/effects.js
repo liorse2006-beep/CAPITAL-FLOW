@@ -1028,9 +1028,8 @@ function mountElectricBorder(el, opts, ebInstances) {
 }
 
 // ── ScrollFloat (React Bits) — reveals text once, the first time it
-// scrolls into view, via IntersectionObserver + a one-shot gsap tween
-// (not a continuous scrub tied to scroll position — see the comment above
-// the IntersectionObserver below for why).
+// scrolls into view. The reveal is observer-driven rather than scrubbed
+// against every scroll event, so the browser keeps native scrolling smooth.
 // Split by WORD, not by individual character like the source component:
 // this page is Hebrew (RTL), and character-level splitting broke it two
 // different ways —
@@ -1047,73 +1046,70 @@ function mountElectricBorder(el, opts, ebInstances) {
 // while the stagger reveal still reads essentially the same for headline-
 // length text. ──
 function mountScrollFloat(el, opts, cleanupFns) {
-  const o = Object.assign(
-    {
-      duration: 1,
-      ease: 'back.inOut(2)',
-      scrollStart: 'top bottom-=10%',
-      scrollEnd: 'bottom bottom-=35%',
-      stagger: 0.05,
-    },
-    opts || {}
-  );
-  const text = el.textContent;
+  const o = Object.assign({ duration: 540, stagger: 48 }, opts || {});
+  const originalMarkup = el.innerHTML;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   el.classList.add('scroll-float');
-  el.textContent = '';
-  const words = text.split(' ');
   const wordEls = [];
-  words.forEach((word, i) => {
-    const span = document.createElement('span');
-    span.className = 'word';
-    span.textContent = word;
-    el.appendChild(span);
-    wordEls.push(span);
-    if (i < words.length - 1) el.appendChild(document.createTextNode(' '));
+  const textNodes = [];
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  // Wrap words inside existing inline markup instead of flattening innerHTML.
+  // This keeps intentional color spans and line breaks intact while the
+  // reveal still animates each Hebrew word independently.
+  textNodes.forEach((textNode) => {
+    const parts = textNode.nodeValue.split(/(\s+)/u);
+    const fragment = document.createDocumentFragment();
+    parts.forEach((part) => {
+      if (!part) return;
+      if (/^\s+$/u.test(part)) {
+        fragment.appendChild(document.createTextNode(part.replace(/ /g, ' ')));
+        return;
+      }
+      const span = document.createElement('span');
+      span.className = 'word';
+      span.textContent = part;
+      fragment.appendChild(span);
+      wordEls.push(span);
+    });
+    textNode.replaceWith(fragment);
   });
 
-  // Restores `el` to plain text on cleanup — see mountEchoText's identical
+  // Restores the original markup on cleanup — see mountEchoText's identical
   // comment for why (React 18 StrictMode's dev-only double-effect-invoke
   // on the same DOM node).
   cleanupFns.push(() => {
     el.classList.remove('scroll-float');
-    el.textContent = text;
+    el.classList.remove('is-scroll-float-visible');
+    el.innerHTML = originalMarkup;
   });
 
-  if (reducedMotion) return;
+  wordEls.forEach((word, index) => {
+    word.style.setProperty('--cf-scroll-float-delay', `${index * o.stagger}ms`);
+    word.style.setProperty('--cf-scroll-float-duration', `${o.duration}ms`);
+  });
 
-  const tween = gsap.fromTo(
-    wordEls,
-    {
-      willChange: 'opacity, transform',
-      opacity: 0,
-      yPercent: 120,
-      scaleY: 1.6,
-      scaleX: 0.85,
-      transformOrigin: '50% 100%',
+  const reveal = () => {
+    el.classList.add('is-scroll-float-visible');
+  };
+
+  if (reducedMotion) {
+    reveal();
+    return;
+  }
+
+  const observer = new IntersectionObserver(
+    ([entry]) => {
+      if (!entry.isIntersecting) return;
+      reveal();
+      observer.unobserve(el);
     },
-    {
-      duration: o.duration,
-      ease: o.ease,
-      opacity: 1,
-      yPercent: 0,
-      scaleY: 1,
-      scaleX: 1,
-      stagger: o.stagger,
-      scrollTrigger: {
-        trigger: el,
-        start: o.scrollStart,
-        end: o.scrollEnd,
-        scrub: true,
-        invalidateOnRefresh: true,
-      },
-    }
+    { rootMargin: '0px 0px -12% 0px', threshold: 0.08 }
   );
-  cleanupFns.push(() => {
-    tween.scrollTrigger && tween.scrollTrigger.kill();
-    tween.kill();
-  });
+  observer.observe(el);
+  cleanupFns.push(() => observer.disconnect());
 }
 
 function setupScrollFloat(root, cleanupFns) {
@@ -1131,8 +1127,12 @@ function setupScrollFloat(root, cleanupFns) {
   });
 }
 
-// Scroll-scrubbed category transitions. A category is a complete landing
-// section; nothing inside the section is promoted to its own scroll step.
+// Category transitions reveal complete landing sections as one unit. Nothing
+// inside a section is promoted to its own scroll step: a category arrives with
+// one restrained depth reveal, then stays completely still while the visitor
+// reads it. The scroll listener below is passive and only runs one short
+// rAF after a scroll event; it never cancels or replaces the browser's native
+// scrolling.
 function setupCategoryTransitions(root, cleanupFns) {
   const sections = Array.from(root.querySelectorAll('.cf-category-section'));
   if (!sections.length) return;
@@ -1140,77 +1140,62 @@ function setupCategoryTransitions(root, cleanupFns) {
   root.classList.add('has-category-transitions');
   root.classList.remove('has-category-scroll-stack');
 
-  const reset = () => {
-    sections.forEach((section) =>
-      section.classList.remove('is-category-active', 'is-category-before', 'is-category-after')
-    );
-  };
+  const layers = sections.map((section) => {
+    const atmosphere = document.createElement('span');
+    atmosphere.className = 'cf-category-atmosphere';
+    atmosphere.setAttribute('aria-hidden', 'true');
+    section.prepend(atmosphere);
+    return { atmosphere };
+  });
 
-  reset();
+  sections.forEach((section) => section.classList.remove('is-category-active'));
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reducedMotion) {
+  if (reducedMotion || typeof IntersectionObserver !== 'function') {
     sections.forEach((section) => section.classList.add('is-category-active'));
     cleanupFns.push(() => {
-      reset();
-      root.classList.remove('has-category-transitions');
+      layers.forEach(({ atmosphere }) => {
+        atmosphere.remove();
+      });
     });
     return;
   }
 
-  let ticking = false;
-  let rafId = 0;
   let stopped = false;
-  let activeIndex = -1;
+  let revealFrame = 0;
+  const revealSection = (section) => {
+    if (!stopped) section.classList.add('is-category-active');
+  };
 
-  function update() {
-    ticking = false;
-    rafId = 0;
+  const revealVisibleSections = () => {
+    revealFrame = 0;
     if (stopped) return;
 
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-    const focusY = viewportHeight * 0.48;
-    let nextIndex = 0;
-    let closestDistance = Number.POSITIVE_INFINITY;
-
-    sections.forEach((section, index) => {
+    // Let the category settle into the viewport before starting its entrance
+    // treatment, so the motion is noticed as part of the experience instead
+    // of firing while the section is still barely visible at the bottom.
+    const viewportTop = window.innerHeight * 0.12;
+    const viewportBottom = window.innerHeight * 0.64;
+    sections.forEach((section) => {
       const rect = section.getBoundingClientRect();
-      const center = rect.top + rect.height / 2;
-      const isNearViewport = rect.bottom > viewportHeight * 0.08 && rect.top < viewportHeight * 0.92;
-      const distance = isNearViewport ? Math.abs(center - focusY) : Number.POSITIVE_INFINITY;
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        nextIndex = index;
-      }
+      if (rect.bottom >= viewportTop && rect.top <= viewportBottom) revealSection(section);
     });
-
-    if (nextIndex === activeIndex) return;
-    activeIndex = nextIndex;
-
-    sections.forEach((section, index) => {
-      section.classList.toggle('is-category-active', index === activeIndex);
-      section.classList.toggle('is-category-before', index < activeIndex);
-      section.classList.toggle('is-category-after', index > activeIndex);
-    });
-  }
-
-  function onScrollOrResize() {
-    if (ticking || stopped) return;
-    ticking = true;
-    rafId = requestAnimationFrame(update);
-  }
-
-  window.addEventListener('scroll', onScrollOrResize, { passive: true });
-  window.addEventListener('resize', onScrollOrResize, { passive: true });
-  update();
+  };
+  const scheduleReveal = () => {
+    if (!revealFrame) revealFrame = requestAnimationFrame(revealVisibleSections);
+  };
+  window.addEventListener('scroll', scheduleReveal, { passive: true });
+  window.addEventListener('resize', scheduleReveal, { passive: true });
+  revealVisibleSections();
 
   cleanupFns.push(() => {
     stopped = true;
-    window.removeEventListener('scroll', onScrollOrResize);
-    window.removeEventListener('resize', onScrollOrResize);
-    if (rafId) cancelAnimationFrame(rafId);
-    reset();
-    root.classList.remove('has-category-transitions');
+    window.removeEventListener('scroll', scheduleReveal);
+    window.removeEventListener('resize', scheduleReveal);
+    if (revealFrame) cancelAnimationFrame(revealFrame);
+    layers.forEach(({ atmosphere }) => {
+      atmosphere.remove();
+    });
   });
 }
 
@@ -1638,7 +1623,8 @@ function mountSignalChart(root, cleanupFns) {
 }
 
 // CTAs are buttons marked with data-cta-location in the static markup (no href to a real
-// checkout — the original page never had auth). One delegated listener
+// checkout — the original page never had auth). The visual button itself is
+// mounted with the React Bits SpecularButton, while one delegated listener
 // routes every click to the caller's onGetStarted, matching the historical
 // LandingPage.jsx pattern of opening the sign-in modal for any CTA.
 // There is no top nav any more — the page has only this floating bottom
@@ -1784,26 +1770,49 @@ function setupCtaDelegation(root, onGetStarted, cleanupFns) {
   cleanupFns.push(() => root.removeEventListener('click', onClick));
 }
 
-// The original static page relied on `html { scroll-behavior: smooth;
-// scroll-padding-top: 78px }` for its nav's #anchor links. Scoping the
-// landing CSS under .cf-landing-page (so it can't leak into the rest of the
-// SPA) moved that rule off the real <html> element, so it's restored here
-// as a temporary global while this route is mounted, and reverted on
-// unmount rather than left as a permanent app-wide behavior change.
-function setupSmoothAnchorScroll(cleanupFns) {
+// Keep the document's native scrolling path untouched. Anchor buttons that
+// explicitly request smooth behavior still animate themselves, while wheel,
+// touch, and keyboard scrolling stay immediate and compositor-friendly.
+function setupSmoothAnchorScroll(root, cleanupFns) {
   const html = document.documentElement;
-  const prevBehavior = html.style.scrollBehavior;
   const prevPadding = html.style.scrollPaddingTop;
-  html.style.scrollBehavior = 'smooth';
   html.style.scrollPaddingTop = '78px';
+
+  const links = Array.from(root.querySelectorAll('.cf-nav-links a[href^="#"], .cf-nav-logo[href^="#"]'));
+  const handlers = links.map((link) => {
+    const onClick = (event) => {
+      const href = link.getAttribute('href');
+      const target = href ? document.getElementById(href.slice(1)) : null;
+      if (!target) return;
+
+      event.preventDefault();
+      const nav = root.querySelector('.cf-nav-in');
+      const navHeight = nav ? nav.getBoundingClientRect().height : 52;
+      const targetTop = target.getBoundingClientRect().top + window.scrollY - navHeight - 26;
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      window.scrollTo({
+        top: Math.max(0, targetTop),
+        behavior: reducedMotion ? 'auto' : 'smooth',
+      });
+
+      // Update the bookmark without firing a router navigation or replacing
+      // the landing DOM while the smooth scroll is in progress.
+      window.history.replaceState(null, '', href);
+    };
+
+    link.addEventListener('click', onClick);
+    return { link, onClick };
+  });
+
   cleanupFns.push(() => {
-    html.style.scrollBehavior = prevBehavior;
+    handlers.forEach(({ link, onClick }) => link.removeEventListener('click', onClick));
     html.style.scrollPaddingTop = prevPadding;
   });
 }
 
 // Each effect is a nice-to-have on top of the page's real content (markup +
-// CTA + FAQ), never a requirement for it. A rare-browser gap (no
+  // CTA + FAQ), never a requirement for it. A rare-browser gap (no
 // ResizeObserver, no WebGL2) or a one-off DOM edge case in any single decorative
 // effect must not take down the other effects or, via the app's top-level
 // ErrorBoundary, the entire marketing page and its "Start free" CTAs.
@@ -1851,7 +1860,7 @@ export function initLandingEffects(rootEl, onGetStarted) {
     }
   });
 
-  runSafely('setupSmoothAnchorScroll', () => setupSmoothAnchorScroll(cleanupFns));
+  runSafely('setupSmoothAnchorScroll', () => setupSmoothAnchorScroll(rootEl, cleanupFns));
   runSafely('setupHeroEntrance', () => setupHeroEntrance(rootEl));
   runSafely('mountSignalChart', () => mountSignalChart(rootEl, cleanupFns));
   runSafely('setupTiltCards', () => setupTiltCards(rootEl, cleanupFns));

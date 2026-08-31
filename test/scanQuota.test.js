@@ -18,6 +18,8 @@ const { requireScanQuota } = require('../server/middleware/authMiddleware');
 const {
   canScan,
   reserveScan,
+  reserveScanWithToken,
+  refundScan,
   quotaFor,
   PREMIUM_DAILY_LIMIT,
   FREE_TRIAL_DAYS,
@@ -197,6 +199,35 @@ test('premium tier: concurrent reserveScan calls can never together exceed the d
 
   const finalUser = await reload(user.id);
   assert.strictEqual(finalUser.premium_scan_count, PREMIUM_DAILY_LIMIT, 'the stored count must match, not overshoot');
+});
+
+test('a quota refund is tied to its own reservation and is idempotent', async () => {
+  const user = await makeUser('premium-refund-token@test.local', { tier: 'premium' });
+  const first = await reserveScanWithToken(await reload(user.id), 'capitalFlow');
+  const second = await reserveScanWithToken(await reload(user.id), 'maScanner');
+  assert.ok(first.reserved && second.reserved);
+
+  const current = await reload(user.id);
+  await refundScan(current, first.reservation);
+  assert.strictEqual((await reload(user.id)).premium_scan_count, 1);
+
+  await refundScan(current, first.reservation);
+  assert.strictEqual((await reload(user.id)).premium_scan_count, 1, 'the same reservation cannot be refunded twice');
+});
+
+test('a reservation from an expired window cannot decrement the new window', async () => {
+  const user = await makeUser('premium-refund-expired@test.local', { tier: 'premium' });
+  const old = await reserveScanWithToken(await reload(user.id), 'capitalFlow');
+  assert.ok(old.reserved);
+
+  const newWindow = old.reservation.windowStart + 1;
+  await db
+    .prepare('UPDATE users SET premium_scan_count = 5, premium_scan_window_start = ? WHERE id = ?')
+    .run(newWindow, user.id);
+  await refundScan(await reload(user.id), old.reservation);
+  const current = await reload(user.id);
+  assert.strictEqual(current.premium_scan_count, 5);
+  assert.strictEqual(current.premium_scan_window_start, newWindow);
 });
 
 test('a free pilot account resolves to elite and is never blocked', async () => {

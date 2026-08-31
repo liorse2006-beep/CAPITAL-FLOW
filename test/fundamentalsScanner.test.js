@@ -108,13 +108,13 @@ test('scanFundamentals never fabricates a value Finnhub/Yahoo did not report', a
   const { results } = await scanFundamentals(['THIN']);
   assert.strictEqual(results.length, 1);
   const r = results[0];
-  assert.strictEqual(r.peRatio, 0);
-  assert.strictEqual(r.debtToEquity, 0);
+  assert.strictEqual(r.peRatio, null);
+  assert.strictEqual(r.debtToEquity, null);
   assert.strictEqual(r.revenueGrowth5Y, null, 'null, not 0 — 0% growth and "unknown" must stay distinguishable');
   assert.strictEqual(r.nextEarningsDate, null);
-  assert.strictEqual(r.floatShares, 0);
-  assert.strictEqual(r.forwardPE, 0);
-  assert.strictEqual(r.pegRatio, 0);
+  assert.strictEqual(r.floatShares, null);
+  assert.strictEqual(r.forwardPE, null);
+  assert.strictEqual(r.pegRatio, null);
 });
 
 test('scanFundamentals flags a group as unverified (not "—") when the source genuinely fails to answer', async (t) => {

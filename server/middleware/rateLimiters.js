@@ -2,25 +2,16 @@ const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { verifyToken } = require('../services/auth');
 const { resolveSseTicket } = require('./authMiddleware');
 
-// This domain is proxied through Cloudflare in front of Render — two proxy
-// hops, not one. `app.set('trust proxy', 1)` (server/index.js) only trusts
-// the single closest hop, so req.ip ends up resolving to whichever address
-// Cloudflare happened to use on its edge-to-origin connection for THAT
-// request — which Cloudflare does not guarantee stays the same between
-// requests from the same visitor. Verified externally: 12 back-to-back
-// login attempts from one real IP produced a non-monotonic
-// ratelimit-remaining sequence (8,7,7,6,9,9,8,9,5,7,7,7) instead of a clean
-// countdown — the limiter was silently keying different requests from the
-// same attacker under different buckets, weakening the brute-force
-// protection on login/OTP well below the configured 10-per-15-minutes.
-// Cloudflare's CF-Connecting-IP header is set once, at the edge, to the
-// true original client IP, and is untouched by anything between Cloudflare
-// and this app — using it instead of req.ip removes the ambiguity
-// entirely. Falls back to req.ip when the header is absent (local dev, the
-// test suite, or any request that somehow reaches this app without going
-// through Cloudflare) so nothing here depends on the production topology.
+// Use Express' resolved client address instead of trusting a client-supplied
+// forwarding header. `CF-Connecting-IP` is only authoritative when the
+// origin is provably reachable exclusively through Cloudflare; this app also
+// has a direct origin path in some environments, so accepting that header
+// would let a caller rotate IP buckets and bypass credential throttles.
+// The proxy topology is configured in server/index.js (`trust proxy = 1`),
+// which keeps direct requests keyed to their socket address and avoids
+// blindly trusting arbitrary headers.
 function realIp(req) {
-  return req.headers['cf-connecting-ip'] || req.ip;
+  return req.ip || req.socket?.remoteAddress || 'unknown';
 }
 
 // Default express-rate-limit keys by IP alone — fine for pre-login
@@ -226,4 +217,5 @@ module.exports = {
   sessionLimiter,
   sseStreamLimiter,
   checkoutLimiter,
+  realIp,
 };

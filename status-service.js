@@ -42,6 +42,7 @@ process.env.INDEPENDENT_STATUS_SERVICE = 'true';
 
 const express = require('express');
 const helmet = require('helmet');
+const proxyaddr = require('proxy-addr');
 const db = require('./server/db');
 const statusRouter = require('./server/routes/status');
 const {
@@ -51,12 +52,15 @@ const {
   startStatusWatchdog,
 } = require('./server/services/statusMonitor');
 const { startScheduledStatusBackup } = require('./server/services/statusDbBackup');
-const { PORT } = require('./server/config');
+const { PORT, TRUSTED_PROXY_CIDRS } = require('./server/config');
 const { safeErrorSummary } = require('./server/utils/reportError');
 
 const app = express();
 app.disable('x-powered-by');
-app.set('trust proxy', 1);
+// The status host does not need forwarded IPs. Keep the same explicit
+// allowlist as the main app so an accidental direct exposure cannot make
+// client-controlled forwarding headers authoritative later.
+app.set('trust proxy', TRUSTED_PROXY_CIDRS.length ? proxyaddr.compile(TRUSTED_PROXY_CIDRS) : false);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '64kb' }));
 app.use(express.static(path.join(__dirname, 'public'), { index: false, maxAge: '1h' }));

@@ -12,6 +12,20 @@
 // clusterBus and isSingletonWorker() and are safe either way).
 const workerCount = parseInt(process.env.CLUSTER_WORKERS || '1', 10);
 
+// express-rate-limit uses an in-process store in this deployment. Starting
+// several HTTP workers without a shared store would multiply every account's
+// abuse/cost budget and make the configured limits false. Refuse that unsafe
+// production configuration instead of silently weakening auth, chat, scan,
+// and checkout protection. A future shared-store implementation can remove
+// this guard deliberately and add its own integration test.
+if (process.env.NODE_ENV === 'production' && Number.isFinite(workerCount) && workerCount > 1) {
+  console.error(
+    '[FATAL] CLUSTER_WORKERS > 1 is not supported with the configured shared rate-limit policy. ' +
+      'Run one HTTP worker or configure and test a shared rate-limit store before scaling horizontally.'
+  );
+  process.exit(1);
+}
+
 if (!Number.isFinite(workerCount) || workerCount <= 1) {
   require('./server/index');
 } else {

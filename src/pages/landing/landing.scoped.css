@@ -78,7 +78,7 @@
   box-sizing: border-box;
 }
 .cf-landing-page {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
 }
 @media (prefers-reduced-motion: reduce) {
   .cf-landing-page {
@@ -240,6 +240,39 @@
 }
 .cf-landing-page .scroll-float .word {
   display: inline-block;
+  /* Never hide readable content while an observer is waiting. The entrance
+     can soften an already-visible heading, but it is not allowed to gate it. */
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--cf-scroll-float-duration, 540ms) cubic-bezier(0.22, 1, 0.36, 1) var(--cf-scroll-float-delay, 0ms),
+    transform var(--cf-scroll-float-duration, 540ms) cubic-bezier(0.22, 1, 0.36, 1) var(--cf-scroll-float-delay, 0ms);
+  will-change: auto;
+}
+.cf-landing-page .scroll-float.is-scroll-float-visible .word {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  will-change: auto;
+}
+@keyframes cf-scroll-float-settle {
+  from {
+    opacity: 0.94;
+    transform: translate3d(0, 0.18em, 0) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+.cf-landing-page .scroll-float.is-scroll-float-visible .word {
+  animation: cf-scroll-float-settle var(--cf-scroll-float-duration, 540ms)
+    cubic-bezier(0.22, 1, 0.36, 1) var(--cf-scroll-float-delay, 0ms) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cf-landing-page .scroll-float .word {
+    animation: none;
+    transition: none;
+  }
 }
 .cf-landing-page .cf-label {
   font-family: var(--font-mono);
@@ -369,6 +402,9 @@
 }
 .cf-landing-page .cf-specular-cta-mount {
   display: contents;
+}
+.cf-landing-page .cf-specular-cta-fallback[hidden] {
+  display: none !important;
 }
 .cf-landing-page .specular-button.cf-specular-cta {
   min-width: 0;
@@ -537,13 +573,13 @@
   overflow: hidden;
   aspect-ratio: 9 / 19.5;
 }
-/* The phone reuses the same (landscape) screenshot as the laptop rather
-   than a separate mobile asset — `contain` on a background that's already
-   near-black lets the full frame show letterboxed without visible bars,
-   instead of `cover` cropping it down to an illegible sliver. Swap this to
-   `cover` once the phone gets its own native-portrait screenshot. */
+/* The phone uses its own native-portrait preview so the mobile experience is
+   legible inside the device rather than showing the laptop screenshot scaled
+   down. Cover keeps the screen filled edge-to-edge; the source is close enough
+   to the device ratio that the crop stays minimal. */
 .cf-landing-page .cf-device-phone .cf-device-screen img {
-  object-fit: contain;
+  object-fit: cover;
+  object-position: center top;
 }
 
 @media (max-width: 1060px) {
@@ -895,6 +931,7 @@
     position: fixed;
     inset: 0;
     z-index: -1;
+    pointer-events: none;
     background: radial-gradient(120% 90% at 50% 0%, #0f0c0a 0%, #050505 62%);
     overflow: hidden;
   }
@@ -1131,31 +1168,6 @@
   display: flex;
   align-items: center;
 }
-.cf-landing-page .cf-trust-badge {
-  position: absolute;
-  top: 50%;
-  right: 22px;
-  z-index: 3;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  transform: translateY(-50%);
-  color: var(--text-0);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  line-height: 1;
-  text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 45%, transparent);
-  white-space: nowrap;
-}
-.cf-landing-page .cf-trust-live-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--up);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--up) 72%, transparent);
-}
 .cf-landing-page .cf-trust::before,
 .cf-landing-page .cf-trust::after {
   content: '';
@@ -1390,16 +1402,26 @@
    make the next step obvious, show the product before asking for trust, and
    remove pricing/payment uncertainty before the final CTA.
    ────────────────────────────────────────────────────────────────────────── */
+.cf-landing-page {
+  /* Keep decorative overflow clipped at the page boundary without turning
+     the content wrapper into a non-scrollable wheel target. */
+  overflow-x: clip;
+}
 .cf-landing-page .cf-root {
-  overflow: hidden;
+  overflow: visible;
   background: radial-gradient(70% 38% at 50% 8%, rgba(226, 165, 69, 0.11), transparent 72%), var(--bg-0);
 }
 .cf-landing-page .cf-nav-in {
-  max-width: 1040px;
+  width: fit-content;
+  max-width: min(1040px, calc(100% - 40px));
+  padding: 6px 8px 6px 14px;
+  gap: 18px;
   border-color: rgba(226, 165, 69, 0.24);
 }
 .cf-landing-page .cf-nav-links {
-  gap: 22px;
+  gap: 18px;
+  margin: 0;
+  flex-shrink: 0;
 }
 .cf-landing-page .cf-nav-links a {
   font-weight: 600;
@@ -1478,6 +1500,69 @@
 .cf-landing-page .cf-hero-emphasis {
   color: #e2a545;
   font-weight: 900;
+}
+
+/*
+ * Headline material — a quiet brushed-metal gold reserved for the words that
+ * carry the promise. The layered gradients create the surface variation while
+ * the restrained drop shadows add only a shallow, premium edge.
+ */
+.cf-landing-page .cf-metallic-heading {
+  color: var(--accent);
+  background-image:
+    linear-gradient(
+      112deg,
+      transparent 0%,
+      transparent 29%,
+      rgba(255, 236, 174, 0.16) 36%,
+      rgba(255, 251, 220, 0.7) 42%,
+      rgba(255, 236, 174, 0.08) 48%,
+      transparent 57%,
+      transparent 72%,
+      rgba(101, 49, 5, 0.22) 79%,
+      transparent 87%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 244, 205, 0.92) 0%,
+      rgba(255, 244, 205, 0.28) 13%,
+      rgba(255, 244, 205, 0) 31%,
+      rgba(77, 38, 4, 0.22) 82%,
+      rgba(255, 214, 119, 0.46) 100%
+    ),
+    linear-gradient(
+      105deg,
+      #f9d27b 0%,
+      #e2a545 38%,
+      #b97321 72%,
+      #f4c96b 100%
+    );
+  background-blend-mode: screen, screen, normal;
+  background-position: 42% 50%, 50% 38%, 50% 50%;
+  background-size: 230% 100%, 100% 175%, 100% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  -webkit-text-fill-color: transparent;
+  filter:
+    drop-shadow(0 2px 0 rgba(78, 39, 5, 0.74))
+    drop-shadow(0 8px 16px rgba(226, 165, 69, 0.15));
+}
+
+/* Scroll-float splits some headings into word spans. Give those spans the
+ * same material mask so the texture remains visible after the reveal runs. */
+.cf-landing-page .cf-metallic-heading .word {
+  color: var(--accent);
+  background-image: inherit;
+  background-blend-mode: inherit;
+  background-position: inherit;
+  background-size: inherit;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  -webkit-text-fill-color: transparent;
 }
 .cf-landing-page .cf-hero-lead {
   font-size: 19px;
@@ -1577,8 +1662,19 @@
 .cf-landing-page .cf-faq-section {
   background: rgba(12, 9, 6, 0.3);
 }
-.cf-landing-page .cf-sec-head h2 span,
-.cf-landing-page .cf-final h2 span {
+.cf-landing-page .cf-sec-head h2 span {
+  color: var(--accent);
+}
+.cf-landing-page .cf-final h2 > .cf-final-heading-light {
+  display: block;
+  width: 100%;
+  text-align: center;
+  color: var(--text-0);
+}
+.cf-landing-page .cf-final h2 > .cf-final-heading-accent {
+  display: block;
+  width: 100%;
+  text-align: center;
   color: var(--accent);
 }
 .cf-landing-page .cf-signal-grid {
@@ -2197,37 +2293,132 @@
   border-top-color: rgba(226, 165, 69, 0.22);
 }
 
-/* Category transitions: each complete landing section enters as one unit. */
+/* Category transitions: each complete landing section enters as one unit.
+   Important reliability rule: the document must never depend on an observer
+   callback before showing content. The sections stay readable in normal flow;
+   the scroll treatment adds depth without hiding a category or taking over
+   the page's native scroll container. */
 .cf-landing-page.has-category-transitions .cf-category-section {
   position: relative;
-  opacity: 0.42;
-  transform: translate3d(0, 30px, 0) scale(0.985);
-  transition:
-    opacity 0.65s cubic-bezier(0.22, 0.9, 0.25, 1),
-    transform 0.65s cubic-bezier(0.22, 0.9, 0.25, 1),
-    filter 0.65s ease;
-  filter: saturate(0.72);
-  will-change: opacity, transform, filter;
-}
-.cf-landing-page.has-category-transitions .cf-category-section.is-category-active {
-  z-index: 1;
   opacity: 1;
-  transform: translate3d(0, 0, 0) scale(1);
-  filter: saturate(1);
+  transform: none;
+  --cf-category-glow: 0.024;
+  --cf-category-parallax: 0px;
 }
-.cf-landing-page.has-category-transitions .cf-category-section.is-category-before {
-  opacity: 0.72;
-  transform: translate3d(0, -10px, 0) scale(0.995);
-  filter: saturate(0.88);
+.cf-landing-page.has-category-transitions .cf-category-section > .cf-container {
+  position: relative;
+  z-index: 2;
+  opacity: 1;
+  transform: none;
 }
-.cf-landing-page.has-category-transitions .cf-category-section.is-category-after {
-  opacity: 0.42;
-  transform: translate3d(0, 30px, 0) scale(0.985);
-  filter: saturate(0.72);
+.cf-landing-page.has-category-transitions .cf-category-atmosphere {
+  position: absolute;
+  z-index: 0;
+  inset: 4% 0 -4%;
+  pointer-events: none;
+  opacity: var(--cf-category-glow);
+  background: radial-gradient(
+    ellipse 60% 54% at 50% 38%,
+    rgba(226, 165, 69, 0.72),
+    rgba(226, 165, 69, 0.18) 34%,
+    transparent 74%
+  );
+  transform: translate3d(0, var(--cf-category-parallax), 0) scale(1.04);
+  transition:
+    opacity 0.55s ease,
+    transform 0.78s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.cf-landing-page.has-category-transitions .cf-category-section::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 8%;
+  left: 8%;
+  height: 1px;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(226, 165, 69, 0.14) 18%,
+    rgba(255, 207, 117, 0.62) 50%,
+    rgba(226, 165, 69, 0.14) 82%,
+    transparent
+  );
+  transform: scaleX(0.2);
+  transform-origin: 50% 50%;
+}
+.cf-landing-page.has-category-transitions .cf-category-text-reveal {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.46s cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform 0.62s cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition-delay: var(--cf-category-reveal-delay, 0ms);
+}
+.cf-landing-page.has-category-transitions
+  .cf-category-section.is-category-active
+  > .cf-container {
+  animation: cf-category-arrive 880ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes cf-category-arrive {
+  0% {
+    opacity: 0.86;
+    transform: translate3d(0, 34px, 0) scale(0.978);
+  }
+  64% {
+    opacity: 1;
+    transform: translate3d(0, -2px, 0) scale(1.003);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+.cf-landing-page.has-category-transitions
+  .cf-category-section.is-category-active::after {
+  animation: cf-category-edge-in 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes cf-category-edge-in {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.2);
+  }
+  34% {
+    opacity: 0.82;
+    transform: scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1.08);
+  }
+}
+.cf-landing-page.has-category-transitions
+  .cf-category-section.is-category-active
+  .cf-category-atmosphere {
+  --cf-category-glow: 0.064;
+  animation: cf-category-atmosphere-in 980ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes cf-category-atmosphere-in {
+  0% {
+    opacity: 0.014;
+    transform: translate3d(0, 10px, 0) scale(1.015);
+  }
+  100% {
+    opacity: var(--cf-category-glow);
+    transform: translate3d(0, 0, 0) scale(1.04);
+  }
 }
 .cf-landing-page .cf-plans-section {
-  padding-top: 120px;
-  padding-bottom: 120px;
+  padding-top: 72px;
+  padding-bottom: 72px;
+}
+.cf-landing-page .cf-plans-section .cf-sec-head {
+  margin-bottom: 30px;
+}
+.cf-landing-page .cf-plans-section .cf-pricing-head h2 {
+  margin: 0;
 }
 .cf-landing-page .cf-pricing-grid {
   display: grid;
@@ -2364,9 +2555,91 @@
   margin-left: 10px;
 }
 .cf-landing-page .cf-landing-pricing-matrix {
-  max-width: 1040px;
+  max-width: 760px;
   margin: 0 auto;
   direction: ltr;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-scroll {
+  margin-top: 3px;
+  padding: 3px;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix {
+  gap: 3px;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-plan-heading {
+  min-height: 70px;
+  padding: 7px 7px 6px;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-plan-name {
+  font-size: 9.5px;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-plan-price {
+  margin-top: 4px;
+  font-size: 20px;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-plan-details {
+  margin-top: 3px;
+  padding: 2px 4px;
+  font-size: 7px;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-popular {
+  margin-bottom: 2px;
+  padding: 1px 4px;
+  font-size: 6px;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-feature {
+  display: grid;
+  grid-template-columns: auto minmax(0, max-content) auto;
+  justify-content: start;
+  column-gap: 18px;
+  row-gap: 0;
+  min-height: 22px;
+  padding: 2px 5px;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-feature-name {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  font-size: 10px;
+  line-height: 1.15;
+  text-align: left;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-access {
+  display: contents;
+  margin-left: 0;
+  text-align: left;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-status {
+  grid-column: 1;
+  grid-row: 1;
+  flex-basis: 10px;
+  width: 10px;
+  height: 10px;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-value {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: start;
+  font-size: 8px;
+  text-align: left;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-plan.is-featured .tier-matrix-value {
+  display: none;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-plan:not(.is-featured) .tier-matrix-feature:nth-child(n + 3) .tier-matrix-value {
+  display: none;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-plan-footer {
+  min-height: 30px;
+  padding: 4px 5px;
+}
+.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-cta {
+  min-height: 23px;
+  padding: 2px 4px;
+  font-size: 7.8px;
+}
+.cf-landing-page .cf-landing-pricing-matrix .upgrade-trust-row {
+  margin-top: 5px;
 }
 .cf-landing-page .cf-faq-section {
   position: relative;
@@ -2467,6 +2740,11 @@
   position: relative;
   overflow: hidden;
   max-width: 930px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   padding: 76px 48px;
   background:
     radial-gradient(50% 100% at 50% 0%, rgba(226, 165, 69, 0.2), transparent 70%),
@@ -2483,6 +2761,7 @@
 .cf-landing-page .cf-final h2 {
   font-size: clamp(32px, 4.2vw, 54px);
   line-height: 1.1;
+  color: var(--text-0);
 }
 .cf-landing-page .cf-final p {
   max-width: 560px;
@@ -2671,6 +2950,21 @@
     opacity: 1;
     transform: none;
     filter: none;
+    transition: none;
+  }
+  .cf-landing-page.has-category-transitions .cf-category-section.is-category-prepared {
+    opacity: 1;
+    transform: none;
+  }
+  .cf-landing-page.has-category-transitions .cf-category-atmosphere {
+    opacity: 0;
+    transform: none;
+    transition: none;
+  }
+  .cf-landing-page.has-category-transitions .cf-category-text-reveal {
+    opacity: 1;
+    clip-path: none;
+    transform: none;
     transition: none;
   }
 }

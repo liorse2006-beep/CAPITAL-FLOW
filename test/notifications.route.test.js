@@ -97,6 +97,21 @@ test('GET /api/notifications/:id returns 404 for a nonexistent id, and requires 
   }
 });
 
+test('GET /api/notifications/:id rejects partially numeric and unsafe ids', async () => {
+  const user = await makeUser('notif-invalid-id@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  const headers = { Authorization: 'Bearer ' + (await issueToken(user)).accessToken };
+  try {
+    for (const id of ['1abc', '1.0', '0', '9007199254740992']) {
+      const res = await fetch(`http://127.0.0.1:${port}/api/notifications/${id}`, { headers });
+      assert.strictEqual(res.status, 400);
+    }
+  } finally {
+    server.close();
+  }
+});
+
 test('addNotification caps stored results at 50 rows', async () => {
   const user = await makeUser('notif-cap@test.local');
   const bigResults = Array.from({ length: 120 }, (_, i) => ({ symbol: 'SYM' + i }));

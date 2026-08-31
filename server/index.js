@@ -7,9 +7,10 @@ const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const cookieSession = require('cookie-session');
 const passport = require('passport');
+const proxyaddr = require('proxy-addr');
 const path = require('path');
 const fs = require('fs');
-const { PORT, SESSION_SECRET, FRONTEND_URL } = require('./config');
+const { PORT, SESSION_SECRET, FRONTEND_URL, TRUSTED_PROXY_CIDRS } = require('./config');
 const { startBackgroundScheduler } = require('./services/backgroundScan');
 const { startScheduledDigest } = require('./services/scheduledDigest');
 const { startScheduledScanRunner } = require('./services/scheduledScanRunner');
@@ -21,7 +22,17 @@ const { safeErrorSummary } = require('./utils/reportError');
 
 const app = express();
 
-app.set('trust proxy', 1); // correct client IP behind a reverse proxy (for rate limiting)
+// Never trust X-Forwarded-For merely because the app happens to be behind a
+// proxy in one deployment. If the origin is reachable directly, a hop-count
+// setting lets an attacker manufacture a different client IP and rotate
+// through every IP-based credential bucket. Trust only explicitly configured
+// proxy source networks; an empty list deliberately falls back to the socket
+// address (safe, though less granular behind an unconfigured proxy).
+const trustedProxy = TRUSTED_PROXY_CIDRS.length ? proxyaddr.compile(TRUSTED_PROXY_CIDRS) : false;
+app.set('trust proxy', trustedProxy);
+if (process.env.NODE_ENV === 'production' && !TRUSTED_PROXY_CIDRS.length) {
+  console.warn('[startup] TRUSTED_PROXY_CIDRS is empty; forwarded client IPs are ignored for rate limiting.');
+}
 
 // Security headers (X-Frame-Options, HSTS, noSniff, etc.) apply everywhere.
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -158,8 +169,10 @@ const allowedOrigins = new Set([
   'https://capitalflow.vip',
   'https://www.capitalflow.vip',
   'https://capital-flow-3v59.onrender.com',
-  'http://localhost:3001',
-  'http://localhost:5173',
+  // Local development origins must never be allowed to read credentialed
+  // production responses. A page served from a local port can otherwise use
+  // the browser's production refresh cookie and exfiltrate private API data.
+  ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:3001', 'http://localhost:5173']),
 ]);
 app.use(
   cors({
@@ -289,6 +302,15 @@ app.use('/api', require('./routes/coupons'));
 app.use('/api', require('./routes/checkout'));
 app.use('/admin', adminLimiter); // admin router is mounted at "/", not "/api" — it needs its own floor
 app.use('/', require('./routes/admin'));
+
+// Keep unknown API paths machine-readable. Without this boundary, the SPA
+// fallback below returns index.html with HTTP 200 for a typo, an old client,
+// or a missing endpoint. That masks integration failures and can make a
+// monitoring check look healthy while the requested API operation did not
+// exist. Known routes above still handle their own errors and responses.
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
 
 // SPA fallback — MUST be last
 app.get('/{*splat}', (req, res) => {

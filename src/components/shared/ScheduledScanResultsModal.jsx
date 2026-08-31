@@ -1,5 +1,5 @@
 import React from 'react';
-import { fmt } from '../../utils/format';
+import { fmt, formatSignedPercent } from '../../utils/format';
 
 var SCAN_LABEL = { capitalFlow: 'Capital Flow', maScanner: 'MA Scanner', sectorMoving: 'Hot Sectors' };
 
@@ -23,6 +23,9 @@ export default function ScheduledScanResultsModal({ notification, onClose, isInW
   if (!notification) return null;
   var results = notification.results || [];
   var label = SCAN_LABEL[notification.scanType] || 'Scheduled Scan';
+  var dataUnavailable = /temporarily unavailable|could not be verified|no complete result set/i.test(
+    notification.body || ''
+  );
 
   return (
     <div className="upgrade-overlay scheduled-results-overlay" onClick={onClose}>
@@ -46,7 +49,9 @@ export default function ScheduledScanResultsModal({ notification, onClose, isInW
         </div>
 
         {results.length === 0 ? (
-          <div className="scheduled-results-empty">No unusual activity was found on this run.</div>
+          <div className="scheduled-results-empty">
+            {dataUnavailable ? notification.body : 'No unusual activity was found on this run.'}
+          </div>
         ) : (
           <div className="scheduled-results-list">
             <div className="scheduled-results-col-header">
@@ -69,13 +74,15 @@ export default function ScheduledScanResultsModal({ notification, onClose, isInW
                     {r.marketCap > 0 ? fmt(r.marketCap) : '—'}
                   </span>
                   <span className="scheduled-results-price" data-label="Price">
-                    {'$' + (r.price || 0).toFixed(2)}
+                    {typeof r.price === 'number' && Number.isFinite(r.price) ? '$' + r.price.toFixed(2) : '—'}
                   </span>
                   <span
-                    className={'scheduled-results-change ' + (r.change >= 0 ? 'col-pos' : 'col-neg')}
+                    className={
+                      'scheduled-results-change ' + (r.change == null ? '' : r.change >= 0 ? 'col-pos' : 'col-neg')
+                    }
                     data-label="Change"
                   >
-                    {(r.change >= 0 ? '+' : '') + (r.change || 0).toFixed(2) + '%'}
+                    {formatSignedPercent(r.change)}
                   </span>
                   <span className="scheduled-results-signal" data-label="Signal">
                     {hasRatio ? (

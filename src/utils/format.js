@@ -1,4 +1,6 @@
 export function fmt(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '—';
+  n = Number(n);
   if (n >= 1e12) return (n / 1e12).toFixed(1) + 'T';
   if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
   if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
@@ -42,4 +44,12 @@ export function friendlyError(message) {
     return 'Something went wrong — please try again.';
   }
   return message;
+}
+
+// Financial values can be unavailable (null) independently from being zero.
+// Keep that distinction visible everywhere a live percentage is rendered.
+export function formatSignedPercent(value, decimals = 2) {
+  if (value == null || !Number.isFinite(Number(value))) return '—';
+  const number = Number(value);
+  return (number >= 0 ? '+' : '') + number.toFixed(decimals) + '%';
 }

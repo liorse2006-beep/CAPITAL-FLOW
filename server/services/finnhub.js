@@ -9,6 +9,12 @@ const { createCircuitBreaker } = require('../utils/circuitBreaker');
 // immediately instead.
 const finnhubBreaker = createCircuitBreaker('finnhub', { failureThreshold: 5, cooldownMs: 20000 });
 
+function finiteOrNull(value) {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 /**
  * Fetch a Finnhub URL (without &token=) using the key pool, retrying once
  * on the next account if the first key is rate-limited.
@@ -45,19 +51,21 @@ async function fetchFinnhubQuote(symbol, apiKey) {
     if (!res) return null;
     var data = await res.json();
     if (!data || data.error) return null;
-    if (!data.c || data.c <= 0) return null;
-    if (data.t && data.t > 0) {
-      var age = Date.now() / 1000 - data.t;
+    const price = finiteOrNull(data.c);
+    if (price === null || price <= 0) return null;
+    const timestamp = finiteOrNull(data.t);
+    if (timestamp !== null && timestamp > 0) {
+      var age = Date.now() / 1000 - timestamp;
       if (age > 86400) return null;
     }
     return {
-      price: data.c,
-      change: data.dp || 0,
-      changeAbs: data.d || 0,
-      dayHigh: data.h || 0,
-      dayLow: data.l || 0,
-      open: data.o || 0,
-      prevClose: data.pc || 0,
+      price,
+      change: finiteOrNull(data.dp),
+      changeAbs: finiteOrNull(data.d),
+      dayHigh: finiteOrNull(data.h),
+      dayLow: finiteOrNull(data.l),
+      open: finiteOrNull(data.o),
+      prevClose: finiteOrNull(data.pc),
     };
   } catch (e) {
     return null;
@@ -72,17 +80,23 @@ async function fetchFinnhubMetric(symbol, apiKey) {
     var data = await res.json();
     if (!data || !data.metric) return null;
     return {
-      weekHigh52: data.metric['52WeekHigh'] || 0,
-      weekLow52: data.metric['52WeekLow'] || 0,
-      marketCap: (data.metric.marketCapitalization || 0) * 1e6,
-      avgVol10d: (data.metric['10DayAverageTradingVolume'] || 0) * 1e6,
+      weekHigh52: finiteOrNull(data.metric['52WeekHigh']),
+      weekLow52: finiteOrNull(data.metric['52WeekLow']),
+      marketCap:
+        finiteOrNull(data.metric.marketCapitalization) === null
+          ? null
+          : finiteOrNull(data.metric.marketCapitalization) * 1e6,
+      avgVol10d:
+        finiteOrNull(data.metric['10DayAverageTradingVolume']) === null
+          ? null
+          : finiteOrNull(data.metric['10DayAverageTradingVolume']) * 1e6,
       // Swing-trading fundamentals (Premium/Elite) — all come from this same
       // already-cached 24h metric payload, so no extra API call is needed.
       // 0/undefined from Finnhub means "not reported for this company" (e.g.
       // early-stage names with no P/E) — passed through as-is, never guessed.
-      peRatio: data.metric.peExclExtraTTM || data.metric.peTTM || 0,
-      debtToEquity: data.metric['totalDebt/totalEquityQuarterly'] || 0,
-      revenueGrowth5Y: data.metric.revenueGrowth5Y != null ? data.metric.revenueGrowth5Y : null,
+      peRatio: finiteOrNull(data.metric.peExclExtraTTM) ?? finiteOrNull(data.metric.peTTM),
+      debtToEquity: finiteOrNull(data.metric['totalDebt/totalEquityQuarterly']),
+      revenueGrowth5Y: finiteOrNull(data.metric.revenueGrowth5Y),
     };
   } catch (e) {
     return null;

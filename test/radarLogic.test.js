@@ -63,7 +63,10 @@ test('Radar matches only a complete row that satisfies every saved threshold', (
 
 test('Radar Either mode accepts one complete signal layer but never accepts an incomplete row', () => {
   const either = { ...radar, conditionMode: 'either' };
-  assert.equal(resultMatchesRadar(row({ maValue: null, maDistance: null, maPeriod: null, maInterval: null }), either, universe), true);
+  assert.equal(
+    resultMatchesRadar(row({ maValue: null, maDistance: null, maPeriod: null, maInterval: null }), either, universe),
+    true
+  );
   assert.equal(resultMatchesRadar(row({ volumeRatio: null }), either, universe), true);
   assert.equal(
     resultMatchesRadar(

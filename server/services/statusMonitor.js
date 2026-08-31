@@ -904,10 +904,12 @@ function startStatusMonitor() {
   if (!STATUS_MONITOR_ENABLED || state.timer) return;
   state.monitorStartedAt = now();
   const run = () => runStatusCycle().catch(() => {});
-  const startup = setTimeout(run, 15 * 1000);
-  startup.unref();
   state.timer = setInterval(run, STATUS_CHECK_INTERVAL_MS);
   state.timer.unref();
+  // Run the first cycle immediately after the status service is ready. A
+  // delayed first probe left the public page showing "Checking" for the
+  // entire startup grace period, even when every dependency was healthy.
+  run();
 }
 
 async function getMeta() {

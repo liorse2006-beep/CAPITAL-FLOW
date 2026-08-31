@@ -10,12 +10,20 @@ const {
   clearAll,
 } = require('../services/notifications');
 
+const POSITIVE_SAFE_ID_RE = /^[1-9]\d*$/;
+
+function parseNotificationId(value) {
+  if (typeof value !== 'string' || !POSITIVE_SAFE_ID_RE.test(value)) return null;
+  const id = Number(value);
+  return Number.isSafeInteger(id) ? id : null;
+}
+
 // One notification's full detail — used when tapping a scheduled-scan push
 // notification: it carries that scan's own results, so the app can show
 // exactly what the user was notified about instead of a blank/current page.
 router.get('/notifications/:id', requireAuth, async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseNotificationId(req.params.id);
     if (!id) return res.status(400).json({ error: 'Invalid id' });
     const detail = await getNotificationDetail(req.user.id, id);
     if (!detail) return res.status(404).json({ error: 'Not found' });
@@ -51,7 +59,7 @@ router.post('/notifications/read', requireAuth, async (req, res) => {
 
 router.delete('/notifications/:id', requireAuth, async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseNotificationId(req.params.id);
     if (!id) return res.status(400).json({ error: 'Invalid id' });
     await removeNotification(req.user.id, id);
     res.json({ ok: true });

@@ -15,6 +15,18 @@ const chartCache = createTTLCache(45 * 1000);
 
 var SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
 
+function finiteOrNull(value) {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function isoDateOrNull(value) {
+  if (value == null) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
 // period → { interval, lookbackMs }
 const PERIODS = {
   '1D': { interval: '5m', lookbackMs: 1 * 24 * 60 * 60 * 1000 },
@@ -50,15 +62,28 @@ router.get('/chart/:symbol', requirePremiumOrTrial, async (req, res) => {
 
     const raw = chart?.quotes ?? [];
     const quotes = raw
-      .filter((q) => q?.close && q?.volume)
-      .map((q) => ({
-        date: q.date instanceof Date ? q.date.toISOString() : String(q.date),
-        open: +(q.open || q.close).toFixed(4),
-        high: +(q.high || q.close).toFixed(4),
-        low: +(q.low || q.close).toFixed(4),
-        close: +q.close.toFixed(4),
-        volume: q.volume,
-      }));
+      // A candle is only rendered when every value needed to draw it was
+      // actually returned by the provider. Falling back to the close for a
+      // missing high/low/open invents a shape that never existed.
+      .map((q) => {
+        const date = isoDateOrNull(q?.date);
+        const values = ['open', 'high', 'low', 'close', 'volume'].map((field) => finiteOrNull(q?.[field]));
+        if (!date || values.some((value) => value === null || value <= 0)) return null;
+        const [open, high, low, close, volume] = values;
+        return {
+          date,
+          open: +open.toFixed(4),
+          high: +high.toFixed(4),
+          low: +low.toFixed(4),
+          close: +close.toFixed(4),
+          volume,
+        };
+      })
+      .filter(Boolean);
+
+    if (quotes.length === 0) {
+      return res.status(503).json({ error: 'Chart data is not available right now. Try again in a few minutes.' });
+    }
 
     // Moving averages (only meaningful for daily+ bars with enough data)
     let ma20 = [],
@@ -74,21 +99,29 @@ router.get('/chart/:symbol', requirePremiumOrTrial, async (req, res) => {
     try {
       const fRes = await finnhubFetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}`);
       const fData = fRes ? await fRes.json() : null;
-      if (fData?.c > 0 && !fData.error) {
-        currentPrice = { price: fData.c, change: fData.dp, high: fData.h, low: fData.l, prevClose: fData.pc };
+      const price = finiteOrNull(fData?.c);
+      if (price !== null && price > 0 && !fData.error) {
+        currentPrice = {
+          price,
+          change: finiteOrNull(fData.dp),
+          high: finiteOrNull(fData.h),
+          low: finiteOrNull(fData.l),
+          prevClose: finiteOrNull(fData.pc),
+        };
       }
     } catch (_) {}
 
     if (!currentPrice) {
       try {
         const q = await yahooFinance.quote(symbol);
-        if (q?.regularMarketPrice) {
+        const price = finiteOrNull(q?.regularMarketPrice);
+        if (price !== null && price > 0) {
           currentPrice = {
-            price: q.regularMarketPrice,
-            change: q.regularMarketChangePercent || 0,
-            high: q.regularMarketDayHigh || 0,
-            low: q.regularMarketDayLow || 0,
-            prevClose: q.regularMarketPreviousClose || 0,
+            price,
+            change: finiteOrNull(q.regularMarketChangePercent),
+            high: finiteOrNull(q.regularMarketDayHigh),
+            low: finiteOrNull(q.regularMarketDayLow),
+            prevClose: finiteOrNull(q.regularMarketPreviousClose),
           };
         }
       } catch (_) {}

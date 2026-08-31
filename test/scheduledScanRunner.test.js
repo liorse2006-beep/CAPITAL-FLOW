@@ -140,6 +140,41 @@ test('a scheduled scan persists an in-app notification, so it is visible even wi
   assert.strictEqual(pushPayload.data.url, '/scanner?notif=' + notif.id);
 });
 
+test('a provider failure is reported as unavailable instead of no signals', async (t) => {
+  const u = await db
+    .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
+    .run('sched-unavailable@test.local');
+  const userId = u.lastInsertRowid;
+  await db
+    .prepare("INSERT INTO scheduled_scans (user_id, scan_type, scan_time, active) VALUES (?, 'capitalFlow', ?, 1)")
+    .run(userId, nowHHMM());
+
+  t.mock.method(scanner, 'scanTickers', async () => {
+    throw new Error('upstream provider unavailable');
+  });
+  const pushMock = t.mock.method(webPush, 'sendPushToUser', async () => {});
+
+  await runScheduledScans();
+
+  const notif = await db
+    .prepare('SELECT title, body, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+    .get(userId);
+  assert.ok(notif);
+  assert.match(notif.title, /Data unavailable/);
+  assert.match(notif.body, /temporarily unavailable/i);
+  assert.doesNotMatch(notif.body, /No unusual volume/i);
+  assert.strictEqual(notif.results_json, null);
+  assert.strictEqual(pushMock.mock.callCount(), 1);
+  assert.match(pushMock.mock.calls[0].arguments[1].body, /temporarily unavailable/i);
+
+  const schedule = await db
+    .prepare('SELECT active, last_run_at, last_result_count FROM scheduled_scans WHERE user_id = ?')
+    .get(userId);
+  assert.strictEqual(schedule.active, 1, 'recurring schedules remain active after a transparent unavailable run');
+  assert.ok(schedule.last_run_at > 0);
+  assert.strictEqual(schedule.last_result_count, 0);
+});
+
 // ── one-time (scan_date) schedules ──────────────────────────────────────────
 
 function nowHHMM() {

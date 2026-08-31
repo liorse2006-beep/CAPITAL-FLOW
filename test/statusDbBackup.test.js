@@ -45,6 +45,29 @@ test('status backup restore is dry-run by default and restores a verified snapsh
   assert.equal(row.value, 'original');
 });
 
+test('status backup restore rolls back the whole transaction when a later row fails', async () => {
+  const marker = 'status-restore-rollback-test';
+  await db
+    .prepare(
+      'INSERT INTO status_meta (key, value, updated_at) VALUES (?, ?, unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+    )
+    .run(marker, 'original');
+
+  const dump = {
+    createdAt: new Date().toISOString(),
+    tables: {
+      status_meta: [
+        { key: marker, value: 'replacement', updated_at: 1 },
+        { key: marker, value: 'duplicate', updated_at: 2 },
+      ],
+    },
+  };
+
+  await assert.rejects(() => restoreStatusTables(dump, { confirm: true }), /constraint|unique/i);
+  const row = await db.prepare('SELECT value FROM status_meta WHERE key = ?').get(marker);
+  assert.equal(row.value, 'original', 'failed restore must not leave the table partially replaced');
+});
+
 test('status backup sends one independent database attachment and records success', async () => {
   await db
     .prepare(

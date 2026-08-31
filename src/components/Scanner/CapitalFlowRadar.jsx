@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import useModalA11y from '../../hooks/useModalA11y';
 
 const DATA_UNAVAILABLE = 'Data is not available right now. Try again in a few minutes.';
 const RADAR_SINGLE_LIMIT_MESSAGE =
@@ -126,6 +128,178 @@ function dataLine(radar) {
   return null;
 }
 
+function numberOrNull(value) {
+  if (value == null || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function formatRadarPriceValue(value) {
+  const number = numberOrNull(value);
+  return number === null ? '—' : '$' + number.toFixed(2);
+}
+
+function formatRadarChangeValue(value) {
+  const number = numberOrNull(value);
+  return number === null ? '—' : (number >= 0 ? '+' : '') + number.toFixed(2) + '%';
+}
+
+function formatRadarRatioValue(value) {
+  const number = numberOrNull(value);
+  return number === null ? '—' : number.toFixed(2) + 'x';
+}
+
+function radarConditionState(data, condition) {
+  if (!Array.isArray(data?.matchedConditions)) return 'unknown';
+  return data.matchedConditions.includes(condition) ? 'met' : 'not-met';
+}
+
+function capitalFlowDetail(data, radar) {
+  const ratio = numberOrNull(data?.volumeRatio);
+  const minimum = numberOrNull(radar?.minVolumeRatio);
+  if (ratio === null || minimum === null) return 'RVOL data unavailable';
+  return `RVOL ${ratio.toFixed(2)}x ${ratio >= minimum ? '≥' : '<'} ${minimum.toFixed(1)}x minimum`;
+}
+
+function movingAverageDetail(data, radar) {
+  const period = numberOrNull(data?.maPeriod) ?? numberOrNull(radar?.maPeriod);
+  const distance = numberOrNull(data?.maDistance);
+  const limit = numberOrNull(radar?.maDistance);
+  if (distance === null)
+    return period === null ? 'Moving average distance unavailable' : `SMA${period} distance unavailable`;
+  const position = distance > 0 ? 'above' : distance < 0 ? 'below' : 'at';
+  const distanceText = Math.abs(distance).toFixed(2) + '%';
+  const averageLabel = period === null ? 'moving average' : `SMA${period}`;
+  return `Price ${distanceText} ${position} ${averageLabel}${limit === null ? '' : ` · limit ±${limit.toFixed(0)}%`}`;
+}
+
+function RadarConditionRow({ label, state, detail }) {
+  return (
+    <div className={'cfr-radar-signal-condition ' + state}>
+      <span className="cfr-radar-signal-condition-icon" aria-hidden="true">
+        {state === 'met' ? '✓' : state === 'not-met' ? '—' : '?'}
+      </span>
+      <span className="cfr-radar-signal-condition-label">{label}</span>
+      <span className="cfr-radar-signal-condition-detail">{detail}</span>
+    </div>
+  );
+}
+
+function RadarSignalCard({ event, radar }) {
+  const data = event?.data && typeof event.data === 'object' ? event.data : {};
+  const symbol = String(data.symbol || event?.symbol || '—').toUpperCase();
+  const marketLine = [data.exchange, data.sector].filter(Boolean).join(' · ');
+  const change = numberOrNull(data.change);
+  const matchedConditions = Array.isArray(data.matchedConditions) ? data.matchedConditions : null;
+  const capitalFlowState = radarConditionState(data, 'Capital Flow');
+  const movingAverageState = radarConditionState(data, 'Moving Average');
+  const maPeriod = numberOrNull(data.maPeriod) ?? numberOrNull(radar.maPeriod);
+
+  return (
+    <article className="cfr-radar-signal-card" aria-label={`${symbol} Radar entry`}>
+      <div className="cfr-radar-signal-identity">
+        <span className="cfr-radar-signal-symbol">{symbol}</span>
+        <span className="cfr-radar-signal-match">
+          <span aria-hidden="true">✓</span> MATCHED
+        </span>
+        {marketLine && <span className="cfr-radar-signal-market">{marketLine}</span>}
+      </div>
+
+      <div className="cfr-radar-signal-proof">
+        <div className="cfr-radar-signal-proof-label">WHY RADAR SURFACED THIS</div>
+        <div className="cfr-radar-signal-conditions">
+          <RadarConditionRow label="Capital Flow" state={capitalFlowState} detail={capitalFlowDetail(data, radar)} />
+          <RadarConditionRow
+            label={maPeriod === null ? 'Moving Average' : `SMA${maPeriod}`}
+            state={movingAverageState}
+            detail={movingAverageDetail(data, radar)}
+          />
+        </div>
+        {matchedConditions === null && (
+          <div className="cfr-radar-signal-data-note">Match details unavailable for this entry.</div>
+        )}
+      </div>
+
+      <div className="cfr-radar-signal-stats">
+        <div className="cfr-radar-signal-stat">
+          <span>PRICE</span>
+          <b>{formatRadarPriceValue(data.price)}</b>
+        </div>
+        <div className="cfr-radar-signal-stat">
+          <span>CHANGE %</span>
+          <b className={change === null ? '' : change >= 0 ? 'positive' : 'negative'}>
+            {formatRadarChangeValue(data.change)}
+          </b>
+        </div>
+        <div className="cfr-radar-signal-stat">
+          <span>RVOL</span>
+          <b>{formatRadarRatioValue(data.volumeRatio)}</b>
+        </div>
+        <div className="cfr-radar-signal-stat cfr-radar-signal-stat-time">
+          <span>SCANNED</span>
+          <b>{formatTime(event?.scanTime || data.scanTime)}</b>
+        </div>
+      </div>
+
+      <span className="cfr-radar-signal-arrow" aria-hidden="true">
+        ›
+      </span>
+    </article>
+  );
+}
+
+function RadarDeleteConfirm({ onCancel, onConfirm, removing, error }) {
+  const panelRef = useModalA11y(onCancel);
+
+  return createPortal(
+    <div
+      className="cfr-radar-confirm-overlay"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !removing) onCancel();
+      }}
+    >
+      <div
+        ref={panelRef}
+        className="cfr-radar-confirm-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="cfr-radar-remove-title"
+        aria-describedby="cfr-radar-remove-description"
+        tabIndex={-1}
+      >
+        <button
+          type="button"
+          className="cfr-radar-confirm-close"
+          onClick={onCancel}
+          aria-label="Close"
+          disabled={removing}
+        >
+          ×
+        </button>
+        <span className="cfr-radar-confirm-kicker">CAPITAL FLOW / RADAR</span>
+        <h2 id="cfr-radar-remove-title">Remove this Radar?</h2>
+        <p id="cfr-radar-remove-description">
+          This will stop the scan and remove its saved results. This action cannot be undone.
+        </p>
+        {error && (
+          <div className="cfr-radar-confirm-error" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="cfr-radar-confirm-actions">
+          <button type="button" className="cfr-radar-confirm-cancel" onClick={onCancel} disabled={removing}>
+            Keep Radar
+          </button>
+          <button type="button" className="cfr-radar-confirm-delete" onClick={onConfirm} disabled={removing}>
+            {removing ? 'Removing…' : 'Remove Radar'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export default function CapitalFlowRadar({
   user,
   getToken,
@@ -154,6 +328,8 @@ export default function CapitalFlowRadar({
   const [draftRecipe, setDraftRecipe] = useState(null);
   const [error, setError] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [pendingRemoveRadarId, setPendingRemoveRadarId] = useState(null);
+  const [removingRadarId, setRemovingRadarId] = useState(null);
 
   const headers = useCallback(() => ({ Authorization: 'Bearer ' + (getToken ? getToken() : '') }), [getToken]);
   const radarAccess = !!user && (isElite || trialActive);
@@ -358,8 +534,21 @@ export default function CapitalFlowRadar({
       .catch((err) => setError(err.message || 'Radar could not be updated right now.'));
   }
 
-  function removeRadar(id) {
-    if (!window.confirm('Remove this Capital Flow Radar?')) return;
+  function requestRemoveRadar(id) {
+    setError('');
+    setPendingRemoveRadarId(id);
+  }
+
+  function cancelRemoveRadar() {
+    if (removingRadarId !== null) return;
+    setPendingRemoveRadarId(null);
+    setError('');
+  }
+
+  function confirmRemoveRadar() {
+    const id = pendingRemoveRadarId;
+    if (id === null || removingRadarId !== null) return;
+    setRemovingRadarId(id);
     setError('');
     fetch('/api/radars/' + id, { method: 'DELETE', headers: headers() })
       .then(async (response) => {
@@ -367,8 +556,12 @@ export default function CapitalFlowRadar({
         if (!response.ok) throw new Error(data.error || 'Radar could not be removed right now.');
         return data;
       })
-      .then(() => setRadars((prev) => prev.filter((item) => item.id !== id)))
-      .catch((err) => setError(err.message || 'Radar could not be removed right now.'));
+      .then(() => {
+        setRadars((prev) => prev.filter((item) => item.id !== id));
+        setPendingRemoveRadarId(null);
+      })
+      .catch((err) => setError(err.message || 'Radar could not be removed right now.'))
+      .finally(() => setRemovingRadarId(null));
   }
 
   const locked = !radarAccess;
@@ -405,7 +598,12 @@ export default function CapitalFlowRadar({
           </span>
           <div>
             <span className="cfr-radar-kicker">CAPITAL FLOW / RADAR</span>
-            <h3 id="capital-flow-radar-title">Catch the moment a setup appears.</h3>
+            <h3 id="capital-flow-radar-title">
+              {hasSavedRadar && !setupOpen ? 'SIGNAL CARDS' : 'Catch the moment a setup appears.'}
+            </h3>
+            {hasSavedRadar && !setupOpen && (
+              <span className="cfr-radar-results-heading">CAPITAL FLOW RADAR RESULTS</span>
+            )}
           </div>
         </div>
         <span className={'cfr-radar-state' + (locked ? ' locked' : hasActiveScheduledRadar ? ' on' : '')}>
@@ -442,12 +640,6 @@ export default function CapitalFlowRadar({
                       <span className={'cfr-radar-dot ' + (radar.active ? 'active' : 'paused')} />
                       {radar.name}
                     </div>
-                    <div className="cfr-radar-recipe">
-                      {modeLabel(radar)} <span>·</span> {Number(radar.minVolumeRatio).toFixed(1)}x RVOL <span>·</span>{' '}
-                      {formatCap(radar.minMarketCap)} <span>·</span> SMA{radar.maPeriod || 20} ±
-                      {Number(radar.maDistance || 2).toFixed(0)}% <span>·</span>{' '}
-                      {conditionModeLabel(radar.conditionMode)}
-                    </div>
                   </div>
                   <span className={'cfr-radar-data-status ' + radar.dataStatus}>
                     {radar.dataStatus === 'ready'
@@ -460,10 +652,34 @@ export default function CapitalFlowRadar({
                   </span>
                 </div>
 
+                <div className="cfr-radar-results-toolbar">
+                  <div className="cfr-radar-results-recipe">
+                    <span>ACTIVE RADAR RECIPE</span>
+                    <b>
+                      {modeLabel(radar)} <em>·</em> RVOL {Number(radar.minVolumeRatio).toFixed(1)}x <em>·</em> SMA
+                      {radar.maPeriod || 20} ±{Number(radar.maDistance || 2).toFixed(0)}% <em>·</em>{' '}
+                      {radar.maInterval === '1wk' ? 'Weekly' : 'Daily'} <em>·</em>{' '}
+                      {conditionModeLabel(radar.conditionMode)}
+                    </b>
+                  </div>
+                  <div className="cfr-radar-results-last-check">
+                    <span>LAST SCAN</span>
+                    <b>{formatTime(radar.lastCheckAt)}</b>
+                  </div>
+                  <button
+                    type="button"
+                    className="cfr-radar-refresh cfr-radar-results-refresh"
+                    onClick={() => setRefreshKey((key) => key + 1)}
+                    disabled={loading}
+                  >
+                    <span className="cfr-radar-refresh-icon" aria-hidden="true">
+                      ↻
+                    </span>
+                    {loading ? 'Checking…' : 'Refresh'}
+                  </button>
+                </div>
+
                 <div className="cfr-radar-meta">
-                  <span>
-                    Last check <b>{formatTime(radar.lastCheckAt)}</b>
-                  </span>
                   <span>
                     Scan times{' '}
                     <b>
@@ -485,17 +701,11 @@ export default function CapitalFlowRadar({
                 {radar.events && radar.events.length > 0 && (
                   <div className="cfr-radar-events">
                     <div className="cfr-radar-events-label">RECENT ENTRIES</div>
-                    {radar.events.slice(0, 3).map((event) => (
-                      <div className="cfr-radar-event" key={event.id}>
-                        <span className="cfr-radar-event-symbol">{event.symbol}</span>
-                        <span className="cfr-radar-event-data">
-                          {event.data && Number.isFinite(Number(event.data.volumeRatio))
-                            ? Number(event.data.volumeRatio).toFixed(2) + 'x RVOL'
-                            : 'Verified scan entry'}
-                        </span>
-                        <time dateTime={event.scanTime}>{formatTime(event.scanTime)}</time>
-                      </div>
-                    ))}
+                    <div className="cfr-radar-signal-list">
+                      {radar.events.slice(0, 3).map((event) => (
+                        <RadarSignalCard key={event.id} event={event} radar={radar} />
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -508,7 +718,7 @@ export default function CapitalFlowRadar({
                   <button type="button" onClick={() => updateRadar(radar.id, { active: !radar.active })}>
                     {radar.active ? 'Pause' : 'Resume'}
                   </button>
-                  <button type="button" onClick={() => removeRadar(radar.id)} className="danger">
+                  <button type="button" onClick={() => requestRemoveRadar(radar.id)} className="danger">
                     Remove
                   </button>
                 </div>
@@ -934,11 +1144,7 @@ export default function CapitalFlowRadar({
               )}
             </div>
           ) : canCreateRadar ? (
-            <button
-              type="button"
-              className="cfr-radar-activate"
-              onClick={() => openSetupForRadar(null)}
-            >
+            <button type="button" className="cfr-radar-activate" onClick={() => openSetupForRadar(null)}>
               <span className="cfr-radar-plus" aria-hidden="true">
                 +
               </span>
@@ -960,6 +1166,14 @@ export default function CapitalFlowRadar({
             {loading ? 'Checking…' : 'Refresh Radar status'}
           </button>
         </>
+      )}
+      {pendingRemoveRadarId !== null && (
+        <RadarDeleteConfirm
+          onCancel={cancelRemoveRadar}
+          onConfirm={confirmRemoveRadar}
+          removing={removingRadarId !== null}
+          error={error}
+        />
       )}
     </section>
   );

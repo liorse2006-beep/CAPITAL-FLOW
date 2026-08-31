@@ -58,6 +58,18 @@ function scheduleFields() {
   return { scheduleTime1: '11:00', scheduleTime2: '14:00', expiresOn: futureIsraelDate() };
 }
 
+test('Radar event payload preserves unavailable numeric fields as null, never zero', () => {
+  const payload = radarService.eventPayload(
+    scanRow({ price: null, change: null, volumeRatio: null, rvol: null, marketCap: null }),
+    '2026-08-25T12:00:00.000Z'
+  );
+  assert.equal(payload.price, null);
+  assert.equal(payload.change, null);
+  assert.equal(payload.volumeRatio, null);
+  assert.equal(payload.rvol, null);
+  assert.equal(payload.marketCap, null);
+});
+
 test('Capital Flow Radar persists a new entry once and preserves it during an ongoing match', async () => {
   const user = await makeEliteUser('radar-persistence@test.local');
   const radar = await radarService.createRadar(user.id, {
@@ -150,7 +162,9 @@ test('Capital Flow Radar keeps one saved/live recipe per account under concurren
   assert.equal(rejected[0].reason.code, 'RADAR_LIMIT_REACHED');
 
   const count = await db
-    .prepare('SELECT COUNT(*) AS count, SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) AS active FROM capital_flow_radars WHERE user_id = ?')
+    .prepare(
+      'SELECT COUNT(*) AS count, SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) AS active FROM capital_flow_radars WHERE user_id = ?'
+    )
     .get(user.id);
   assert.equal(Number(count.count), 1);
   assert.equal(Number(count.active), 1);

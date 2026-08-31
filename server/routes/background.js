@@ -9,6 +9,8 @@ router.get('/background-status', function (req, res) {
     hasCache: hasCache,
     cacheAge: cacheAge,
     scanTime: backgroundCache.scanTime,
+    dataStatus: backgroundCache.dataStatus,
+    dataAsOf: backgroundCache.dataAsOf,
     resultsCount: hasCache ? backgroundCache.results.length : 0,
     nextScanIn: nextScanIn,
     running: backgroundCache.running,
