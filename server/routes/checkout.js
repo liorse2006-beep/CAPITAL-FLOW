@@ -34,8 +34,8 @@ function isDuplicateCheckout(key) {
 // The one-time, half-price Elite upgrade offered on the Premium welcome
 // screen. It charges a DIFFERENT Whop plan (a discounted price configured
 // directly in Whop, not something this app can apply on its own) but still
-// grants the normal 'elite' tier once paid — see the webhook, which only
-// ever reads metadata.tier, never which plan was actually charged.
+// grants the normal 'elite' tier once paid — the webhook independently checks
+// that the authoritative plan matches this configured upgrade plan first.
 router.post('/checkout/transaction', checkoutLimiter, requireAuth, async (req, res) => {
   if (!whop.enabled) return res.status(503).json({ error: 'Checkout is not configured yet' });
 

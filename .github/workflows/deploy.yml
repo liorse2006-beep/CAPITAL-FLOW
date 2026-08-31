@@ -54,7 +54,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Render
-        run: curl --fail --silent --show-error -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}" --max-time 30
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          hook="$RENDER_DEPLOY_HOOK"
+          case "$hook" in
+            *\?*) hook="${hook}&ref=${GITHUB_SHA}" ;;
+            *) hook="${hook}?ref=${GITHUB_SHA}" ;;
+          esac
+          curl --fail --silent --show-error --request POST "$hook" --max-time 30
 
       # A successful deploy-hook POST only means Render accepted the request;
       # it does not mean the new container is serving traffic yet. Poll the
