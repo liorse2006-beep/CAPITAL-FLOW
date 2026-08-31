@@ -70,6 +70,7 @@ describe('formatPrice', () => {
   it('shows unavailable for null, invalid, and non-positive prices', () => {
     expect(formatPrice(null)).toBe('—');
     expect(formatPrice('not-a-price')).toBe('—');
+    expect(formatPrice(true)).toBe('—');
     expect(formatPrice(0)).toBe('—');
     expect(formatPrice(-2)).toBe('—');
   });

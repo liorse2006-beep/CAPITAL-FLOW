@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import useModalA11y from '../../hooks/useModalA11y';
+import { formatPrice } from '../../utils/format';
 
 const PRESETS = [2, 3, 5];
 
@@ -222,9 +223,9 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
                   <div className="alert-readout-lbl">PRICE TARGET</div>
                 </div>
 
-                {currentPrice > 0 && (
+                {formatPrice(currentPrice) !== '—' && (
                   <p className="alert-modal-current-price">
-                    <span>מחיר נוכחי:</span> <bdi dir="ltr">${currentPrice.toFixed(2)}</bdi>
+                    <span>מחיר נוכחי:</span> <bdi dir="ltr">{formatPrice(currentPrice)}</bdi>
                   </p>
                 )}
 

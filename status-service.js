@@ -62,6 +62,10 @@ app.disable('x-powered-by');
 // client-controlled forwarding headers authoritative later.
 app.set('trust proxy', TRUSTED_PROXY_CIDRS.length ? proxyaddr.compile(TRUSTED_PROXY_CIDRS) : false);
 app.use(helmet({ contentSecurityPolicy: false }));
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), usb=()');
+  next();
+});
 app.use(express.json({ limit: '64kb' }));
 app.use(express.static(path.join(__dirname, 'public'), { index: false, maxAge: '1h' }));
 

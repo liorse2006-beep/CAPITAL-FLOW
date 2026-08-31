@@ -58,6 +58,7 @@ export function formatSignedPercent(value, decimals = 2) {
 // unavailable quote visibly unavailable instead of letting a malformed/null
 // provider value crash a result card or becoming a fake "$0.00".
 export function formatPrice(value, decimals = 2) {
+  if (typeof value !== 'number' && typeof value !== 'string') return '—';
   const number = Number(value);
   if (!Number.isFinite(number) || number <= 0) return '—';
   return '$' + number.toFixed(decimals);

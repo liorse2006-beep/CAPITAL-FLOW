@@ -67,7 +67,7 @@ function filterCachedResults(cached, opts) {
 function alertTriggered(alert, r) {
   if (alert.type === 'price') {
     const currentPrice =
-      r?.price == null || (typeof r.price === 'string' && r.price.trim() === '') ? null : Number(r.price);
+      typeof r?.price === 'number' || (typeof r?.price === 'string' && r.price.trim() !== '') ? Number(r.price) : null;
     const targetPrice = alert?.targetPrice == null ? null : Number(alert.targetPrice);
     // A missing/malformed quote must never look like a move below the target.
     // Otherwise a user who armed an alert while the price was above the target
@@ -78,8 +78,14 @@ function alertTriggered(alert, r) {
     const side = currentPrice >= targetPrice ? 'above' : 'below';
     return side !== alert.startingSide;
   }
-  const volumeRatio = r?.volumeRatio == null ? null : Number(r.volumeRatio);
-  const minRatio = alert?.minRatio == null ? null : Number(alert.minRatio);
+  const volumeRatio =
+    typeof r?.volumeRatio === 'number' || (typeof r?.volumeRatio === 'string' && r.volumeRatio.trim() !== '')
+      ? Number(r.volumeRatio)
+      : null;
+  const minRatio =
+    typeof alert?.minRatio === 'number' || (typeof alert?.minRatio === 'string' && alert.minRatio.trim() !== '')
+      ? Number(alert.minRatio)
+      : null;
   return (
     Number.isFinite(volumeRatio) &&
     volumeRatio > 0 &&
@@ -91,12 +97,14 @@ function alertTriggered(alert, r) {
 
 function alertNotificationPayload(alert, r) {
   const numericChange =
-    r.change == null || (typeof r.change === 'string' && r.change.trim() === '') ? null : Number(r.change);
+    typeof r?.change === 'number' || (typeof r?.change === 'string' && r.change.trim() !== '')
+      ? Number(r.change)
+      : null;
   const change = Number.isFinite(numericChange)
     ? `${numericChange >= 0 ? '+' : ''}${numericChange.toFixed(2)}%`
     : 'change unavailable';
   const numericPrice =
-    r.price == null || (typeof r.price === 'string' && r.price.trim() === '') ? null : Number(r.price);
+    typeof r?.price === 'number' || (typeof r?.price === 'string' && r.price.trim() !== '') ? Number(r.price) : null;
   const price = Number.isFinite(numericPrice) && numericPrice > 0 ? `$${numericPrice.toFixed(2)}` : 'price unavailable';
   if (alert.type === 'price') {
     return {
