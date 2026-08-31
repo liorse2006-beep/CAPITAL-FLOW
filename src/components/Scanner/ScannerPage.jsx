@@ -8,7 +8,7 @@ import CapitalFlowRadar from './CapitalFlowRadar';
 import useIsMobile from '../../hooks/useIsMobile';
 import useSmoothProgress from '../../hooks/useSmoothProgress';
 import MobileResultSort from '../shared/MobileResultSort';
-import { fmt, friendlyError, alertLevelLabel, formatSignedPercent } from '../../utils/format';
+import { fmt, friendlyError, alertLevelLabel, formatSignedPercent, formatPrice } from '../../utils/format';
 
 const ALL_SECTORS = [
   'Technology',
@@ -336,7 +336,7 @@ export default function ScannerPage({
                       </div>
                       <div className="live-feed-right">
                         <span className="live-feed-ratio">{r.volumeRatio + 'x'}</span>
-                        <span className="live-feed-price">{'$' + r.price.toFixed(2)}</span>
+                        <span className="live-feed-price">{formatPrice(r.price)}</span>
                         <span
                           className={
                             r.change == null
@@ -985,7 +985,7 @@ export default function ScannerPage({
                           <td style={{ color: 'var(--text-2)', fontSize: 12 }}>
                             {r.marketCap > 0 ? fmt(r.marketCap) : '—'}
                           </td>
-                          <td>{'$' + r.price.toFixed(2)}</td>
+                          <td>{formatPrice(r.price)}</td>
                           <td className={r.change == null ? '' : r.change >= 0 ? 'col-pos' : 'col-neg'}>
                             {formatSignedPercent(r.change)}
                           </td>
@@ -1271,7 +1271,7 @@ export default function ScannerPage({
                           </div>
                         </div>
                         <div className="mobile-card-mid">
-                          <span className="mobile-card-price">{'$' + r.price.toFixed(2)}</span>
+                          <span className="mobile-card-price">{formatPrice(r.price)}</span>
                           <span
                             className={'mobile-card-change ' + (r.change == null ? '' : r.change >= 0 ? 'pos' : 'neg')}
                           >

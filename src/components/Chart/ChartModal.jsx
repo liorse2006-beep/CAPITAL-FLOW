@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { fmt } from '../../utils/format';
+import { fmt, formatPrice, formatSignedPercent } from '../../utils/format';
 import { useAuth } from '../../context/AuthContext';
 import useModalA11y from '../../hooks/useModalA11y';
 
@@ -363,15 +363,11 @@ export default function ChartModal({ symbol, name, onClose }) {
             React.createElement(
               React.Fragment,
               null,
-              React.createElement(
-                'span',
-                { className: 'chart-modal-price' },
-                quote.price == null ? '—' : `$${quote.price.toFixed(2)}`
-              ),
+              React.createElement('span', { className: 'chart-modal-price' }, formatPrice(quote.price)),
               React.createElement(
                 'span',
                 { className: 'chart-modal-change', style: { color: chgColor } },
-                quote.change == null ? '—' : `${quote.change >= 0 ? '+' : ''}${quote.change.toFixed(2)}%`
+                formatSignedPercent(quote.change)
               )
             ),
           // MA legend
@@ -446,25 +442,25 @@ export default function ChartModal({ symbol, name, onClose }) {
               'div',
               { className: 'chart-tt-row' },
               React.createElement('span', null, 'O'),
-              React.createElement('span', null, `$${tooltip.q.open.toFixed(2)}`)
+              React.createElement('span', null, formatPrice(tooltip.q.open))
             ),
             React.createElement(
               'div',
               { className: 'chart-tt-row' },
               React.createElement('span', null, 'H'),
-              React.createElement('span', { style: { color: '#22C55E' } }, `$${tooltip.q.high.toFixed(2)}`)
+              React.createElement('span', { style: { color: '#22C55E' } }, formatPrice(tooltip.q.high))
             ),
             React.createElement(
               'div',
               { className: 'chart-tt-row' },
               React.createElement('span', null, 'L'),
-              React.createElement('span', { style: { color: '#EF4444' } }, `$${tooltip.q.low.toFixed(2)}`)
+              React.createElement('span', { style: { color: '#EF4444' } }, formatPrice(tooltip.q.low))
             ),
             React.createElement(
               'div',
               { className: 'chart-tt-row' },
               React.createElement('span', null, 'C'),
-              React.createElement('span', { style: { color: '#F59E0B' } }, `$${tooltip.q.close.toFixed(2)}`)
+              React.createElement('span', { style: { color: '#F59E0B' } }, formatPrice(tooltip.q.close))
             ),
             React.createElement(
               'div',

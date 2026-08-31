@@ -3,7 +3,7 @@ import SectorHeatmap from './SectorHeatmap';
 import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
 import MobileResultSort from '../shared/MobileResultSort';
-import { fmt, friendlyError, formatSignedPercent } from '../../utils/format';
+import { fmt, friendlyError, formatPrice, formatSignedPercent } from '../../utils/format';
 import { categoryQuota } from '../../utils/quota';
 import { SECTOR_ETFS } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
@@ -362,7 +362,7 @@ export default function MoneyFlow({
                             { className: 'col-name', style: { fontFamily: 'var(--font)' } },
                             (etf && etf.name) || d.symbol
                           ),
-                          React.createElement('td', null, d.price != null ? '$' + Number(d.price).toFixed(2) : '—'),
+                          React.createElement('td', null, formatPrice(d.price)),
                           React.createElement(
                             'td',
                             { className: d.change == null ? '' : d.change >= 0 ? 'col-pos' : 'col-neg' },
@@ -555,7 +555,7 @@ export default function MoneyFlow({
                       <div className="mobile-result-card-quote">
                         <div className="mobile-result-card-quote-item">
                           <span className="mobile-result-card-label">PRICE</span>
-                          <span className="mobile-card-price">{'$' + d.price.toFixed(2)}</span>
+                          <span className="mobile-card-price">{formatPrice(d.price)}</span>
                         </div>
                         <div className="mobile-result-card-quote-item mobile-result-card-quote-item-end">
                           <span className="mobile-result-card-label">CHANGE</span>

@@ -5,7 +5,7 @@ import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
 import MobileResultSort from '../shared/MobileResultSort';
 import { categoryQuota } from '../../utils/quota';
-import { friendlyError, alertLevelLabel } from '../../utils/format';
+import { friendlyError, alertLevelLabel, formatPrice } from '../../utils/format';
 
 const MA_OPTIONS = [9, 20, 50, 150];
 const DISTANCE_OPTIONS = [1, 2];
@@ -729,11 +729,7 @@ export default function MAScannerPage({
                         'div',
                         { className: 'mobile-result-card-quote-item' },
                         React.createElement('span', { className: 'mobile-result-card-label' }, 'PRICE'),
-                        React.createElement(
-                          'span',
-                          { className: 'mobile-card-price' },
-                          r.price ? '$' + r.price.toFixed(2) : '—'
-                        )
+                        React.createElement('span', { className: 'mobile-card-price' }, formatPrice(r.price))
                       ),
                       React.createElement(
                         'div',
@@ -821,7 +817,7 @@ export default function MAScannerPage({
                           React.createElement('div', { className: 'ticker-cell' }, starBtn(r.symbol), r.symbol)
                         ),
                         React.createElement('td', { className: 'col-name' }, r.name || '—'),
-                        React.createElement('td', null, r.price ? '$' + r.price.toFixed(2) : '—'),
+                        React.createElement('td', null, formatPrice(r.price)),
                         React.createElement(
                           'td',
                           { style: { fontFamily: 'var(--mono)', fontSize: 12 } },

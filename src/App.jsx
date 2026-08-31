@@ -5,7 +5,7 @@ import useSSE from './hooks/useSSE';
 import useScanQuota from './hooks/useScanQuota';
 import usePushSubscription from './hooks/usePushSubscription';
 import useIsMobile from './hooks/useIsMobile';
-import { parseVolInput } from './utils/format';
+import { parseVolInput, formatPrice, formatSignedPercent } from './utils/format';
 import { categoryQuota } from './utils/quota';
 import { hasEliteAccess, hasPremiumFeatureAccess } from './utils/access';
 import { useAuth } from './context/AuthContext';
@@ -600,16 +600,19 @@ function App() {
       openUpgradeModal();
       return;
     }
+    var priceLabel = formatPrice(r.price);
+    var changeLabel = formatSignedPercent(r.change);
+    var ratioValue = Number(r.volumeRatio);
+    var ratioLabel = Number.isFinite(ratioValue) && ratioValue > 0 ? ratioValue.toFixed(2) + 'x' : 'unavailable';
     var parts = [
       r.symbol + ' just showed up on my scan.',
-      'Price $' +
-        r.price.toFixed(2) +
+      'Price ' +
+        (priceLabel === '—' ? 'unavailable' : priceLabel) +
         ' (' +
-        (r.change >= 0 ? '+' : '') +
-        r.change.toFixed(2) +
-        '% today), volume running at ' +
-        r.volumeRatio.toFixed(2) +
-        'x its average.',
+        (changeLabel === '—' ? 'change unavailable' : changeLabel) +
+        ' today), volume running at ' +
+        ratioLabel +
+        ' its average.',
     ];
     if (r.sector && r.sector !== 'N/A') parts.push('Sector: ' + r.sector + '.');
     parts.push(
@@ -1000,7 +1003,12 @@ function App() {
                   });
                   if (!stock) return;
                   var title = 'Volume Alert: ' + sym;
-                  var body = '$' + stock.price.toFixed(2) + '  ·  ' + stock.volumeRatio + 'x avg volume';
+                  var body =
+                    formatPrice(stock.price) +
+                    '  ·  ' +
+                    (Number.isFinite(Number(stock.volumeRatio)) && Number(stock.volumeRatio) > 0
+                      ? Number(stock.volumeRatio) + 'x avg volume'
+                      : 'average volume unavailable');
                   addAlertToHistory(sym, title, body);
                   if (window.Notification && Notification.permission === 'granted') {
                     new Notification(title, { body: body, icon: '/icon-192.png', tag: sym });
@@ -1020,15 +1028,18 @@ function App() {
               if (!alertData || alertFired.current[stock.symbol]) return;
 
               var title, body;
+              var livePrice = Number(stock.price);
+              if (!Number.isFinite(livePrice) || livePrice <= 0) return;
               if (alertData.type === 'price') {
-                var side = stock.price >= alertData.targetPrice ? 'above' : 'below';
+                var side = livePrice >= alertData.targetPrice ? 'above' : 'below';
                 if (side === alertData.startingSide) return;
                 title = 'Alert: ' + stock.symbol + ' crossed $' + alertData.targetPrice;
-                body = 'Now $' + stock.price.toFixed(2);
+                body = 'Now ' + formatPrice(livePrice);
               } else {
-                if (stock.volumeRatio < alertData.minRatio) return;
-                title = 'Alert: ' + stock.symbol + ' hit ' + stock.volumeRatio + 'x';
-                body = 'Crossed your ' + alertData.minRatio + 'x threshold · $' + stock.price.toFixed(2);
+                var liveRatio = Number(stock.volumeRatio);
+                if (!Number.isFinite(liveRatio) || liveRatio <= 0 || liveRatio < alertData.minRatio) return;
+                title = 'Alert: ' + stock.symbol + ' hit ' + liveRatio + 'x';
+                body = 'Crossed your ' + alertData.minRatio + 'x threshold · ' + formatPrice(livePrice);
               }
 
               alertFired.current[stock.symbol] = true;

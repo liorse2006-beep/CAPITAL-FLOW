@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { friendlyError } from '../../utils/format';
+import { friendlyError, formatPrice } from '../../utils/format';
 
 const SYMBOL_RE = /^[A-Za-z0-9.-]{1,10}$/;
 
@@ -506,7 +506,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
               <span className="fund-result-name">{result.name}</span>
             </div>
             <div className="fund-result-quote">
-              <span className="fund-result-price">{'$' + result.price.toFixed(2)}</span>
+              <span className="fund-result-price">{formatPrice(result.price)}</span>
               <span
                 className={
                   'fund-result-change ' + (result.change == null ? '' : result.change >= 0 ? 'is-up' : 'is-down')

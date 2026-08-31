@@ -174,3 +174,21 @@ test('checkWatchlistAlerts fires a price alert once the price crosses to the oth
     webPush.sendPushToUser = originalSend;
   }
 });
+
+test('checkWatchlistAlerts does not fire a price alert when the quote has no price', async () => {
+  const userId = await makeUser('bg-alert-missing-price@test.local');
+  await setAlert(userId, 'NFLX', { type: 'price', targetPrice: 100, startingSide: 'above' });
+
+  const originalSend = webPush.sendPushToUser;
+  webPush.sendPushToUser = () => {};
+  try {
+    await assert.doesNotReject(() =>
+      checkWatchlistAlerts([{ symbol: 'NFLX', name: 'Netflix', volumeRatio: 2.5, change: null, price: null }])
+    );
+    assert.equal((await getWatchlistAlerts(userId)).NFLX.targetPrice, 100, 'the alert must remain armed');
+    const notifications = await getNotifications(userId, 10);
+    assert.equal(notifications.length, 0, 'a missing price must not create a false alert');
+  } finally {
+    webPush.sendPushToUser = originalSend;
+  }
+});

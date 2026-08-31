@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fmt, parseVolInput, friendlyError } from './format';
+import { fmt, parseVolInput, friendlyError, formatPrice } from './format';
 
 describe('fmt', () => {
   it('formats trillions', () => {
@@ -60,5 +60,17 @@ describe('friendlyError', () => {
     expect(friendlyError('Unexpected token \'<\', "<!DOCTYPE "... is not valid JSON')).toMatch(/went wrong/i);
     expect(friendlyError("Unexpected token '<'")).toMatch(/went wrong/i);
     expect(friendlyError('JSON.parse: unexpected character at line 1 column 1')).toMatch(/went wrong/i);
+  });
+});
+
+describe('formatPrice', () => {
+  it('formats a finite positive price', () => {
+    expect(formatPrice(190.126)).toBe('$190.13');
+  });
+  it('shows unavailable for null, invalid, and non-positive prices', () => {
+    expect(formatPrice(null)).toBe('—');
+    expect(formatPrice('not-a-price')).toBe('—');
+    expect(formatPrice(0)).toBe('—');
+    expect(formatPrice(-2)).toBe('—');
   });
 });

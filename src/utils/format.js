@@ -53,3 +53,12 @@ export function formatSignedPercent(value, decimals = 2) {
   const number = Number(value);
   return (number >= 0 ? '+' : '') + number.toFixed(decimals) + '%';
 }
+
+// Prices are only meaningful when they are finite and positive. Keep an
+// unavailable quote visibly unavailable instead of letting a malformed/null
+// provider value crash a result card or becoming a fake "$0.00".
+export function formatPrice(value, decimals = 2) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return '—';
+  return '$' + number.toFixed(decimals);
+}

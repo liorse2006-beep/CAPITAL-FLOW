@@ -37,6 +37,14 @@ if (process.env.NODE_ENV === 'production' && !TRUSTED_PROXY_CIDRS.length) {
 // Security headers (X-Frame-Options, HSTS, noSniff, etc.) apply everywhere.
 app.use(helmet({ contentSecurityPolicy: false }));
 
+// The product does not need direct camera, microphone, location, or USB
+// access. Disable those browser capabilities explicitly while leaving the
+// payment policy untouched for the hosted checkout provider.
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), usb=()');
+  next();
+});
+
 // Gzip/Brotli-equivalent compression for every response — the built JS bundle
 // and JSON scan payloads are the biggest wins here (helmet must run first so
 // its headers aren't touched by compression's stream rewrite).

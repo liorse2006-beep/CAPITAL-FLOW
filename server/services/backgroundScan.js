@@ -66,10 +66,27 @@ function filterCachedResults(cached, opts) {
 // (an actual crossing, not "happened to already be past it").
 function alertTriggered(alert, r) {
   if (alert.type === 'price') {
-    const side = r.price >= alert.targetPrice ? 'above' : 'below';
+    const currentPrice =
+      r?.price == null || (typeof r.price === 'string' && r.price.trim() === '') ? null : Number(r.price);
+    const targetPrice = alert?.targetPrice == null ? null : Number(alert.targetPrice);
+    // A missing/malformed quote must never look like a move below the target.
+    // Otherwise a user who armed an alert while the price was above the target
+    // could receive a false notification when the provider returned no price.
+    if (!Number.isFinite(currentPrice) || currentPrice <= 0 || !Number.isFinite(targetPrice) || targetPrice <= 0) {
+      return false;
+    }
+    const side = currentPrice >= targetPrice ? 'above' : 'below';
     return side !== alert.startingSide;
   }
-  return r.volumeRatio >= alert.minRatio;
+  const volumeRatio = r?.volumeRatio == null ? null : Number(r.volumeRatio);
+  const minRatio = alert?.minRatio == null ? null : Number(alert.minRatio);
+  return (
+    Number.isFinite(volumeRatio) &&
+    volumeRatio > 0 &&
+    Number.isFinite(minRatio) &&
+    minRatio > 0 &&
+    volumeRatio >= minRatio
+  );
 }
 
 function alertNotificationPayload(alert, r) {
@@ -78,12 +95,15 @@ function alertNotificationPayload(alert, r) {
   const change = Number.isFinite(numericChange)
     ? `${numericChange >= 0 ? '+' : ''}${numericChange.toFixed(2)}%`
     : 'change unavailable';
+  const numericPrice =
+    r.price == null || (typeof r.price === 'string' && r.price.trim() === '') ? null : Number(r.price);
+  const price = Number.isFinite(numericPrice) && numericPrice > 0 ? `$${numericPrice.toFixed(2)}` : 'price unavailable';
   if (alert.type === 'price') {
     return {
       symbol: r.symbol,
       name: r.name,
       title: `${r.symbol} Price Alert`,
-      body: `Crossed $${alert.targetPrice} — now $${r.price.toFixed(2)} (${change})`,
+      body: `Crossed $${alert.targetPrice} — now ${price} (${change})`,
       targetPrice: alert.targetPrice,
       change: r.change,
       price: r.price,
@@ -94,7 +114,7 @@ function alertNotificationPayload(alert, r) {
     symbol: r.symbol,
     name: r.name,
     title: `${r.symbol} Volume Spike`,
-    body: `${r.volumeRatio}x avg volume — ${change} @ $${r.price.toFixed(2)}`,
+    body: `${r.volumeRatio}x avg volume — ${change} @ ${price}`,
     volumeRatio: r.volumeRatio,
     change: r.change,
     price: r.price,
