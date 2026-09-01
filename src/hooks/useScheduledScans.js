@@ -10,16 +10,21 @@ export default function useScheduledScans(scanType) {
   const mySchedules = schedules.filter((s) => s.scan_type === scanType);
 
   const fetchSchedules = useCallback(async () => {
-    const token = getToken();
-    if (!token) return;
+    const token = typeof getToken === 'function' ? getToken() : null;
+    if (!token) {
+      setSchedules([]);
+      return;
+    }
     try {
       const res = await fetch('/api/scheduled-scans', {
         headers: { Authorization: 'Bearer ' + token },
       });
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not load scheduled scans');
       setSchedules(data.schedules || []);
-    } catch (_) {}
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load scheduled scans');
+    }
   }, [getToken]);
 
   useEffect(() => {
@@ -30,13 +35,14 @@ export default function useScheduledScans(scanType) {
     setLoading(true);
     setError(null);
     try {
-      const token = getToken();
+      const token = typeof getToken === 'function' ? getToken() : null;
+      if (!token) throw new Error('Please sign in to schedule a scan');
       const res = await fetch('/api/scheduled-scans', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
         body: JSON.stringify({ scan_type: scanType, scan_time, scan_date: scan_date || null }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to create schedule');
       setSchedules((prev) => [data, ...prev]);
     } catch (err) {
@@ -48,14 +54,15 @@ export default function useScheduledScans(scanType) {
 
   async function toggleSchedule(id, active) {
     try {
-      const token = getToken();
+      const token = typeof getToken === 'function' ? getToken() : null;
+      if (!token) throw new Error('Please sign in to update this schedule');
       const res = await fetch(`/api/scheduled-scans/${id}`, {
         method: 'PUT',
         headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
         body: JSON.stringify({ active }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to update schedule');
       setSchedules((prev) => prev.map((s) => (s.id === id ? { ...s, ...data } : s)));
     } catch (err) {
       setError(err.message);
@@ -64,14 +71,20 @@ export default function useScheduledScans(scanType) {
 
   async function removeSchedule(id) {
     try {
-      const token = getToken();
+      const token = typeof getToken === 'function' ? getToken() : null;
+      if (!token) throw new Error('Please sign in to remove this schedule');
       const res = await fetch(`/api/scheduled-scans/${id}`, {
         method: 'DELETE',
         headers: { Authorization: 'Bearer ' + token },
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to remove schedule');
+      }
       setSchedules((prev) => prev.filter((s) => s.id !== id));
-    } catch (_) {}
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove schedule');
+    }
   }
 
   return { mySchedules, loading, error, addSchedule, toggleSchedule, removeSchedule, refresh: fetchSchedules };

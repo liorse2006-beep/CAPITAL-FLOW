@@ -156,7 +156,9 @@ router.post('/chat/message/stream', requireEliteOrTrial, chatLimiter, async (req
   } catch (err) {
     reportError(err, '[chat/message/stream]');
     if (userPersisted && !assistantPersisted) {
-      await addMessage(req.user.id, 'assistant', CAPI_UNAVAILABLE_REPLY).catch(() => {});
+      await addMessage(req.user.id, 'assistant', CAPI_UNAVAILABLE_REPLY).catch((persistErr) =>
+        reportError(persistErr, '[chat/message/stream fallback persistence]')
+      );
     }
     if (!clientClosed) await writeSse(res, 'error', { reply: CAPI_UNAVAILABLE_REPLY });
   } finally {

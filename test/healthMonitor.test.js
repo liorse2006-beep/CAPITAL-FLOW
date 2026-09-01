@@ -13,7 +13,9 @@ require('./helpers/testEnv');
 const { test, before, after, mock } = require('node:test');
 const assert = require('node:assert');
 const express = require('express');
+const http = require('http');
 const nodemailer = require('nodemailer');
+const { EventEmitter } = require('events');
 
 const db = require('../server/db');
 before(async () => {
@@ -89,4 +91,26 @@ test('alerts exactly once after 3 consecutive failures, then sends a recovery em
     setTimeout(resolve, 50);
   });
   assert.strictEqual(sendMail.mock.callCount(), 2, 'a plain healthy check after recovery must stay silent');
+});
+
+test('counts a timeout and the error emitted by destroy as one failed check', async (t) => {
+  const sendMail = mock.fn(async () => ({}));
+  t.mock.method(nodemailer, 'createTransport', () => ({ sendMail }));
+  t.mock.method(http, 'get', () => {
+    const req = new EventEmitter();
+    req.destroy = () => process.nextTick(() => req.emit('error', new Error('socket closed')));
+    process.nextTick(() => req.emit('timeout'));
+    return req;
+  });
+
+  await new Promise((resolve) => {
+    checkHealth();
+    setTimeout(resolve, 20);
+  });
+  await new Promise((resolve) => {
+    checkHealth();
+    setTimeout(resolve, 20);
+  });
+
+  assert.strictEqual(sendMail.mock.callCount(), 0, 'two timed-out checks must not look like four failures');
 });

@@ -66,7 +66,19 @@ function onFail(reason) {
 }
 
 function checkHealth() {
+  // A timeout is followed by request.destroy(), which commonly emits an
+  // additional `error` event. Count one network attempt once only, otherwise
+  // a single outage can advance the consecutive-failure threshold twice.
+  let settled = false;
+  const failOnce = (reason) => {
+    if (settled) return;
+    settled = true;
+    onFail(reason);
+  };
+
   const req = http.get(HEALTH_URL, { timeout: 5000 }, (res) => {
+    if (settled) return;
+    settled = true;
     res.resume();
     if (res.statusCode === 200) {
       if (state.alerted) {
@@ -83,10 +95,11 @@ function checkHealth() {
   });
 
   req.on('timeout', () => {
+    if (settled) return;
     req.destroy();
-    onFail('request timeout');
+    failOnce('request timeout');
   });
-  req.on('error', (err) => onFail(err.message));
+  req.on('error', (err) => failOnce(err.message));
 }
 
 function startHealthMonitor() {
