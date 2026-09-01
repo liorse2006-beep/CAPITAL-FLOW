@@ -122,6 +122,27 @@
       href="https://assets.parqet.com/logos/symbol/JPM?format=svg&amp;size=32"
       crossorigin
     />
+    <!-- Structured data so search engines can identify the product/brand
+         directly instead of inferring it from page text. Kept minimal and
+         accurate to what the app actually offers (no invented ratings or
+         prices) to stay within Google's structured-data guidelines. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Capital Flow",
+        "url": "https://capitalflow.vip/",
+        "applicationCategory": "FinanceApplication",
+        "operatingSystem": "Web",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD",
+          "description": "7-day free trial"
+        },
+        "description": "Real-time stock volume scanner for the S&P 500 and NASDAQ 100 — finds unusual volume spikes, tracks sector money flow, and surfaces catalyst news."
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
