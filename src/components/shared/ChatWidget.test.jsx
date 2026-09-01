@@ -179,6 +179,29 @@ describe('ChatWidget', () => {
     );
   });
 
+  it('aborts an in-flight provider request when the chat is closed', async () => {
+    vi.useRealTimers();
+    let streamSignal;
+    globalThis.fetch = vi.fn((url, options) => {
+      if (url === '/api/chat/history') return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      if (url === '/api/chat/message/stream') {
+        streamSignal = options.signal;
+        return new Promise(() => {});
+      }
+      return Promise.reject(new Error('unexpected request: ' + url));
+    });
+
+    const { container } = render(<ChatWidget user={USER} isElite getToken={() => 't'} />);
+    fireEvent.click(container.querySelector('.chat-fab'));
+    const input = await screen.findByPlaceholderText('Message Capi…');
+    fireEvent.change(input, { target: { value: 'Cancel this request.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(streamSignal).toBeDefined());
+
+    fireEvent.click(container.querySelector('.chat-panel-close'));
+    expect(streamSignal.aborted).toBe(true);
+  });
+
   it('keeps a streamed optimistic answer when the slower history prefetch finishes later', async () => {
     vi.useRealTimers();
     let resolveHistory;

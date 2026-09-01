@@ -3,6 +3,11 @@ const path = require('path');
 const fs = require('fs');
 const { safeErrorSummary } = require('../utils/reportError');
 
+function isExpectedDuplicateColumnError(error) {
+  const message = String(error?.message || error || '');
+  return /duplicate\s+column\s+name|column\s+[^\n]*already\s+exists/i.test(message);
+}
+
 // ── Connection ─────────────────────────────────────────────────────────────
 // If TURSO_DB_URL is set, connect to Turso cloud (production / Render).
 // Otherwise fall back to a local file (dev) or in-memory (tests via
@@ -631,7 +636,10 @@ async function initDb() {
     console.warn('[db] Status component seed skipped:', safeErrorSummary(err));
   }
 
-  // Safe migrations — silently ignored if the column already exists
+  // Safe migrations — the only expected failure is a duplicate-column error
+  // when an older deployment already applied that migration. Swallowing every
+  // error here would let the process serve traffic with a partially migrated
+  // schema after a network, permissions, syntax, or missing-table failure.
   const migrations = [
     `ALTER TABLE users ADD COLUMN ma_scan_count INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE users ADD COLUMN is_blocked    INTEGER NOT NULL DEFAULT 0`,
@@ -714,8 +722,8 @@ async function initDb() {
   for (const sql of migrations) {
     try {
       await client.execute(sql);
-    } catch (_) {
-      // Column already exists — expected on every run after the first
+    } catch (err) {
+      if (!isExpectedDuplicateColumnError(err)) throw err;
     }
   }
 
@@ -766,24 +774,22 @@ async function initDb() {
     throw err;
   }
 
-  // One-time data migration: carry over ma_scan_count → free_scan_count
-  try {
-    await client.execute(
-      `UPDATE users SET free_scan_count = ma_scan_count WHERE ma_scan_count > 0 AND free_scan_count = 0`
-    );
-  } catch (_) {}
-
-  // One-time data migration: set tier from is_premium
-  try {
-    await client.execute(`UPDATE users SET tier = 'premium' WHERE is_premium = 1 AND tier = 'free'`);
-  } catch (_) {}
+  // One-time data migrations. These columns are created above, so an error is
+  // a real schema/readiness failure and must stop boot rather than silently
+  // serving accounts with stale entitlements or scan quotas.
+  await client.execute(
+    `UPDATE users SET free_scan_count = ma_scan_count WHERE ma_scan_count > 0 AND free_scan_count = 0`
+  );
+  await client.execute(`UPDATE users SET tier = 'premium' WHERE is_premium = 1 AND tier = 'free'`);
 
   // OTP pruning — once at startup, then daily
   async function pruneExpiredOtps() {
     const cutoff = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
     try {
       await db.prepare('DELETE FROM otp_codes WHERE used = 1 OR expires_at < ?').run(cutoff);
-    } catch (_) {}
+    } catch (err) {
+      console.warn('[db] OTP pruning skipped:', safeErrorSummary(err));
+    }
   }
   await pruneExpiredOtps();
   setInterval(() => pruneExpiredOtps(), 24 * 60 * 60 * 1000).unref();
@@ -795,7 +801,9 @@ async function initDb() {
     const cutoff = Math.floor(Date.now() / 1000) - 180 * 24 * 60 * 60;
     try {
       await db.prepare('DELETE FROM user_sessions WHERE last_used_at < ?').run(cutoff);
-    } catch (_) {}
+    } catch (err) {
+      console.warn('[db] stale-session pruning skipped:', safeErrorSummary(err));
+    }
   }
   await pruneStaleSessions();
   setInterval(() => pruneStaleSessions(), 24 * 60 * 60 * 1000).unref();
@@ -881,3 +889,4 @@ const ready = initDbWithRetry().catch((err) => {
 db.ready = ready;
 
 module.exports = db;
+module.exports.isExpectedDuplicateColumnError = isExpectedDuplicateColumnError;

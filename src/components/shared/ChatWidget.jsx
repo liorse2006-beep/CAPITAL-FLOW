@@ -130,14 +130,27 @@ export default function ChatWidget({
   const historyPromiseRef = useRef(null);
   const messageIdRef = useRef(0);
   const conversationGenerationRef = useRef(0);
+  const streamAbortRef = useRef(null);
+  const mountedRef = useRef(true);
   const accountKey = user && user.id != null ? String(user.id) : null;
   const accountKeyRef = useRef(accountKey);
+
+  useEffect(function () {
+    mountedRef.current = true;
+    return function () {
+      mountedRef.current = false;
+      if (streamAbortRef.current) streamAbortRef.current.abort();
+      streamAbortRef.current = null;
+    };
+  }, []);
 
   useEffect(
     function () {
       if (accountKeyRef.current === accountKey) return;
       accountKeyRef.current = accountKey;
       conversationGenerationRef.current += 1;
+      if (streamAbortRef.current) streamAbortRef.current.abort();
+      streamAbortRef.current = null;
       historyPromiseRef.current = null;
       setMessages([]);
       setHistoryLoaded(false);
@@ -286,6 +299,8 @@ export default function ChatWidget({
       ])
     );
     setSending(true);
+    var abortController = new AbortController();
+    streamAbortRef.current = abortController;
     function updateAssistant(content, streaming) {
       if (conversationGenerationRef.current !== generation) return;
       setMessages((prev) =>
@@ -299,6 +314,7 @@ export default function ChatWidget({
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
       body: JSON.stringify({ message: text }),
+      signal: abortController.signal,
     })
       .then((response) =>
         readCapiStream(response, {
@@ -316,10 +332,20 @@ export default function ChatWidget({
           },
         })
       )
-      .catch(() => {
-        updateAssistant("Sorry, I couldn't send that — try again.", false);
+      .catch((error) => {
+        if (error && error.name === 'AbortError') return;
+        if (mountedRef.current) updateAssistant("Sorry, I couldn't send that — try again.", false);
       })
-      .finally(() => setSending(false));
+      .finally(() => {
+        if (streamAbortRef.current === abortController) streamAbortRef.current = null;
+        if (mountedRef.current && conversationGenerationRef.current === generation) setSending(false);
+      });
+  }
+
+  function closeChat() {
+    if (streamAbortRef.current) streamAbortRef.current.abort();
+    streamAbortRef.current = null;
+    setOpen(false);
   }
 
   // Lets other parts of the app (e.g. an "Explain This" button on a scan
@@ -347,7 +373,10 @@ export default function ChatWidget({
   if (isMobile) return null;
 
   function clearChat() {
+    if (streamAbortRef.current) streamAbortRef.current.abort();
+    streamAbortRef.current = null;
     setMessages([]);
+    setSending(false);
     fetch('/api/chat/history', { method: 'DELETE', headers: { Authorization: 'Bearer ' + getToken() } }).catch(
       () => {}
     );
@@ -392,7 +421,7 @@ export default function ChatWidget({
               <button className="chat-clear-btn" onClick={clearChat} title="Clear chat">
                 Clear
               </button>
-              <button className="chat-panel-close" onClick={() => setOpen(false)} aria-label="Close chat">
+              <button className="chat-panel-close" onClick={closeChat} aria-label="Close chat">
                 ×
               </button>
             </div>

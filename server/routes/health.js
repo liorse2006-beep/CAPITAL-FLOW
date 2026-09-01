@@ -18,6 +18,10 @@ function hasValidStatusToken(req) {
 router.get('/health', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   try {
+    // A database connection alone is not enough for readiness: schema
+    // migrations and the one-active-Radar invariant must have completed before
+    // the platform starts routing traffic to this process.
+    await db.ready;
     await db.prepare('SELECT 1').get();
     res.json({
       status: 'ok',
@@ -37,6 +41,7 @@ router.get('/status/internal/database', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (!hasValidStatusToken(req)) return res.status(401).json({ error: 'Unauthorized' });
   try {
+    await db.ready;
     await db.prepare('SELECT 1').get();
     return res.json({ status: 'ok', db: { status: 'ok' }, timestamp: new Date().toISOString() });
   } catch (err) {
