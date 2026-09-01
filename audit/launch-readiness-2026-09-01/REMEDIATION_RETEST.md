@@ -6,18 +6,19 @@ This addendum supersedes stale baseline measurements in `LAUNCH_READINESS_REPORT
 
 | Item | Evidence |
 |---|---|
-| Checked commit | `346d6789f52ba30c98aa8e3273ee8678ec79c285` — `Harden OAuth, alert persistence, and provider timeouts` |
+| Application runtime commit | `d51207a46f058a7f1a8e106be3f48494d0f57414` — `Skip stale data in live alerts` |
+| Latest repository/deployment commit | `608ce07650659774c4f727f3df21a836596cc1ba` — `Keep healthy watchdog recovery green` (workflow-only descendant of the runtime commit) |
 | Branch | `main` |
 | Repository | `https://github.com/liorse2006-beep/CAPITAL-FLOW.git` |
-| Audit/retest time | `2026-09-01 16:40:58 +03:00`, Asia/Jerusalem |
+| Audit/retest time | `2026-09-01 17:27:20 +03:00`, Asia/Jerusalem |
 | Local environment | Windows PowerShell; Node `v24.15.0`; npm `11.12.1`; Python and Docker unavailable |
 | Production URL | `https://capitalflow.vip/` |
 | Health URL | `https://capitalflow.vip/health` |
 | Status URL | `https://status.capitalflow.vip/status` |
-| CI run | `33514056515` — success for the checked SHA |
-| Deploy run | `33514056510` — test and deploy jobs success for the checked SHA |
-| Production health verification | `GET https://capitalflow.vip/health?deploy=346d6789` → `200`, `status=ok`, `releaseCommit=346d6789f52ba30c98aa8e3273ee8678ec79c285`, `timestamp=2026-09-01T13:41:19.251Z` |
-| Working tree | No modified tracked implementation files before this documentation update; unrelated pre-existing untracked workspace artifacts remain un-staged |
+| CI run | `33519144020` (run 299) — success for `608ce07` |
+| Deploy run | `33519144039` (run 293) — test and deploy jobs success for `608ce07` |
+| Production health verification | `GET https://capitalflow.vip/health?deploy=608ce07` → `200`, `status=ok`, `releaseCommit=608ce07650659774c4f727f3df21a836596cc1ba`, `timestamp=2026-09-01T14:26:38.741Z` |
+| Working tree | No modified tracked files after the verified commits; unrelated pre-existing untracked workspace artifacts remain un-staged |
 
 No secrets, cookies, tokens, passwords, payment credentials, personal data, or provider keys were included in this addendum.
 
@@ -54,12 +55,15 @@ The checked release is a descendant of the earlier data/release-hardening commit
 - Alert create/remove state is committed server-first and only canonical server data is stored locally. Repeated modal submits are guarded while the request is pending. Evidence: `src/App.jsx:536-600`; `src/components/shared/AlertThresholdModal.jsx:56-116`; `src/components/shared/AlertThresholdModal.test.jsx:1-130`.
 - News URL resolution uses the shared timeout helper, preserving the five-second timeout without a manually orphaned timer. Evidence: `server/services/newsService.js:350-363`.
 - Capi's result-row description no longer claims News/Capi actions exist on every row. Evidence: `server/services/chatbot.js:72-77`.
+- Background scans now retain an in-flight provider Promise after the visible hard timeout, preventing a later scheduler tick from starting a second full-market scan while the first provider call is still settling. Evidence: `server/services/backgroundScan.js:6-16,204-230,282-284`; `test/backgroundScanWatchdog.test.js:41-74`.
+- Live watchlist alerts now ignore rows explicitly marked `stale` or `unavailable`, so a provider fallback cannot consume an alert as if it were a verified threshold crossing. Evidence: `server/services/backgroundScan.js:103-110,157`; `test/backgroundScanAlerts.test.js:195-214`.
+- The external Keep-alive recovery path now logs a warning and exits successfully when recovery-email secrets are absent; the status probe still fails the watchdog when the status host is unhealthy. Evidence: `.github/workflows/keepalive.yml:40-43,96-107,135-139`.
 
 ## 3. Post-remediation checks actually run
 
 | Check | Result | Evidence |
 |---|---|---|
-| Backend suite | `VERIFIED PASS` | `npm run test`: 401/401 tests passed |
+| Backend suite | `VERIFIED PASS` | `npm run test:all` backend phase: 403/403 tests passed |
 | Frontend suite | `VERIFIED PASS` | `npm run test:frontend`: 147/147 tests passed; 20 files |
 | Cloudflare Worker suite | `VERIFIED PASS` | 8/8 tests passed |
 | Cluster integration | `VERIFIED PASS` | 1/1 broadcast test passed |
@@ -68,10 +72,10 @@ The checked release is a descendant of the earlier data/release-hardening commit
 | Scoped formatting | `VERIFIED PASS` | Prettier check passed on changed implementation and test files |
 | Diff whitespace | `VERIFIED PASS` | `git diff --check` passed before commit |
 | Production dependency audit | `VERIFIED PASS` | `npm audit --omit=dev --audit-level=high` returned 0 vulnerabilities |
-| Targeted auth/alert/provider tests | `VERIFIED PASS` | 24/24 tests passed: news service/routes, watchlist alert fail-closed behavior, and Google OAuth state contract |
-| GitHub CI | `VERIFIED PASS` | Run `33514056515`, SHA `346d6789...`, conclusion `success` |
-| GitHub Deploy | `VERIFIED PASS` | Run `33514056510`; `test` and `deploy` jobs both `success` |
-| Production health | `VERIFIED PASS` | `GET /health?deploy=346d6789` → 200; body releaseCommit exactly `346d6789f52ba30c98aa8e3273ee8678ec79c285` |
+| Targeted auth/alert/provider tests | `VERIFIED PASS` | 13/13 background alert/watchdog regression tests passed; the earlier 24/24 auth/alert/provider set also remains green |
+| GitHub CI | `VERIFIED PASS` | Run `33519144020` (299), SHA `608ce07...`, conclusion `success` |
+| GitHub Deploy | `VERIFIED PASS` | Run `33519144039` (293); `test` and `deploy` jobs both `success` |
+| Production health | `VERIFIED PASS` | `GET /health?deploy=608ce07` → 200; body releaseCommit exactly `608ce07650659774c4f727f3df21a836596cc1ba` |
 | Production asset deployment | `VERIFIED PASS` | HTML `200`; `assets/index-D78Wuowv.js` and `assets/index-B85OEQX-.css` references returned |
 | Public route smoke | `VERIFIED PASS` | `/`, `/scanner`, `/ma`, `/flow`, `/fundamentals`, `/watchlist`, `/policy`, `/accessibility`, `/robots.txt`, `/sitemap.xml`, and status URL all returned 200 |
 | Production security headers | `VERIFIED PASS` | Current root and health responses included CSP, HSTS, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, and X-Frame-Options |
@@ -209,12 +213,12 @@ Status: `Unknown`
 Title: Failover drill, alert delivery, and operator RTO remain unproven
 Affected users: All users during a platform or dependency outage
 Affected route/API/file: `status-service.js`; `server/routes/status.js`; `.github/workflows/keepalive.yml`
-Evidence: Public status and health returned 200, and local status monitor/backup/email-policy tests pass; no production failover or alert-delivery drill was executed.
+Evidence: Public status and health returned 200, local status monitor/backup/email-policy tests pass, and the latest Keep-alive recovery failure (`run 1114`) was traced to missing recovery-email secrets rather than an unhealthy status host. The workflow now handles that configuration state as a warning; no production failover or real alert-delivery drill was executed.
 Safe reproduction: Exercise an isolated status/staging failure and verify incident, recovery, sanitization, and operator notification.
 Impact: An outage may remain silent or recovery may exceed expectations.
 Root cause: Failure drills require an approved operational window and external monitoring access.
 Recommendation: Run quarterly non-destructive game days and document owner/runbook/RTO evidence.
-Fix status: Code/test evidence complete; operational verification pending.
+Fix status: Workflow failure mode hardened and deployed; operational failover/real delivery verification pending.
 Retest evidence: Public status smoke and local monitor suite pass.
 Residual risk: Silent operational failure.
 Confidence: 96%
@@ -363,6 +367,6 @@ Recommended order is the order above; items 1–3 are launch gates, 4–6 are re
 
 ## 9. Release recommendation
 
-The current `346d6789` release is successfully deployed and passes all local/CI/public smoke checks performed here. It is **not** eligible for an unconditional launch recommendation under the supplied launch policy because three High evidence gates remain Unknown. The next safe action is to execute the three controlled environment checks in the recommended order, then rerun this report and recalculate the score. A score of 100 must not be assigned until those evidence gaps and the remaining core unknowns are actually closed.
+The application runtime at `d51207a` and latest deployed repository commit `608ce07` are successfully deployed and pass all local/CI/public smoke checks performed here. The release is **not** eligible for an unconditional launch recommendation under the supplied launch policy because three High evidence gates remain Unknown. The next safe action is to execute the three controlled environment checks in the recommended order, then rerun this report and recalculate the score. A score of 100 must not be assigned until those evidence gaps and the remaining core unknowns are actually closed.
 
 Commercial/legal/payment/email review remains separate and is not approved by this technical retest.
