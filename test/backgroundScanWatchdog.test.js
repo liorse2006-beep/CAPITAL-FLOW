@@ -11,6 +11,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 
 const scanner = require('../server/services/scanner');
+const stream = require('../server/routes/stream');
 const { backgroundCache, runBackgroundScan, withHardTimeout } = require('../server/services/backgroundScan');
 
 function deferred() {
@@ -71,5 +72,34 @@ test('runBackgroundScan does not overlap a timed-out scan that is still settling
     backgroundCache.inFlight = null;
     backgroundCache.results = null;
     backgroundCache.scanTime = null;
+  }
+});
+
+test('runBackgroundScan preserves the unavailable error in its final status event', async (t) => {
+  const originalScanTickers = scanner.scanTickers;
+  const statuses = [];
+  scanner.scanTickers = async () => {
+    throw new Error('simulated provider outage');
+  };
+  t.mock.method(stream, 'broadcast', (event, data) => {
+    statuses.push({ event, data });
+  });
+
+  backgroundCache.running = false;
+  backgroundCache.inFlight = null;
+
+  try {
+    await runBackgroundScan({ maxDurationMs: 100 });
+    assert.deepStrictEqual(statuses, [
+      { event: 'scan-status', data: { running: true } },
+      {
+        event: 'scan-status',
+        data: { running: false, error: 'Market data is temporarily unavailable. Try again in a few minutes.' },
+      },
+    ]);
+  } finally {
+    scanner.scanTickers = originalScanTickers;
+    backgroundCache.running = false;
+    backgroundCache.inFlight = null;
   }
 });

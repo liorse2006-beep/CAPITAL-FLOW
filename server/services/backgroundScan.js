@@ -101,11 +101,13 @@ function alertTriggered(alert, r) {
 }
 
 function hasVerifiedAlertData(r) {
-  const status = String(r?.quoteDataStatus || r?.dataQuality || r?.dataStatus || '').toLowerCase();
+  const statuses = [r?.quoteDataStatus, r?.dataQuality, r?.dataStatus]
+    .filter((value) => value != null)
+    .map((value) => String(value).toLowerCase());
   // A stale fallback is useful for an explicitly labelled scan result, but it
   // must never consume a live alert: the user asked to be notified about a
   // real threshold crossing, not about an old quote replayed during an outage.
-  return status !== 'stale' && status !== 'unavailable';
+  return !statuses.includes('stale') && !statuses.includes('unavailable');
 }
 
 function alertNotificationPayload(alert, r) {
@@ -204,6 +206,7 @@ async function runBackgroundScan(options = {}) {
   if (backgroundCache.running || backgroundCache.inFlight) return;
   backgroundCache.running = true;
   var broadcast = getBroadcast();
+  var scanError = null;
 
   try {
     broadcast('scan-status', { running: true });
@@ -257,10 +260,7 @@ async function runBackgroundScan(options = {}) {
     // Provider/library errors can contain request URLs or other diagnostic
     // details. They belong in redacted operator logs, never in a global SSE
     // payload delivered to every signed-in browser.
-    broadcast('scan-status', {
-      running: false,
-      error: 'Market data is temporarily unavailable. Try again in a few minutes.',
-    });
+    scanError = 'Market data is temporarily unavailable. Try again in a few minutes.';
   } finally {
     // Guaranteed to run even if the hard timeout above fired, or anything
     // else in the try block threw something unexpected — the scheduler must
@@ -268,7 +268,7 @@ async function runBackgroundScan(options = {}) {
     backgroundCache.running = false;
   }
 
-  broadcast('scan-status', { running: false });
+  broadcast('scan-status', { running: false, ...(scanError ? { error: scanError } : {}) });
 }
 
 function startBackgroundScheduler() {

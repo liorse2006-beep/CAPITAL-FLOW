@@ -213,3 +213,27 @@ test('checkWatchlistAlerts does not consume an alert from a stale quote fallback
     webPush.sendPushToUser = originalSend;
   }
 });
+
+test('checkWatchlistAlerts rejects stale or unavailable status from any data-quality field', async () => {
+  const userId = await makeUser('bg-alert-status-fields@test.local');
+  await setAlert(userId, 'ORCL', { type: 'volume', minRatio: 2.0 });
+
+  const pushCalls = [];
+  const originalSend = webPush.sendPushToUser;
+  webPush.sendPushToUser = (uid, payload) => {
+    pushCalls.push({ uid, payload });
+  };
+
+  try {
+    for (const row of [
+      { symbol: 'ORCL', volumeRatio: 4.0, price: 100, quoteDataStatus: 'complete', dataQuality: 'stale' },
+      { symbol: 'ORCL', volumeRatio: 4.0, price: 100, quoteDataStatus: 'complete', dataStatus: 'unavailable' },
+    ]) {
+      await checkWatchlistAlerts([row]);
+      assert.strictEqual(pushCalls.length, 0);
+      assert.ok((await getWatchlistAlerts(userId)).ORCL);
+    }
+  } finally {
+    webPush.sendPushToUser = originalSend;
+  }
+});
