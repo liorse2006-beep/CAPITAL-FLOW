@@ -19,7 +19,10 @@ afterEach(() => {
 
 describe('useScheduledScans', () => {
   it('surfaces an initial load failure instead of leaving the panel silently empty', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ error: 'Schedules are temporarily unavailable' }, false)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(response({ error: 'Schedules are temporarily unavailable' }, false))
+    );
 
     const { result } = renderHook(() => useScheduledScans('capitalFlow'));
 
