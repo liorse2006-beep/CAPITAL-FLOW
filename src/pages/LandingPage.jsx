@@ -4,6 +4,7 @@ import bodyHtml from './landing/landing.body.html?raw';
 import Topography from '../components/Topography';
 import { initLandingEffects } from './landing/effects';
 import { track } from '../analytics';
+import useSeo from '../hooks/useSeo';
 import './landing/landing.scoped.css?landing-style-v2';
 
 function mountTopography(root) {
@@ -62,17 +63,12 @@ function LandingPage({ onGetStarted }) {
     // marketing page that leaves body and html competing for wheel input.
     html.style.overflowY = 'auto';
     body.style.overflowY = 'visible';
-    const previousTitle = document.title;
-    const description = document.querySelector('meta[name="description"]');
-    const previousDescription = description ? description.getAttribute('content') : null;
-
-    document.title = 'Capital Flow — לראות מה זז בשוק';
-    if (description) {
-      description.setAttribute(
-        'content',
-        'Capital Flow עוזר לך לסרוק את השוק, למצוא מניות עם תנועה חריגה ולפתוח בדיקה מסודרת — בלי לעבור על עשרות טאבים. מתחילים ב־7 ימים בחינם.'
-      );
-    }
+    useSeo({
+      title: 'Capital Flow — לראות מה זז בשוק',
+      description:
+        'Capital Flow עוזר לך לסרוק את השוק, למצוא מניות עם תנועה חריגה ולפתוח בדיקה מסודרת — בלי לעבור על עשרות טאבים. מתחילים ב־7 ימים בחינם.',
+      path: '/',
+    });
 
     function onMarketingClick(event) {
       const cta = event.target.closest('[data-cta-location]');
@@ -93,8 +89,6 @@ function LandingPage({ onGetStarted }) {
       cleanupTopography();
       html.style.overflowY = previousHtmlOverflowY;
       body.style.overflowY = previousBodyOverflowY;
-      document.title = previousTitle;
-      if (description && previousDescription !== null) description.setAttribute('content', previousDescription);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
