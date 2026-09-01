@@ -51,6 +51,12 @@ jobs:
   deploy:
     needs: test
     if: needs.test.result == 'success'
+    # A burst of commits must not send competing Render hooks that then
+    # invalidate each other's exact-commit verification. The newest green
+    # commit owns the production rollout and verification window.
+    concurrency:
+      group: capital-flow-production-deploy
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Render
