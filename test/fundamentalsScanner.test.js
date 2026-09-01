@@ -38,6 +38,16 @@ function quotesMapFor(entries) {
   return map;
 }
 
+function addQuoteMetadata(map, metadata) {
+  Object.defineProperties(map, {
+    dataAsOf: { value: metadata.dataAsOf || '2026-09-01T10:00:00.000Z' },
+    staleCount: { value: metadata.staleCount || 0 },
+    usedStaleFallback: { value: metadata.usedStaleFallback === true },
+    providerFailure: { value: metadata.providerFailure === true },
+  });
+  return map;
+}
+
 function keyStats(overrides) {
   return Object.assign(
     {
@@ -145,4 +155,24 @@ test('scanFundamentals skips a ticker Yahoo has no quote for at all, without cra
     ['KNOWN']
   );
   assert.ok(errors.includes('GHOST'));
+});
+
+test('scanFundamentals exposes stale quote provenance instead of claiming a complete result', async (t) => {
+  t.mock.method(quoteCache, 'getQuotes', async () =>
+    addQuoteMetadata(quotesMapFor([['AAPL', 3e12]]), {
+      usedStaleFallback: true,
+      staleCount: 1,
+      dataAsOf: '2026-09-01T09:55:00.000Z',
+    })
+  );
+  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => ({ peRatio: 31.2 }));
+  t.mock.method(yahoo, 'quoteSummary', async () => keyStats());
+
+  const result = await scanFundamentals(['AAPL']);
+
+  assert.strictEqual(result.results.length, 1);
+  assert.strictEqual(result.dataStatus, 'partial');
+  assert.strictEqual(result.quoteDataStatus, 'stale');
+  assert.strictEqual(result.staleCount, 1);
+  assert.strictEqual(result.dataAsOf, '2026-09-01T09:55:00.000Z');
 });

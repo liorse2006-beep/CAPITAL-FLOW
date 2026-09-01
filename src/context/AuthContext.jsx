@@ -6,18 +6,94 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [authError, setAuthError] = useState(null);
+  const [authError, setAuthError] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    return new URLSearchParams(window.location.search).get('auth_error');
+  });
   const [authLoadError, setAuthLoadError] = useState(false);
-  const [pendingGoogleToken, setPendingGoogleToken] = useState(null);
+  const [pendingGoogleToken, setPendingGoogleToken] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    return new URLSearchParams(window.location.hash.replace(/^#/, '')).get('google_pending');
+  });
   // Access tokens are deliberately memory-only. The refresh token remains in
   // the server-issued httpOnly cookie, while a bearer token copied into
   // localStorage would be readable by any script that ever crossed the site's
   // XSS boundary. A page reload silently obtains a new access token instead.
   const accessTokenRef = useRef(null);
 
-  function setAccessToken(token) {
+  const setAccessToken = useCallback((token) => {
     accessTokenRef.current = token || null;
-  }
+  }, []);
+
+  // Exchanges the httpOnly refresh cookie for a fresh access token. Returns
+  // the new token on success, or null (no active session, or the cookie is
+  // missing/blocked). The returned bearer is never persisted in browser
+  // storage.
+  const silentRefresh = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/refresh', { method: 'POST' });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data.token) return null;
+      setAccessToken(data.token);
+      return data.token;
+    } catch {
+      return null;
+    }
+  }, [setAccessToken]);
+
+  const fetchMe = useCallback(
+    async (token, isRevalidation) => {
+      // A sleeping Render free instance can take 30-50s to answer the very
+      // first request while it wakes up. The old 8s timeout aborted long
+      // before that and then DELETED the token, silently logging the user out
+      // on every cold start — which is what made their watchlist and Capi
+      // history "disappear" until they signed in again. So: a generous
+      // timeout, and a couple of retries on the initial load. Only a genuine
+      // auth failure (a real 401/403 response) ever removes the token now.
+      const MAX_ATTEMPTS = isRevalidation ? 1 : 3;
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+        try {
+          const res = await fetch('/api/auth/me', {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          if (res.ok) {
+            const data = await res.json();
+            setAccessToken(token);
+            setUser(data.user);
+            setAuthLoadError(false);
+            return;
+          }
+          // A real auth failure — the token is genuinely no longer valid
+          // (expired, or this account signed in on another device). This is
+          // the ONLY path that signs the user out.
+          setAccessToken(null);
+          setUser(null);
+          if (isRevalidation) setAuthError('session_replaced');
+          return;
+        } catch {
+          clearTimeout(timeout);
+          // Network error or timeout — NOT an auth failure. Keep the token.
+          // Retry the initial load a few times (the first request is what
+          // wakes the server); a background revalidation just leaves the
+          // existing session in place and tries again on its next tick.
+          if (attempt < MAX_ATTEMPTS) {
+            await new Promise((r) => setTimeout(r, 1500 * attempt));
+            continue;
+          }
+          // Retries exhausted — keep the token so the next open (or a manual
+          // reload once the server is up) recovers cleanly. Don't wipe it.
+          setAuthLoadError(true);
+          return;
+        }
+      }
+    },
+    [setAccessToken]
+  );
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -43,11 +119,9 @@ export function AuthProvider({ children }) {
     if (pendingFromUrl) {
       // Don't log in yet — wait for user to confirm on the consent screen
       window.history.replaceState({}, '', window.location.pathname);
-      setPendingGoogleToken(pendingFromUrl);
     }
 
     if (errorFromUrl) {
-      setAuthError(errorFromUrl);
       window.history.replaceState({}, '', window.location.pathname);
     }
 
@@ -70,7 +144,7 @@ export function AuthProvider({ children }) {
         setAuthLoadError(false);
       })
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [fetchMe, setAccessToken, silentRefresh]);
 
   // Tie analytics identity to whichever account is currently logged in —
   // fires on initial load, login, and logout alike since it just watches
@@ -109,74 +183,7 @@ export function AuthProvider({ children }) {
       clearInterval(refreshInterval);
       document.removeEventListener('visibilitychange', refreshThenRecheck);
     };
-  }, [user]);
-
-  // Exchanges the httpOnly refresh cookie for a fresh access token. Returns
-  // the new token on success, or null (no active session, or the cookie is
-  // missing/blocked). The returned bearer is never persisted in browser
-  // storage.
-  async function silentRefresh() {
-    try {
-      const res = await fetch('/api/auth/refresh', { method: 'POST' });
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (!data.token) return null;
-      setAccessToken(data.token);
-      return data.token;
-    } catch {
-      return null;
-    }
-  }
-
-  async function fetchMe(token, isRevalidation) {
-    // A sleeping Render free instance can take 30-50s to answer the very
-    // first request while it wakes up. The old 8s timeout aborted long
-    // before that and then DELETED the token, silently logging the user out
-    // on every cold start — which is what made their watchlist and Capi
-    // history "disappear" until they signed in again. So: a generous
-    // timeout, and a couple of retries on the initial load. Only a genuine
-    // auth failure (a real 401/403 response) ever removes the token now.
-    const MAX_ATTEMPTS = isRevalidation ? 1 : 3;
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
-      try {
-        const res = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        if (res.ok) {
-          const data = await res.json();
-          setAccessToken(token);
-          setUser(data.user);
-          setAuthLoadError(false);
-          return;
-        }
-        // A real auth failure — the token is genuinely no longer valid
-        // (expired, or this account signed in on another device). This is
-        // the ONLY path that signs the user out.
-        setAccessToken(null);
-        setUser(null);
-        if (isRevalidation) setAuthError('session_replaced');
-        return;
-      } catch {
-        clearTimeout(timeout);
-        // Network error or timeout — NOT an auth failure. Keep the token.
-        // Retry the initial load a few times (the first request is what
-        // wakes the server); a background revalidation just leaves the
-        // existing session in place and tries again on its next tick.
-        if (attempt < MAX_ATTEMPTS) {
-          await new Promise((r) => setTimeout(r, 1500 * attempt));
-          continue;
-        }
-        // Retries exhausted — keep the token so the next open (or a manual
-        // reload once the server is up) recovers cleanly. Don't wipe it.
-        setAuthLoadError(true);
-        return;
-      }
-    }
-  }
+  }, [user, fetchMe, silentRefresh]);
 
   function login(token, userData) {
     setAccessToken(token);
@@ -209,9 +216,9 @@ export function AuthProvider({ children }) {
 
   const getToken = useCallback(() => accessTokenRef.current, []);
 
-  function clearAuthError() {
+  const clearAuthError = useCallback(() => {
     setAuthError(null);
-  }
+  }, []);
 
   function confirmGoogleLogin() {
     if (!pendingGoogleToken) return Promise.resolve();
@@ -247,10 +254,10 @@ export function AuthProvider({ children }) {
   // Re-pulls /api/auth/me on demand — used after checkout completes, since
   // the tier upgrade lands via a server-side webhook that may finish a
   // moment after Whop redirects the browser back from checkout.
-  async function refreshUser() {
+  const refreshUser = useCallback(async () => {
     const token = getToken();
     if (token) await fetchMe(token);
-  }
+  }, [fetchMe, getToken]);
 
   return (
     <AuthContext.Provider
@@ -275,6 +282,10 @@ export function AuthProvider({ children }) {
   );
 }
 
+// The context provider and hook intentionally live together; splitting this
+// one-line consumer hook would add import churn without changing runtime
+// behavior. Fast-refresh validation is not applicable to this context module.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   return useContext(AuthContext);
 }

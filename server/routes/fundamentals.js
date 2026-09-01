@@ -27,21 +27,45 @@ router.get('/fundamentals', requirePremiumOrTrial, scanLimiter, async (req, res)
 
   const cached = resultCache.get(symbol);
   if (cached && cached.expiresAt > Date.now()) {
-    return res.json({ result: cached.result, scanTime: cached.scanTime, fromCache: true });
+    return res.json({
+      result: cached.result,
+      scanTime: cached.scanTime,
+      dataStatus: cached.dataStatus,
+      quoteDataStatus: cached.quoteDataStatus,
+      staleCount: cached.staleCount,
+      dataAsOf: cached.dataAsOf,
+      fromCache: true,
+    });
   }
 
   try {
-    const { results } = await scanFundamentals([symbol]);
+    const { results, dataStatus, quoteDataStatus, staleCount, dataAsOf } = await scanFundamentals([symbol]);
     if (!results.length) {
+      if (quoteDataStatus === 'unavailable') {
+        return res.status(503).json({
+          error: 'Market data is temporarily unavailable. Please try again in a few minutes.',
+          dataStatus: 'unavailable',
+          quoteDataStatus,
+          dataAsOf,
+        });
+      }
       return res
         .status(404)
         .json({ error: 'No data found for ' + symbol + ' (delisted, too small, or an unknown ticker)' });
     }
 
     const scanTime = new Date().toISOString();
-    resultCache.set(symbol, { result: results[0], scanTime, expiresAt: Date.now() + CACHE_TTL_MS });
+    resultCache.set(symbol, {
+      result: results[0],
+      scanTime,
+      dataStatus,
+      quoteDataStatus,
+      staleCount,
+      dataAsOf,
+      expiresAt: Date.now() + CACHE_TTL_MS,
+    });
 
-    res.json({ result: results[0], scanTime });
+    res.json({ result: results[0], scanTime, dataStatus, quoteDataStatus, staleCount, dataAsOf });
   } catch (err) {
     reportError(err, '[fundamentals-lookup]');
     res.status(500).json({ error: 'Server error' });

@@ -45,6 +45,15 @@ test('status backup restore is dry-run by default and restores a verified snapsh
   assert.equal(row.value, 'original');
 });
 
+test('status backup restore rejects empty row objects before building invalid SQL', async () => {
+  const dump = {
+    createdAt: new Date().toISOString(),
+    tables: { status_meta: [{}] },
+  };
+
+  await assert.rejects(() => restoreStatusTables(dump), /invalid row/i);
+});
+
 test('status backup restore rolls back the whole transaction when a later row fails', async () => {
   const marker = 'status-restore-rollback-test';
   await db

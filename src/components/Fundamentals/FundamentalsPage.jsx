@@ -243,6 +243,9 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [dataStatus, setDataStatus] = useState(null);
+  const [quoteDataStatus, setQuoteDataStatus] = useState(null);
+  const [dataAsOf, setDataAsOf] = useState(null);
   const [recentTickers, setRecentTickers] = useState(() => loadRecentTickers(user && user.id));
 
   function toggleMetric(key) {
@@ -275,6 +278,9 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
     setLoading(true);
     setError(null);
     setResult(null);
+    setDataStatus(null);
+    setQuoteDataStatus(null);
+    setDataAsOf(null);
 
     try {
       const res = await fetch('/api/fundamentals?symbol=' + encodeURIComponent(symbol), {
@@ -294,6 +300,9 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
       }
       const d = await res.json();
       setResult(d.result);
+      setDataStatus(d.dataStatus || null);
+      setQuoteDataStatus(d.quoteDataStatus || null);
+      setDataAsOf(d.dataAsOf || d.scanTime || null);
       setRecentTickers(saveRecentTicker(user.id, symbol));
     } catch (e2) {
       setError(friendlyError(e2));
@@ -519,6 +528,18 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
               <span className="fund-result-cap">{fmtCap(result.marketCap)} cap</span>
             </div>
           </div>
+
+          {dataStatus && dataStatus !== 'complete' && (
+            <div className={'data-status-banner ' + dataStatus} role="status">
+              <strong>
+                {dataStatus === 'unavailable' ? 'Market data unavailable.' : 'Some data could not be fully verified.'}
+              </strong>{' '}
+              {quoteDataStatus === 'stale'
+                ? 'The quote is from an earlier successful fetch. Try again in a few minutes for a fresh check.'
+                : 'Try again in a few minutes before relying on this lookup.'}
+              {dataAsOf && <span className="data-status-as-of"> Data as of {new Date(dataAsOf).toLocaleString()}</span>}
+            </div>
+          )}
 
           {visibleMetrics.length === 0 ? (
             <div className="fund-empty-hint">No metrics selected — pick some above, or hit “Select all”.</div>

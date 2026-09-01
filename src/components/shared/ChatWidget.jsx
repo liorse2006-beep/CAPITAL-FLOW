@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import useIsMobile from '../../hooks/useIsMobile';
 
 // Capi's persona leans on **bold** and bullets to stay scannable — a tiny
@@ -163,13 +163,6 @@ export default function ChatWidget({ user, isElite, trialEnded, getToken, onRequ
     };
   }, []);
 
-  useEffect(
-    function () {
-      if (open) setTeaserDismissed(false);
-    },
-    [open]
-  );
-
   function dismissTeaser() {
     setTeaserDismissed(true);
   }
@@ -183,7 +176,8 @@ export default function ChatWidget({ user, isElite, trialEnded, getToken, onRequ
       if (onTrialEnded) onTrialEnded();
       return;
     }
-    setOpen((o) => !o);
+    if (!open) setTeaserDismissed(false);
+    setOpen(!open);
   }
 
   var showTeaser = teaserReady && !open && !teaserDismissed;
@@ -193,7 +187,7 @@ export default function ChatWidget({ user, isElite, trialEnded, getToken, onRequ
     return prefix + '-' + messageIdRef.current;
   }
 
-  function loadHistory() {
+  const loadHistory = useCallback(() => {
     if (historyPromiseRef.current) return historyPromiseRef.current;
     var generation = conversationGenerationRef.current;
     historyPromiseRef.current = fetch('/api/chat/history', {
@@ -222,14 +216,14 @@ export default function ChatWidget({ user, isElite, trialEnded, getToken, onRequ
         if (conversationGenerationRef.current === generation) historyPromiseRef.current = null;
       });
     return historyPromiseRef.current;
-  }
+  }, [getToken]);
 
   useEffect(
     function () {
       if (!open || historyLoaded) return;
       loadHistory();
     },
-    [open]
+    [historyLoaded, loadHistory, open]
   );
 
   // Warm only the authenticated Elite/trial path. This is a cheap read, not
@@ -254,7 +248,7 @@ export default function ChatWidget({ user, isElite, trialEnded, getToken, onRequ
         if (timerId != null) window.clearTimeout(timerId);
       };
     },
-    [user, isElite, trialEnded, isMobile, historyLoaded]
+    [historyLoaded, isElite, isMobile, loadHistory, trialEnded, user]
   );
 
   useEffect(

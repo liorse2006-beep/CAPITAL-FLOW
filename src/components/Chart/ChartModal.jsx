@@ -241,6 +241,9 @@ export default function ChartModal({ symbol, name, onClose }) {
 
   useEffect(() => {
     const controller = new AbortController();
+    // This effect owns the remote chart request; its state updates happen
+    // asynchronously in the request callbacks, not during render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load(period, controller.signal);
     return () => controller.abort();
   }, [period, load]);

@@ -36,6 +36,19 @@ function symbolOf(row) {
   return symbol || null;
 }
 
+function normalizeSymbolSet(value) {
+  const values = value instanceof Set ? [...value] : Array.isArray(value) ? value : [];
+  return new Set(
+    values
+      .map((item) =>
+        String(item || '')
+          .trim()
+          .toUpperCase()
+      )
+      .filter(Boolean)
+  );
+}
+
 function universeMatchesRadar(row, radar, universe) {
   const symbol = symbolOf(row);
   if (!symbol || !radar) return false;
@@ -89,10 +102,14 @@ function capitalFlowMatchesRadar(row, radar, universe) {
   return true;
 }
 
-function radarMatchDetails(row, radar, universe) {
+function radarMatchDetails(row, radar, universe, availability = {}) {
   const inUniverse = universeMatchesRadar(row, radar, universe);
-  const capitalFlow = inUniverse && capitalFlowMatchesRadar(row, radar, universe);
-  const movingAverage = inUniverse && maMatchesRadar(row, radar);
+  const symbol = symbolOf(row);
+  const unavailableCapitalFlow = normalizeSymbolSet(availability.unavailableCapitalFlowSymbols);
+  const unavailableMovingAverage = normalizeSymbolSet(availability.unavailableMovingAverageSymbols);
+  const capitalFlow =
+    inUniverse && symbol && !unavailableCapitalFlow.has(symbol) && capitalFlowMatchesRadar(row, radar, universe);
+  const movingAverage = inUniverse && symbol && !unavailableMovingAverage.has(symbol) && maMatchesRadar(row, radar);
   const conditionMode = CONDITION_MODES.includes(String(radar && radar.conditionMode)) ? radar.conditionMode : 'both';
   const matched = conditionMode === 'either' ? capitalFlow || movingAverage : capitalFlow && movingAverage;
   return {
@@ -172,13 +189,17 @@ function evaluateRadarTransitions(radar, results, states, options) {
       )
       .filter(Boolean)
   );
+  const layerAvailability = {
+    unavailableCapitalFlowSymbols: normalizeSymbolSet(opts.unavailableCapitalFlowSymbols),
+    unavailableMovingAverageSymbols: normalizeSymbolSet(opts.unavailableMovingAverageSymbols),
+  };
   const currentMatches = new Map();
   const eventTime = scanDate.toISOString();
 
   results.forEach((row) => {
     const symbol = symbolOf(row);
     if (!symbol) return;
-    const details = radarMatchDetails(row, radar, opts.universe);
+    const details = radarMatchDetails(row, radar, opts.universe, layerAvailability);
     if (!details.matched) return;
     currentMatches.set(symbol, { row, details });
   });

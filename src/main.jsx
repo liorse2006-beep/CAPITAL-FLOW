@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- this is the application entrypoint, not a refreshable component module. */
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, useLocation } from 'react-router-dom';
@@ -70,10 +71,7 @@ function Root() {
   // it's plausibly a cold Render instance, not a flash on every visit.
   const [showColdStart, setShowColdStart] = useState(false);
   useEffect(() => {
-    if (!isLoading) {
-      setShowColdStart(false);
-      return;
-    }
+    if (!isLoading) return undefined;
     const t = setTimeout(() => setShowColdStart(true), 1200);
     return () => clearTimeout(t);
   }, [isLoading]);

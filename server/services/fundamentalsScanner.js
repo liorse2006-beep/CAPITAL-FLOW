@@ -66,8 +66,10 @@ async function fetchKeyStatsAndEarnings(symbol) {
 async function scanFundamentals(tickers) {
   var results = [];
   var errors = [];
+  var incomplete = false;
 
   var quotesMap = await quoteCache.getQuotes(tickers);
+  var quoteDataStale = quotesMap.usedStaleFallback === true || Number(quotesMap.staleCount || 0) > 0;
 
   var candidates = [];
   tickers.forEach(function (symbol) {
@@ -111,6 +113,7 @@ async function scanFundamentals(tickers) {
       var resolved = await Promise.all([metricPromise, keyStatsPromise]);
       var metric = resolved[0];
       var keyStats = resolved[1];
+      if (metricFailed || keyStatsFailed) incomplete = true;
       if (metric && cachedMetric === null) slowSet(metricCache, c.symbol, metric);
       if (keyStats && cachedKeyStats === null) slowSet(keyStatsCache, c.symbol, keyStats);
 
@@ -151,7 +154,14 @@ async function scanFundamentals(tickers) {
     })
   );
 
-  return { results: results, errors: errors };
+  return {
+    results: results,
+    errors: errors,
+    dataStatus: errors.length ? 'unavailable' : quoteDataStale || incomplete ? 'partial' : 'complete',
+    quoteDataStatus: quoteDataStale ? 'stale' : quotesMap.providerFailure ? 'unavailable' : 'complete',
+    staleCount: Number(quotesMap.staleCount || 0),
+    dataAsOf: quotesMap.dataAsOf || new Date().toISOString(),
+  };
 }
 
 module.exports = { scanFundamentals };

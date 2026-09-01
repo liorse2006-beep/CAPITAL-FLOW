@@ -433,6 +433,8 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
     });
 
     const maErrors = Array.isArray(maScan.errors) ? maScan.errors : [];
+    const capitalFlowStaleSymbols = Array.isArray(capitalFlowScan.staleSymbols) ? capitalFlowScan.staleSymbols : [];
+    const maStaleSymbols = Array.isArray(maScan.staleSymbols) ? maScan.staleSymbols : [];
     const maChecked = new Set(
       (Array.isArray(maScan.checkedSymbols)
         ? maScan.checkedSymbols
@@ -475,6 +477,8 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
     try {
       await require('./radar').processRadarScan(compositeResults, scanTime, {
         errors,
+        unavailableCapitalFlowSymbols: [...new Set([...capitalFlowErrors, ...capitalFlowStaleSymbols])],
+        unavailableMovingAverageSymbols: [...new Set([...maErrors, ...maStaleSymbols])],
         checkedSymbols,
         dataStatus,
         radarIds: groupIds,

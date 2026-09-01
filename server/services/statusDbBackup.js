@@ -162,7 +162,8 @@ function validateDump(dump) {
   for (const table of tables) {
     if (!Array.isArray(dump.tables[table])) throw new Error('Backup table is not an array: ' + table);
     for (const row of dump.tables[table]) {
-      if (!row || typeof row !== 'object' || Object.keys(row).some((key) => !IDENTIFIER.test(key))) {
+      const keys = row && typeof row === 'object' ? Object.keys(row) : [];
+      if (!row || typeof row !== 'object' || keys.length === 0 || keys.some((key) => !IDENTIFIER.test(key))) {
         throw new Error('Backup contains an invalid row in: ' + table);
       }
     }

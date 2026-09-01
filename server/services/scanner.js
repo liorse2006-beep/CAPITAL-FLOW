@@ -92,6 +92,14 @@ async function scanTickers(tickers, options) {
     }
   });
   var quoteDataAsOf = quotesMap.dataAsOf || null;
+  var quoteDataStale = quotesMap.usedStaleFallback === true || Number(quotesMap.staleCount || 0) > 0;
+  var staleQuoteSymbols = new Set(
+    (Array.isArray(quotesMap.staleSymbols) ? quotesMap.staleSymbols : []).map(function (symbol) {
+      return String(symbol || '')
+        .trim()
+        .toUpperCase();
+    })
+  );
 
   // ── Filter in memory — no more per-ticker HTTP calls ─────────────────────────
   var etMins = getETMinutes();
@@ -162,6 +170,13 @@ async function scanTickers(tickers, options) {
       floatShares: finiteOrNull(quote.floatShares),
       shortPercent: finiteOrNull(quote.shortPercentOfFloat),
       sparkline: [],
+      quoteDataStatus: staleQuoteSymbols.has(
+        String(quote.symbol || symbol)
+          .trim()
+          .toUpperCase()
+      )
+        ? 'stale'
+        : 'complete',
     };
 
     results.push(match);
@@ -301,25 +316,34 @@ async function scanTickers(tickers, options) {
     return b.volumeRatio - a.volumeRatio;
   });
 
+  var dataStatus =
+    errors.length === 0
+      ? 'complete'
+      : errors.length >=
+          new Set(
+            tickers.map((symbol) =>
+              String(symbol || '')
+                .trim()
+                .toUpperCase()
+            )
+          ).size
+        ? 'unavailable'
+        : 'partial';
+  // A stale quote may still be usable for a best-effort result, but it is not
+  // a complete market-data verification. Keep the existing public status
+  // vocabulary so every caller renders the warning path consistently.
+  if (dataStatus === 'complete' && quoteDataStale) dataStatus = 'partial';
+
   return {
     results: results,
     errors: errors,
     checkedSymbols: [...new Set(checkedSymbols)],
     // An all-symbol failure is not a valid empty scan. Mark it unavailable so
     // scheduled jobs and Radar never present a provider outage as "no hits".
-    dataStatus:
-      errors.length === 0
-        ? 'complete'
-        : errors.length >=
-            new Set(
-              tickers.map((symbol) =>
-                String(symbol || '')
-                  .trim()
-                  .toUpperCase()
-              )
-            ).size
-          ? 'unavailable'
-          : 'partial',
+    dataStatus,
+    quoteDataStatus: quoteDataStale ? 'stale' : quotesMap.providerFailure ? 'unavailable' : 'complete',
+    staleCount: Number(quotesMap.staleCount || 0),
+    staleSymbols: [...staleQuoteSymbols],
     dataAsOf: quoteDataAsOf || new Date().toISOString(),
     processed: tickers.length,
   };

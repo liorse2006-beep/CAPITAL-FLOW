@@ -198,6 +198,9 @@ export default function ProfileModal({
 
   useEffect(() => {
     if (activeSection !== 'automation') return undefined;
+    // Loading a newly selected account section is an intentional external
+    // data synchronization; the callback owns the loading/result states.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadScheduledScans();
     return undefined;
   }, [activeSection, loadScheduledScans]);

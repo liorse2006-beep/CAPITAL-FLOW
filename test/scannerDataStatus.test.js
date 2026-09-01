@@ -24,6 +24,17 @@ function quote(symbol) {
   };
 }
 
+function quoteMapWithMetadata(entries, metadata) {
+  const map = new Map(entries);
+  Object.defineProperties(map, {
+    dataAsOf: { value: metadata.dataAsOf || '2026-09-01T10:00:00.000Z' },
+    staleCount: { value: metadata.staleCount || 0 },
+    usedStaleFallback: { value: metadata.usedStaleFallback === true },
+    providerFailure: { value: metadata.providerFailure === true },
+  });
+  return map;
+}
+
 test('Capital Flow marks a total quote outage as unavailable', async (t) => {
   t.mock.method(quoteCache, 'getQuotes', async () => new Map());
 
@@ -51,4 +62,28 @@ test('Moving Average marks a total quote outage as unavailable', async (t) => {
   assert.deepStrictEqual(result.results, []);
   assert.strictEqual(result.errors.length, 2);
   assert.strictEqual(result.dataStatus, 'unavailable');
+});
+
+test('Capital Flow marks a stale quote fallback as partial, not complete', async (t) => {
+  t.mock.method(quoteCache, 'getQuotes', async () =>
+    quoteMapWithMetadata([], { usedStaleFallback: true, staleCount: 1 })
+  );
+
+  const result = await scanTickers([], { minVolumeRatio: 1.5, minMarketCap: 1 });
+
+  assert.strictEqual(result.dataStatus, 'partial');
+  assert.strictEqual(result.quoteDataStatus, 'stale');
+  assert.strictEqual(result.staleCount, 1);
+});
+
+test('Moving Average marks a stale quote fallback as partial, not complete', async (t) => {
+  t.mock.method(quoteCache, 'getQuotes', async () =>
+    quoteMapWithMetadata([], { usedStaleFallback: true, staleCount: 1 })
+  );
+
+  const result = await scanMA([], { ma: 20, distance: 2, interval: '1d' });
+
+  assert.strictEqual(result.dataStatus, 'partial');
+  assert.strictEqual(result.quoteDataStatus, 'stale');
+  assert.strictEqual(result.staleCount, 1);
 });

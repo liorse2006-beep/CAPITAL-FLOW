@@ -23,6 +23,9 @@ export default function useSmoothProgress(targetPct, active) {
     function () {
       if (!active) {
         displayRef.current = 0;
+        // Resetting the visual animation state when the external scan ends
+        // is intentional; it prepares the hook for the next scan.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDisplay(0);
         return;
       }

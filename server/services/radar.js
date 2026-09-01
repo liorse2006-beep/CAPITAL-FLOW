@@ -714,7 +714,17 @@ async function processRadarScan(results, scanTime, meta) {
       (row.owner_tier === 'free' && freeTrialActive({ created_at: row.owner_created_at }))
     );
   });
-  const unavailableSymbols = Array.isArray(scanMeta.errors) ? scanMeta.errors : [];
+  const unavailableCapitalFlowSymbols = Array.isArray(scanMeta.unavailableCapitalFlowSymbols)
+    ? scanMeta.unavailableCapitalFlowSymbols
+    : [];
+  const unavailableMovingAverageSymbols = Array.isArray(scanMeta.unavailableMovingAverageSymbols)
+    ? scanMeta.unavailableMovingAverageSymbols
+    : [];
+  const unavailableSymbols = [
+    ...(Array.isArray(scanMeta.errors) ? scanMeta.errors : []),
+    ...unavailableCapitalFlowSymbols,
+    ...unavailableMovingAverageSymbols,
+  ];
   const checkedSymbols = Array.isArray(scanMeta.checkedSymbols) ? scanMeta.checkedSymbols : [];
   const conditionStatusByRadarId = scanMeta.conditionStatusByRadarId || {};
   const scanId = String(scanMeta.scanId || `radar-${new Date(scanTime).getTime()}`);
@@ -758,6 +768,8 @@ async function processRadarScan(results, scanTime, meta) {
         unavailableSymbols: radarUnavailableSymbols,
         checkedSymbols,
         dataStatus: radarDataStatus,
+        unavailableCapitalFlowSymbols,
+        unavailableMovingAverageSymbols,
         universe: UNIVERSE,
       });
       const statements = [

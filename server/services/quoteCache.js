@@ -54,7 +54,7 @@ async function fetchBatch(symbols) {
       arr.forEach((q) => {
         if (q && q.symbol) cache.set(q.symbol, { data: q, fetchedAt: now });
       });
-      return { quotes: arr, usedStaleFallback: false };
+      return { quotes: arr, usedStaleFallback: false, providerFailure: false };
     } catch (err) {
       const msg = (err && err.message) || '';
       const safeMsg = redact(msg);
@@ -77,6 +77,10 @@ async function fetchBatch(symbols) {
           return e && now - e.fetchedAt < MAX_STALE_AGE_MS ? e.data : null;
         })
         .filter(Boolean);
+      const staleSymbols = symbols.filter((symbol) => {
+        const entry = cache.get(symbol);
+        return entry && now - entry.fetchedAt < MAX_STALE_AGE_MS;
+      });
       if (stale.length > 0) {
         console.warn(
           `[QuoteCache] Yahoo failed — serving ${stale.length}/${symbols.length} recent stale entries (< ${MAX_STALE_AGE_MS / 60000} min old): ${safeMsg}`
@@ -86,7 +90,12 @@ async function fetchBatch(symbols) {
           `[QuoteCache] Batch failed, no usable stale fallback (${symbols[0]}…${symbols[symbols.length - 1]}): ${safeMsg}`
         );
       }
-      return { quotes: stale, usedStaleFallback: true };
+      return {
+        quotes: stale,
+        staleSymbols,
+        usedStaleFallback: stale.length > 0,
+        providerFailure: true,
+      };
     }
   }
   // Loop exhausted without returning — same age-limited stale fallback
@@ -98,7 +107,9 @@ async function fetchBatch(symbols) {
         return e && now2 - e.fetchedAt < MAX_STALE_AGE_MS ? e.data : null;
       })
       .filter(Boolean),
-    usedStaleFallback: true,
+    staleSymbols: [],
+    usedStaleFallback: false,
+    providerFailure: true,
   };
 }
 
@@ -116,6 +127,9 @@ async function getQuotes(symbols, onBatchDone) {
   const toFetch = [];
   let oldestFetchedAt = null;
   let staleCount = 0;
+  const staleSymbols = new Set();
+  let usedStaleFallback = false;
+  let providerFailure = false;
 
   function recordUsedQuote(symbol) {
     const entry = cache.get(symbol);
@@ -137,6 +151,9 @@ async function getQuotes(symbols, onBatchDone) {
   for (let i = 0; i < toFetch.length; i += BATCH_SIZE) {
     const batch = toFetch.slice(i, i + BATCH_SIZE);
     const batchResult = await fetchBatch(batch);
+    usedStaleFallback = usedStaleFallback || batchResult.usedStaleFallback === true;
+    providerFailure = providerFailure || batchResult.providerFailure === true;
+    (batchResult.staleSymbols || []).forEach((symbol) => staleSymbols.add(symbol));
     batchResult.quotes.forEach((q) => {
       if (q && q.symbol) result.set(q.symbol, q);
       if (q && q.symbol) recordUsedQuote(q.symbol);
@@ -155,6 +172,9 @@ async function getQuotes(symbols, onBatchDone) {
       enumerable: false,
     },
     staleCount: { value: staleCount, enumerable: false },
+    staleSymbols: { value: [...staleSymbols], enumerable: false },
+    usedStaleFallback: { value: usedStaleFallback, enumerable: false },
+    providerFailure: { value: providerFailure, enumerable: false },
   });
   return result;
 }

@@ -119,6 +119,14 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
     }
   });
   const quoteDataAsOf = quotesMap.dataAsOf || null;
+  const quoteDataStale = quotesMap.usedStaleFallback === true || Number(quotesMap.staleCount || 0) > 0;
+  const staleQuoteSymbols = new Set(
+    (Array.isArray(quotesMap.staleSymbols) ? quotesMap.staleSymbols : []).map((symbol) =>
+      String(symbol || '')
+        .trim()
+        .toUpperCase()
+    )
+  );
 
   const qualified = [];
   tickers.forEach((sym) => {
@@ -198,6 +206,7 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
             maInterval: interval,
             maDirection: pctDist >= 0 ? 'above' : 'below',
             dataQuality: 'complete',
+            quoteDataStatus: staleQuoteSymbols.has(String(symbol).trim().toUpperCase()) ? 'stale' : 'complete',
             // Real bars-since-crossing computed from the same `closes`
             // history above, or null when the data doesn't show one within
             // the lookback window — see daysSinceCross's own doc comment.
@@ -223,6 +232,21 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
 
   results.sort((a, b) => Math.abs(a.maDistance) - Math.abs(b.maDistance));
 
+  let dataStatus =
+    errors.size === 0
+      ? 'complete'
+      : errors.size >=
+          new Set(
+            tickers.map((symbol) =>
+              String(symbol || '')
+                .trim()
+                .toUpperCase()
+            )
+          ).size
+        ? 'unavailable'
+        : 'partial';
+  if (dataStatus === 'complete' && quoteDataStale) dataStatus = 'partial';
+
   return {
     results,
     processed: tickers.length,
@@ -231,19 +255,10 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
     checkedSymbols: [...checkedSymbols],
     // Do not turn a total quote/chart outage into a trustworthy empty result.
     // The caller can still distinguish a subset outage as partial.
-    dataStatus:
-      errors.size === 0
-        ? 'complete'
-        : errors.size >=
-            new Set(
-              tickers.map((symbol) =>
-                String(symbol || '')
-                  .trim()
-                  .toUpperCase()
-              )
-            ).size
-          ? 'unavailable'
-          : 'partial',
+    dataStatus,
+    quoteDataStatus: quoteDataStale ? 'stale' : quotesMap.providerFailure ? 'unavailable' : 'complete',
+    staleCount: Number(quotesMap.staleCount || 0),
+    staleSymbols: [...staleQuoteSymbols],
     dataAsOf: quoteDataAsOf || new Date().toISOString(),
   };
 }

@@ -68,7 +68,7 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     },
   };
 
-  function renderPremiumPage(result = FAKE_RESULT) {
+  function renderPremiumPage(result = FAKE_RESULT, responseMeta = {}) {
     localStorage.setItem('vs_token', 'fake-token');
     const fetchMock = vi.spyOn(global, 'fetch').mockImplementation((url) => {
       if (String(url).includes('/api/auth/me')) {
@@ -81,7 +81,11 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
         return Promise.resolve({ ok: false });
       }
       if (String(url).includes('/api/fundamentals')) {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ result }) });
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ result, ...responseMeta }),
+        });
       }
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
     });
@@ -150,6 +154,22 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     expect(screen.getByText('1.60')).toBeInTheDocument();
     expect(screen.getByText('Forward P/E')).toBeInTheDocument();
     expect(screen.getAllByText('PEG Ratio')).toHaveLength(2);
+  });
+
+  it('warns visibly when a result used stale or incomplete market data', async () => {
+    const user = userEvent.setup();
+    renderPremiumPage(FAKE_RESULT, {
+      dataStatus: 'partial',
+      quoteDataStatus: 'stale',
+      dataAsOf: '2026-09-01T09:55:00.000Z',
+    });
+
+    await screen.findByPlaceholderText(/Enter a ticker/);
+    await user.type(screen.getByPlaceholderText(/Enter a ticker/), 'AAPL');
+    await user.click(screen.getByText('Analyze'));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/some data could not be fully verified/i);
+    expect(screen.getByRole('status')).toHaveTextContent(/earlier successful fetch/i);
   });
 
   it('deselecting a metric hides its tile, and Select all brings every tile back', async () => {

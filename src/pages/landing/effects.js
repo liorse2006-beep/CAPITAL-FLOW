@@ -113,7 +113,7 @@ const scannerFragment = [
   '}',
 ].join('\n');
 
-function mountScanner(container, opts, cleanupFns) {
+function _mountScanner(container, opts, cleanupFns) {
   const o = Object.assign(
     {
       color1: '#5227FF',
@@ -438,7 +438,7 @@ function buildJourneyScene(renderer, isMobile) {
   return { scene, disposables, candles };
 }
 
-function mountCinematicJourney(root, container, cleanupFns) {
+function _mountCinematicJourney(root, container, cleanupFns) {
   const zoneStart = root.querySelector('#top');
   const zoneEnd = root.querySelector('#why-tools');
   if (!zoneStart || !zoneEnd) return;
@@ -1215,7 +1215,7 @@ function setupCategoryTransitions(root, cleanupFns) {
   });
 }
 
-function setupElectricBorders(root, cleanupFns) {
+function _setupElectricBorders(root, cleanupFns) {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduceMotion) return;
 

@@ -20,6 +20,9 @@ export default function useInstallPrompt() {
     // Already running as installed PWA
     const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     if (standalone) {
+      // Browser capability detection is synchronized once when the hook
+      // mounts; this is not a render-derived state loop.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsStandalone(true);
       return;
     }

@@ -28,7 +28,11 @@ export default function useScheduledScans(scanType) {
   }, [getToken]);
 
   useEffect(() => {
-    if (user) fetchSchedules();
+    if (user) {
+      // The callback synchronizes this hook with the authenticated API.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchSchedules();
+    }
   }, [user, fetchSchedules]);
 
   async function addSchedule(scan_time, scan_date) {

@@ -50,9 +50,7 @@ function App() {
     refreshUser,
   } = useAuth();
   const storageScope = user ? String(user.id) : 'guest';
-  function scopedStorageKey(name) {
-    return name + ':' + storageScope;
-  }
+  const scopedStorageKey = useCallback((name) => name + ':' + storageScope, [storageScope]);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authInitialScreen, setAuthInitialScreen] = useState('login');
 
@@ -336,7 +334,7 @@ function App() {
   // push dismissed before being read, etc) — the server persists every alert
   // it sends (see checkWatchlistAlerts/runDigestTick), this pulls that
   // history in on load and whenever the tab becomes visible again.
-  function refreshServerNotifications() {
+  const refreshServerNotifications = useCallback(() => {
     if (!user) return;
     fetch('/api/notifications', { headers: { Authorization: 'Bearer ' + getToken() } })
       .then(function (r) {
@@ -384,7 +382,7 @@ function App() {
         });
       })
       .catch(function () {});
-  }
+  }, [getToken, scopedStorageKey, setUnreadCount, user]);
 
   useEffect(
     function () {
@@ -398,7 +396,7 @@ function App() {
         document.removeEventListener('visibilitychange', onVisible);
       };
     },
-    [user]
+    [refreshServerNotifications, user]
   );
 
   /* New filter state */
@@ -451,7 +449,7 @@ function App() {
       if (!user || userTier !== 'free' || !scanMeta || !scanMeta.free) return;
       if (scanMeta.free.trialActive) return;
       trialEndedAutoShownRef.current = true;
-      setShowTrialEndedModal(true);
+      queueMicrotask(() => setShowTrialEndedModal(true));
     },
     [user, userTier, scanMeta]
   );
@@ -515,37 +513,6 @@ function App() {
   });
   const alertFired = useRef({});
 
-  // Auth state can change without unmounting App (login, logout, or account
-  // switching). Rehydrate every browser cache when that happens so one
-  // account's presets, thresholds, or unread alerts never flash in another
-  // account's session.
-  useEffect(
-    function () {
-      try {
-        setPresets(JSON.parse(localStorage.getItem(scopedStorageKey('vs-presets'))) || []);
-      } catch (e) {
-        setPresets([]);
-      }
-      try {
-        setAlertLevels(JSON.parse(localStorage.getItem(scopedStorageKey('vs-alert-levels'))) || {});
-      } catch (e) {
-        setAlertLevels({});
-      }
-      try {
-        setAlertHistory(JSON.parse(localStorage.getItem(scopedStorageKey('vs-alert-history'))) || []);
-      } catch (e) {
-        setAlertHistory([]);
-      }
-      try {
-        setUnreadCount(parseInt(localStorage.getItem(scopedStorageKey('vs-alert-unread')) || '0', 10));
-      } catch (e) {
-        setUnreadCount(0);
-      }
-      alertFired.current = {};
-    },
-    [storageScope]
-  );
-
   useEffect(
     function () {
       if (!canNotify) return;
@@ -559,7 +526,7 @@ function App() {
         })
         .catch(function () {});
     },
-    [canNotify]
+    [canNotify, getToken, scopedStorageKey]
   );
 
   // alertData is either { type: 'volume', minRatio } or
@@ -637,7 +604,7 @@ function App() {
       if (!canNotify || !pushSupported) return;
       checkSubscribed();
     },
-    [canNotify, pushSupported]
+    [canNotify, checkSubscribed, pushSupported]
   );
 
   /* ── Watchlist — backed by the server so starred tickers follow the
@@ -669,7 +636,7 @@ function App() {
         })
         .catch(function () {});
     },
-    [user]
+    [getToken, scopedStorageKey, user]
   );
 
   function toggleWatchlistTicker(symbol) {
@@ -743,7 +710,7 @@ function App() {
     function () {
       if (showUpgradeModal) track('upgrade_modal_shown', { tier: userTier, page: page });
     },
-    [showUpgradeModal]
+    [page, showUpgradeModal, userTier]
   );
 
   /* Toast state */
@@ -789,7 +756,7 @@ function App() {
         clearAuthError();
       }
     },
-    [authError]
+    [authError, clearAuthError]
   );
 
   // Whop's checkout returns here after EVERY checkout attempt — success or
@@ -835,7 +802,7 @@ function App() {
       var pendingTier = localStorage.getItem('vs_pending_tier');
       localStorage.removeItem('vs_pending_tier');
       if (pendingTier === 'premium' || pendingTier === 'elite') {
-        setWelcomeTier(pendingTier);
+        queueMicrotask(() => setWelcomeTier(pendingTier));
       } else {
         showToast('Payment received! Upgrading your account…');
       }
@@ -861,7 +828,7 @@ function App() {
         cancelled = true;
       };
     },
-    [location.search]
+    [location.pathname, location.search, navigate, refreshUser]
   );
 
   // Tapping a scheduled-scan push notification (or clicking one in the bell
@@ -870,22 +837,25 @@ function App() {
   // dropping the user on whatever the current page happens to show. Query
   // param is always stripped so a refresh doesn't re-fetch/re-open it.
   const [scheduledScanNotif, setScheduledScanNotif] = useState(null);
-  function openScheduledNotification(rawId) {
-    // Local-only alert entries (a Date.now()+Math.random() id) never made it
-    // to the server, so there's nothing to fetch — only 'srv-<id>' entries
-    // (persisted via addNotification) can possibly have scan results.
-    if (typeof rawId !== 'string' || rawId.indexOf('srv-') !== 0) return;
-    var id = rawId.slice(4);
-    if (!id || !user) return;
-    fetch('/api/notifications/' + id, { headers: { Authorization: 'Bearer ' + getToken() } })
-      .then(function (r) {
-        return r.ok ? r.json() : null;
-      })
-      .then(function (data) {
-        if (data && data.scanType) setScheduledScanNotif(data);
-      })
-      .catch(function () {});
-  }
+  const openScheduledNotification = useCallback(
+    (rawId) => {
+      // Local-only alert entries (a Date.now()+Math.random() id) never made it
+      // to the server, so there's nothing to fetch — only 'srv-<id>' entries
+      // (persisted via addNotification) can possibly have scan results.
+      if (typeof rawId !== 'string' || rawId.indexOf('srv-') !== 0) return;
+      var id = rawId.slice(4);
+      if (!id || !user) return;
+      fetch('/api/notifications/' + id, { headers: { Authorization: 'Bearer ' + getToken() } })
+        .then(function (r) {
+          return r.ok ? r.json() : null;
+        })
+        .then(function (data) {
+          if (data && data.scanType) setScheduledScanNotif(data);
+        })
+        .catch(function () {});
+    },
+    [getToken, user]
+  );
   useEffect(
     function () {
       var notifId = new URLSearchParams(location.search).get('notif');
@@ -894,14 +864,14 @@ function App() {
       if (!user) return;
       openScheduledNotification(notifId);
     },
-    [location.search, user]
+    [location.pathname, location.search, navigate, openScheduledNotification, user]
   );
 
   // Open AuthModal automatically when Google OAuth returns (show consent screen)
   useEffect(
     function () {
       if (pendingGoogleToken) {
-        setShowAuthModal(true);
+        queueMicrotask(() => setShowAuthModal(true));
       }
     },
     [pendingGoogleToken]
@@ -926,7 +896,7 @@ function App() {
         })
         .catch(function () {});
     },
-    [user]
+    [getToken, user]
   );
 
   /* ── Notification helpers ── */
@@ -1047,6 +1017,10 @@ function App() {
         if (notifPoll.current) clearInterval(notifPoll.current);
       };
     },
+    // These handlers are intentionally render-local and the App is remounted
+    // on account changes; the effect only needs to restart when polling is
+    // enabled or disabled.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [notificationsEnabled]
   );
 

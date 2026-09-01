@@ -177,3 +177,26 @@ test('GET /api/fundamentals reports "no data" honestly for a ticker with no quot
     server.close();
   }
 });
+
+test('GET /api/fundamentals reports a provider outage as temporarily unavailable, not as a missing ticker', async (t) => {
+  const headers = await makeUser('fund-provider-outage@test.local', 'elite', true);
+  const server = await startTestApp();
+  const port = server.address().port;
+  const map = new Map();
+  Object.defineProperties(map, {
+    providerFailure: { value: true },
+    usedStaleFallback: { value: false },
+    staleCount: { value: 0 },
+    dataAsOf: { value: null },
+  });
+  t.mock.method(quoteCache, 'getQuotes', async () => map);
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/fundamentals?symbol=OUTAGE1`, { headers });
+    assert.strictEqual(res.status, 503);
+    const body = await res.json();
+    assert.strictEqual(body.dataStatus, 'unavailable');
+    assert.match(body.error, /temporarily unavailable/i);
+  } finally {
+    server.close();
+  }
+});

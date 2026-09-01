@@ -61,3 +61,28 @@ test('Partial composite data does not create a false exit or re-entry', () => {
   assert.equal(result.nextStates.get('AAPL').matches, true);
   assert.equal(result.nextStates.get('AAPL').missedChecks, 0);
 });
+
+test('Radar never treats a stale source layer as a verified condition', () => {
+  const state = new Map();
+  const result = evaluateRadarTransitions(radar, [row()], state, {
+    scanTime: '2026-08-25T12:30:00.000Z',
+    dataStatus: 'partial',
+    unavailableCapitalFlowSymbols: ['AAPL'],
+    checkedSymbols: ['AAPL'],
+    universe,
+  });
+  assert.equal(result.events.length, 0);
+  assert.equal(result.nextStates.get('AAPL'), undefined);
+});
+
+test('Either-condition Radar may use the verified layer when the other layer is stale', () => {
+  const result = evaluateRadarTransitions({ ...radar, conditionMode: 'either' }, [row()], new Map(), {
+    scanTime: '2026-08-25T12:30:00.000Z',
+    dataStatus: 'partial',
+    unavailableCapitalFlowSymbols: ['AAPL'],
+    checkedSymbols: ['AAPL'],
+    universe,
+  });
+  assert.equal(result.events.length, 1);
+  assert.deepEqual(result.events[0].matchedConditions, ['Moving Average']);
+});

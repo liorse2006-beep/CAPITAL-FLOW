@@ -159,7 +159,9 @@ const Topography = ({
 }) => {
   const containerRef = useRef(null);
   const propsRef = useRef({ paused, speed, morphSpeed });
-  propsRef.current = { paused, speed, morphSpeed };
+  useEffect(() => {
+    propsRef.current = { paused, speed, morphSpeed };
+  }, [paused, speed, morphSpeed]);
 
   useEffect(() => {
     const container = containerRef.current;

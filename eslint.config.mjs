@@ -17,6 +17,9 @@ export default [
       '.claude/**',
       'LANDING PAGE/**',
       'capture-reel-*.js',
+      // Kept as an untracked visual prototype and not imported by the
+      // production entrypoint; do not let it change the release lint gate.
+      'src/components/MoltenMetal.jsx',
     ],
   },
 
