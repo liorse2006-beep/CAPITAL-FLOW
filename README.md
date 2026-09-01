@@ -24,7 +24,7 @@ npm run dev             # runs the Express API (3001) + Vite dev server (5173) t
 
 Open `http://localhost:5173`.
 
-Only `JWT_SECRET` and `SESSION_SECRET` are hard-required (the server refuses to boot without them — generate with the command in `.env.example`). Everything else degrades gracefully: without `FINNHUB_API_KEY` scans won't return data, without `RESEND_API_KEY` emails just don't send, without `TURSO_DB_URL`/`TURSO_AUTH_TOKEN` it falls back to a local SQLite file, etc. Start with just the two secrets and add provider keys as you need the features they unlock.
+For local development, `JWT_SECRET` and `SESSION_SECRET` are the only hard-required secrets (the server refuses to boot without them — generate them with the command in `.env.example`). Optional provider keys simply disable or degrade the feature they power. Production is intentionally stricter: the server also requires the durable `TURSO_DB_URL`/`TURSO_AUTH_TOKEN` pair, `RESEND_API_KEY`, and `STATUS_INTERNAL_TOKEN`; it refuses to start rather than falling back to an empty local database or logging authentication codes. Configure Google OAuth, Whop, market-data, push, and monitoring variables for the features you enable.
 
 ## Environment variables
 

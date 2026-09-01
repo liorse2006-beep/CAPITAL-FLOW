@@ -85,7 +85,7 @@ The checked release is a descendant of the earlier data/release-hardening commit
 | Safe coupon endpoint probe | `VERIFIED PASS` | Arbitrary sample POST returned 410 `provider_checkout_required`; no local discount was returned |
 | Guest mobile overflow | `VERIFIED PASS` | Headless Puppeteer against the deployed origin: `/scanner` at 320/360/390/430/768 had document/body width equal to viewport and no overflow; all `/scanner`, `/ma`, `/flow`, `/fundamentals`, `/watchlist` checks at 390 had `documentWidth=bodyWidth=390`, no overflow, and Capi hidden |
 | Real payment/wallet | `UNKNOWN` by policy | No transaction or authorization was performed |
-| Production backup restore | `UNKNOWN` | No approved isolated recovery database was available |
+| Production backup restore | `UNKNOWN` | Read-only `/admin/api/backup-status` returned HTTP 200 with `lastBackupAt=2026-08-30 00:50:57 +03:00`; this proves recorded backup metadata only, not backup contents or restoreability |
 | Authenticated production matrix | `UNKNOWN` | No approved seeded accounts for every tier/ownership case were used |
 
 Note: JSDOM emitted the known `HTMLCanvasElement.getContext()` not-implemented warning during frontend tests; no test failed. This is a test-environment limitation, not evidence that the production charts pass visual or accessibility review.
