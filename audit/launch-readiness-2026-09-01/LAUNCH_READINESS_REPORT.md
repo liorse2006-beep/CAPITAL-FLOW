@@ -1,5 +1,10 @@
 # Capital Flow — Launch Readiness Audit
 
+> This document records the baseline audit. The authoritative post-remediation
+> retest for commit `37885eb668b6183b85c3b9b71d3b7ffe97b61152` is in
+> [REMEDIATION_RETEST.md](./REMEDIATION_RETEST.md). Where the two documents
+> differ, the retest is current.
+
 ## 1. Executive summary
 
 **Audit mode:** `AUDIT_AND_FIX` for changes within the repository and deployment workflow that were explicitly authorized by the owner.
