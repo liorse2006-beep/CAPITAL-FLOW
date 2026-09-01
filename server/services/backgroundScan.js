@@ -100,6 +100,14 @@ function alertTriggered(alert, r) {
   );
 }
 
+function hasVerifiedAlertData(r) {
+  const status = String(r?.quoteDataStatus || r?.dataQuality || r?.dataStatus || '').toLowerCase();
+  // A stale fallback is useful for an explicitly labelled scan result, but it
+  // must never consume a live alert: the user asked to be notified about a
+  // real threshold crossing, not about an old quote replayed during an outage.
+  return status !== 'stale' && status !== 'unavailable';
+}
+
 function alertNotificationPayload(alert, r) {
   const numericChange =
     typeof r?.change === 'number' || (typeof r?.change === 'string' && r.change.trim() !== '')
@@ -146,7 +154,7 @@ async function checkWatchlistAlerts(results) {
     for (const [userId, alerts] of Object.entries(byUser)) {
       for (const [symbol, alert] of Object.entries(alerts)) {
         const r = bySymbol.get(symbol);
-        if (!r || !alertTriggered(alert, r)) continue;
+        if (!r || !hasVerifiedAlertData(r) || !alertTriggered(alert, r)) continue;
         const alertPayload = alertNotificationPayload(alert, r);
         // Consume and persist atomically. If the database cannot record the
         // notification, the alert remains armed for a later retry instead of

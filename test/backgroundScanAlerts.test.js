@@ -192,3 +192,24 @@ test('checkWatchlistAlerts does not fire a price alert when the quote has no pri
     webPush.sendPushToUser = originalSend;
   }
 });
+
+test('checkWatchlistAlerts does not consume an alert from a stale quote fallback', async () => {
+  const userId = await makeUser('bg-alert-stale-quote@test.local');
+  await setAlert(userId, 'IBM', { type: 'volume', minRatio: 2.0 });
+
+  const pushCalls = [];
+  const originalSend = webPush.sendPushToUser;
+  webPush.sendPushToUser = (uid, payload) => {
+    pushCalls.push({ uid, payload });
+  };
+
+  try {
+    await checkWatchlistAlerts([
+      { symbol: 'IBM', name: 'IBM', volumeRatio: 4.0, change: 2.1, price: 200, quoteDataStatus: 'stale' },
+    ]);
+    assert.strictEqual(pushCalls.length, 0, 'stale provider data must never trigger a live alert');
+    assert.ok((await getWatchlistAlerts(userId)).IBM, 'the alert must remain armed for a verified quote');
+  } finally {
+    webPush.sendPushToUser = originalSend;
+  }
+});
