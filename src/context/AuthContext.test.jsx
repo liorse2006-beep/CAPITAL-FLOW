@@ -5,13 +5,14 @@
 // token is read, via the Referer header. A URL fragment (#google_pending=)
 // never leaves the browser either way. See routes/auth.js for the redirect
 // side of this fix.
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { AuthProvider, useAuth } from './AuthContext';
 
 afterEach(() => {
   localStorage.clear();
   window.history.replaceState({}, '', '/');
+  vi.unstubAllGlobals();
 });
 
 function Probe() {
@@ -25,6 +26,16 @@ function TokenProbe() {
     <button onClick={() => login('memory-token', { id: 1, email: 'admin@example.com' })}>
       {getToken() || 'empty'}
     </button>
+  );
+}
+
+function AuthHealthProbe() {
+  const { authLoadError, getToken } = useAuth();
+  return (
+    <div>
+      <span data-testid="auth-health">{authLoadError ? 'error' : 'ok'}</span>
+      <span data-testid="auth-token">{getToken() || 'empty'}</span>
+    </div>
   );
 }
 
@@ -75,5 +86,28 @@ describe('AuthContext — Google OAuth pending-token handoff', () => {
     fireEvent.click(screen.getByRole('button'));
     expect(screen.getByRole('button')).toHaveTextContent('memory-token');
     expect(localStorage.getItem('vs_token')).toBeNull();
+  });
+
+  it('keeps the access token when /me has a temporary server failure', async () => {
+    setUrl('/?token=still-valid-token', '');
+    const fetchMock = vi.fn((url) => {
+      if (url === '/api/auth/refresh') return Promise.resolve({ ok: false, status: 401 });
+      if (url === '/api/auth/me') return Promise.resolve({ ok: false, status: 503 });
+      return Promise.reject(new Error('unexpected request'));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <AuthProvider>
+        <AuthHealthProbe />
+      </AuthProvider>
+    );
+
+    expect(await screen.findByTestId('auth-health')).toHaveTextContent('error');
+    expect(screen.getByTestId('auth-token')).toHaveTextContent('still-valid-token');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/auth/me',
+      expect.objectContaining({ headers: { Authorization: 'Bearer still-valid-token' } })
+    );
   });
 });

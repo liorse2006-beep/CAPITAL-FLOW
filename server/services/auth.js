@@ -154,6 +154,23 @@ async function revokeSession(sessionId, userId) {
 }
 
 /**
+ * Revoke the device session represented by an httpOnly refresh cookie.
+ * Logout must still work after the short-lived access token expires; the
+ * refresh cookie is the browser's remaining proof of which device session
+ * should be ended. Return false for an absent/unknown token without exposing
+ * whether any account exists.
+ */
+async function revokeRefreshToken(refreshToken) {
+  if (!refreshToken || typeof refreshToken !== 'string') return false;
+  const session = await db
+    .prepare('SELECT id, user_id FROM user_sessions WHERE refresh_token_hash = ?')
+    .get(hashRefreshToken(refreshToken));
+  if (!session) return false;
+  await revokeSession(session.id, session.user_id);
+  return true;
+}
+
+/**
  * Revoke EVERY session an account has — every device stops working the
  * instant it next calls the API (access tokens are checked against this
  * table on every request, not just at their own 1h expiry) and every
@@ -220,6 +237,7 @@ module.exports = {
   createSession,
   refreshAccessToken,
   revokeSession,
+  revokeRefreshToken,
   revokeAllSessions,
   withEffectivePremium,
   verifyToken,

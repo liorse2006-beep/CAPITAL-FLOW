@@ -11,6 +11,7 @@ const {
   issueToken,
   refreshAccessToken,
   revokeSession,
+  revokeRefreshToken,
   revokeAllSessions,
   withEffectivePremium,
   generateOTP,
@@ -514,12 +515,36 @@ router.post('/refresh', sessionLimiter, async (req, res) => {
 
 /* ── Log out this device only — every other device's session (up to the
    2-device cap) is left untouched, unlike the old scheme where any login
-   anywhere ended every other device's session. ── */
-router.post('/logout', sessionLimiter, requireAuth, async (req, res) => {
+   anywhere ended every other device's session.
+
+   This endpoint intentionally does not use requireAuth. The access JWT is
+   short-lived and may already be expired when the user clicks Logout; the
+   httpOnly refresh cookie is still a valid, server-checked proof of the
+   browser session that must be revoked. A valid bearer is used as a fallback
+   for clients that no longer have the cookie. ── */
+router.post('/logout', sessionLimiter, async (req, res) => {
   try {
-    const payload = verifyToken(req.headers.authorization.slice(7));
-    await revokeSession(payload.sid, req.user.id);
+    const refreshToken = req.cookies && req.cookies[REFRESH_COOKIE_NAME];
+    let revoked = await revokeRefreshToken(refreshToken);
+
+    if (!revoked) {
+      const header = req.headers.authorization;
+      if (header && header.startsWith('Bearer ')) {
+        try {
+          const payload = verifyToken(header.slice(7));
+          if (payload && payload.sid && payload.id) {
+            await revokeSession(payload.sid, payload.id);
+            revoked = true;
+          }
+        } catch {
+          // An expired/invalid bearer is expected during logout; clearing the
+          // cookie below is still the correct idempotent response.
+        }
+      }
+    }
     clearRefreshCookie(res);
+    // Logout is intentionally idempotent and never reports whether a
+    // supplied credential matched a live session.
     res.json({ ok: true });
   } catch (err) {
     reportError(err, '[logout]');

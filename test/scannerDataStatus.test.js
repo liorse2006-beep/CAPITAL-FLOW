@@ -6,7 +6,7 @@ const assert = require('node:assert');
 
 const db = require('../server/db');
 const quoteCache = require('../server/services/quoteCache');
-const { scanTickers } = require('../server/services/scanner');
+const { scanTickers, mapWithConcurrency } = require('../server/services/scanner');
 const { scanMA } = require('../server/services/maScanner');
 
 before(async () => {
@@ -86,4 +86,19 @@ test('Moving Average marks a stale quote fallback as partial, not complete', asy
   assert.strictEqual(result.dataStatus, 'partial');
   assert.strictEqual(result.quoteDataStatus, 'stale');
   assert.strictEqual(result.staleCount, 1);
+});
+
+test('scanner enrichment stays bounded while preserving result order', async () => {
+  let active = 0;
+  let peak = 0;
+  const values = await mapWithConcurrency([0, 1, 2, 3, 4, 5, 6], 3, async (value) => {
+    active++;
+    peak = Math.max(peak, active);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    active--;
+    return value * 2;
+  });
+
+  assert.deepStrictEqual(values, [0, 2, 4, 6, 8, 10, 12]);
+  assert.ok(peak <= 3, `expected at most three workers, saw ${peak}`);
 });

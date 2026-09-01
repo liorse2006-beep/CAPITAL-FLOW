@@ -158,6 +158,27 @@ test('POST /api/auth/logout revokes this device only, and clears the refresh coo
   }
 });
 
+test('POST /api/auth/logout still revokes the cookie session when the access token has expired', async () => {
+  const user = await makeUser('logout-expired-token@test.local');
+  const { refreshToken } = await issueToken(await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id));
+
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://localhost:${port}/api/auth/logout`, {
+      method: 'POST',
+      headers: { Cookie: `vs_refresh=${refreshToken}`, Authorization: 'Bearer expired-or-invalid' },
+    });
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(await res.json(), { ok: true });
+    assert.strictEqual(await refreshAccessToken(refreshToken), null, 'logout must revoke the cookie session');
+    const setCookie = res.headers.get('set-cookie');
+    assert.ok(setCookie && setCookie.startsWith('vs_refresh=;'), 'the refresh cookie must be cleared');
+  } finally {
+    server.close();
+  }
+});
+
 test('a fresh login sets an httpOnly vs_refresh cookie scoped to /api/auth', async () => {
   const server = await startTestApp();
   const port = server.address().port;

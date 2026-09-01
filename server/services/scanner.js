@@ -16,6 +16,29 @@ const SECTOR_TTL_MS = 7 * 24 * 60 * 60 * 1000; //  7 d — sector string
 const metricCache = new Map(); // symbol → { data, fetchedAt }
 const sparkCache = new Map(); // symbol → { data, fetchedAt }
 const sectorCache = new Map(); // symbol → { data, fetchedAt }
+// Keep the enrichment fan-out bounded. A broad scan can produce many matches;
+// starting four provider calls for every match at once creates an avoidable
+// burst, increases rate-limit/cost risk, and makes one slow provider dominate
+// the request. This limit preserves parallelism without turning the market
+// data providers into an unbounded queue of sockets.
+const ENRICH_CONCURRENCY = 20;
+
+async function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, limit), items.length);
+
+  async function run() {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index], index);
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, () => run()));
+  return results;
+}
 
 function finiteOrNull(value) {
   if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
@@ -195,108 +218,104 @@ async function scanTickers(tickers, options) {
   // of Phase 1's range for however long enrichment actually took.
   var enrichedCount = 0;
   var enrichTotal = results.length || 1;
-  var enrichPromises = results.map(function (r) {
-    return (async function () {
-      try {
-        // Always fresh — price and change% are real-time data
-        var fQuotePromise = fetchFinnhubQuote(r.symbol);
+  await mapWithConcurrency(results, ENRICH_CONCURRENCY, async function (r) {
+    try {
+      // Always fresh — price and change% are real-time data
+      var fQuotePromise = fetchFinnhubQuote(r.symbol);
 
-        // Slow data — resolve from cache or fetch once per day
-        var cachedMetric = slowGet(metricCache, r.symbol, METRIC_TTL_MS);
-        var metricPromise =
-          cachedMetric !== null
-            ? Promise.resolve(cachedMetric)
-            : fetchFinnhubMetric(r.symbol).then(function (m) {
-                if (m) slowSet(metricCache, r.symbol, m);
-                return m;
+      // Slow data — resolve from cache or fetch once per day
+      var cachedMetric = slowGet(metricCache, r.symbol, METRIC_TTL_MS);
+      var metricPromise =
+        cachedMetric !== null
+          ? Promise.resolve(cachedMetric)
+          : fetchFinnhubMetric(r.symbol).then(function (m) {
+              if (m) slowSet(metricCache, r.symbol, m);
+              return m;
+            });
+
+      var cachedSpark = slowGet(sparkCache, r.symbol, SPARK_TTL_MS);
+      var sparkPromise =
+        cachedSpark !== null
+          ? Promise.resolve(cachedSpark)
+          : yahooFinance
+              .chart(r.symbol, {
+                period1: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000),
+                interval: '1d',
+              })
+              .then(function (chart) {
+                var closes = (chart && chart.quotes ? chart.quotes : [])
+                  .filter(function (d) {
+                    return d.close != null;
+                  })
+                  .sort(function (a, b) {
+                    return new Date(a.date) - new Date(b.date);
+                  })
+                  .slice(-7)
+                  .map(function (d) {
+                    return d.close;
+                  });
+                slowSet(sparkCache, r.symbol, closes);
+                return closes;
               });
 
-        var cachedSpark = slowGet(sparkCache, r.symbol, SPARK_TTL_MS);
-        var sparkPromise =
-          cachedSpark !== null
-            ? Promise.resolve(cachedSpark)
-            : yahooFinance
-                .chart(r.symbol, {
-                  period1: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000),
-                  interval: '1d',
-                })
-                .then(function (chart) {
-                  var closes = (chart && chart.quotes ? chart.quotes : [])
-                    .filter(function (d) {
-                      return d.close != null;
-                    })
-                    .sort(function (a, b) {
-                      return new Date(a.date) - new Date(b.date);
-                    })
-                    .slice(-7)
-                    .map(function (d) {
-                      return d.close;
-                    });
-                  slowSet(sparkCache, r.symbol, closes);
-                  return closes;
-                });
+      var resolved = await Promise.all([fQuotePromise, metricPromise, sparkPromise, enrichSector(r.symbol)]);
+      var fQuote = resolved[0];
+      var fMetric = resolved[1];
+      var sparkline = resolved[2];
+      var sector = resolved[3];
 
-        var resolved = await Promise.all([fQuotePromise, metricPromise, sparkPromise, enrichSector(r.symbol)]);
-        var fQuote = resolved[0];
-        var fMetric = resolved[1];
-        var sparkline = resolved[2];
-        var sector = resolved[3];
-
-        if (fQuote && fQuote.price > 0) {
-          // Cross-validate Finnhub price against the Yahoo baseline. A >25%
-          // divergence almost certainly means Finnhub handed back a stale close
-          // or a bad feed value — in that case keep the Yahoo price and log the
-          // anomaly. Non-price fields (dayHigh/Low/prevClose) are still applied
-          // because they are less likely to be wildly wrong.
-          const yahooBasePrice = r.price;
-          const priceDivergence = yahooBasePrice > 0 ? Math.abs(fQuote.price - yahooBasePrice) / yahooBasePrice : 0;
-          if (priceDivergence > 0.25) {
-            console.warn(
-              `[Scanner] Price divergence rejected for ${r.symbol}: ` +
-                `Yahoo=${yahooBasePrice.toFixed(2)} Finnhub=${fQuote.price.toFixed(2)} ` +
-                `(${(priceDivergence * 100).toFixed(1)}% diff)`
-            );
-          } else {
-            r.price = fQuote.price;
-          }
-          if (fQuote.change !== null) r.change = fQuote.change;
-          if (fQuote.dayHigh !== null) r.dayHigh = fQuote.dayHigh;
-          if (fQuote.dayLow !== null) r.dayLow = fQuote.dayLow;
-          if (fQuote.prevClose !== null) r.prevClose = fQuote.prevClose;
+      if (fQuote && fQuote.price > 0) {
+        // Cross-validate Finnhub price against the Yahoo baseline. A >25%
+        // divergence almost certainly means Finnhub handed back a stale close
+        // or a bad feed value — in that case keep the Yahoo price and log the
+        // anomaly. Non-price fields (dayHigh/Low/prevClose) are still applied
+        // because they are less likely to be wildly wrong.
+        const yahooBasePrice = r.price;
+        const priceDivergence = yahooBasePrice > 0 ? Math.abs(fQuote.price - yahooBasePrice) / yahooBasePrice : 0;
+        if (priceDivergence > 0.25) {
+          console.warn(
+            `[Scanner] Price divergence rejected for ${r.symbol}: ` +
+              `Yahoo=${yahooBasePrice.toFixed(2)} Finnhub=${fQuote.price.toFixed(2)} ` +
+              `(${(priceDivergence * 100).toFixed(1)}% diff)`
+          );
+        } else {
+          r.price = fQuote.price;
         }
+        if (fQuote.change !== null) r.change = fQuote.change;
+        if (fQuote.dayHigh !== null) r.dayHigh = fQuote.dayHigh;
+        if (fQuote.dayLow !== null) r.dayLow = fQuote.dayLow;
+        if (fQuote.prevClose !== null) r.prevClose = fQuote.prevClose;
+      }
 
-        if (fMetric) {
-          if (fMetric.weekHigh52 > 0) r.fiftyTwoWeekHigh = fMetric.weekHigh52;
-          if (fMetric.weekLow52 > 0) r.fiftyTwoWeekLow = fMetric.weekLow52;
-          if (fMetric.marketCap > 0) r.marketCap = fMetric.marketCap;
-          if (fMetric.avgVol10d > 0) {
-            r.avgVolume = Math.round(fMetric.avgVol10d);
-            if (r.volume > 0 && r.avgVolume > 0) {
-              r.volumeRatio = Math.round((r.volume / r.avgVolume) * 100) / 100;
-            }
+      if (fMetric) {
+        if (fMetric.weekHigh52 > 0) r.fiftyTwoWeekHigh = fMetric.weekHigh52;
+        if (fMetric.weekLow52 > 0) r.fiftyTwoWeekLow = fMetric.weekLow52;
+        if (fMetric.marketCap > 0) r.marketCap = fMetric.marketCap;
+        if (fMetric.avgVol10d > 0) {
+          r.avgVolume = Math.round(fMetric.avgVol10d);
+          if (r.volume > 0 && r.avgVolume > 0) {
+            r.volumeRatio = Math.round((r.volume / r.avgVolume) * 100) / 100;
           }
-        }
-
-        r.sparkline = Array.isArray(sparkline) ? sparkline : [];
-        r.sector = sector;
-      } catch (e) {
-        r.sector = 'N/A';
-      } finally {
-        enrichedCount++;
-        if (onProgress) {
-          // Second half of the bar — mirrors Phase 1's "first half" mapping.
-          var enrichApprox = Math.round((enrichedCount / enrichTotal) * (tickers.length * 0.5));
-          onProgress({
-            processed: Math.round(tickers.length * 0.5) + enrichApprox,
-            total: tickers.length,
-            found: results.length,
-          });
         }
       }
-    })();
-  });
 
-  await Promise.all(enrichPromises);
+      r.sparkline = Array.isArray(sparkline) ? sparkline : [];
+      r.sector = sector;
+    } catch (e) {
+      r.sector = 'N/A';
+    } finally {
+      enrichedCount++;
+      if (onProgress) {
+        // Second half of the bar — mirrors Phase 1's "first half" mapping.
+        var enrichApprox = Math.round((enrichedCount / enrichTotal) * (tickers.length * 0.5));
+        onProgress({
+          processed: Math.round(tickers.length * 0.5) + enrichApprox,
+          total: tickers.length,
+          found: results.length,
+        });
+      }
+    }
+  });
 
   // Re-filter after enrichment — strict validation, no bad data reaches the user
   results = results.filter(function (r) {
@@ -384,4 +403,4 @@ async function quickScan(symbols) {
   return results;
 }
 
-module.exports = { sleep, enrichSector, scanTickers, quickScan };
+module.exports = { sleep, enrichSector, scanTickers, quickScan, mapWithConcurrency, ENRICH_CONCURRENCY };

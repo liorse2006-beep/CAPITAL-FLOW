@@ -68,12 +68,19 @@ export function AuthProvider({ children }) {
             setAuthLoadError(false);
             return;
           }
-          // A real auth failure — the token is genuinely no longer valid
-          // (expired, or this account signed in on another device). This is
-          // the ONLY path that signs the user out.
-          setAccessToken(null);
-          setUser(null);
-          if (isRevalidation) setAuthError('session_replaced');
+          // Only an authorization response means the session is genuinely no
+          // longer valid (expired, revoked, or replaced on another device).
+          // A 5xx/429/other server response is an infrastructure or routing
+          // failure; signing the user out there would turn a temporary outage
+          // into data loss/dead-end UX and would leave the refresh cookie
+          // needlessly hidden behind a login screen.
+          if (res.status === 401 || res.status === 403) {
+            setAccessToken(null);
+            setUser(null);
+            if (isRevalidation) setAuthError('session_replaced');
+          } else if (!isRevalidation) {
+            setAuthLoadError(true);
+          }
           return;
         } catch {
           clearTimeout(timeout);
