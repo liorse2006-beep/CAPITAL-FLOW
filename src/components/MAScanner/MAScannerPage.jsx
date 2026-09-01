@@ -5,6 +5,7 @@ import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
 import MobileResultSort from '../shared/MobileResultSort';
 import { categoryQuota } from '../../utils/quota';
+import useSeo from '../../hooks/useSeo';
 import { friendlyError, alertLevelLabel, formatPrice, formatSignedPercent } from '../../utils/format';
 
 const MA_OPTIONS = [9, 20, 50, 150];
@@ -42,6 +43,11 @@ export default function MAScannerPage({
   alertLevels,
   promptCreateAlert,
 }) {
+    useSeo({
+          title: 'סורק ממוצעים נעים (Moving Average) למניות | Capital Flow',
+          description: 'סרקו מניות לפי חציות ממוצעים נעים ואיתותי מגמה, ומצאו הזדמנויות טכניות בשוק במהירות.',
+          path: '/ma',
+    });
   const { getToken, user } = useAuth();
   // Trial users receive the same scanner surface as Elite for the duration
   // of the seven-day trial; the backend remains authoritative for quota.
