@@ -6,17 +6,18 @@ This addendum supersedes stale baseline measurements in `LAUNCH_READINESS_REPORT
 
 | Item | Evidence |
 |---|---|
-| Checked commit | `37885eb668b6183b85c3b9b71d3b7ffe97b61152` — `Harden launch readiness data and release checks` |
+| Checked commit | `346d6789f52ba30c98aa8e3273ee8678ec79c285` — `Harden OAuth, alert persistence, and provider timeouts` |
 | Branch | `main` |
 | Repository | `https://github.com/liorse2006-beep/CAPITAL-FLOW.git` |
-| Audit/retest time | `2026-09-01 15:48:11 +03:00`, Asia/Jerusalem |
+| Audit/retest time | `2026-09-01 16:40:58 +03:00`, Asia/Jerusalem |
 | Local environment | Windows PowerShell; Node `v24.15.0`; npm `11.12.1`; Python and Docker unavailable |
 | Production URL | `https://capitalflow.vip/` |
 | Health URL | `https://capitalflow.vip/health` |
 | Status URL | `https://status.capitalflow.vip/status` |
-| CI run | `33509028664` — success for the checked SHA |
-| Deploy run | `33509028708` — test and deploy jobs success for the checked SHA |
-| Working tree | No modified tracked files after commit; unrelated pre-existing untracked workspace artifacts remain un-staged |
+| CI run | `33514056515` — success for the checked SHA |
+| Deploy run | `33514056510` — test and deploy jobs success for the checked SHA |
+| Production health verification | `GET https://capitalflow.vip/health?deploy=346d6789` → `200`, `status=ok`, `releaseCommit=346d6789f52ba30c98aa8e3273ee8678ec79c285`, `timestamp=2026-09-01T13:41:19.251Z` |
+| Working tree | No modified tracked implementation files before this documentation update; unrelated pre-existing untracked workspace artifacts remain un-staged |
 
 No secrets, cookies, tokens, passwords, payment credentials, personal data, or provider keys were included in this addendum.
 
@@ -44,12 +45,22 @@ This is a local safety improvement, not production restore proof. Production res
 
 The focused commit contains only reviewed implementation, test, lint, and release-hygiene changes. No untracked Chrome profile, screenshot, video, or exploratory artifact was included in the commit.
 
+### 2.4 Post-report hardening in the checked release
+
+The checked release is a descendant of the earlier data/release-hardening commits and adds the following independently verified safeguards:
+
+- Google OAuth now requests a signed Passport state nonce on both the start and callback paths, while callback session creation remains explicit. Evidence: `server/routes/auth.js:82-87,243-251,627-628`; `test/googleOAuthState.test.js:1-15`.
+- Price alerts now use a server-fetched current quote only. Missing, non-positive, stale, or provider-failed data returns `503 DATA_UNAVAILABLE`; client-supplied reference prices cannot create an alert. Evidence: `server/routes/watchlistAlerts.js:42-71`; `test/watchlistAlertsRoute.test.js:71-140`.
+- Alert create/remove state is committed server-first and only canonical server data is stored locally. Repeated modal submits are guarded while the request is pending. Evidence: `src/App.jsx:536-600`; `src/components/shared/AlertThresholdModal.jsx:56-116`; `src/components/shared/AlertThresholdModal.test.jsx:1-130`.
+- News URL resolution uses the shared timeout helper, preserving the five-second timeout without a manually orphaned timer. Evidence: `server/services/newsService.js:350-363`.
+- Capi's result-row description no longer claims News/Capi actions exist on every row. Evidence: `server/services/chatbot.js:72-77`.
+
 ## 3. Post-remediation checks actually run
 
 | Check | Result | Evidence |
 |---|---|---|
-| Backend suite | `VERIFIED PASS` | `npm run test:all` backend phase: 398/398 tests passed |
-| Frontend suite | `VERIFIED PASS` | `npm run test:all` frontend phase: 146/146 tests passed; 20 files |
+| Backend suite | `VERIFIED PASS` | `npm run test`: 401/401 tests passed |
+| Frontend suite | `VERIFIED PASS` | `npm run test:frontend`: 147/147 tests passed; 20 files |
 | Cloudflare Worker suite | `VERIFIED PASS` | 8/8 tests passed |
 | Cluster integration | `VERIFIED PASS` | 1/1 broadcast test passed |
 | Lint | `VERIFIED PASS` | `npm run lint` exit 0 with no output/warnings |
@@ -57,13 +68,13 @@ The focused commit contains only reviewed implementation, test, lint, and releas
 | Scoped formatting | `VERIFIED PASS` | Prettier check passed on changed implementation and test files |
 | Diff whitespace | `VERIFIED PASS` | `git diff --check` passed before commit |
 | Production dependency audit | `VERIFIED PASS` | `npm audit --omit=dev --audit-level=high` returned 0 vulnerabilities |
-| Targeted stale/Radar tests | `VERIFIED PASS` | 7/7 targeted tests passed, including stale fallback and Both/Either behavior |
-| GitHub CI | `VERIFIED PASS` | Run `33509028664`, SHA `37885eb...`, conclusion `success` |
-| GitHub Deploy | `VERIFIED PASS` | Run `33509028708`; `test` and `deploy` jobs both `success` |
-| Production health | `VERIFIED PASS` | `GET /health` → 200; body releaseCommit exactly `37885eb668b6183b85c3b9b71d3b7ffe97b61152` |
-| Production asset deployment | `VERIFIED PASS` | HTML `200`; new `assets/index-BbCMW-HY.js` and `assets/index-B85OEQX-.css` references returned |
+| Targeted auth/alert/provider tests | `VERIFIED PASS` | 24/24 tests passed: news service/routes, watchlist alert fail-closed behavior, and Google OAuth state contract |
+| GitHub CI | `VERIFIED PASS` | Run `33514056515`, SHA `346d6789...`, conclusion `success` |
+| GitHub Deploy | `VERIFIED PASS` | Run `33514056510`; `test` and `deploy` jobs both `success` |
+| Production health | `VERIFIED PASS` | `GET /health?deploy=346d6789` → 200; body releaseCommit exactly `346d6789f52ba30c98aa8e3273ee8678ec79c285` |
+| Production asset deployment | `VERIFIED PASS` | HTML `200`; `assets/index-D78Wuowv.js` and `assets/index-B85OEQX-.css` references returned |
 | Public route smoke | `VERIFIED PASS` | `/`, `/scanner`, `/ma`, `/flow`, `/fundamentals`, `/watchlist`, `/policy`, `/accessibility`, `/robots.txt`, `/sitemap.xml`, and status URL all returned 200 |
-| Production security headers | `VERIFIED PASS` | Root and health responses included CSP, HSTS, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, and X-Frame-Options |
+| Production security headers | `VERIFIED PASS` | Current root and health responses included CSP, HSTS, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, and X-Frame-Options |
 | Safe coupon endpoint probe | `VERIFIED PASS` | Arbitrary sample POST returned 410 `provider_checkout_required`; no local discount was returned |
 | Guest mobile overflow | `VERIFIED PASS` | Headless Puppeteer at 320/360/390/430/768: document/body width equaled viewport; no horizontal overflow; `.chat-widget` not visible |
 | Real payment/wallet | `UNKNOWN` by policy | No transaction or authorization was performed |
@@ -127,7 +138,7 @@ Impact: A deployment-only access gap could expose a paid feature or another user
 Root cause: Production identities and seeded cross-user data were not available.
 Recommendation: Automate a redacted staging entitlement matrix and run it on every release; add approved production smoke accounts if policy permits.
 Fix status: Code/test hardening complete; environment verification pending.
-Retest evidence: 398 backend tests passed; no production identity test.
+Retest evidence: 401 backend tests passed; no production identity test.
 Residual risk: Direct-API and cross-user behavior in the deployed database remains unknown.
 Confidence: 97%
 
@@ -146,7 +157,7 @@ Impact: Provider drift or timestamp/unit mismatch can change a signal or mislead
 Root cause: External provider data is time-sensitive and the full market matrix was not available for a controlled audit.
 Recommendation: Add contract fixtures and a monitored reconciliation job with explicit delayed/stale/unavailable states.
 Fix status: Defensive handling improved; reconciliation remains open.
-Retest evidence: 398 backend tests and stale fallback/Radar tests pass; live reconciliation not performed.
+Retest evidence: 401 backend tests and stale fallback/Radar tests pass; live reconciliation not performed.
 Residual risk: Provider drift, session boundaries, corporate actions, and unit errors.
 Confidence: 90%
 
@@ -159,7 +170,7 @@ Status: `Plausible Risk`
 Title: Production Web Vitals and full-market latency percentiles remain unmeasured
 Affected users: All users, especially mobile and large-universe scanner users
 Affected route/API/file: Vite bundles, scanner/Capi APIs, provider calls, background jobs
-Evidence: Build passes and lazy chunks exist; the main JS is `480.33 kB` and main CSS is `243.80 kB` (`npm run build`). No production LCP/INP/CLS/TTFB or p95 scan/Capi latency sample was captured.
+Evidence: Build passes and lazy chunks exist; the latest local build reports main JS approximately `481.37 kB` and main CSS `243.80 kB` (`npm run build`). No production LCP/INP/CLS/TTFB or p95 scan/Capi latency sample was captured.
 Safe reproduction: Capture approved guest/auth RUM and run the bounded load harness only in local/staging.
 Impact: Peak latency can cause abandonment, duplicate submissions, provider cost, or timeout retries.
 Root cause: No production RUM/SLO dataset or approved staging capacity report is attached.
@@ -261,7 +272,7 @@ The score below is conservative and evidence-based. Local code/test improvements
 | Performance, scalability and reliability | 8 | 5 | Build/lazy chunks and defensive timeouts pass; production SLO metrics remain unknown |
 | Infrastructure, deployment, backups and disaster recovery | 6 | 4 | CI/deploy/health/SHA and public headers pass; restore/failover/rollback remain unknown |
 | AI grounding and safety | 4 | 3 | Local auth, prompt-boundary, fallback, and stream tests pass; adversarial production behavior remains unknown |
-| QA, tests and release engineering | 3 | 3 | 398 backend, 146 frontend, 8 Worker, cluster, lint, and build pass |
+| QA, tests and release engineering | 3 | 3 | 401 backend, 147 frontend, 8 Worker, cluster, lint, and build pass |
 | SEO, dependencies, licensing and compliance risk | 3 | 2 | Dependency vulnerability and public SEO smoke pass; full licensing/editorial/legal review remains unknown |
 | **TOTAL** | **100** | **75** | Conservative current retest score |
 
@@ -351,6 +362,6 @@ Recommended order is the order above; items 1–3 are launch gates, 4–6 are re
 
 ## 9. Release recommendation
 
-The current `37885eb` release is successfully deployed and passes all local/CI/public smoke checks performed here. It is **not** eligible for an unconditional launch recommendation under the supplied launch policy because three High evidence gates remain Unknown. The next safe action is to execute the three controlled environment checks in the recommended order, then rerun this report and recalculate the score. A score of 100 must not be assigned until those evidence gaps and the remaining core unknowns are actually closed.
+The current `346d6789` release is successfully deployed and passes all local/CI/public smoke checks performed here. It is **not** eligible for an unconditional launch recommendation under the supplied launch policy because three High evidence gates remain Unknown. The next safe action is to execute the three controlled environment checks in the recommended order, then rerun this report and recalculate the score. A score of 100 must not be assigned until those evidence gaps and the remaining core unknowns are actually closed.
 
 Commercial/legal/payment/email review remains separate and is not approved by this technical retest.
