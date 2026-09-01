@@ -24,5 +24,6 @@ LANDING PAGE/
 
 # Local browser profiles created by safe visual smoke tests; never release
 # these stateful, machine-specific files.
+.chrome-test-profile/
 .chrome-test-profile-*/
 .chrome-profile-*/

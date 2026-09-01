@@ -40,7 +40,7 @@ This is a local safety improvement, not production restore proof. Production res
 
 ### 2.3 Release hygiene and code quality
 
-`npm run lint` now exits with zero warnings. Intentional external synchronization cases have narrow comments, and the untracked local browser profile patterns are excluded by `.gitignore:17-22`. Pre-existing untracked exploratory/media material was not deleted or staged.
+`npm run lint` now exits with zero warnings. Intentional external synchronization cases have narrow comments, and the untracked local browser profile patterns are excluded by `.gitignore:25-29`. Pre-existing untracked exploratory/media material was not deleted or staged.
 
 The focused commit contains only reviewed implementation, test, lint, and release-hygiene changes. No untracked Chrome profile, screenshot, video, or exploratory artifact was included in the commit.
 
