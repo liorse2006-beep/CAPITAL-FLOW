@@ -1,5 +1,6 @@
 import React from 'react';
 import { resetConsent } from '../analytics';
+import useSeo from '../hooks/useSeo';
 
 const DATA_COLLECTED = [
   {
@@ -62,6 +63,11 @@ function Section({ title, children }) {
 }
 
 export default function PolicyPage() {
+    useSeo({
+          title: 'מדיניות פרטיות | Capital Flow',
+          description: 'מדיניות הפרטיות של Capital Flow — כיצד אנו אוספים, משתמשים ומגנים על המידע שלך.',
+          path: '/policy',
+    });
   return (
     <div className="page-content policy-page">
       <h2 className="flow-title policy-title">Terms of Service & Privacy Policy</h2>
