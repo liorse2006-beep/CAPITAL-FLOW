@@ -632,7 +632,7 @@ async function dispatchRadarEvent(radar, event) {
       await db
         .prepare('UPDATE radar_events SET notification_error = ? WHERE id = ?')
         .run('push_delivery_failed', eventRow.id)
-        .catch(() => {});
+        .catch((recordErr) => reportError(recordErr, '[Radar push failure record]'));
       reportError(err, '[Radar push]');
     }
 
@@ -877,7 +877,7 @@ async function processRadarScan(results, scanTime, meta) {
           new Date().toISOString(),
           radar.id
         )
-        .catch(() => {});
+        .catch((stateErr) => reportError(stateErr, `[Radar ${radar.id}] failure status persistence`));
     }
   }
   return emitted;

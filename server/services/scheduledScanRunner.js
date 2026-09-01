@@ -702,10 +702,11 @@ async function notifyScheduledUser(sched, scan) {
     reportError(notifErr, '[ScheduledScans] Persisting notification failed');
   }
 
+  let pushSummary = null;
   try {
     const { sendPushToUser } = require('./webPush');
     var baseUrl = SCAN_URL[sched.scan_type] || '/scanner';
-    await sendPushToUser(sched.user_id, {
+    pushSummary = await sendPushToUser(sched.user_id, {
       title,
       body,
       tag: 'scheduled-scan-' + sched.scan_type,
@@ -719,8 +720,14 @@ async function notifyScheduledUser(sched, scan) {
     reportError(pushErr, '[ScheduledScans] Push failed');
   }
 
+  const pushStatus =
+    !pushSummary || !pushSummary.configured
+      ? 'push unavailable'
+      : pushSummary.devices === 0
+        ? 'no push subscription'
+        : `push delivered=${pushSummary.delivered}/${pushSummary.devices}`;
   console.log(
-    `[ScheduledScans] scan_id=${sched.id} type=${sched.scan_type} status=${normalized.dataStatus} results=${results.length} → push sent`
+    `[ScheduledScans] scan_id=${sched.id} type=${sched.scan_type} status=${normalized.dataStatus} results=${results.length} → ${pushStatus}`
   );
 }
 
