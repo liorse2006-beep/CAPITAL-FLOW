@@ -317,7 +317,7 @@ export default function WatchlistPage({
                         <div className="ticker-cell">
                           <img
                             className="ticker-logo"
-                            src={'https://assets.parqet.com/logos/symbol/' + sym}
+                            src={'https://assets.parqet.com/logos/symbol/' + sym + '?format=svg&size=32'}
                             alt=""
                             width={18}
                             height={18}
@@ -406,7 +406,7 @@ export default function WatchlistPage({
                       </span>
                       <img
                         className="ticker-logo"
-                        src={'https://assets.parqet.com/logos/symbol/' + sym}
+                        src={'https://assets.parqet.com/logos/symbol/' + sym + '?format=svg&size=32'}
                         alt=""
                         width={18}
                         height={18}

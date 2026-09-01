@@ -968,7 +968,7 @@ export default function ScannerPage({
                               </button>
                               <img
                                 className="ticker-logo"
-                                src={'https://assets.parqet.com/logos/symbol/' + r.symbol}
+                                src={'https://assets.parqet.com/logos/symbol/' + r.symbol + '?format=svg&size=32'}
                                 alt=""
                                 width={18}
                                 height={18}
@@ -1158,7 +1158,7 @@ export default function ScannerPage({
                             </button>
                             <img
                               className="ticker-logo"
-                              src={'https://assets.parqet.com/logos/symbol/' + r.symbol}
+                              src={'https://assets.parqet.com/logos/symbol/' + r.symbol + '?format=svg&size=32'}
                               alt=""
                               width={18}
                               height={18}

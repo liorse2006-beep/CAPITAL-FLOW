@@ -28,7 +28,7 @@ export default function AddTickerModal({ watchlist, onAdd, onClose }) {
       >
         <img
           className="ticker-logo"
-          src={'https://assets.parqet.com/logos/symbol/' + sym}
+          src={'https://assets.parqet.com/logos/symbol/' + sym + '?format=svg&size=32'}
           alt=""
           width={20}
           height={20}
