@@ -100,14 +100,19 @@ async function runDigestTick() {
         var thresholds = allAlerts[u.id] || {};
         if (Object.keys(thresholds).length === 0) return; // nothing to check against
         var payload = buildDigestPayload(thresholds, results, asOf);
-        if (payload.matched) {
-          addNotification(u.id, { title: payload.title, body: payload.body }).catch(function (err) {
-            reportError(err, '[scheduled digest notification]');
-          });
-        }
-        return sendPushToUser(u.id, payload).catch(function (err) {
+        var notificationPromise = payload.matched
+          ? addNotification(u.id, { title: payload.title, body: payload.body }).catch(function (err) {
+              reportError(err, '[scheduled digest notification]');
+            })
+          : Promise.resolve();
+        var pushPromise = sendPushToUser(u.id, payload).catch(function (err) {
           reportError(err, '[scheduled digest push]');
         });
+        // Wait for both durable in-app history and push delivery to settle.
+        // This prevents a successful tick from returning while its
+        // notification write is still in flight and potentially being lost
+        // during a process restart.
+        return Promise.all([notificationPromise, pushPromise]);
       })
     );
   }
