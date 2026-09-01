@@ -48,6 +48,12 @@ function mountTopography(root) {
 // animation) intact and just give them a React mount/unmount lifecycle.
 function LandingPage({ onGetStarted }) {
   const rootRef = useRef(null);
+  useSeo({
+    title: 'Capital Flow — לראות מה זז בשוק',
+    description:
+      'Capital Flow עוזר לך לסרוק את השוק, למצוא מניות עם תנועה חריגה ולפתוח בדיקה מסודרת — בלי לעבור על עשרות טאבים. מתחילים ב־7 ימים בחינם.',
+    path: '/',
+  });
 
   useEffect(() => {
     const root = rootRef.current;
@@ -63,12 +69,6 @@ function LandingPage({ onGetStarted }) {
     // marketing page that leaves body and html competing for wheel input.
     html.style.overflowY = 'auto';
     body.style.overflowY = 'visible';
-    useSeo({
-      title: 'Capital Flow — לראות מה זז בשוק',
-      description:
-        'Capital Flow עוזר לך לסרוק את השוק, למצוא מניות עם תנועה חריגה ולפתוח בדיקה מסודרת — בלי לעבור על עשרות טאבים. מתחילים ב־7 ימים בחינם.',
-      path: '/',
-    });
 
     function onMarketingClick(event) {
       const cta = event.target.closest('[data-cta-location]');
