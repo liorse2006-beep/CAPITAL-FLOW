@@ -1,4 +1,4 @@
-const { scanTickers } = require('./scanner');
+const scanner = require('./scanner');
 const { SP500, NASDAQ100, ALL_TICKERS } = require('../../tickers');
 const { reportError } = require('../utils/reportError');
 const { isMarketOpen, isPreMarket } = require('./marketCalendar');
@@ -9,6 +9,10 @@ var backgroundCache = {
   dataStatus: null,
   dataAsOf: null,
   running: false,
+  // A hard timeout cannot cancel a Promise that has already entered a
+  // provider call. Keep tracking that Promise so a later scheduler tick does
+  // not start a second full-market scan while the first one is still settling.
+  inFlight: null,
 };
 
 // Lazy-require broadcast to avoid circular deps at startup
@@ -188,17 +192,32 @@ function withHardTimeout(promise, ms, label) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-async function runBackgroundScan() {
-  if (backgroundCache.running) return;
+async function runBackgroundScan(options = {}) {
+  if (backgroundCache.running || backgroundCache.inFlight) return;
   backgroundCache.running = true;
   var broadcast = getBroadcast();
 
   try {
     broadcast('scan-status', { running: true });
 
+    const scanPromise = Promise.resolve().then(() =>
+      scanner.scanTickers(ALL_TICKERS, { minVolumeRatio: 1.5, minMarketCap: 500000000 })
+    );
+    backgroundCache.inFlight = scanPromise;
+    scanPromise.then(
+      () => {
+        if (backgroundCache.inFlight === scanPromise) backgroundCache.inFlight = null;
+      },
+      () => {
+        if (backgroundCache.inFlight === scanPromise) backgroundCache.inFlight = null;
+      }
+    );
+
     var res = await withHardTimeout(
-      scanTickers(ALL_TICKERS, { minVolumeRatio: 1.5, minMarketCap: 500000000 }),
-      MAX_SCAN_DURATION_MS,
+      scanPromise,
+      Number.isFinite(options.maxDurationMs) && options.maxDurationMs > 0
+        ? options.maxDurationMs
+        : MAX_SCAN_DURATION_MS,
       'Background scan'
     );
 
@@ -252,7 +271,7 @@ function startBackgroundScheduler() {
 
   setInterval(function () {
     if (!isMarketOpen() && !isPreMarket()) return;
-    if (backgroundCache.running) return;
+    if (backgroundCache.running || backgroundCache.inFlight) return;
     if (backgroundCache.scanTime) {
       var ageMs = Date.now() - new Date(backgroundCache.scanTime).getTime();
       if (ageMs < 15 * 60 * 1000) return; // max once per 15 min
