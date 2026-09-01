@@ -2,6 +2,7 @@ const db = require('../db');
 const { getAllAlertsGrouped } = require('./watchlistAlerts');
 const { sendPushToUser } = require('./webPush');
 const { addNotification } = require('./notifications');
+const { reportError } = require('../utils/reportError');
 
 // How many users' push sends run concurrently per batch. A plain
 // sequential for-loop here would mean 10,000 users sharing a
@@ -100,9 +101,13 @@ async function runDigestTick() {
         if (Object.keys(thresholds).length === 0) return; // nothing to check against
         var payload = buildDigestPayload(thresholds, results, asOf);
         if (payload.matched) {
-          addNotification(u.id, { title: payload.title, body: payload.body }).catch(function () {});
+          addNotification(u.id, { title: payload.title, body: payload.body }).catch(function (err) {
+            reportError(err, '[scheduled digest notification]');
+          });
         }
-        return sendPushToUser(u.id, payload).catch(function () {});
+        return sendPushToUser(u.id, payload).catch(function (err) {
+          reportError(err, '[scheduled digest push]');
+        });
       })
     );
   }
@@ -110,7 +115,9 @@ async function runDigestTick() {
 
 function startScheduledDigest() {
   setInterval(function () {
-    runDigestTick().catch(function () {});
+    runDigestTick().catch(function (err) {
+      reportError(err, '[scheduled digest tick]');
+    });
   }, 60000);
 }
 
