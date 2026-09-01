@@ -75,6 +75,7 @@ The checked release is a descendant of the earlier data/release-hardening commit
 | Production asset deployment | `VERIFIED PASS` | HTML `200`; `assets/index-D78Wuowv.js` and `assets/index-B85OEQX-.css` references returned |
 | Public route smoke | `VERIFIED PASS` | `/`, `/scanner`, `/ma`, `/flow`, `/fundamentals`, `/watchlist`, `/policy`, `/accessibility`, `/robots.txt`, `/sitemap.xml`, and status URL all returned 200 |
 | Production security headers | `VERIFIED PASS` | Current root and health responses included CSP, HSTS, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, and X-Frame-Options |
+| Anonymous protected API smoke | `VERIFIED PASS` | `2026-09-01 16:52:53 +03:00`: unauthenticated GETs to `/api/auth/me`, `/api/account/summary`, `/api/scan`, `/api/scan-ma`, `/api/sector-flow`, `/api/fundamentals`, `/api/watchlist`, `/api/watchlist-alerts`, `/api/notifications`, `/api/chat/history`, `/api/radars`, `/api/scheduled-scans`, `/api/scan-quota`, `/api/push/notification-time`, `/api/stream-ticket`, and `/admin/api/users` all returned `401`; no write request was sent |
 | Safe coupon endpoint probe | `VERIFIED PASS` | Arbitrary sample POST returned 410 `provider_checkout_required`; no local discount was returned |
 | Guest mobile overflow | `VERIFIED PASS` | Headless Puppeteer at 320/360/390/430/768: document/body width equaled viewport; no horizontal overflow; `.chat-widget` not visible |
 | Real payment/wallet | `UNKNOWN` by policy | No transaction or authorization was performed |
