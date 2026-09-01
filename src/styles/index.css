@@ -6014,27 +6014,11 @@ html.a11y-highlight-links a {
   display: flex;
   flex-direction: column;
 }
-.checkout-embed-promo-hint {
-  margin: -6px 0 14px;
-  color: var(--text-2);
-  font-size: 0.82rem;
-  text-align: center;
-}
-.embedded-checkout-loading {
-  min-height: 420px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  color: var(--text-2);
-  font-size: 12.5px;
-  font-family: var(--mono);
-}
-/* Apple Pay / Google Pay express button, above the card form. The wrapper
-   stays in the DOM even before Whop resolves which wallet (if any) is
-   available, so there's no layout jump — it just collapses to zero height
-   until onExpressMethodResolved fires with a real method. */
+/* Whop resolves wallet availability asynchronously. Keep the wrapper mounted
+   to avoid a layout jump, but collapse it completely when this browser/device
+   cannot offer Apple Pay, Google Pay, or Whop Pay. The button receives the
+   server-created checkout configuration id, so wallet payments carry the same
+   account metadata and promo code as the card form. */
 .embedded-express {
   margin-bottom: 16px;
 }
@@ -6066,6 +6050,68 @@ html.a11y-highlight-links a {
   flex: 1;
   height: 1px;
   background: var(--border);
+}
+.checkout-embed-promo-hint {
+  margin: -6px 0 14px;
+  color: var(--text-2);
+  font-size: 0.82rem;
+  text-align: center;
+}
+.coupon-input-row {
+  display: grid;
+  grid-template-columns: auto minmax(160px, 220px);
+  align-items: center;
+  justify-content: center;
+  gap: 8px 12px;
+  margin-top: 18px;
+  padding: 14px 16px 0;
+  border-top: 1px solid var(--border);
+}
+.coupon-input-label {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.coupon-input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  outline: none;
+  background: var(--bg-0);
+  color: var(--text-0);
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.coupon-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+}
+.coupon-input::placeholder {
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+}
+.coupon-input-help {
+  grid-column: 1 / -1;
+  color: var(--text-3);
+  font-size: 10px;
+  text-align: center;
+}
+.embedded-checkout-loading {
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-family: var(--mono);
 }
 .embedded-checkout-powered-by {
   margin-top: 14px;
@@ -8159,37 +8205,6 @@ html.a11y-highlight-links a {
   }
 }
 
-/* ── Pagination ── */
-.load-more-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 20px 0 32px;
-}
-.load-more-btn {
-  font-family: var(--font);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-1);
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 8px 20px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.load-more-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: rgba(245, 158, 11, 0.04);
-}
-.load-more-count {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-3);
-}
-
 /* ── RVOL ── */
 .vol-ratio-pill {
   display: inline-flex;
@@ -9421,27 +9436,6 @@ html.a11y-highlight-links a {
   color: var(--accent);
 }
 
-.news-open-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  border: none;
-  border-radius: 4px;
-  background: none;
-  color: var(--text-1);
-  cursor: pointer;
-  opacity: 0.5;
-  line-height: 1;
-  transition:
-    opacity 0.15s,
-    color 0.15s;
-}
-.news-open-btn:hover {
-  opacity: 1;
-  color: var(--accent);
-}
-
 /* ── Market-news modal ─────────────────────────────────────────────────── */
 .news-overlay {
   position: fixed;
@@ -9677,27 +9671,6 @@ html.a11y-highlight-links a {
   color: var(--accent);
 }
 .alert-create-btn.active {
-  opacity: 1;
-  color: var(--accent);
-}
-
-.explain-capi-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  opacity: 0.5;
-  color: var(--text-1);
-  transition:
-    opacity 0.15s,
-    color 0.15s;
-  line-height: 1;
-}
-.explain-capi-btn:hover {
   opacity: 1;
   color: var(--accent);
 }
@@ -12652,11 +12625,7 @@ html.a11y-highlight-links a {
     font-weight: 400;
   }
 
-  /* The mobile action is the same functional action as the desktop row
-     action; only the presentation changes. News and Capi deliberately stay
-     desktop-only on the product's phone experience. */
-  .news-open-btn,
-  .explain-capi-btn,
+  /* Capi stays desktop-only on the product's phone experience. */
   .chat-widget {
     display: none !important;
   }
@@ -13070,6 +13039,19 @@ html.a11y-highlight-links a {
     padding: 4px 3px;
     font-size: 7px;
   }
+  .coupon-input-row {
+    grid-template-columns: 1fr;
+    gap: 7px;
+    padding-inline: 8px;
+  }
+  .coupon-input-label,
+  .coupon-input,
+  .coupon-input-help {
+    grid-column: 1;
+  }
+  .coupon-input {
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -13321,8 +13303,20 @@ html.a11y-highlight-links a {
     gap: 2px !important;
   }
 
+  .signal-rail-results .mobile-card-identity {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  .signal-rail-results .mobile-card-actions {
+    min-width: max-content;
+  }
+
   .signal-rail-results .mobile-card-name {
     min-width: 0;
+    flex: 1 1 auto;
+    max-width: none;
   }
 
   .signal-rail-results .mobile-card-bottom {

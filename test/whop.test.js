@@ -35,7 +35,12 @@ function sign(
 
 function paymentData(userId, tier, extra = {}) {
   const planId = tier === 'premium' ? 'plan_premium_test' : 'plan_elite_test';
-  return { plan: { id: planId }, metadata: { userId, tier, ...extra } };
+  const { promo_code: providerPromoCode, ...metadataExtra } = extra;
+  return {
+    plan: { id: planId },
+    ...(providerPromoCode ? { promo_code: providerPromoCode } : {}),
+    metadata: { userId, tier, ...metadataExtra },
+  };
 }
 
 function startWebhookApp() {
@@ -111,7 +116,7 @@ test('webhook upgrades the user tier on payment_succeeded and redeems the coupon
 
   const payload = JSON.stringify({
     type: 'payment_succeeded',
-    data: paymentData(user.id, 'premium', { couponCode: 'WEBHOOK1' }),
+    data: paymentData(user.id, 'premium', { couponCode: 'WEBHOOK1', promo_code: { code: 'WEBHOOK1' } }),
   });
 
   const server = await startWebhookApp();
@@ -130,6 +135,36 @@ test('webhook upgrades the user tier on payment_succeeded and redeems the coupon
 
     const coupon = await db.prepare('SELECT uses_count FROM coupons WHERE code = ?').get('WEBHOOK1');
     assert.strictEqual(coupon.uses_count, 1);
+  } finally {
+    server.close();
+  }
+});
+
+test('webhook does not redeem a requested coupon when Whop did not confirm the promo', async () => {
+  const user = await makeUser('webhook-no-promo-confirmation@test.local', 'free');
+  await db
+    .prepare('INSERT INTO coupons (code, discount_percent, applies_to, uses_count) VALUES (?, ?, ?, ?)')
+    .run('WEBHOOKNO', 20, 'both', 0);
+
+  const payload = JSON.stringify({
+    type: 'payment_succeeded',
+    data: paymentData(user.id, 'premium', { couponCode: 'WEBHOOKNO' }),
+  });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(payload, { id: 'wh_no_promo_confirmation_1' }) },
+      body: payload,
+    });
+    assert.strictEqual(res.status, 200);
+
+    const updated = await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id);
+    assert.strictEqual(updated.tier, 'premium');
+    const coupon = await db.prepare('SELECT uses_count FROM coupons WHERE code = ?').get('WEBHOOKNO');
+    assert.strictEqual(coupon.uses_count, 0, 'a full-price payment must not consume a local promo use');
   } finally {
     server.close();
   }
@@ -205,7 +240,7 @@ test('webhook redelivery with the same webhook-id does not double-redeem the cou
 
   const payload = JSON.stringify({
     type: 'payment_succeeded',
-    data: paymentData(user.id, 'premium', { couponCode: 'WEBHOOK2' }),
+    data: paymentData(user.id, 'premium', { couponCode: 'WEBHOOK2', promo_code: { code: 'WEBHOOK2' } }),
   });
   const headers = sign(payload, { id: 'wh_redelivery_test_1' });
 
@@ -333,7 +368,7 @@ test('two truly concurrent deliveries of the same webhook-id only redeem the cou
 
   const payload = JSON.stringify({
     type: 'payment_succeeded',
-    data: paymentData(user.id, 'premium', { couponCode: 'WEBHOOKRACE' }),
+    data: paymentData(user.id, 'premium', { couponCode: 'WEBHOOKRACE', promo_code: { code: 'WEBHOOKRACE' } }),
   });
   const headers = sign(payload, { id: 'wh_concurrent_test_1' });
 
@@ -532,7 +567,7 @@ test('checkout/transaction rejects an invalid tier', async () => {
   }
 });
 
-test('checkout/transaction rejects an invalid coupon before calling Whop', async () => {
+test('checkout/transaction rejects a malformed promo code before calling Whop', async () => {
   const user = await makeUser('checkout-badcoupon@test.local');
   const server = await startCheckoutApp();
   const port = server.address().port;
@@ -540,24 +575,51 @@ test('checkout/transaction rejects an invalid coupon before calling Whop', async
     const res = await fetch(`http://127.0.0.1:${port}/api/checkout/transaction`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)).accessToken },
-      body: JSON.stringify({ tier: 'premium', couponCode: 'DOES-NOT-EXIST' }),
+      body: JSON.stringify({ tier: 'premium', couponCode: 'not valid!' }),
     });
     assert.strictEqual(res.status, 400);
     const body = await res.json();
-    assert.match(body.error, /invalid coupon/i);
+    assert.match(body.error, /format/i);
   } finally {
     server.close();
   }
 });
 
-test('checkout/transaction attaches a valid coupon to the Whop session metadata and echoes it back', async (t) => {
+test('checkout/transaction forwards a provider-managed promo even when the local table does not know it', async (t) => {
+  const captured = [];
+  t.mock.method(whop, 'createCheckoutSession', async (args) => {
+    captured.push(args);
+    return { id: 'ch_provider_promo', purchase_url: 'https://whop.com/checkout/x' };
+  });
+
+  const user = await makeUser('checkout-providerpromo@test.local');
+  const server = await startCheckoutApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/checkout/transaction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)).accessToken },
+      body: JSON.stringify({ tier: 'premium', couponCode: 'provider-only-25' }),
+    });
+    assert.strictEqual(res.status, 200);
+    const body = await res.json();
+    assert.strictEqual(body.couponCode, 'PROVIDER-ONLY-25');
+    assert.strictEqual(body.discountPercent, undefined);
+    assert.strictEqual(captured[0].metadata.couponCode, 'PROVIDER-ONLY-25');
+    assert.strictEqual(captured[0].allowPromoCodes, true);
+  } finally {
+    server.close();
+  }
+});
+
+test('checkout/transaction attaches a valid promo code to the Whop session metadata without calculating a local price', async (t) => {
   // Regression: this used to hard-reject (409) any request with a
   // couponCode, meaning metadata.couponCode was NEVER set on a real
   // checkout session — the webhook's redeemCoupon(metadata.couponCode) call
   // was unreachable dead code in production. Now a valid code must actually
   // reach Whop's session metadata (so the webhook can redeem it once paid)
-  // and come back in the response (so the frontend can pass it to the
-  // embed's promoCode prop).
+  // and come back in the response so the frontend can keep the code visible
+  // while Whop remains the sole source of truth for the final amount.
   await db
     .prepare('INSERT INTO coupons (code, discount_percent, applies_to) VALUES (?, ?, ?)')
     .run('ATTACHTEST', 25, 'both');
@@ -579,7 +641,7 @@ test('checkout/transaction attaches a valid coupon to the Whop session metadata 
     assert.strictEqual(res.status, 200);
     const body = await res.json();
     assert.strictEqual(body.couponCode, 'ATTACHTEST');
-    assert.strictEqual(body.discountPercent, 25);
+    assert.strictEqual(body.discountPercent, undefined);
     assert.strictEqual(
       captured[0].metadata.couponCode,
       'ATTACHTEST',

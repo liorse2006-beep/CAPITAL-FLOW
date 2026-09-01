@@ -1,23 +1,18 @@
 const router = require('express').Router();
-const { validateCoupon } = require('../services/coupons');
 const { publicDataLimiter } = require('../middleware/rateLimiters');
-const { reportError } = require('../utils/reportError');
 
-const VALID_TIERS = new Set(['premium', 'elite']);
-
-// Unauthenticated on purpose — a visitor checks a coupon before signing up.
-// Read-only (does not consume a use); redemption happens when checkout
-// actually completes.
-router.post('/coupons/validate', publicDataLimiter, async (req, res) => {
-  try {
-    const { code, tier } = req.body;
-    if (!VALID_TIERS.has(tier)) return res.status(400).json({ valid: false, error: 'tier must be premium or elite' });
-    const result = await validateCoupon(code, tier);
-    res.json(result);
-  } catch (err) {
-    reportError(err, '[coupons/validate]');
-    res.status(500).json({ error: 'Server error' });
-  }
+// Deprecated deliberately. Whop is the only authority for promo eligibility
+// and the amount charged. Keeping a local validation endpoint that returns a
+// discount percentage lets an old client show a cheaper price that the
+// provider will still charge at full price. The checkout endpoint forwards a
+// format-validated code to Whop, and the embedded checkout's final amount is
+// the only amount we present as payable.
+router.post('/coupons/validate', publicDataLimiter, (req, res) => {
+  res.status(410).json({
+    valid: false,
+    error: 'Promo codes are validated in the secure checkout. Please continue to checkout to see the final amount.',
+    code: 'provider_checkout_required',
+  });
 });
 
 module.exports = router;

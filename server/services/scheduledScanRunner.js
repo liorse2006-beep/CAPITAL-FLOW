@@ -653,9 +653,11 @@ function payloadForType(scanType, scan) {
         }
       : { title: 'Hot Sectors — Daily Scan', body: 'No sector flow right now. Markets look quiet.' };
   }
+  const leadingRatio = Number(results[0]?.volumeRatio);
+  const leadingRatioLabel = Number.isFinite(leadingRatio) && leadingRatio > 0 ? ` ${leadingRatio.toFixed(1)}×` : '';
   return results.length > 0
     ? {
-        title: `Volume spike detected — ${results[0].symbol} ${results[0].volumeRatio.toFixed(1)}×`,
+        title: `Volume spike detected — ${results[0].symbol}${leadingRatioLabel}`,
         body: `${results.length} stocks moving right now.${partialNote} Tap to see the full scan.`,
       }
     : { title: 'Capital Flow — Daily Scan', body: 'No unusual volume right now. Markets look quiet.' };
@@ -806,6 +808,7 @@ module.exports = {
   runScheduledScans,
   runRadarScheduledScans,
   normalizedRadarRecipe,
+  payloadForType,
   isDue,
   FIRE_WINDOW_MIN,
   MAX_RADAR_RUN_ATTEMPTS,

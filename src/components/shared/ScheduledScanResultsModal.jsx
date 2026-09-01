@@ -1,5 +1,5 @@
 import React from 'react';
-import { fmt, formatSignedPercent } from '../../utils/format';
+import { fmt, formatPrice, formatRatio, formatSignedPercent } from '../../utils/format';
 
 var SCAN_LABEL = { capitalFlow: 'Capital Flow', maScanner: 'MA Scanner', sectorMoving: 'Hot Sectors' };
 
@@ -63,7 +63,8 @@ export default function ScheduledScanResultsModal({ notification, onClose, isInW
               <span></span>
             </div>
             {results.map(function (r) {
-              var hasRatio = typeof r.volumeRatio === 'number';
+              var hasRatio = Number.isFinite(Number(r.volumeRatio)) && Number(r.volumeRatio) > 0;
+              var hasMaDistance = Number.isFinite(Number(r.maDistance));
               return (
                 <div key={r.symbol} className="scheduled-results-row">
                   <div className="scheduled-results-row-main">
@@ -74,7 +75,7 @@ export default function ScheduledScanResultsModal({ notification, onClose, isInW
                     {r.marketCap > 0 ? fmt(r.marketCap) : '—'}
                   </span>
                   <span className="scheduled-results-price" data-label="Price">
-                    {typeof r.price === 'number' && Number.isFinite(r.price) ? '$' + r.price.toFixed(2) : '—'}
+                    {formatPrice(r.price)}
                   </span>
                   <span
                     className={
@@ -89,11 +90,11 @@ export default function ScheduledScanResultsModal({ notification, onClose, isInW
                       <span
                         className={'ratio-pill ' + (r.volumeRatio >= 5 ? 'hot' : r.volumeRatio >= 3.5 ? 'warm' : 'ok')}
                       >
-                        {r.volumeRatio + 'x'}
+                        {formatRatio(r.volumeRatio)}
                       </span>
-                    ) : typeof r.maDistance === 'number' ? (
+                    ) : hasMaDistance ? (
                       <span className="scheduled-results-ma">
-                        {(r.direction === 'above' ? '+' : '') + r.maDistance + '% from MA'}
+                        {(r.direction === 'above' ? '+' : '') + Number(r.maDistance).toFixed(2) + '% from MA'}
                       </span>
                     ) : null}
                   </span>

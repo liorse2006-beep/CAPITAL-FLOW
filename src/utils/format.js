@@ -63,3 +63,12 @@ export function formatPrice(value, decimals = 2) {
   if (!Number.isFinite(number) || number <= 0) return '—';
   return '$' + number.toFixed(decimals);
 }
+
+// Ratios are provider data too. Keep an unavailable RVOL visible instead of
+// allowing a malformed value to throw while rendering an entire result list.
+export function formatRatio(value, decimals = 2) {
+  if (typeof value !== 'number' && typeof value !== 'string') return '—';
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return '—';
+  return number.toFixed(decimals) + 'x';
+}

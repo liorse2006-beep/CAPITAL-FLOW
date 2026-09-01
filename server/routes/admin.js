@@ -539,6 +539,7 @@ router.get(
   .coupon-form input[name="discountPercent"] { width:60px; }
   .coupon-form input[name="maxUses"] { width:70px; }
   .coupon-form input[name="expiresAt"] { width:150px; }
+  .coupon-provider-note { margin:0; padding:10px 20px 0; color:#9b9aa3; font-size:11px; line-height:1.45; }
   .coupon-code { font-family:monospace; font-weight:700; letter-spacing:0.03em; }
   .back-link:hover { color: #E4E4E7 !important; }
   .feedback-row { padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.04); }
@@ -629,6 +630,7 @@ router.get(
       <input name="expiresAt" type="date" placeholder="Expires" />
       <button type="submit" class="btn btn-tier-elite">+ Create coupon</button>
     </form>
+    <p class="coupon-provider-note">Whop controls the amount charged. Create the same promo code in Whop; this table only tracks local usage after Whop confirms the discount.</p>
     <div id="coupons-wrap"><div class="loader">Loading…</div></div>
   </div>
 

@@ -1027,75 +1027,29 @@ function mountElectricBorder(el, opts, ebInstances) {
   return { layers, canvasContainer, ro };
 }
 
-// ── ScrollFloat (React Bits) — reveals text once, the first time it
+// ── ScrollFloat (React Bits) — reveals a heading once, the first time it
 // scrolls into view. The reveal is observer-driven rather than scrubbed
 // against every scroll event, so the browser keeps native scrolling smooth.
-// Split by WORD, not by individual character like the source component:
-// this page is Hebrew (RTL), and character-level splitting broke it two
-// different ways —
-//   1. each character became its own inline-block "atom" for the
-//      browser's bidi algorithm, which visually reordered them instead of
-//      keeping the natural right-to-left reading order.
-//   2. Hebrew has five letters that take a different final/"sofit" shape
-//      at the end of a word (ך ם ן ף ץ) — that shape is chosen by the
-//      font's text-shaping engine based on word position, which requires
-//      the letters to still be part of one text run. Splitting into
-//      single-letter spans handed the shaper isolated one-letter runs, so
-//      final letters could render in the wrong form.
-// Whole words are never split apart internally, so both problems disappear
-// while the stagger reveal still reads essentially the same for headline-
-// length text. ──
-function mountScrollFloat(el, opts, cleanupFns) {
-  const o = Object.assign({ duration: 540, stagger: 48 }, opts || {});
-  const originalMarkup = el.innerHTML;
+// Keep the element's text nodes intact: splitting Hebrew headings into
+// animated inline atoms can change bidi spacing and glyph shaping. The
+// heading-level reveal is cleaner, more reliable, and still gives the copy a
+// noticeable entrance. ──
+function mountScrollFloat(el, cleanupFns) {
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   el.classList.add('scroll-float');
-  const wordEls = [];
-  const textNodes = [];
-  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-  while (walker.nextNode()) textNodes.push(walker.currentNode);
-
-  // Wrap words inside existing inline markup instead of flattening innerHTML.
-  // This keeps intentional color spans and line breaks intact while the
-  // reveal still animates each Hebrew word independently.
-  textNodes.forEach((textNode) => {
-    const parts = textNode.nodeValue.split(/(\s+)/u);
-    const fragment = document.createDocumentFragment();
-    parts.forEach((part) => {
-      if (!part) return;
-      if (/^\s+$/u.test(part)) {
-        fragment.appendChild(document.createTextNode(part.replace(/ /g, ' ')));
-        return;
-      }
-      const span = document.createElement('span');
-      span.className = 'word';
-      span.textContent = part;
-      fragment.appendChild(span);
-      wordEls.push(span);
-    });
-    textNode.replaceWith(fragment);
-  });
-
-  // Restores the original markup on cleanup — see mountEchoText's identical
-  // comment for why (React 18 StrictMode's dev-only double-effect-invoke
-  // on the same DOM node).
+  el.style.setProperty('--cf-scroll-float-duration', '520ms');
   cleanupFns.push(() => {
     el.classList.remove('scroll-float');
     el.classList.remove('is-scroll-float-visible');
-    el.innerHTML = originalMarkup;
-  });
-
-  wordEls.forEach((word, index) => {
-    word.style.setProperty('--cf-scroll-float-delay', `${index * o.stagger}ms`);
-    word.style.setProperty('--cf-scroll-float-duration', `${o.duration}ms`);
+    el.style.removeProperty('--cf-scroll-float-duration');
   });
 
   const reveal = () => {
     el.classList.add('is-scroll-float-visible');
   };
 
-  if (reducedMotion) {
+  if (reducedMotion || typeof IntersectionObserver !== 'function') {
     reveal();
     return;
   }
@@ -1106,24 +1060,86 @@ function mountScrollFloat(el, opts, cleanupFns) {
       reveal();
       observer.unobserve(el);
     },
-    { rootMargin: '0px 0px -12% 0px', threshold: 0.08 }
+    { rootMargin: '0px 0px -18% 0px', threshold: 0.12 }
   );
   observer.observe(el);
   cleanupFns.push(() => observer.disconnect());
 }
 
 function setupScrollFloat(root, cleanupFns) {
-  // Deliberately excludes .cf-tool h3: those titles mix in an English brand
-  // name ("MA Scanner", "Capital Flow", "Hot Sectors") — an LTR run inside
-  // this RTL page. Splitting it into per-word inline-block spans hits the
-  // same bidi-reordering problem as the character-level attempt did, just
-  // one level up: the browser's bidi algorithm reorders the two isolated
-  // "atoms" according to the RTL container instead of preserving their
-  // LTR order, so "MA Scanner" rendered as "Scanner MA". The section
-  // headings below are pure Hebrew, where the reading-order direction and
-  // the container direction agree, so word-splitting them is safe.
-  root.querySelectorAll('#why-tools h2, #faq h2, .cf-final h2').forEach((el) => {
-    mountScrollFloat(el, {}, cleanupFns);
+  root.querySelectorAll('#why h2, #proof h2, #why-tools h2, #faq h2, #start h2, #plans h2').forEach((el) => {
+    mountScrollFloat(el, cleanupFns);
+  });
+}
+
+// Scroll reveals for the copy and feature rows that support the section
+// headlines. These are intentionally one-shot observer reveals: the visitor
+// gets a clear sense of sequence while reading, but the page never replays a
+// heavy animation every time the scroll position changes direction.
+function setupScrollReveals(root, cleanupFns) {
+  const groups = [
+    { selector: '#why .cf-vs-card', variant: 'card', stagger: 72 },
+    { selector: '#proof .cf-signal-intro > p', variant: 'text', stagger: 0 },
+    { selector: '#proof .cf-signal-step', variant: 'step', stagger: 76 },
+    { selector: '#proof .cf-signal-visual', variant: 'visual', stagger: 0 },
+    { selector: '#why-tools .cf-feat', variant: 'feature', stagger: 58 },
+    { selector: '#faq .cf-faq-item', variant: 'card', stagger: 64 },
+    { selector: '#start .cf-final-card > .cf-specular-cta-mount', variant: 'visual', stagger: 0 },
+    { selector: '#plans .cf-pricing-matrix-mount', variant: 'visual', stagger: 0 },
+  ];
+  const targets = [];
+  const seen = new Set();
+
+  groups.forEach(({ selector, variant, stagger }) => {
+    root.querySelectorAll(selector).forEach((el, index) => {
+      if (seen.has(el)) return;
+      seen.add(el);
+      el.classList.add('cf-scroll-reveal-ready', 'cf-scroll-reveal--' + variant);
+      el.style.setProperty('--cf-scroll-reveal-delay', `${index * stagger}ms`);
+      // Alternate the lateral drift on repeated content so a column does not
+      // feel like a stack of identical cards entering from one rail.
+      if (variant === 'card' || variant === 'feature' || variant === 'step') {
+        el.style.setProperty('--cf-scroll-reveal-x', index % 2 === 0 ? '10px' : '-10px');
+      }
+      targets.push(el);
+    });
+  });
+
+  if (!targets.length) return;
+
+  const clearTargets = () => {
+    targets.forEach((el) => {
+      el.classList.remove('cf-scroll-reveal-ready', 'cf-scroll-revealed');
+      el.style.removeProperty('--cf-scroll-reveal-delay');
+      el.style.removeProperty('--cf-scroll-reveal-x');
+    });
+  };
+
+  const revealAll = () => targets.forEach((el) => el.classList.add('cf-scroll-revealed'));
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reducedMotion || typeof IntersectionObserver !== 'function') {
+    revealAll();
+    cleanupFns.push(clearTargets);
+    return;
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('cf-scroll-revealed');
+        observer.unobserve(entry.target);
+      });
+    },
+    // A slightly delayed trigger gives the eye a moment to register the
+    // section before the content begins its entrance.
+    { rootMargin: '0px 0px -18% 0px', threshold: 0.12 }
+  );
+  targets.forEach((el) => observer.observe(el));
+
+  cleanupFns.push(() => {
+    observer.disconnect();
+    clearTargets();
   });
 }
 
@@ -1763,6 +1779,15 @@ function setupCtaDelegation(root, onGetStarted, cleanupFns) {
     const btn = e.target.closest('[data-cta-location]');
     if (btn && root.contains(btn)) {
       e.preventDefault();
+      if (btn.getAttribute('data-cta-location') === 'pre-pricing') {
+        const plans = root.querySelector('#plans');
+        if (plans) {
+          const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          plans.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+          window.history.replaceState(null, '', '#plans');
+        }
+        return;
+      }
       onGetStarted();
     }
   }
@@ -1866,6 +1891,7 @@ export function initLandingEffects(rootEl, onGetStarted) {
   runSafely('setupTiltCards', () => setupTiltCards(rootEl, cleanupFns));
   runSafely('setupGradualBlur', () => setupGradualBlur(rootEl, cleanupFns));
   runSafely('setupScrollFloat', () => setupScrollFloat(rootEl, cleanupFns));
+  runSafely('setupScrollReveals', () => setupScrollReveals(rootEl, cleanupFns));
   runSafely('setupCategoryTransitions', () => setupCategoryTransitions(rootEl, cleanupFns));
 
   runSafely('mountEchoText', () => {

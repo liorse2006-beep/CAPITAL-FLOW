@@ -5,7 +5,7 @@ import useSSE from './hooks/useSSE';
 import useScanQuota from './hooks/useScanQuota';
 import usePushSubscription from './hooks/usePushSubscription';
 import useIsMobile from './hooks/useIsMobile';
-import { parseVolInput, formatPrice, formatSignedPercent } from './utils/format';
+import { parseVolInput, formatPrice } from './utils/format';
 import { categoryQuota } from './utils/quota';
 import { hasEliteAccess, hasPremiumFeatureAccess } from './utils/access';
 import { useAuth } from './context/AuthContext';
@@ -161,6 +161,18 @@ function App() {
   const [error, setError] = useState(null);
   const poll = useRef(null);
 
+  // A scan can outlive the route that started it. Always tear down the
+  // progress poll when the app unmounts or a new scan starts so stale requests
+  // cannot keep updating an abandoned screen.
+  useEffect(function () {
+    return function () {
+      if (poll.current) {
+        clearInterval(poll.current);
+        poll.current = null;
+      }
+    };
+  }, []);
+
   /* ── Chart modal state ── */
   const [chartOpen, setChartOpen] = useState(false);
   const [chartSymbol, setChartSym] = useState('');
@@ -215,9 +227,30 @@ function App() {
       ping: () => {},
       'auth-error': () => {},
       'scan-update': (d) => {
-        if (d.results) {
-          window.__bgScanResults = d.results;
-          window.__bgScanTime = d.scanTime;
+        if (!Array.isArray(d.results)) return;
+
+        // The background worker scans the default floor universe. Show its
+        // fresh, complete snapshot only while the scanner is idle and still
+        // on its untouched defaults; never overwrite a user's in-progress or
+        // custom-filtered scan with a differently filtered dataset.
+        const canHydrateDefaultScanner =
+          page === 'scanner' &&
+          !scanning &&
+          results === null &&
+          scanMode === null &&
+          minRatio === '1.5' &&
+          minCap === '1' &&
+          !minPrice &&
+          !maxPrice &&
+          !minVol;
+        if (canHydrateDefaultScanner) {
+          setResults(d.results);
+          setScanTime(d.scanTime || null);
+          setScanDataStatus(d.dataStatus || null);
+          setScanDataAsOf(d.dataAsOf || d.scanTime || null);
+          setFromCache(true);
+          setCacheAge(0);
+          setRestoredFromLastScan(false);
         }
       },
       alert: (d) => {
@@ -583,44 +616,6 @@ function App() {
     setAlertModalPrice(price || 0);
   }
 
-  /* ── "Explain This" — hands a scan result's own data to Capi and asks it
-     to walk the user through it in plain English. Reuses the existing chat
-     pipeline (persona, honesty rules, persisted history) rather than a
-     separate one-off explainer, so Capi's "never call a buy/sell" guardrail
-     applies here automatically. ── */
-  const [capiExternalPrompt, setCapiExternalPrompt] = useState(null);
-
-  function explainWithCapi(r) {
-    if (isMobile) return;
-    if (!user) {
-      setShowAuthModal(true);
-      return;
-    }
-    if (!eliteAccess) {
-      openUpgradeModal();
-      return;
-    }
-    var priceLabel = formatPrice(r.price);
-    var changeLabel = formatSignedPercent(r.change);
-    var ratioValue = Number(r.volumeRatio);
-    var ratioLabel = Number.isFinite(ratioValue) && ratioValue > 0 ? ratioValue.toFixed(2) + 'x' : 'unavailable';
-    var parts = [
-      r.symbol + ' just showed up on my scan.',
-      'Price ' +
-        (priceLabel === '—' ? 'unavailable' : priceLabel) +
-        ' (' +
-        (changeLabel === '—' ? 'change unavailable' : changeLabel) +
-        ' today), volume running at ' +
-        ratioLabel +
-        ' its average.',
-    ];
-    if (r.sector && r.sector !== 'N/A') parts.push('Sector: ' + r.sector + '.');
-    parts.push(
-      'In plain English, what does this combination usually mean, and what should I actually pay attention to here?'
-    );
-    setCapiExternalPrompt(parts.join(' '));
-  }
-
   /* ── Push Notifications — real device push that fires even with the app
      closed. Delivery is driven server-side (server/services/webPush.js)
      against the same thresholds set above. Subscribing is opened up during
@@ -750,11 +745,6 @@ function App() {
     },
     [showUpgradeModal]
   );
-
-  /* ── Pagination ── */
-  var visibleCountState = useState(50);
-  var visibleCount = visibleCountState[0];
-  var setVisibleCount = visibleCountState[1];
 
   /* Toast state */
   const [toastMsg, setToastMsg] = useState('');
@@ -937,13 +927,6 @@ function App() {
         .catch(function () {});
     },
     [user]
-  );
-
-  useEffect(
-    function () {
-      setVisibleCount(50);
-    },
-    [results]
   );
 
   /* ── Notification helpers ── */
@@ -1129,6 +1112,7 @@ function App() {
       setProgress({ processed: 0, total: 1, found: 0 });
       setLiveResults([]);
 
+      if (poll.current) clearInterval(poll.current);
       poll.current = setInterval(function () {
         fetch('/api/progress', { headers: { Authorization: 'Bearer ' + getToken() } })
           .then(function (r) {
@@ -1137,7 +1121,10 @@ function App() {
           .then(function (d) {
             if (d.progress) setProgress(d.progress);
             if (d.liveResults && d.liveResults.length) setLiveResults(d.liveResults);
-            if (!d.running) clearInterval(poll.current);
+            if (!d.running) {
+              clearInterval(poll.current);
+              poll.current = null;
+            }
           })
           .catch(function () {});
       }, 600);
@@ -1197,6 +1184,7 @@ function App() {
           setScanning(false);
           setProgress(null);
           clearInterval(poll.current);
+          poll.current = null;
         });
     },
     [
@@ -1330,8 +1318,6 @@ function App() {
             isElite={eliteAccess}
             trialEnded={trialEnded}
             getToken={getToken}
-            externalPrompt={capiExternalPrompt}
-            onExternalPromptSent={() => setCapiExternalPrompt(null)}
             onRequireAuth={() => setShowAuthModal(true)}
             onTrialEnded={onTrialEnded}
           />
@@ -1343,6 +1329,7 @@ function App() {
           <WelcomeTierModal
             tier={welcomeTier}
             confirmed={userTier === welcomeTier}
+            eliteUpgradeAvailable={user ? user.elite_upgrade_available : false}
             onClose={() => setWelcomeTier(null)}
           />
         </Suspense>
@@ -1524,15 +1511,12 @@ function App() {
                   cacheAge={cacheAge}
                   restoredFromLastScan={restoredFromLastScan}
                   sorted={sorted}
-                  visibleCount={visibleCount}
-                  setVisibleCount={setVisibleCount}
                   sortField={sortField}
                   sortDir={sortDir}
                   handleSort={handleSort}
                   handleSortDoubleClick={handleSortDoubleClick}
                   alertLevels={alertLevels}
                   promptCreateAlert={promptCreateAlert}
-                  explainWithCapi={explainWithCapi}
                   isInWatchlist={isInWatchlist}
                   toggleWatchlistTicker={toggleWatchlistTicker}
                   scanMeta={scanMeta}

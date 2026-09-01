@@ -1,7 +1,6 @@
-// Coupon validation (server/services/coupons.js) and the public validate
-// endpoint. Coupons are now created/managed exclusively through Whop's own
-// promo codes — there is no admin CRUD for this app's internal coupon
-// system anymore, so there's nothing to test there.
+// Coupon bookkeeping (server/services/coupons.js) and the deprecated public
+// validation route. Promo eligibility and discount calculation now belong to
+// Whop; the app must never show a local discount that the provider may reject.
 require('./helpers/testEnv');
 const { test, before } = require('node:test');
 const assert = require('node:assert');
@@ -45,8 +44,12 @@ async function insertCoupon(overrides = {}) {
 
 test('validateCoupon accepts a live "both" coupon for either tier', async () => {
   await insertCoupon({ code: 'BOTH1', applies_to: 'both' });
-  assert.strictEqual((await validateCoupon('both1', 'premium')).valid, true);
-  assert.strictEqual((await validateCoupon('BOTH1', 'elite')).valid, true);
+  const premium = await validateCoupon('both1', 'premium');
+  const elite = await validateCoupon('BOTH1', 'elite');
+  assert.strictEqual(premium.valid, true);
+  assert.strictEqual(elite.valid, true);
+  assert.strictEqual(premium.discountPercent, undefined);
+  assert.strictEqual(elite.discountPercent, undefined);
 });
 
 test('validateCoupon rejects a tier-scoped coupon used for the wrong tier', async () => {
@@ -118,7 +121,7 @@ test('redeemCoupon on an unlimited-use coupon (max_uses null) always succeeds', 
   assert.strictEqual(ok, true);
 });
 
-test('POST /api/coupons/validate returns the discount for a valid code', async () => {
+test('POST /api/coupons/validate never returns a local discount', async () => {
   await insertCoupon({ code: 'PUBLICV', discount_percent: 15, applies_to: 'both' });
   const server = await startTestApp();
   const port = server.address().port;
@@ -129,15 +132,16 @@ test('POST /api/coupons/validate returns the discount for a valid code', async (
       body: JSON.stringify({ code: 'publicv', tier: 'premium' }),
     });
     const body = await res.json();
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(body.valid, true);
-    assert.strictEqual(body.discountPercent, 15);
+    assert.strictEqual(res.status, 410);
+    assert.strictEqual(body.valid, false);
+    assert.strictEqual(body.code, 'provider_checkout_required');
+    assert.strictEqual(body.discountPercent, undefined);
   } finally {
     server.close();
   }
 });
 
-test('POST /api/coupons/validate rejects an invalid tier', async () => {
+test('POST /api/coupons/validate returns the provider-checkout message for every tier', async () => {
   const server = await startTestApp();
   const port = server.address().port;
   try {
@@ -146,7 +150,9 @@ test('POST /api/coupons/validate rejects an invalid tier', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: 'X', tier: 'free' }),
     });
-    assert.strictEqual(res.status, 400);
+    const body = await res.json();
+    assert.strictEqual(res.status, 410);
+    assert.strictEqual(body.code, 'provider_checkout_required');
   } finally {
     server.close();
   }

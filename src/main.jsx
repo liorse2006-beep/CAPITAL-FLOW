@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, useLocation } from 'react-router-dom';
 import App from './App';
@@ -24,11 +24,6 @@ try {
 } catch (_) {
   /* private mode with no storage — skip silently */
 }
-
-// Split out — OnboardingQuiz is only ever seen by first-time visitors
-// (returning users skip straight past it via the vs_quiz_done flag), and
-// doesn't belong in the bundle every visitor downloads up front.
-const OnboardingQuiz = lazy(() => import('./pages/OnboardingQuiz'));
 
 // Same animated ticker-tape loader used during scans, reused here for the
 // (rare, but possible during a transient cold start) case where the initial /api/auth/me
@@ -70,41 +65,6 @@ if ('serviceWorker' in navigator) {
 
 function Root() {
   const { isLoading, user, authLoadError } = useAuth();
-  // A Whop checkout redirect (?status=success|error) must always reach
-  // App.jsx, which is the only place that cleans the URL, shows the
-  // "Payment received" toast, and refreshes the user's tier — none of
-  // that runs if this load gets routed to the onboarding quiz instead.
-  // vs_quiz_done can only be missing here for an existing, already-paying
-  // user if their localStorage was wiped between clicking Upgrade and
-  // Whop redirecting back, but treat that as unrecoverable-by-quiz-gate
-  // regardless: showing "what kind of trader are you?" instead of a
-  // payment confirmation would be broken UX even if it were rare.
-  const [quizDone, setQuizDone] = useState(
-    () => !!localStorage.getItem('vs_quiz_done') || new URLSearchParams(window.location.search).has('status')
-  );
-
-  function handleQuizComplete() {
-    setQuizDone(true);
-  }
-
-  // A returning, already-authenticated user must never see onboarding, even
-  // if vs_quiz_done itself was missing from localStorage (e.g. cleared by
-  // the browser — Safari's storage-eviction rules don't treat localStorage
-  // and cookies the same way, so a session can survive via the refresh
-  // cookie while vs_quiz_done alone gets wiped). `user` is only non-null
-  // here once /api/auth/me has actually resolved a real account, so this
-  // can't be spoofed by an unauthenticated visitor.
-  useEffect(() => {
-    if (!isLoading && user && !quizDone) {
-      setQuizDone(true);
-      try {
-        localStorage.setItem('vs_quiz_done', '1');
-      } catch (_) {
-        /* private mode — nothing we can do, but don't crash */
-      }
-    }
-  }, [isLoading, user, quizDone]);
-
   // Most loads resolve in well under a second — only switch to the fuller
   // animated "waking up" screen once the wait has gone on long enough that
   // it's plausibly a cold Render instance, not a flash on every visit.
@@ -171,14 +131,6 @@ function Root() {
           </button>
         </div>
       </div>
-    );
-  }
-
-  if (!quizDone) {
-    return (
-      <Suspense fallback={loadingScreen}>
-        <OnboardingQuiz onComplete={handleQuizComplete} />
-      </Suspense>
     );
   }
 

@@ -186,25 +186,25 @@ export function AuthProvider({ children }) {
   async function logout() {
     const token = accessTokenRef.current;
     setAccessToken(null);
-    // vs_quiz_done is intentionally left alone here — it should show exactly
-    // once per device, ever, not once per login session. Clearing it on
-    // logout made it reappear for the same person every time they signed
-    // out and back in (common during testing), which is the bug this
-    // comment used to defend.
+    setAuthLoadError(false);
     setUser(null);
     // Revoke this device's session server-side (and its refresh cookie) so
-    // "log out" actually ends the session instead of just discarding the
-    // local copy of a still-valid access token — best-effort: a failed
-    // request here just means the session naturally expires within 1h
-    // instead of immediately, not that logout silently fails.
+    // "log out" actually ends the session. keepalive lets the request finish
+    // while the browser navigates away, so logout never waits on a slow API
+    // response and never leaves the user on an app route.
     if (token) {
-      try {
-        await fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-      } catch {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'same-origin',
+        keepalive: true,
+      }).catch(() => {
         /* offline/unreachable — local logout still proceeds */
-      }
+      });
     }
-    window.location.reload();
+    // A logout is always a return to the public landing page, regardless of
+    // which in-app route the account was using when it signed out.
+    window.location.replace('/');
   }
 
   const getToken = useCallback(() => accessTokenRef.current, []);

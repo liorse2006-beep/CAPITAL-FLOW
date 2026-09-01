@@ -2,7 +2,7 @@ const router = require('express').Router();
 const crypto = require('crypto');
 const db = require('../db');
 const whop = require('../services/whop');
-const { redeemCoupon } = require('../services/coupons');
+const { normalizeCode, redeemCoupon } = require('../services/coupons');
 const email = require('../services/email');
 const { reportError } = require('../utils/reportError');
 const { WHOP_ELITE_PLAN_ID, WHOP_ELITE_UPGRADE_PLAN_ID, WHOP_PREMIUM_PLAN_ID } = require('../config');
@@ -46,6 +46,16 @@ function safeMetadataSummary(metadata) {
     hasUserId: Boolean(metadata?.userId),
     hasCouponCode: Boolean(metadata?.couponCode),
   };
+}
+
+// The provider's payment payload is the only trustworthy indication that a
+// promo actually changed the charge. Checkout metadata contains the code the
+// customer requested, but it does not prove that Whop accepted it.
+function providerPromoCode(event) {
+  const promo = event?.data?.promo_code;
+  if (typeof promo === 'string') return normalizeCode(promo);
+  if (promo && typeof promo.code === 'string') return normalizeCode(promo.code);
+  return '';
 }
 
 // Mounted with express.raw() (see server/index.js) — req.body is a Buffer
@@ -179,10 +189,23 @@ async function handleWhopEvent(event) {
           .catch(() => {});
       }
       if (buyer && metadata.couponCode) {
-        const redeemed = await redeemCoupon(metadata.couponCode);
-        if (!redeemed) {
+        const requestedCode = normalizeCode(metadata.couponCode);
+        const appliedCode = providerPromoCode(event);
+        if (appliedCode && appliedCode === requestedCode) {
+          const redeemed = await redeemCoupon(requestedCode);
+          if (!redeemed) {
+            console.warn(
+              '[webhooks/whop] provider-confirmed promo was not recorded in the local campaign ledger',
+              safeMetadataSummary(metadata)
+            );
+          }
+        } else {
+          // A customer may enter a local campaign code that is missing,
+          // expired, or scoped differently in Whop. Never consume a local use
+          // for a full-price payment; Whop's payment payload remains the
+          // source of truth for whether the discount was applied.
           console.warn(
-            '[webhooks/whop] coupon was not redeemed (missing or at its usage limit)',
+            '[webhooks/whop] requested promo was not confirmed by provider; local use not consumed',
             safeMetadataSummary(metadata)
           );
         }

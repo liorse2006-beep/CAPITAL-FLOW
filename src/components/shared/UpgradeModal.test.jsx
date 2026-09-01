@@ -10,18 +10,18 @@ import { AuthProvider } from '../../context/AuthContext';
 // so these tests verify OUR wiring (session creation, prop pass-through,
 // onComplete handling) without depending on Whop's actual embed internals.
 vi.mock('@whop/checkout/react', () => ({
+  WhopExpressCheckoutButton: (props) => (
+    <div
+      data-testid="whop-express-button"
+      data-checkout-configuration-id={props.checkoutConfigurationId}
+      data-methods={props.methods.join(',')}
+    />
+  ),
   WhopCheckoutEmbed: (props) => (
     <div data-testid="whop-checkout-embed" data-session-id={props.sessionId} data-return-url={props.returnUrl}>
       <button onClick={() => props.onComplete('plan_x', 'receipt_x', {})}>Simulate payment complete</button>
     </div>
   ),
-  // The Apple Pay / Google Pay express button — in a real browser it resolves
-  // which wallet is available; in jsdom we just report 'none' so it renders
-  // nothing, exactly as it would on a browser with no wallet configured.
-  WhopExpressCheckoutButton: (props) => {
-    if (props.onExpressMethodResolved) props.onExpressMethodResolved({ rendered: 'none' });
-    return <div data-testid="whop-express-button" data-plan-id={props.planId} data-return-url={props.returnUrl} />;
-  },
 }));
 
 function renderWithProviders(ui) {
@@ -50,8 +50,8 @@ describe('UpgradeModal', () => {
     expect(screen.getByText('$14.90')).toBeInTheDocument();
     expect(screen.getByText('$29.90')).toBeInTheDocument();
     expect(screen.queryByText('Free', { exact: true })).not.toBeInTheDocument();
-    expect(screen.queryByText('Have a coupon code?', { exact: true })).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('COUPON CODE')).not.toBeInTheDocument();
+    expect(screen.getByText('Have a promo code?', { exact: true })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('PROMO CODE')).toBeInTheDocument();
     expect(screen.getAllByText('One-time purchase · Lifetime access')).toHaveLength(2);
     expect(screen.getAllByText(/Full market scans/)).toHaveLength(2);
     expect(screen.queryByText('Included', { exact: true })).not.toBeInTheDocument();
@@ -117,7 +117,7 @@ describe('UpgradeModal', () => {
     expect(window.location.href).not.toContain('whop.com');
   });
 
-  it('passes the plan id to the Apple Pay / Google Pay express button so a one-tap wallet can render', async () => {
+  it('uses the same session-bound checkout configuration for wallets and card payments', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       'fetch',
@@ -130,12 +130,37 @@ describe('UpgradeModal', () => {
 
     await user.click(screen.getByRole('button', { name: /get premium/i }));
 
-    // The express button needs the planId (not the session id) — without it,
-    // Apple/Google Pay never render and the customer only ever sees the card
-    // form, which was the whole complaint.
-    const express = await screen.findByTestId('whop-express-button');
-    expect(express).toHaveAttribute('data-plan-id', 'plan_test');
-    expect(express).toHaveAttribute('data-return-url', `${window.location.origin}/`);
+    expect(await screen.findByTestId('whop-checkout-embed')).toBeInTheDocument();
+    const express = screen.getByTestId('whop-express-button');
+    expect(express).toHaveAttribute('data-checkout-configuration-id', 'ch_test123');
+    expect(express).toHaveAttribute('data-methods', 'apple-pay,google-pay,whop-pay');
+  });
+
+  it('passes a promo code to the server session without calculating a local price', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ sessionId: 'ch_test123', planId: 'plan_test', couponCode: 'SAVE10' }),
+      })
+    );
+    renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
+
+    await user.type(screen.getByPlaceholderText('PROMO CODE'), 'save10');
+    await user.click(screen.getByRole('button', { name: /get premium/i }));
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/checkout/transaction',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ tier: 'premium', couponCode: 'save10' }),
+        })
+      )
+    );
+    expect(await screen.findByTestId('whop-checkout-embed')).toBeInTheDocument();
+    expect(screen.queryByText(/discounted price/i)).not.toBeInTheDocument();
   });
 
   it('stashes the requested tier before mounting the embed, so the welcome screen knows what was bought', async () => {

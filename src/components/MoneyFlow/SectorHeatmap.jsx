@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fmt, formatSignedPercent } from '../../utils/format';
+import { fmt, formatRatio, formatSignedPercent } from '../../utils/format';
 
 export default function SectorHeatmap(props) {
   var flowData = props.flowData || [];
@@ -268,7 +268,7 @@ export default function SectorHeatmap(props) {
                   flexShrink: 0,
                 },
               },
-              cell.volRatio.toFixed(1) + 'x'
+              formatRatio(cell.volRatio, 1)
             )
         ),
 

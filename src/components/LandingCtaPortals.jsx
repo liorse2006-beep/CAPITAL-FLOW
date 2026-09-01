@@ -8,7 +8,18 @@ const LANDING_CTA_DEFINITIONS = {
   'pricing-free': { label: 'לנסות בחינם', size: 'md', className: 'cf-specular-cta cf-specular-cta--plan' },
   'pricing-premium': { label: 'לבחור Premium', size: 'md', className: 'cf-specular-cta cf-specular-cta--plan' },
   'pricing-elite': { label: 'לבחור Elite', size: 'md', className: 'cf-specular-cta cf-specular-cta--plan' },
-  final: { label: 'התחל בחינם', size: 'lg', className: 'cf-specular-cta cf-specular-cta--large', arrow: true },
+  'pre-pricing': {
+    label: 'בחר את המסלול שלך',
+    size: 'lg',
+    className: 'cf-specular-cta cf-specular-cta--large',
+    arrow: true,
+  },
+  'pricing-bottom': {
+    label: 'בדוק בחינם ללא כרטיס אשראי',
+    size: 'lg',
+    className: 'cf-specular-cta cf-specular-cta--large',
+    arrow: true,
+  },
 };
 
 export default function LandingCtaPortals({ targets, pricingTarget, onGetStarted }) {

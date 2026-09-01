@@ -43,8 +43,6 @@ function baseProps(overrides = {}) {
     marketClosed: false,
     scanTime: null,
     sorted: [],
-    visibleCount: 50,
-    setVisibleCount: vi.fn(),
     sortField: 'volumeRatio',
     sortDir: 'desc',
     handleSort: vi.fn(),
@@ -215,7 +213,6 @@ describe('ScannerPage mobile result surface', () => {
             isElite: true,
             results: [mockRow],
             sorted: [mockRow],
-            visibleCount: 50,
             scanTime: new Date().toISOString(),
           })}
         />
@@ -230,5 +227,25 @@ describe('ScannerPage mobile result surface', () => {
     } finally {
       window.matchMedia = originalMatchMedia;
     }
+  });
+
+  it('renders every result instead of truncating the list at 50 rows', () => {
+    const manyRows = Array.from({ length: 51 }, (_, index) => ({
+      ...mockRow,
+      symbol: `T${String(index).padStart(2, '0')}`,
+    }));
+
+    render(
+      <ScannerPage
+        {...baseProps({
+          results: manyRows,
+          sorted: manyRows,
+          scanTime: new Date().toISOString(),
+        })}
+      />
+    );
+
+    expect(screen.getByRole('heading', { name: '51 Results' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /load .* more/i })).not.toBeInTheDocument();
   });
 });

@@ -108,16 +108,7 @@ async function readCapiStream(response, handlers) {
 // forever the way the old localStorage flag did.
 var TEASER_READY_DELAY_MS = 1500;
 
-export default function ChatWidget({
-  user,
-  isElite,
-  trialEnded,
-  getToken,
-  externalPrompt,
-  onExternalPromptSent,
-  onRequireAuth,
-  onTrialEnded,
-}) {
+export default function ChatWidget({ user, isElite, trialEnded, getToken, onRequireAuth, onTrialEnded }) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [teaserReady, setTeaserReady] = useState(false);
@@ -347,25 +338,6 @@ export default function ChatWidget({
     streamAbortRef.current = null;
     setOpen(false);
   }
-
-  // Lets other parts of the app (e.g. an "Explain This" button on a scan
-  // result) hand Capi a message and have it actually ask it — opens the
-  // panel, makes sure existing history is loaded first so the new message
-  // lands after it rather than racing it, then sends.
-  useEffect(
-    function () {
-      if (isMobile || !externalPrompt || !user) return;
-      setOpen(true);
-      var generation = conversationGenerationRef.current;
-      var ready = historyLoaded ? Promise.resolve() : loadHistory();
-      ready.then(function () {
-        if (conversationGenerationRef.current !== generation || accountKeyRef.current !== accountKey) return;
-        send(externalPrompt);
-      });
-      if (onExternalPromptSent) onExternalPromptSent();
-    },
-    [externalPrompt, isMobile, accountKey]
-  );
 
   // App also avoids mounting the widget at phone widths. Keep this guard in
   // the component as a second line of defense for direct consumers and for

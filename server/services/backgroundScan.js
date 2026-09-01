@@ -28,20 +28,21 @@ function getBroadcastToUser() {
 }
 
 function filterCachedResults(cached, opts) {
-  var minRatio = opts.minVolumeRatio || 2.5;
-  var minCap = opts.minMarketCap || 1000000000;
-  var minP = opts.minPrice || 0;
-  var maxP = opts.maxPrice || 0;
-  var minVolRaw = opts.minVolRaw || '';
+  var minRatio = opts.minVolumeRatio ?? 2.5;
+  var minCap = opts.minMarketCap ?? 1000000000;
+  var minP = opts.minPrice ?? 0;
+  var maxP = opts.maxPrice ?? 0;
+  var minVolRaw = opts.minVolRaw ?? '';
   var list = opts.list || 'all';
 
   function parseVol(str) {
     if (!str) return 0;
     var s = str.toString().toUpperCase().trim();
-    if (s.endsWith('B')) return parseFloat(s) * 1e9;
-    if (s.endsWith('M')) return parseFloat(s) * 1e6;
-    if (s.endsWith('K')) return parseFloat(s) * 1e3;
-    return parseFloat(s) || 0;
+    var match = /^(\d+(?:\.\d+)?)([KMB])?$/.exec(s);
+    if (!match) return 0;
+    var multiplier = match[2] === 'B' ? 1e9 : match[2] === 'M' ? 1e6 : match[2] === 'K' ? 1e3 : 1;
+    var value = Number(match[1]) * multiplier;
+    return Number.isFinite(value) ? value : 0;
   }
   var minVolNum = parseVol(minVolRaw);
 
@@ -210,9 +211,13 @@ async function runBackgroundScan() {
         `(data=${backgroundCache.dataStatus}, asOf=${backgroundCache.dataAsOf})`
     );
 
-    // Push live results to all connected SSE clients
+    // Push the complete snapshot to connected SSE clients. Truncating this to
+    // the first 50 rows made a background refresh look like a partial scan;
+    // the client is responsible for the responsive presentation, not the
+    // background worker.
     broadcast('scan-update', {
-      results: res.results.slice(0, 50), // top 50 to keep payload light
+      results: res.results,
+      resultCount: res.results.length,
       scanTime: backgroundCache.scanTime,
       dataStatus: backgroundCache.dataStatus,
       dataAsOf: backgroundCache.dataAsOf,

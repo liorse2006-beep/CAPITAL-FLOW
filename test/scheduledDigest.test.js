@@ -52,6 +52,12 @@ test('buildDigestPayload reports clearly when nothing crossed the threshold', ()
   assert.match(payload.body, /No stocks crossed/);
 });
 
+test('buildDigestPayload never formats a malformed volume ratio as invented numeric data', () => {
+  const payload = buildDigestPayload({ AAA: 1 }, [{ symbol: 'AAA', volumeRatio: 'not-a-number' }], '10:00');
+  assert.strictEqual(payload.matched, false);
+  assert.match(payload.body, /No stocks crossed/);
+});
+
 test('runDigestTick sends exactly one push per user per day, even if the tick fires twice', async () => {
   const u = await makeUser('digest-a@test.local');
   const now = israelNow();

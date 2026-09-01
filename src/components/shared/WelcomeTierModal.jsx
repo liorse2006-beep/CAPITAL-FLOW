@@ -26,7 +26,7 @@ var COPY = {
   },
 };
 
-export default function WelcomeTierModal({ tier, confirmed, onClose }) {
+export default function WelcomeTierModal({ tier, confirmed, onClose, eliteUpgradeAvailable = true }) {
   const panelRef = useModalA11y(onClose);
   const { getToken } = useAuth();
   const navigate = useNavigate();
@@ -35,7 +35,6 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
   const [upgrading, setUpgrading] = useState(false);
   const [upgradeError, setUpgradeError] = useState('');
   const [checkoutSessionId, setCheckoutSessionId] = useState(null);
-  const [checkoutPlanId, setCheckoutPlanId] = useState(null);
 
   // The exact same tier-was-requested handoff UpgradeModal uses — stashed
   // before mounting the embed so that if this converts, the user lands back
@@ -54,7 +53,6 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
         if (!data.sessionId) throw new Error('Checkout session was not created — please try again.');
         localStorage.setItem('vs_pending_tier', 'elite');
         setCheckoutSessionId(data.sessionId);
-        setCheckoutPlanId(data.planId);
       })
       .catch((err) => {
         setUpgradeError(err.message || 'Something went wrong — please try again.');
@@ -129,12 +127,7 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
           <h2 className="upgrade-title" style={{ textAlign: 'center', marginBottom: 16 }}>
             Elite checkout
           </h2>
-          <EmbeddedCheckout
-            sessionId={checkoutSessionId}
-            planId={checkoutPlanId}
-            onComplete={handleComplete}
-            onError={handlePaymentError}
-          />
+          <EmbeddedCheckout sessionId={checkoutSessionId} onComplete={handleComplete} onError={handlePaymentError} />
         </div>
       </div>
     );
@@ -212,7 +205,7 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
           </>
         )}
 
-        {tier === 'premium' && (
+        {tier === 'premium' && eliteUpgradeAvailable && (
           <div className="welcome-upsell">
             <span className="welcome-upsell-badge">One-time offer</span>
             <button

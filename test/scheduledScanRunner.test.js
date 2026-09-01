@@ -10,7 +10,7 @@ before(async () => {
   await db.ready;
 });
 
-const { isDue, FIRE_WINDOW_MIN, runScheduledScans } = require('../server/services/scheduledScanRunner');
+const { isDue, FIRE_WINDOW_MIN, runScheduledScans, payloadForType } = require('../server/services/scheduledScanRunner');
 const scanner = require('../server/services/scanner');
 const webPush = require('../server/services/webPush');
 
@@ -33,6 +33,16 @@ test('isDue rejects malformed times', () => {
   assert.strictEqual(isDue('', 600), false);
   assert.strictEqual(isDue(null, 600), false);
   assert.strictEqual(isDue('banana', 600), false);
+});
+
+test('scheduled volume notification stays safe when the leading ratio is unavailable', () => {
+  const payload = payloadForType('capitalFlow', {
+    results: [{ symbol: 'AAPL', volumeRatio: null }],
+    dataStatus: 'complete',
+  });
+
+  assert.strictEqual(payload.title, 'Volume spike detected — AAPL');
+  assert.doesNotMatch(payload.title, /NaN|undefined/);
 });
 
 // ── one shared scan per type ────────────────────────────────────────────────

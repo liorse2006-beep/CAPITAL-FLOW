@@ -54,21 +54,22 @@ async function enrichSector(symbol) {
 
 async function scanTickers(tickers, options) {
   options = options || {};
-  var minVolumeRatio = options.minVolumeRatio || 2.5;
-  var minMarketCap = options.minMarketCap || 1000000000;
-  var minPrice = options.minPrice || 0;
-  var maxPrice = options.maxPrice || 0;
-  var minVolRaw = options.minVolRaw || '';
+  var minVolumeRatio = options.minVolumeRatio ?? 2.5;
+  var minMarketCap = options.minMarketCap ?? 1000000000;
+  var minPrice = options.minPrice ?? 0;
+  var maxPrice = options.maxPrice ?? 0;
+  var minVolRaw = options.minVolRaw ?? '';
   var onProgress = options.onProgress;
   var onMatch = options.onMatch;
 
   function parseVol(str) {
     if (!str) return 0;
     var s = str.toString().toUpperCase().trim();
-    if (s.endsWith('B')) return parseFloat(s) * 1e9;
-    if (s.endsWith('M')) return parseFloat(s) * 1e6;
-    if (s.endsWith('K')) return parseFloat(s) * 1e3;
-    return parseFloat(s) || 0;
+    var match = /^(\d+(?:\.\d+)?)([KMB])?$/.exec(s);
+    if (!match) return 0;
+    var multiplier = match[2] === 'B' ? 1e9 : match[2] === 'M' ? 1e6 : match[2] === 'K' ? 1e3 : 1;
+    var value = Number(match[1]) * multiplier;
+    return Number.isFinite(value) ? value : 0;
   }
   var minVolNum = parseVol(minVolRaw);
 
@@ -90,6 +91,7 @@ async function scanTickers(tickers, options) {
       onProgress({ processed: approx, total: tickers.length, found: 0 });
     }
   });
+  var quoteDataAsOf = quotesMap.dataAsOf || null;
 
   // ── Filter in memory — no more per-ticker HTTP calls ─────────────────────────
   var etMins = getETMinutes();
@@ -318,7 +320,7 @@ async function scanTickers(tickers, options) {
             ).size
           ? 'unavailable'
           : 'partial',
-    dataAsOf: new Date().toISOString(),
+    dataAsOf: quoteDataAsOf || new Date().toISOString(),
     processed: tickers.length,
   };
 }

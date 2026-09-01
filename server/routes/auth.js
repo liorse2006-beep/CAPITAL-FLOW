@@ -40,6 +40,8 @@ const {
   PILOT_INVITE_CODE,
   FRONTEND_URL,
   ADMIN_EMAIL,
+  WHOP_API_KEY,
+  WHOP_ELITE_UPGRADE_PLAN_ID,
 } = require('../config');
 
 // A standard, deliberately simple email shape check. This isn't for
@@ -105,6 +107,8 @@ function serializePublicUser(user) {
     tier: effective.tier || 'free',
     is_elite: effective.tier === 'elite',
     elite_access: eliteAccess(effective),
+    // Capability only: never expose the provider plan identifier or secret.
+    elite_upgrade_available: !!(WHOP_API_KEY && WHOP_ELITE_UPGRADE_PLAN_ID),
     pilot_terms_accepted_at: effective.pilot_terms_accepted_at || null,
     notification_time: effective.notification_time || null,
     free_scan_count: effective.free_scan_count || 0,

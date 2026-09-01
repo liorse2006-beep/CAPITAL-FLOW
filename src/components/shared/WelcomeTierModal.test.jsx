@@ -8,15 +8,12 @@ import { AuthProvider } from '../../context/AuthContext';
 // See UpgradeModal.test.jsx — the real embed mounts an iframe against
 // Whop's servers, not something jsdom can/should exercise.
 vi.mock('@whop/checkout/react', () => ({
+  WhopExpressCheckoutButton: () => <div data-testid="whop-express-button" />,
   WhopCheckoutEmbed: (props) => (
     <div data-testid="whop-checkout-embed" data-session-id={props.sessionId} data-return-url={props.returnUrl}>
       <button onClick={() => props.onComplete('plan_x', 'receipt_x', {})}>Simulate payment complete</button>
     </div>
   ),
-  WhopExpressCheckoutButton: (props) => {
-    if (props.onExpressMethodResolved) props.onExpressMethodResolved({ rendered: 'none' });
-    return <div data-testid="whop-express-button" data-plan-id={props.planId} data-return-url={props.returnUrl} />;
-  },
 }));
 
 function renderWithProviders(ui) {
@@ -113,6 +110,14 @@ describe('WelcomeTierModal', () => {
     renderWithProviders(<WelcomeTierModal tier="premium" confirmed={true} onClose={vi.fn()} />);
     expect(screen.getByRole('button', { name: /upgrade to elite — 50% off/i })).toBeInTheDocument();
     expect(screen.getByText(/\$14\.95/)).toBeInTheDocument();
+  });
+
+  it('hides the upgrade offer when the server says the dedicated Whop plan is unavailable', () => {
+    renderWithProviders(
+      <WelcomeTierModal tier="premium" confirmed={true} eliteUpgradeAvailable={false} onClose={vi.fn()} />
+    );
+    expect(screen.queryByRole('button', { name: /upgrade to elite/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$14\.95/)).not.toBeInTheDocument();
   });
 
   it('does not show the upgrade offer on the Elite welcome screen', () => {

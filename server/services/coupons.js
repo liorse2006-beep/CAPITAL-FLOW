@@ -6,8 +6,9 @@ function normalizeCode(code) {
     .toUpperCase();
 }
 
-/** Read-only check — does NOT consume a use. Safe to call from an
- * unauthenticated endpoint (checkout page "have a coupon?" field). */
+/** Legacy read-only bookkeeping check — does NOT consume a use. It is kept
+ * for internal migrations/tests only; provider eligibility and discount
+ * calculation belong to Whop and are never returned to the browser. */
 async function validateCoupon(rawCode, tier) {
   const code = normalizeCode(rawCode);
   if (!code) return { valid: false, error: 'Enter a coupon code' };
@@ -28,7 +29,6 @@ async function validateCoupon(rawCode, tier) {
   return {
     valid: true,
     code,
-    discountPercent: coupon.discount_percent,
     appliesTo: coupon.applies_to,
   };
 }

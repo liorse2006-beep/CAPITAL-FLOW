@@ -3,7 +3,7 @@ import SectorHeatmap from './SectorHeatmap';
 import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
 import MobileResultSort from '../shared/MobileResultSort';
-import { fmt, friendlyError, formatPrice, formatSignedPercent } from '../../utils/format';
+import { fmt, friendlyError, formatPrice, formatRatio, formatSignedPercent } from '../../utils/format';
 import { categoryQuota } from '../../utils/quota';
 import { SECTOR_ETFS } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
@@ -384,7 +384,7 @@ export default function MoneyFlow({
                                         ? 'warm'
                                         : 'ok'),
                               },
-                              d.volRatio != null ? Number(d.volRatio).toFixed(2) + 'x' : '—'
+                              formatRatio(d.volRatio)
                             )
                           ),
                           React.createElement(
@@ -581,7 +581,7 @@ export default function MoneyFlow({
                                     : 'ok')
                             }
                           >
-                            {d.volRatio != null ? Number(d.volRatio).toFixed(2) + 'x' : '—'}
+                            {formatRatio(d.volRatio)}
                           </span>
                         </div>
                         <div className="mobile-result-card-stat">

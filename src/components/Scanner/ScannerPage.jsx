@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
-import NewsModal from '../shared/NewsModal';
 import ElectricBorder from '../shared/ElectricBorder';
 import SectorPickerModal from './SectorPickerModal';
 import CapitalFlowRadar from './CapitalFlowRadar';
-import useIsMobile from '../../hooks/useIsMobile';
 import useSmoothProgress from '../../hooks/useSmoothProgress';
 import MobileResultSort from '../shared/MobileResultSort';
-import { fmt, friendlyError, alertLevelLabel, formatSignedPercent, formatPrice } from '../../utils/format';
+import { fmt, friendlyError, alertLevelLabel, formatSignedPercent, formatPrice, formatRatio } from '../../utils/format';
 
 const ALL_SECTORS = [
   'Technology',
@@ -177,15 +175,12 @@ export default function ScannerPage({
   cacheAge,
   restoredFromLastScan,
   sorted,
-  visibleCount,
-  setVisibleCount,
   sortField,
   sortDir,
   handleSort,
   handleSortDoubleClick,
   alertLevels,
   promptCreateAlert,
-  explainWithCapi,
   isInWatchlist,
   toggleWatchlistTicker,
   scanMeta,
@@ -202,8 +197,6 @@ export default function ScannerPage({
 }) {
   const [currentTime, setCurrentTime] = useState(null);
   const [showSectorModal, setShowSectorModal] = useState(false);
-  const [newsSymbol, setNewsSymbol] = useState(null);
-  const isMobile = useIsMobile();
 
   useEffect(() => {
     const updateCurrentTime = () => setCurrentTime(new Date());
@@ -224,15 +217,6 @@ export default function ScannerPage({
     setShowUpgradeModal(true);
   }
 
-  function openNews(symbol) {
-    if (isMobile) return;
-    if (!user) {
-      onSignIn();
-      return;
-    }
-    setNewsSymbol(symbol);
-  }
-
   function handleChart(symbol, name, event) {
     event.stopPropagation();
     if (!isPremium || !openChart) {
@@ -242,8 +226,8 @@ export default function ScannerPage({
     openChart(symbol, name);
   }
 
-  // The desktop results table's per-row actions (Chart/News/Alert/AI
-  // Insights) are icon-only, no text — this one-time legend explains them
+  // The results table's remaining per-row actions (Chart/Alert) are icon-only,
+  // no text — this one-time legend explains them
   // the first time a table is ever shown, then never appears again
   // (localStorage flag, not per-session).
   const [showActionHint, setShowActionHint] = useState(function () {
@@ -335,7 +319,7 @@ export default function ScannerPage({
                         <span className="live-feed-name">{r.name}</span>
                       </div>
                       <div className="live-feed-right">
-                        <span className="live-feed-ratio">{r.volumeRatio + 'x'}</span>
+                        <span className="live-feed-ratio">{formatRatio(r.volumeRatio)}</span>
                         <span className="live-feed-price">{formatPrice(r.price)}</span>
                         <span
                           className={
@@ -762,11 +746,6 @@ export default function ScannerPage({
                   })()}
               </div>
               <div className="table-bar-right">
-                {sorted.length > 50 && (
-                  <span className="load-more-count">
-                    {'Showing ' + Math.min(visibleCount, sorted.length) + ' of ' + sorted.length}
-                  </span>
-                )}
                 {!scanning && (
                   <button
                     className="scan-btn table-new-scan-btn"
@@ -845,25 +824,6 @@ export default function ScannerPage({
                       </svg>
                       Volume alert
                     </span>
-                    {!isMobile && (
-                      <span className="action-hint-item">
-                        <svg
-                          viewBox="0 0 24 24"
-                          width="13"
-                          height="13"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M12 18h.01" />
-                          <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 4" />
-                          <circle cx="12" cy="12" r="10" />
-                        </svg>
-                        Ask Capi
-                      </span>
-                    )}
                     <button className="action-hint-close" onClick={dismissActionHint} aria-label="Dismiss">
                       ×
                     </button>
@@ -941,7 +901,7 @@ export default function ScannerPage({
                       </tr>
                     </thead>
                     <tbody>
-                      {sorted.slice(0, visibleCount).map((r, i) => (
+                      {sorted.map((r, i) => (
                         <tr key={r.symbol}>
                           <td className="col-rank">{i + 1}</td>
                           <td className="col-ticker">
@@ -993,7 +953,7 @@ export default function ScannerPage({
                             <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                               {r.rvol && r.rvol > 0 ? (
                                 <>
-                                  <span className="vol-ratio-pill rvol-active">{r.rvol + 'x'}</span>
+                                  <span className="vol-ratio-pill rvol-active">{formatRatio(r.rvol)}</span>
                                   <div className="rvol-label">RVOL</div>
                                 </>
                               ) : (
@@ -1009,7 +969,7 @@ export default function ScannerPage({
                                           : '')
                                   }
                                 >
-                                  {r.volumeRatio.toFixed(2) + 'x'}
+                                  {formatRatio(r.volumeRatio)}
                                 </span>
                               )}
                               <span className="vol-stack-mini" title="Avg / Current volume">
@@ -1041,31 +1001,6 @@ export default function ScannerPage({
                                 <path d="M18.7 8l-5.1 5.1-4-4L3 15.6" />
                               </svg>
                             </button>
-                            {!isMobile && (
-                              <button
-                                className="news-open-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openNews(r.symbol);
-                                }}
-                                title="Read market news"
-                                aria-label={'Read market news for ' + r.symbol}
-                              >
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  width="14"
-                                  height="14"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.8"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M5 3h14v18H5z" />
-                                  <path d="M8 7h8M8 11h8M8 15h5" />
-                                </svg>
-                              </button>
-                            )}
                             <button
                               className={'alert-create-btn' + (alertLevels && alertLevels[r.symbol] ? ' active' : '')}
                               onClick={() => promptCreateAlert(r.symbol, r.price)}
@@ -1089,53 +1024,24 @@ export default function ScannerPage({
                                 <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                               </svg>
                             </button>
-                            {!isMobile && (
-                              <button
-                                className="explain-capi-btn"
-                                onClick={() => explainWithCapi(r)}
-                                title="Ask Capi to explain this result"
-                                aria-label={'Ask Capi to explain ' + r.symbol}
-                              >
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  width="14"
-                                  height="14"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M12 18h.01" />
-                                  <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 4" />
-                                  <circle cx="12" cy="12" r="10" />
-                                </svg>
-                              </button>
-                            )}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                {sorted.length > visibleCount && (
-                  <div className="load-more-row">
-                    <button className="load-more-btn" onClick={() => setVisibleCount((c) => c + 50)}>
-                      {'Load ' + Math.min(50, sorted.length - visibleCount) + ' more'}
-                    </button>
-                    <span className="load-more-count">{visibleCount + ' of ' + sorted.length + ' results shown'}</span>
-                  </div>
-                )}
-
                 {/* Mobile cards */}
                 <div className="mobile-cards">
-                  {sorted.slice(0, visibleCount).map((r, i) => {
+                  {sorted.map((r, i) => {
                     const ratioClass =
                       r.volumeRatio >= 5 ? 'ratio-hot' : r.volumeRatio >= 3.5 ? 'ratio-warm' : 'ratio-ok';
                     return (
                       <div key={r.symbol} className={'mobile-card mobile-result-card ' + ratioClass}>
                         <div className="mobile-card-top">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div
+                            className="mobile-card-identity"
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}
+                          >
                             <button
                               className={'star-btn' + (isInWatchlist(r.symbol) ? ' starred' : '')}
                               onClick={(e) => {
@@ -1169,7 +1075,10 @@ export default function ScannerPage({
                             <span className="mobile-card-ticker">{r.symbol}</span>
                             <span className="mobile-card-name">{r.name}</span>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <div
+                            className="mobile-card-actions"
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '0 0 auto' }}
+                          >
                             <button
                               className="chart-open-btn"
                               onClick={(e) => handleChart(r.symbol, r.name, e)}
@@ -1190,31 +1099,6 @@ export default function ScannerPage({
                                 <path d="M18.7 8l-5.1 5.1-4-4L3 15.6" />
                               </svg>
                             </button>
-                            {!isMobile && (
-                              <button
-                                className="news-open-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openNews(r.symbol);
-                                }}
-                                title="Read market news"
-                                aria-label={'Read market news for ' + r.symbol}
-                              >
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  width="12"
-                                  height="12"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.8"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M5 3h14v18H5z" />
-                                  <path d="M8 7h8M8 11h8M8 15h5" />
-                                </svg>
-                              </button>
-                            )}
                             <button
                               className={'alert-create-btn' + (alertLevels && alertLevels[r.symbol] ? ' active' : '')}
                               onClick={(e) => {
@@ -1241,32 +1125,6 @@ export default function ScannerPage({
                                 <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                               </svg>
                             </button>
-                            {!isMobile && (
-                              <button
-                                className="explain-capi-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  explainWithCapi(r);
-                                }}
-                                title="Ask Capi to explain this result"
-                                aria-label={'Ask Capi to explain ' + r.symbol}
-                              >
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  width="12"
-                                  height="12"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M12 18h.01" />
-                                  <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 4" />
-                                  <circle cx="12" cy="12" r="10" />
-                                </svg>
-                              </button>
-                            )}
                             <span className="mobile-card-rank">{'#' + (i + 1)}</span>
                           </div>
                         </div>
@@ -1287,7 +1145,7 @@ export default function ScannerPage({
                             <span className="mobile-result-card-label">RVOL</span>
                             {r.rvol && r.rvol > 0 ? (
                               <span className="vol-ratio-pill rvol-active mobile-result-card-value">
-                                {r.rvol + 'x'}
+                                {formatRatio(r.rvol)}
                               </span>
                             ) : (
                               <span
@@ -1302,7 +1160,7 @@ export default function ScannerPage({
                                         : '')
                                 }
                               >
-                                {r.volumeRatio.toFixed(2) + 'x'}
+                                {formatRatio(r.volumeRatio)}
                               </span>
                             )}
                           </div>
@@ -1342,10 +1200,6 @@ export default function ScannerPage({
           maxPremiumSectors={maxPremiumSectors}
           sectorLimit={sectorLimit}
         />
-      )}
-
-      {newsSymbol && !isMobile && (
-        <NewsModal key={newsSymbol} symbol={newsSymbol} getToken={getToken} onClose={() => setNewsSymbol(null)} />
       )}
     </div>
   );

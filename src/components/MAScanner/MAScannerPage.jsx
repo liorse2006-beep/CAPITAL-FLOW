@@ -5,7 +5,7 @@ import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
 import MobileResultSort from '../shared/MobileResultSort';
 import { categoryQuota } from '../../utils/quota';
-import { friendlyError, alertLevelLabel, formatPrice } from '../../utils/format';
+import { friendlyError, alertLevelLabel, formatPrice, formatSignedPercent } from '../../utils/format';
 
 const MA_OPTIONS = [9, 20, 50, 150];
 const DISTANCE_OPTIONS = [1, 2];
@@ -699,7 +699,8 @@ export default function MAScannerPage({
                 )
               : sorted.map((r, i) => {
                   const isAbove = r.direction === 'above';
-                  const distAbs = Math.abs(r.maDistance);
+                  const distanceValue = Number(r.maDistance);
+                  const distAbs = Number.isFinite(distanceValue) ? Math.abs(distanceValue) : Infinity;
                   const distColor = distAbs < 0.5 ? 'var(--accent)' : isAbove ? 'var(--green)' : 'var(--red)';
                   return React.createElement(
                     'div',
@@ -709,14 +710,20 @@ export default function MAScannerPage({
                       { className: 'mobile-card-top' },
                       React.createElement(
                         'div',
-                        { style: { display: 'flex', alignItems: 'center', gap: 6 } },
+                        {
+                          className: 'mobile-card-identity',
+                          style: { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 },
+                        },
                         starBtn(r.symbol),
                         React.createElement('span', { className: 'mobile-card-ticker' }, r.symbol),
                         r.name && React.createElement('span', { className: 'mobile-card-name' }, r.name)
                       ),
                       React.createElement(
                         'div',
-                        { style: { display: 'flex', alignItems: 'center', gap: 4 } },
+                        {
+                          className: 'mobile-card-actions',
+                          style: { display: 'flex', alignItems: 'center', gap: 4, flex: '0 0 auto' },
+                        },
                         chartBtn(r.symbol),
                         alertBtn(r.symbol, r.price),
                         React.createElement('span', { className: 'mobile-card-rank' }, '#' + (i + 1))
@@ -738,7 +745,7 @@ export default function MAScannerPage({
                         React.createElement(
                           'span',
                           { className: 'mobile-card-change', style: { color: distColor } },
-                          (r.maDistance >= 0 ? '+' : '') + r.maDistance.toFixed(2) + '%'
+                          formatSignedPercent(r.maDistance)
                         )
                       )
                     ),
@@ -749,11 +756,7 @@ export default function MAScannerPage({
                         'div',
                         { className: 'mobile-result-card-stat mobile-result-card-stat-wide' },
                         React.createElement('span', { className: 'mobile-result-card-label' }, `SMA${ma}`),
-                        React.createElement(
-                          'span',
-                          { className: 'mobile-result-card-value' },
-                          '$' + r.maValue.toFixed(2)
-                        )
+                        React.createElement('span', { className: 'mobile-result-card-value' }, formatPrice(r.maValue))
                       )
                     )
                   );
@@ -805,7 +808,8 @@ export default function MAScannerPage({
                     )
                   : sorted.map((r, i) => {
                       const isAbove = r.direction === 'above';
-                      const distAbs = Math.abs(r.maDistance);
+                      const distanceValue = Number(r.maDistance);
+                      const distAbs = Number.isFinite(distanceValue) ? Math.abs(distanceValue) : Infinity;
                       const distColor = distAbs < 0.5 ? 'var(--accent)' : isAbove ? 'var(--green)' : 'var(--red)';
                       return React.createElement(
                         'tr',
@@ -821,7 +825,7 @@ export default function MAScannerPage({
                         React.createElement(
                           'td',
                           { style: { fontFamily: 'var(--mono)', fontSize: 12 } },
-                          '$' + r.maValue.toFixed(2)
+                          formatPrice(r.maValue)
                         ),
                         React.createElement(
                           'td',
@@ -829,7 +833,7 @@ export default function MAScannerPage({
                           React.createElement(
                             'span',
                             { className: 'ma-distance-cell', style: { color: distColor } },
-                            (r.maDistance >= 0 ? '+' : '') + r.maDistance.toFixed(2) + '%'
+                            formatSignedPercent(r.maDistance)
                           )
                         ),
                         React.createElement(

@@ -112,9 +112,9 @@ test('GET /api/notifications/:id rejects partially numeric and unsafe ids', asyn
   }
 });
 
-test('addNotification caps stored results at 50 rows', async () => {
+test('addNotification stores the complete scheduled scan result set', async () => {
   const user = await makeUser('notif-cap@test.local');
-  const bigResults = Array.from({ length: 120 }, (_, i) => ({ symbol: 'SYM' + i }));
+  const bigResults = Array.from({ length: 120 }, (_, i) => ({ symbol: 'SYM' + i, price: i + 1 }));
   const notifId = await addNotification(user.id, {
     title: 'Big scan',
     body: 'lots of results',
@@ -124,5 +124,6 @@ test('addNotification caps stored results at 50 rows', async () => {
 
   const row = await db.prepare('SELECT results_json FROM notifications WHERE id = ?').get(notifId);
   const stored = JSON.parse(row.results_json);
-  assert.strictEqual(stored.length, 50, 'results must be capped, not stored unbounded');
+  assert.strictEqual(stored.length, 120, 'scheduled notification details must not drop result rows');
+  assert.deepStrictEqual(stored, bigResults);
 });

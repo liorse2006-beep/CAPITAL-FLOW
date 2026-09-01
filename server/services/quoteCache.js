@@ -54,7 +54,7 @@ async function fetchBatch(symbols) {
       arr.forEach((q) => {
         if (q && q.symbol) cache.set(q.symbol, { data: q, fetchedAt: now });
       });
-      return arr;
+      return { quotes: arr, usedStaleFallback: false };
     } catch (err) {
       const msg = (err && err.message) || '';
       const safeMsg = redact(msg);
@@ -86,17 +86,20 @@ async function fetchBatch(symbols) {
           `[QuoteCache] Batch failed, no usable stale fallback (${symbols[0]}…${symbols[symbols.length - 1]}): ${safeMsg}`
         );
       }
-      return stale;
+      return { quotes: stale, usedStaleFallback: true };
     }
   }
   // Loop exhausted without returning — same age-limited stale fallback
   const now2 = Date.now();
-  return symbols
-    .map((s) => {
-      const e = cache.get(s);
-      return e && now2 - e.fetchedAt < MAX_STALE_AGE_MS ? e.data : null;
-    })
-    .filter(Boolean);
+  return {
+    quotes: symbols
+      .map((s) => {
+        const e = cache.get(s);
+        return e && now2 - e.fetchedAt < MAX_STALE_AGE_MS ? e.data : null;
+      })
+      .filter(Boolean),
+    usedStaleFallback: true,
+  };
 }
 
 /**
@@ -111,11 +114,21 @@ async function fetchBatch(symbols) {
 async function getQuotes(symbols, onBatchDone) {
   const result = new Map();
   const toFetch = [];
+  let oldestFetchedAt = null;
+  let staleCount = 0;
+
+  function recordUsedQuote(symbol) {
+    const entry = cache.get(symbol);
+    if (!entry) return;
+    if (oldestFetchedAt === null || entry.fetchedAt < oldestFetchedAt) oldestFetchedAt = entry.fetchedAt;
+    if (Date.now() - entry.fetchedAt >= CACHE_TTL_MS) staleCount++;
+  }
 
   for (const sym of symbols) {
     const entry = cache.get(sym);
     if (isFresh(entry)) {
       result.set(sym, entry.data);
+      recordUsedQuote(sym);
     } else {
       toFetch.push(sym);
     }
@@ -123,14 +136,26 @@ async function getQuotes(symbols, onBatchDone) {
 
   for (let i = 0; i < toFetch.length; i += BATCH_SIZE) {
     const batch = toFetch.slice(i, i + BATCH_SIZE);
-    const quotes = await fetchBatch(batch);
-    quotes.forEach((q) => {
+    const batchResult = await fetchBatch(batch);
+    batchResult.quotes.forEach((q) => {
       if (q && q.symbol) result.set(q.symbol, q);
+      if (q && q.symbol) recordUsedQuote(q.symbol);
     });
     if (onBatchDone) onBatchDone(Math.min(i + batch.length, toFetch.length), toFetch.length);
     if (i + BATCH_SIZE < toFetch.length) await sleep(INTER_BATCH_DELAY_MS);
   }
 
+  // Map metadata is intentionally non-enumerable from the perspective of
+  // callers iterating the map, but gives scanners an honest provider time.
+  // In particular, a recent stale fallback must not be reported as if it were
+  // fetched at the moment the scan request completed.
+  Object.defineProperties(result, {
+    dataAsOf: {
+      value: oldestFetchedAt === null ? null : new Date(oldestFetchedAt).toISOString(),
+      enumerable: false,
+    },
+    staleCount: { value: staleCount, enumerable: false },
+  });
   return result;
 }
 

@@ -8,16 +8,15 @@ const db = require('../db');
 // trimmed on every insert rather than a separate cron job.
 const MAX_PER_USER = 200;
 
-// A scheduled scan's own results can run into the hundreds — cap what gets
-// stored per notification so one busy scan can't bloat the row (and the
-// results view is meant to be a quick glance, not a full re-scan anyway).
-const MAX_RESULTS_STORED = 50;
+// Keep the complete result snapshot for a scheduled run. The current scanner
+// universe is finite (515 symbols), and the notification row is already
+// bounded by MAX_PER_USER. Truncating here made the notification detail show
+// a different, incomplete scan from the one that actually ran.
 
 /** Returns the new notification's id, so a caller (scheduled scans) can build
  * a "show me exactly this run" deep link into the push payload. */
 async function addNotification(userId, { symbol, title, body, scanType, results }) {
-  const resultsJson =
-    Array.isArray(results) && results.length > 0 ? JSON.stringify(results.slice(0, MAX_RESULTS_STORED)) : null;
+  const resultsJson = Array.isArray(results) && results.length > 0 ? JSON.stringify(results) : null;
   const res = await db
     .prepare(
       'INSERT INTO notifications (user_id, symbol, title, body, scan_type, results_json) VALUES (?, ?, ?, ?, ?, ?)'

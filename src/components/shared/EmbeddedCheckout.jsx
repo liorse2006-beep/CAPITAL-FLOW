@@ -6,44 +6,32 @@ import { WhopCheckoutEmbed, WhopExpressCheckoutButton } from '@whop/checkout/rea
 // own embed terms require the processor to stay visibly attributed even
 // when it's this invisible, so "Powered by Whop" stays on screen; everything
 // else (the page around it, the theme, what happens on completion) is ours.
-//
-// Above the card form we also mount Whop's WhopExpressCheckoutButton, which
-// detects the browser and offers a native one-tap wallet: Apple Pay in
-// Safari/iOS, Google Pay in Chrome/Android, Whop Pay elsewhere. It renders
-// nothing (onExpressMethodResolved → 'none') on a browser with no wallet
-// available, so the card form below is always the reliable fallback and this
-// never shows an empty/broken row. Uses planId (passed through from the
-// checkout session the server already created) since the express button
-// takes a plan, not a session id.
-export default function EmbeddedCheckout({ sessionId, planId, promoCode, onComplete, onError }) {
-  const [expressMethod, setExpressMethod] = useState(null); // 'apple-pay' | 'google-pay' | 'whop-pay' | 'none' | null
+export default function EmbeddedCheckout({ sessionId, promoCode, onComplete, onError, onPromoCodeChanged }) {
   // External wallet flows can leave the page for authorization (for example,
   // 3-D Secure or a native wallet sheet). Keep the return target on the same
   // origin so App.jsx can consume ?status=success|error and finish the normal
   // webhook/tier refresh flow after the customer comes back.
   const returnUrl = typeof window === 'undefined' ? '/' : `${window.location.origin}/`;
-
-  const showExpress = planId && expressMethod && expressMethod !== 'none';
+  const [expressMethod, setExpressMethod] = useState(null);
+  const expressAvailable = expressMethod && expressMethod !== 'none';
 
   return (
     <div className="embedded-checkout">
-      {planId && (
-        <div className={'embedded-express' + (showExpress ? '' : ' embedded-express-hidden')}>
-          <WhopExpressCheckoutButton
-            planId={planId}
-            returnUrl={returnUrl}
-            promoCode={promoCode || undefined}
-            theme="dark"
-            themeOptions={{ accentColor: '#f59e0b' }}
-            onExpressMethodResolved={(r) => setExpressMethod((r && r.rendered) || 'none')}
-            onComplete={onComplete}
-            onPaymentError={onError}
-            fallback={<div className="embedded-express-loading">Checking wallet options…</div>}
-          />
-          {showExpress && <div className="embedded-express-divider">or pay with card</div>}
-        </div>
-      )}
-
+      <div className={'embedded-express' + (expressMethod === 'none' ? ' embedded-express-hidden' : '')}>
+        <WhopExpressCheckoutButton
+          checkoutConfigurationId={sessionId}
+          methods={['apple-pay', 'google-pay', 'whop-pay']}
+          returnUrl={returnUrl}
+          promoCode={promoCode || undefined}
+          theme="dark"
+          themeOptions={{ accentColor: '#f59e0b' }}
+          onExpressMethodResolved={(info) => setExpressMethod((info && info.rendered) || 'none')}
+          onComplete={onComplete}
+          onPaymentError={onError}
+          fallback={<div className="embedded-express-loading">Checking wallet options…</div>}
+        />
+        {expressAvailable && <div className="embedded-express-divider">or pay with card</div>}
+      </div>
       <WhopCheckoutEmbed
         sessionId={sessionId}
         returnUrl={returnUrl}
@@ -57,6 +45,7 @@ export default function EmbeddedCheckout({ sessionId, planId, promoCode, onCompl
         }}
         onComplete={onComplete}
         onPaymentError={onError}
+        onPromoCodeChanged={onPromoCodeChanged}
         fallback={
           <div className="embedded-checkout-loading">
             <div className="spinner" />

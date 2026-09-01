@@ -11,6 +11,13 @@ const { reportError } = require('../utils/reportError');
 // so one slow push endpoint can't stall everyone behind it.
 const DIGEST_CONCURRENCY = 20;
 
+function formatDigestRatio(value) {
+  var ratio = Number(value);
+  if (!Number.isFinite(ratio) || ratio <= 0) return 'unavailable';
+  var formatted = Number.isInteger(ratio) ? String(ratio) : ratio.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  return formatted + 'x';
+}
+
 /** Current Israel local time as "HH:MM" and "YYYY-MM-DD", for matching against users.notification_time */
 function israelNow() {
   var parts = new Intl.DateTimeFormat('en-CA', {
@@ -43,7 +50,11 @@ function buildDigestPayload(thresholds, results, asOf) {
   var matches = [];
   Object.entries(thresholds).forEach(function ([symbol, minRatio]) {
     var r = bySymbol.get(symbol);
-    if (r && r.volumeRatio >= minRatio) matches.push(r);
+    var ratio = r ? Number(r.volumeRatio) : NaN;
+    var threshold = Number(minRatio);
+    if (r && Number.isFinite(ratio) && ratio > 0 && Number.isFinite(threshold) && ratio >= threshold) {
+      matches.push(Object.assign({}, r, { volumeRatio: ratio }));
+    }
   });
 
   if (matches.length === 0) {
@@ -57,7 +68,7 @@ function buildDigestPayload(thresholds, results, asOf) {
   var summary = matches
     .slice(0, 5)
     .map(function (r) {
-      return r.symbol + ' ' + r.volumeRatio + 'x';
+      return r.symbol + ' ' + formatDigestRatio(r.volumeRatio);
     })
     .join(', ');
   return {

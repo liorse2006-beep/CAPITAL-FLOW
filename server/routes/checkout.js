@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const { requireAuth } = require('../middleware/authMiddleware');
 const { checkoutLimiter } = require('../middleware/rateLimiters');
-const { validateCoupon } = require('../services/coupons');
+const { normalizeCode } = require('../services/coupons');
 const whop = require('../services/whop');
 const { WHOP_PREMIUM_PLAN_ID, WHOP_ELITE_PLAN_ID, WHOP_ELITE_UPGRADE_PLAN_ID, FRONTEND_URL } = require('../config');
 const { reportError } = require('../utils/reportError');
@@ -39,7 +39,7 @@ function isDuplicateCheckout(key) {
 router.post('/checkout/transaction', checkoutLimiter, requireAuth, async (req, res) => {
   if (!whop.enabled) return res.status(503).json({ error: 'Checkout is not configured yet' });
 
-  const { tier, couponCode } = req.body;
+  const { tier, couponCode: rawCouponCode } = req.body || {};
 
   if (isDuplicateCheckout(`${req.user.id}:${tier}`)) {
     return res.status(429).json({ error: 'Checkout already starting — please wait a moment.' });
@@ -74,24 +74,30 @@ router.post('/checkout/transaction', checkoutLimiter, requireAuth, async (req, r
     return res.status(400).json({ error: 'tier must be premium or elite, and its Whop plan must be configured' });
 
   try {
-    // Local coupons never change the amount Whop charges directly — Whop
-    // owns the actual price — but a code that validates here is passed
-    // through two ways: (1) as session metadata, so the webhook can credit
-    // it against this app's own uses_count/expiry/active bookkeeping once
-    // the payment actually completes, and (2) as the embed's `promoCode`
-    // prop (see EmbeddedCheckout.jsx), which pre-applies it inside Whop's
-    // checkout UI IF a Whop-side promo code with the same string also
-    // exists (created separately, in Whop's own dashboard) — that second
-    // part is what actually moves the price.
-    let coupon = null;
-    if (couponCode) {
-      coupon = await validateCoupon(couponCode, tier);
-      if (!coupon.valid) return res.status(400).json({ error: coupon.error });
+    // Whop is the only authority for both promo eligibility and the amount
+    // charged. The local coupons table is bookkeeping only: it cannot make a
+    // Whop checkout cheaper. A code that is valid in the local table but was
+    // never created/configured in Whop must still be allowed to reach the
+    // provider, because Whop is the system that can accept or reject it. Most
+    // importantly, we never return discount_percent or a locally calculated
+    // price to the browser. The embedded checkout displays the provider's
+    // final amount, and the webhook redeems local usage only after Whop
+    // confirms that the promo was actually applied.
+    let couponCode = '';
+    if (rawCouponCode != null && typeof rawCouponCode !== 'string') {
+      return res.status(400).json({ error: 'Promo code must be text' });
+    }
+    if (typeof rawCouponCode === 'string' && rawCouponCode.trim()) {
+      const trimmedCouponCode = rawCouponCode.trim();
+      if (!/^[A-Za-z0-9][A-Za-z0-9_-]{2,31}$/.test(trimmedCouponCode)) {
+        return res.status(400).json({ error: 'Invalid promo code format' });
+      }
+      couponCode = normalizeCode(trimmedCouponCode);
     }
 
     const session = await whop.createCheckoutSession({
       planId,
-      metadata: { userId: String(req.user.id), tier, ...(coupon ? { couponCode: coupon.code } : {}) },
+      metadata: { userId: String(req.user.id), tier, ...(couponCode ? { couponCode } : {}) },
       allowPromoCodes: true,
       // Whop redirects here regardless of outcome, appending its own
       // ?status=success|error — never bake an assumed outcome into this
@@ -102,7 +108,7 @@ router.post('/checkout/transaction', checkoutLimiter, requireAuth, async (req, r
       purchaseUrl: session.purchase_url,
       sessionId: session.id,
       planId,
-      ...(coupon ? { couponCode: coupon.code, discountPercent: coupon.discountPercent } : {}),
+      ...(couponCode ? { couponCode } : {}),
     });
   } catch (err) {
     reportError(err, '[checkout/transaction]');

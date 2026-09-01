@@ -118,6 +118,7 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
       onProgress({ processed: approx, total, found: 0, phase: 1 });
     }
   });
+  const quoteDataAsOf = quotesMap.dataAsOf || null;
 
   const qualified = [];
   tickers.forEach((sym) => {
@@ -243,7 +244,7 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
             ).size
           ? 'unavailable'
           : 'partial',
-    dataAsOf: new Date().toISOString(),
+    dataAsOf: quoteDataAsOf || new Date().toISOString(),
   };
 }
 

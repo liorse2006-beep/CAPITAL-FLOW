@@ -236,42 +236,27 @@
   }
 }
 .cf-landing-page .scroll-float {
-  overflow: hidden;
-}
-.cf-landing-page .scroll-float .word {
-  display: inline-block;
-  /* Never hide readable content while an observer is waiting. The entrance
-     can soften an already-visible heading, but it is not allowed to gate it. */
-  opacity: 1;
-  transform: none;
+  opacity: 0.62;
+  transform: translate3d(0, 14px, 0);
+  filter: blur(1.5px);
   transition:
-    opacity var(--cf-scroll-float-duration, 540ms) cubic-bezier(0.22, 1, 0.36, 1) var(--cf-scroll-float-delay, 0ms),
-    transform var(--cf-scroll-float-duration, 540ms) cubic-bezier(0.22, 1, 0.36, 1) var(--cf-scroll-float-delay, 0ms);
-  will-change: auto;
+    opacity var(--cf-scroll-float-duration, 520ms) cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform var(--cf-scroll-float-duration, 520ms) cubic-bezier(0.16, 1, 0.3, 1),
+    filter var(--cf-scroll-float-duration, 520ms) ease;
+  will-change: opacity, transform, filter;
 }
-.cf-landing-page .scroll-float.is-scroll-float-visible .word {
+.cf-landing-page .scroll-float.is-scroll-float-visible {
   opacity: 1;
-  transform: translate3d(0, 0, 0) scale(1);
+  transform: translate3d(0, 0, 0);
+  filter: blur(0px);
   will-change: auto;
-}
-@keyframes cf-scroll-float-settle {
-  from {
-    opacity: 0.94;
-    transform: translate3d(0, 0.18em, 0) scale(0.995);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-.cf-landing-page .scroll-float.is-scroll-float-visible .word {
-  animation: cf-scroll-float-settle var(--cf-scroll-float-duration, 540ms)
-    cubic-bezier(0.22, 1, 0.36, 1) var(--cf-scroll-float-delay, 0ms) both;
 }
 @media (prefers-reduced-motion: reduce) {
-  .cf-landing-page .scroll-float .word {
-    animation: none;
+  .cf-landing-page .scroll-float {
     transition: none;
+    opacity: 1;
+    transform: none;
+    filter: none;
   }
 }
 .cf-landing-page .cf-label {
@@ -1441,6 +1426,9 @@
   position: relative;
   z-index: 2;
 }
+.cf-landing-page .cf-proof-wrap {
+  top: 12px;
+}
 .cf-landing-page .cf-hero-eyebrow {
   margin-bottom: 22px;
   padding: 8px 12px;
@@ -1491,6 +1479,9 @@
 .cf-landing-page .cf-hero-line,
 .cf-landing-page .cf-hero-grad {
   display: block;
+}
+.cf-landing-page .cf-hero h1 .cf-metallic-heading--light {
+  white-space: nowrap;
 }
 .cf-landing-page .cf-hero-grad {
   background: linear-gradient(105deg, #f9d27b 0%, #e2a545 42%, #b97321 100%);
@@ -1554,6 +1545,69 @@
  * same material mask so the texture remains visible after the reveal runs. */
 .cf-landing-page .cf-metallic-heading .word {
   color: var(--accent);
+  background-image: inherit;
+  background-blend-mode: inherit;
+  background-position: inherit;
+  background-size: inherit;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  -webkit-text-fill-color: transparent;
+}
+
+/*
+ * Pearl version of the same headline material. White copy keeps its ivory
+ * identity, but now shares the brushed surface, soft edge and restrained
+ * highlight used by the gold emphasis.
+ */
+.cf-landing-page .cf-metallic-heading--light {
+  color: var(--text-0);
+  background-image:
+    linear-gradient(
+      112deg,
+      transparent 0%,
+      transparent 29%,
+      rgba(255, 255, 255, 0.16) 36%,
+      rgba(255, 255, 255, 0.78) 42%,
+      rgba(255, 255, 255, 0.08) 48%,
+      transparent 57%,
+      transparent 72%,
+      rgba(92, 78, 62, 0.2) 79%,
+      transparent 87%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(255, 255, 255, 0.34) 14%,
+      rgba(255, 255, 255, 0) 32%,
+      rgba(78, 61, 43, 0.18) 82%,
+      rgba(255, 248, 232, 0.62) 100%
+    ),
+    linear-gradient(
+      105deg,
+      #fffdf7 0%,
+      #eee7dc 38%,
+      #b9ad9f 72%,
+      #fff4e3 100%
+    );
+  background-blend-mode: screen, screen, normal;
+  background-position: 42% 50%, 50% 38%, 50% 50%;
+  background-size: 230% 100%, 100% 175%, 100% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  -webkit-text-fill-color: transparent;
+  filter:
+    drop-shadow(0 2px 0 rgba(42, 32, 23, 0.68))
+    drop-shadow(0 8px 16px rgba(255, 246, 228, 0.1));
+}
+
+/* Scroll-float wraps FAQ and CTA headings word-by-word. Keep the pearl
+ * surface on each generated word so the reveal never falls back to flat text. */
+.cf-landing-page .cf-metallic-heading--light .word {
+  color: var(--text-0);
   background-image: inherit;
   background-blend-mode: inherit;
   background-position: inherit;
@@ -2360,16 +2414,16 @@
 .cf-landing-page.has-category-transitions
   .cf-category-section.is-category-active
   > .cf-container {
-  animation: cf-category-arrive 880ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: cf-category-arrive 680ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 @keyframes cf-category-arrive {
   0% {
-    opacity: 0.86;
-    transform: translate3d(0, 34px, 0) scale(0.978);
+    opacity: 0.94;
+    transform: translate3d(0, 14px, 0) scale(0.994);
   }
   64% {
     opacity: 1;
-    transform: translate3d(0, -2px, 0) scale(1.003);
+    transform: translate3d(0, -1px, 0) scale(1.001);
   }
   100% {
     opacity: 1;
@@ -2410,6 +2464,91 @@
     transform: translate3d(0, 0, 0) scale(1.04);
   }
 }
+
+/* Content reveals: the section atmosphere establishes the scene, then the
+   actual message arrives in a short, readable sequence. Opacity never drops
+   to zero for the finished state, and the observer only fires once per item,
+   so scrolling back up remains calm instead of replaying a carousel. */
+.cf-landing-page .cf-scroll-reveal-ready {
+  opacity: 0;
+  filter: blur(2px);
+  transform: translate3d(0, 18px, 0) scale(0.995);
+  transition:
+    opacity 0.58s cubic-bezier(0.22, 0.61, 0.36, 1) var(--cf-scroll-reveal-delay, 0ms),
+    transform 0.62s cubic-bezier(0.16, 1, 0.3, 1) var(--cf-scroll-reveal-delay, 0ms),
+    filter 0.58s ease var(--cf-scroll-reveal-delay, 0ms);
+  will-change: opacity, transform, filter;
+}
+.cf-landing-page .cf-scroll-reveal-ready.cf-scroll-reveal--text {
+  transform: translate3d(0, 12px, 0);
+}
+.cf-landing-page .cf-scroll-reveal-ready.cf-scroll-reveal--card {
+  transform: translate3d(var(--cf-scroll-reveal-x, 12px), 16px, 0) scale(0.99);
+}
+.cf-landing-page .cf-scroll-reveal-ready.cf-scroll-reveal--step {
+  transform: translate3d(var(--cf-scroll-reveal-x, 12px), 14px, 0) scale(0.992);
+}
+.cf-landing-page .cf-scroll-reveal-ready.cf-scroll-reveal--visual {
+  transform: translate3d(0, 18px, 0) scale(0.99);
+}
+.cf-landing-page .cf-scroll-reveal-ready.cf-scroll-reveal--feature {
+  transform: translate3d(var(--cf-scroll-reveal-x, 12px), 14px, 0);
+}
+.cf-landing-page .cf-scroll-reveal-ready.cf-scroll-revealed {
+  opacity: 1;
+  filter: blur(0);
+  transform: translate3d(0, 0, 0) scale(1);
+  will-change: auto;
+}
+.cf-landing-page .cf-scroll-reveal-ready.cf-feat {
+  transition:
+    opacity 0.58s cubic-bezier(0.22, 0.61, 0.36, 1) var(--cf-scroll-reveal-delay, 0ms),
+    transform 0.62s cubic-bezier(0.16, 1, 0.3, 1) var(--cf-scroll-reveal-delay, 0ms),
+    filter 0.58s ease var(--cf-scroll-reveal-delay, 0ms),
+    border-top-color 0.28s ease;
+}
+.cf-landing-page .cf-scroll-reveal-ready.cf-faq-item {
+  transition:
+    opacity 0.58s cubic-bezier(0.22, 0.61, 0.36, 1) var(--cf-scroll-reveal-delay, 0ms),
+    transform 0.62s cubic-bezier(0.16, 1, 0.3, 1) var(--cf-scroll-reveal-delay, 0ms),
+    filter 0.58s ease var(--cf-scroll-reveal-delay, 0ms),
+    box-shadow 0.2s ease;
+}
+
+/* The feature icon and copy finish a fraction after the row, giving the eye
+   a small focal point without turning the section into a collection of pops. */
+.cf-landing-page .cf-feat.cf-scroll-reveal-ready .cf-feat-icon {
+  opacity: 0.8;
+  transform: scale(0.9) rotate(-4deg);
+  transition:
+    opacity 0.46s ease calc(var(--cf-scroll-reveal-delay, 0ms) + 70ms),
+    transform 0.54s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--cf-scroll-reveal-delay, 0ms) + 70ms),
+    background 0.28s ease,
+    border-color 0.28s ease;
+}
+.cf-landing-page .cf-feat.cf-scroll-revealed .cf-feat-icon {
+  opacity: 1;
+  transform: scale(1) rotate(0);
+}
+.cf-landing-page .cf-feat.cf-scroll-revealed:hover .cf-feat-icon {
+  transform: translateX(-2px) scale(1) rotate(0);
+}
+.cf-landing-page .cf-feat.cf-scroll-reveal-ready .cf-feat-en,
+.cf-landing-page .cf-feat.cf-scroll-reveal-ready h3,
+.cf-landing-page .cf-feat.cf-scroll-reveal-ready .cf-feat-ai-copy {
+  opacity: 0.75;
+  transform: translate3d(4px, 0, 0);
+  transition:
+    opacity 0.42s ease calc(var(--cf-scroll-reveal-delay, 0ms) + 80ms),
+    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--cf-scroll-reveal-delay, 0ms) + 80ms);
+}
+.cf-landing-page .cf-feat.cf-scroll-revealed .cf-feat-en,
+.cf-landing-page .cf-feat.cf-scroll-revealed h3,
+.cf-landing-page .cf-feat.cf-scroll-revealed .cf-feat-ai-copy {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
 .cf-landing-page .cf-plans-section {
   padding-top: 72px;
   padding-bottom: 72px;
@@ -2640,6 +2779,18 @@
 }
 .cf-landing-page .cf-landing-pricing-matrix .upgrade-trust-row {
   margin-top: 5px;
+}
+.cf-landing-page .cf-pricing-bottom-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  margin: 26px auto 0;
+  text-align: center;
+}
+.cf-landing-page .cf-pricing-bottom-cta > small {
+  color: var(--text-3);
+  font-size: 11px;
 }
 .cf-landing-page .cf-faq-section {
   position: relative;
@@ -2964,6 +3115,26 @@
   .cf-landing-page.has-category-transitions .cf-category-text-reveal {
     opacity: 1;
     clip-path: none;
+    transform: none;
+    transition: none;
+  }
+  .cf-landing-page .cf-scroll-reveal-ready,
+  .cf-landing-page .cf-scroll-reveal-ready.cf-scroll-reveal--text,
+  .cf-landing-page .cf-scroll-reveal-ready.cf-scroll-reveal--card,
+  .cf-landing-page .cf-scroll-reveal-ready.cf-scroll-reveal--step,
+  .cf-landing-page .cf-scroll-reveal-ready.cf-scroll-reveal--visual,
+  .cf-landing-page .cf-scroll-reveal-ready.cf-scroll-reveal--feature,
+  .cf-landing-page .cf-scroll-reveal-ready.cf-scroll-revealed {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    transition: none;
+  }
+  .cf-landing-page .cf-feat.cf-scroll-reveal-ready .cf-feat-icon,
+  .cf-landing-page .cf-feat.cf-scroll-reveal-ready .cf-feat-en,
+  .cf-landing-page .cf-feat.cf-scroll-reveal-ready h3,
+  .cf-landing-page .cf-feat.cf-scroll-reveal-ready .cf-feat-ai-copy {
+    opacity: 1;
     transform: none;
     transition: none;
   }
