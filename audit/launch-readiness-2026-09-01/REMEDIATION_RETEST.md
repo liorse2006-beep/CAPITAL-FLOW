@@ -6,19 +6,19 @@ This addendum supersedes stale baseline measurements in `LAUNCH_READINESS_REPORT
 
 | Item | Evidence |
 |---|---|
-| Application runtime commit | `d51207a46f058a7f1a8e106be3f48494d0f57414` — `Skip stale data in live alerts` |
-| Latest repository/deployment commit | `608ce07650659774c4f727f3df21a836596cc1ba` — `Keep healthy watchdog recovery green` (workflow-only descendant of the runtime commit) |
+| Application runtime commit | `ac2fb01f7cdec4f34ec8aad38d8da70910a66992` — `Harden sessions and bound scan enrichment` |
+| Latest deployed application commit | `ac2fb01f7cdec4f34ec8aad38d8da70910a66992` — `Harden sessions and bound scan enrichment` |
 | Branch | `main` |
 | Repository | `https://github.com/liorse2006-beep/CAPITAL-FLOW.git` |
-| Audit/retest time | `2026-09-01 17:27:20 +03:00`, Asia/Jerusalem |
+| Audit/retest time | `2026-09-01 18:16:48 +03:00`, Asia/Jerusalem |
 | Local environment | Windows PowerShell; Node `v24.15.0`; npm `11.12.1`; Python and Docker unavailable |
 | Production URL | `https://capitalflow.vip/` |
 | Health URL | `https://capitalflow.vip/health` |
 | Status URL | `https://status.capitalflow.vip/status` |
-| CI run | `33519144020` (run 299) — success for `608ce07` |
-| Deploy run | `33519144039` (run 293) — test and deploy jobs success for `608ce07` |
-| Production health verification | `GET https://capitalflow.vip/health?deploy=608ce07` → `200`, `status=ok`, `releaseCommit=608ce07650659774c4f727f3df21a836596cc1ba`, `timestamp=2026-09-01T14:26:38.741Z` |
-| Working tree | No modified tracked files after the verified commits; unrelated pre-existing untracked workspace artifacts remain un-staged |
+| Production health verification | `GET https://capitalflow.vip/health?deploy=ac2fb01-final` → `200`, `status=ok`, `releaseCommit=ac2fb01f7cdec4f34ec8aad38d8da70910a66992`, `timestamp=2026-09-01T15:17:01.904Z` |
+| CI run | `33523883083` — success for `ac2fb01` |
+| Deploy run | `33523883140` — success for `ac2fb01` |
+| Working tree | Focused release changes committed; unrelated pre-existing untracked workspace artifacts remain un-staged |
 
 No secrets, cookies, tokens, passwords, payment credentials, personal data, or provider keys were included in this addendum.
 
@@ -58,30 +58,32 @@ The checked release is a descendant of the earlier data/release-hardening commit
 - Background scans now retain an in-flight provider Promise after the visible hard timeout, preventing a later scheduler tick from starting a second full-market scan while the first provider call is still settling. Evidence: `server/services/backgroundScan.js:6-16,204-230,282-284`; `test/backgroundScanWatchdog.test.js:41-74`.
 - Live watchlist alerts now ignore rows explicitly marked `stale` or `unavailable`, so a provider fallback cannot consume an alert as if it were a verified threshold crossing. Evidence: `server/services/backgroundScan.js:103-110,157`; `test/backgroundScanAlerts.test.js:195-214`.
 - The external Keep-alive recovery path now logs a warning and exits successfully when recovery-email secrets are absent; the status probe still fails the watchdog when the status host is unhealthy. Evidence: `.github/workflows/keepalive.yml:40-43,96-107,135-139`.
+- Logout now revokes the browser's refresh-cookie session even when the short-lived access token has expired, while remaining idempotent for invalid credentials. A temporary `/api/auth/me` 5xx no longer clears a still-present client session. Evidence: `server/services/auth.js:163-177`; `server/routes/auth.js:525-551`; `src/context/AuthContext.jsx:68-84`; `test/authSessions.test.js:161-182`; `src/context/AuthContext.test.jsx:90-110`.
+- Scanner Phase 2 enrichment is now bounded to 20 concurrent match workers rather than launching an unbounded promise for every result, with an order/concurrency regression test. Evidence: `server/services/scanner.js:19-46,221-318,406`; `test/scannerDataStatus.test.js:91-106`.
 
 ## 3. Post-remediation checks actually run
 
 | Check | Result | Evidence |
 |---|---|---|
-| Backend suite | `VERIFIED PASS` | `npm run test:all` backend phase: 403/403 tests passed |
-| Frontend suite | `VERIFIED PASS` | `npm run test:frontend`: 147/147 tests passed; 20 files |
+| Backend suite | `VERIFIED PASS` | `npm run test:all` backend phase: 407/407 tests passed |
+| Frontend suite | `VERIFIED PASS` | `npm run test:frontend`: 148/148 tests passed; 20 files |
 | Cloudflare Worker suite | `VERIFIED PASS` | 8/8 tests passed |
 | Cluster integration | `VERIFIED PASS` | 1/1 broadcast test passed |
 | Lint | `VERIFIED PASS` | `npm run lint` exit 0 with no output/warnings |
 | Build | `VERIFIED PASS` | `npm run build`; Vite transformed 1,661 modules |
-| Scoped formatting | `VERIFIED PASS` | Prettier check passed on changed implementation and test files |
+| Scoped formatting | `VERIFIED PASS` | Prettier check passed on changed implementation and test files; full `npm run format:check` also passed |
 | Diff whitespace | `VERIFIED PASS` | `git diff --check` passed before commit |
 | Production dependency audit | `VERIFIED PASS` | `npm audit --omit=dev --audit-level=high` returned 0 vulnerabilities |
 | Targeted auth/alert/provider tests | `VERIFIED PASS` | 13/13 background alert/watchdog regression tests passed; the earlier 24/24 auth/alert/provider set also remains green |
-| GitHub CI | `VERIFIED PASS` | Run `33519144020` (299), SHA `608ce07...`, conclusion `success` |
-| GitHub Deploy | `VERIFIED PASS` | Run `33519144039` (293); `test` and `deploy` jobs both `success` |
-| Production health | `VERIFIED PASS` | `GET /health?deploy=608ce07` → 200; body releaseCommit exactly `608ce07650659774c4f727f3df21a836596cc1ba` |
-| Production asset deployment | `VERIFIED PASS` | HTML `200`; `assets/index-D78Wuowv.js` and `assets/index-B85OEQX-.css` references returned |
+| GitHub CI | `VERIFIED PASS` | Run `33523883083`, SHA `ac2fb01...`, conclusion `success` |
+| GitHub Deploy | `VERIFIED PASS` | Run `33523883140`; deploy completed `success` |
+| Production health | `VERIFIED PASS` | `GET /health?deploy=ac2fb01-final` → 200; body releaseCommit exactly `ac2fb01f7cdec4f34ec8aad38d8da70910a66992` |
+| Production asset deployment | `VERIFIED PASS` | Public routes returned `200` after the exact-SHA health check; the Vite asset manifest was served by the deployed origin |
 | Public route smoke | `VERIFIED PASS` | `/`, `/scanner`, `/ma`, `/flow`, `/fundamentals`, `/watchlist`, `/policy`, `/accessibility`, `/robots.txt`, `/sitemap.xml`, and status URL all returned 200 |
 | Production security headers | `VERIFIED PASS` | Current root and health responses included CSP, HSTS, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, and X-Frame-Options |
 | Anonymous protected API smoke | `VERIFIED PASS` | `2026-09-01 16:52:53 +03:00`: unauthenticated GETs to `/api/auth/me`, `/api/account/summary`, `/api/scan`, `/api/scan-ma`, `/api/sector-flow`, `/api/fundamentals`, `/api/watchlist`, `/api/watchlist-alerts`, `/api/notifications`, `/api/chat/history`, `/api/radars`, `/api/scheduled-scans`, `/api/scan-quota`, `/api/push/notification-time`, `/api/stream-ticket`, and `/admin/api/users` all returned `401`; no write request was sent |
 | Safe coupon endpoint probe | `VERIFIED PASS` | Arbitrary sample POST returned 410 `provider_checkout_required`; no local discount was returned |
-| Guest mobile overflow | `VERIFIED PASS` | Headless Puppeteer at 320/360/390/430/768: document/body width equaled viewport; no horizontal overflow; `.chat-widget` not visible |
+| Guest mobile overflow | `VERIFIED PASS` | Headless Puppeteer against the deployed origin: `/scanner` at 320/360/390/430/768 had document/body width equal to viewport and no overflow; all `/scanner`, `/ma`, `/flow`, `/fundamentals`, `/watchlist` checks at 390 had `documentWidth=bodyWidth=390`, no overflow, and Capi hidden |
 | Real payment/wallet | `UNKNOWN` by policy | No transaction or authorization was performed |
 | Production backup restore | `UNKNOWN` | No approved isolated recovery database was available |
 | Authenticated production matrix | `UNKNOWN` | No approved seeded accounts for every tier/ownership case were used |
@@ -367,6 +369,6 @@ Recommended order is the order above; items 1–3 are launch gates, 4–6 are re
 
 ## 9. Release recommendation
 
-The application runtime at `d51207a` and latest deployed repository commit `608ce07` are successfully deployed and pass all local/CI/public smoke checks performed here. The release is **not** eligible for an unconditional launch recommendation under the supplied launch policy because three High evidence gates remain Unknown. The next safe action is to execute the three controlled environment checks in the recommended order, then rerun this report and recalculate the score. A score of 100 must not be assigned until those evidence gaps and the remaining core unknowns are actually closed.
+The application runtime and latest deployed repository commit `ac2fb01` are successfully deployed and pass all local/CI/public smoke checks performed here. The release is **not** eligible for an unconditional launch recommendation under the supplied launch policy because three High evidence gates remain Unknown. The next safe action is to execute the three controlled environment checks in the recommended order, then rerun this report and recalculate the score. A score of 100 must not be assigned until those evidence gaps and the remaining core unknowns are actually closed.
 
 Commercial/legal/payment/email review remains separate and is not approved by this technical retest.
