@@ -105,22 +105,22 @@ jobs:
             echo 'External recovery email failed: one or more repository secrets are not configured.' >&2
             exit 1
           else
-            python - <<'PY'
-            import json, os, urllib.request
-            recipients = [item.strip() for item in os.environ['STATUS_ALERT_RECIPIENTS'].split(',') if item.strip()]
-            payload = json.dumps({
-                'from': os.environ['RESEND_FROM_EMAIL'],
-                'to': recipients,
-                'subject': '[Capital Flow] RESOLVED — monitoring host reachable again',
-                'text': 'The independent status host is responding with HTTP 200 again. The external watchdog incident has recovered.',
-            }).encode()
-            request = urllib.request.Request('https://api.resend.com/emails', data=payload, headers={
-                'Authorization': 'Bearer ' + os.environ['RESEND_API_KEY'],
-                'Content-Type': 'application/json',
-            })
-            with urllib.request.urlopen(request, timeout=30) as response:
-                print(response.read().decode())
-            PY
+          python - <<'PY'
+          import json, os, urllib.request
+          recipients = [item.strip() for item in os.environ['STATUS_ALERT_RECIPIENTS'].split(',') if item.strip()]
+          payload = json.dumps({
+              'from': os.environ['RESEND_FROM_EMAIL'],
+              'to': recipients,
+              'subject': '[Capital Flow] RESOLVED — monitoring host reachable again',
+              'text': 'The independent status host is responding with HTTP 200 again. The external watchdog incident has recovered.',
+          }).encode()
+          request = urllib.request.Request('https://api.resend.com/emails', data=payload, headers={
+              'Authorization': 'Bearer ' + os.environ['RESEND_API_KEY'],
+              'Content-Type': 'application/json',
+          })
+          with urllib.request.urlopen(request, timeout=30) as response:
+              print(response.read().decode())
+          PY
           fi
       - name: Close the external watchdog incident after recovery
         if: steps.incident-state.outputs.send_recovery == 'true' && steps.recovery-email.outcome == 'success'
