@@ -8,6 +8,7 @@ This addendum supersedes stale baseline measurements in `LAUNCH_READINESS_REPORT
 |---|---|
 | Application runtime commit | `ac2fb01f7cdec4f34ec8aad38d8da70910a66992` — `Harden sessions and bound scan enrichment` |
 | Latest deployed application commit | `ac2fb01f7cdec4f34ec8aad38d8da70910a66992` — `Harden sessions and bound scan enrichment` |
+| Public application/runtime release at follow-up verification | `061da8521b2c843e520f33a7c0a53832b54fe67e` — `index.html`-only JSON-LD structured-data update; runtime application code remains the `ac2fb01` release |
 | Branch | `main` |
 | Repository | `https://github.com/liorse2006-beep/CAPITAL-FLOW.git` |
 | Audit/retest time | `2026-09-01 18:16:48 +03:00`, Asia/Jerusalem |
@@ -16,6 +17,7 @@ This addendum supersedes stale baseline measurements in `LAUNCH_READINESS_REPORT
 | Health URL | `https://capitalflow.vip/health` |
 | Status URL | `https://status.capitalflow.vip/status` |
 | Production health verification | `GET https://capitalflow.vip/health?deploy=ac2fb01-final` → `200`, `status=ok`, `releaseCommit=ac2fb01f7cdec4f34ec8aad38d8da70910a66992`, `timestamp=2026-09-01T15:17:01.904Z` |
+| Follow-up public release verification | `GET https://capitalflow.vip/health?audit=061da852` → `200`, `status=ok`, `releaseCommit=061da8521b2c843e520f33a7c0a53832b54fe67e`, `timestamp=2026-09-01T15:40:36.809Z`; landing `GET https://capitalflow.vip/?audit=061da852` → `200` and contains `application/ld+json` |
 | CI run | `33523883083` — success for `ac2fb01` |
 | Deploy run | `33523883140` — success for `ac2fb01` |
 | Working tree | Focused release changes committed; unrelated pre-existing untracked workspace artifacts remain un-staged |
@@ -77,7 +79,10 @@ The checked release is a descendant of the earlier data/release-hardening commit
 | Targeted auth/alert/provider tests | `VERIFIED PASS` | 13/13 background alert/watchdog regression tests passed; the earlier 24/24 auth/alert/provider set also remains green |
 | GitHub CI | `VERIFIED PASS` | Run `33523883083`, SHA `ac2fb01...`, conclusion `success` |
 | GitHub Deploy | `VERIFIED PASS` | Run `33523883140`; deploy completed `success` |
+| Follow-up runtime-release CI | `VERIFIED PASS` | Run `33526781244`, SHA `061da852...`, conclusion `success` |
+| Follow-up runtime-release Deploy | `VERIFIED PASS` | Run `33526781400`, SHA `061da852...`, deploy completed `success` |
 | Production health | `VERIFIED PASS` | `GET /health?deploy=ac2fb01-final` → 200; body releaseCommit exactly `ac2fb01f7cdec4f34ec8aad38d8da70910a66992` |
+| Follow-up public health and landing structured data | `VERIFIED PASS` | Follow-up health returned the exact `061da852...` release commit; landing returned 200 and included JSON-LD |
 | Production asset deployment | `VERIFIED PASS` | Public routes returned `200` after the exact-SHA health check; the Vite asset manifest was served by the deployed origin |
 | Public route smoke | `VERIFIED PASS` | `/`, `/scanner`, `/ma`, `/flow`, `/fundamentals`, `/watchlist`, `/policy`, `/accessibility`, `/robots.txt`, `/sitemap.xml`, and status URL all returned 200 |
 | Production security headers | `VERIFIED PASS` | Current root and health responses included CSP, HSTS, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, and X-Frame-Options |
@@ -279,7 +284,7 @@ The score below is conservative and evidence-based. Local code/test improvements
 | Performance, scalability and reliability | 8 | 5 | Build/lazy chunks and defensive timeouts pass; production SLO metrics remain unknown |
 | Infrastructure, deployment, backups and disaster recovery | 6 | 4 | CI/deploy/health/SHA and public headers pass; restore/failover/rollback remain unknown |
 | AI grounding and safety | 4 | 3 | Local auth, prompt-boundary, fallback, and stream tests pass; adversarial production behavior remains unknown |
-| QA, tests and release engineering | 3 | 3 | 401 backend, 147 frontend, 8 Worker, cluster, lint, and build pass |
+| QA, tests and release engineering | 3 | 3 | 401 backend, 148 frontend, 8 Worker, cluster, lint, and build pass |
 | SEO, dependencies, licensing and compliance risk | 3 | 2 | Dependency vulnerability and public SEO smoke pass; full licensing/editorial/legal review remains unknown |
 | **TOTAL** | **100** | **75** | Conservative current retest score |
 
@@ -369,6 +374,6 @@ Recommended order is the order above; items 1–3 are launch gates, 4–6 are re
 
 ## 9. Release recommendation
 
-The application runtime and latest deployed repository commit `ac2fb01` are successfully deployed and pass all local/CI/public smoke checks performed here. The release is **not** eligible for an unconditional launch recommendation under the supplied launch policy because three High evidence gates remain Unknown. The next safe action is to execute the three controlled environment checks in the recommended order, then rerun this report and recalculate the score. A score of 100 must not be assigned until those evidence gaps and the remaining core unknowns are actually closed.
+The checked application runtime `ac2fb01` is successfully deployed and passes the local/CI/public smoke checks performed here. The public application/runtime release verified afterward, `061da852`, is an `index.html`-only JSON-LD update; its CI, deploy, health, and landing structured-data checks also pass. The release is **not** eligible for an unconditional launch recommendation under the supplied launch policy because three High evidence gates remain Unknown. The next safe action is to execute the three controlled environment checks in the recommended order, then rerun this report and recalculate the score. A score of 100 must not be assigned until those evidence gaps and the remaining core unknowns are actually closed.
 
 Commercial/legal/payment/email review remains separate and is not approved by this technical retest.
