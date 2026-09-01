@@ -355,12 +355,9 @@ function labelFromUrl(url) {
 async function resolveFinalUrl(url) {
   if (isDisallowedUrl(url)) return url;
   try {
-    var controller = new AbortController();
-    var timeout = setTimeout(function () {
-      controller.abort();
-    }, 5000);
-    var res = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
-    clearTimeout(timeout);
+    // Use the shared timeout wrapper so this outbound request cannot leave a
+    // timer behind or hang independently of the rest of the provider calls.
+    const res = await fetchWithTimeout(url, { method: 'HEAD', redirect: 'follow' }, 5000);
     // The redirect chain itself could land on a private address even if the
     // starting url didn't — re-check before trusting res.url.
     return isDisallowedUrl(res.url) ? url : res.url || url;

@@ -530,30 +530,66 @@ function App() {
   );
 
   // alertData is either { type: 'volume', minRatio } or
-  // { type: 'price', targetPrice, referencePrice } — referencePrice is the
-  // live price shown on screen when the alert was set, used server-side
-  // only to record which side of targetPrice the stock started on.
-  function setAlertLevel(symbol, alertData) {
-    var updated = Object.assign({}, alertLevels);
-    updated[symbol] = alertData;
-    setAlertLevels(updated);
-    localStorage.setItem(scopedStorageKey('vs-alert-levels'), JSON.stringify(updated));
-    if (canNotify) {
-      fetch('/api/watchlist-alerts/' + symbol, {
+  // { type: 'price', targetPrice, referencePrice }. The client reference price
+  // is only a compatibility field for older callers; the server re-verifies
+  // the current price and returns the authoritative starting side.
+  async function setAlertLevel(symbol, alertData) {
+    if (!canNotify) return false;
+    try {
+      const response = await fetch('/api/watchlist-alerts/' + symbol, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
         body: JSON.stringify(alertData),
-      }).catch(function () {});
+      });
+      const data = await response.json().catch(function () {
+        return {};
+      });
+      if (!response.ok) throw new Error(data.error || 'Could not save alert');
+
+      // Store only the server-confirmed representation. In particular, never
+      // let the local polling path use a client-side startingSide that was
+      // computed from a stale quote after the server chose a different side.
+      let savedAlert;
+      if (
+        data.type === 'price' &&
+        Number.isFinite(Number(data.targetPrice)) &&
+        Number(data.targetPrice) > 0 &&
+        (data.startingSide === 'above' || data.startingSide === 'below')
+      ) {
+        savedAlert = { type: 'price', targetPrice: Number(data.targetPrice), startingSide: data.startingSide };
+      } else if (data.type === 'volume' && Number.isFinite(Number(data.minRatio)) && Number(data.minRatio) > 0) {
+        savedAlert = { type: 'volume', minRatio: Number(data.minRatio) };
+      } else {
+        throw new Error('The alert could not be verified. Please try again.');
+      }
+      setAlertLevels(function (prev) {
+        const updated = Object.assign({}, prev, { [symbol]: savedAlert });
+        localStorage.setItem(scopedStorageKey('vs-alert-levels'), JSON.stringify(updated));
+        return updated;
+      });
+      return true;
+    } catch (error) {
+      showToast(error && error.message ? error.message : 'Could not save alert');
+      return false;
     }
   }
 
-  function removeAlertLevel(symbol) {
-    clearAlertLevelLocal(symbol);
-    if (canNotify) {
-      fetch('/api/watchlist-alerts/' + symbol, {
+  async function removeAlertLevel(symbol) {
+    if (!canNotify) return false;
+    try {
+      const response = await fetch('/api/watchlist-alerts/' + symbol, {
         method: 'DELETE',
         headers: { Authorization: 'Bearer ' + getToken() },
-      }).catch(function () {});
+      });
+      const data = await response.json().catch(function () {
+        return {};
+      });
+      if (!response.ok) throw new Error(data.error || 'Could not remove alert');
+      clearAlertLevelLocal(symbol);
+      return true;
+    } catch (error) {
+      showToast(error && error.message ? error.message : 'Could not remove alert');
+      return false;
     }
   }
 
@@ -1274,13 +1310,13 @@ function App() {
           current={alertLevels[alertModalSymbol]}
           currentPrice={alertModalPrice}
           onClose={() => setAlertModalSymbol(null)}
-          onSave={(alertData) => {
-            setAlertLevel(alertModalSymbol, alertData);
-            setAlertModalSymbol(null);
+          onSave={async (alertData) => {
+            const saved = await setAlertLevel(alertModalSymbol, alertData);
+            if (saved) setAlertModalSymbol(null);
           }}
-          onRemove={() => {
-            removeAlertLevel(alertModalSymbol);
-            setAlertModalSymbol(null);
+          onRemove={async () => {
+            const removed = await removeAlertLevel(alertModalSymbol);
+            if (removed) setAlertModalSymbol(null);
           }}
         />
       )}

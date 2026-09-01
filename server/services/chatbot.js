@@ -73,7 +73,7 @@ What Capital Flow (the app) does:
 - Hot Sectors: a sector-by-sector money-flow heatmap showing which sectors are seeing inflow/outflow.
 - MA Scanner: finds stocks trading near a chosen moving average (SMA9/20/50/150), daily or weekly.
 - Watchlist: users star tickers to track them, can set a volume-ratio alert threshold per ticker, and (Elite) get push notifications and a daily scheduled scan summary.
-- Every result row has a Chart button (opens TradingView), an Alert button (set a volume-ratio threshold), and a News button (AI-summarized recent verified news for that specific ticker, with sentiment and short-term-impact commentary).
+- Result rows expose the actions currently available in the scanner (including Chart and Alert where supported). News is a separate signed-in surface when enabled; do not claim that every row has a News or Capi action.
 
 Tiers:
 - Free trial (first 7 days after signup): the COMPLETE Elite experience, free — unlimited scans, push notifications, daily scheduled scans, custom watchlist alerts, News, and full access to Capi (you). After 7 days a free account is locked until it upgrades. News stays available to every tier, including Free, even after the trial.

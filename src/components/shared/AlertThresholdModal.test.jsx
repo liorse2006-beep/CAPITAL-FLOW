@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AlertThresholdModal from './AlertThresholdModal';
 
@@ -93,6 +93,37 @@ describe('AlertThresholdModal', () => {
     await user.clear(screen.getByRole('spinbutton'));
     await user.click(screen.getByRole('button', { name: 'הסר התראה' }));
     expect(onRemove).toHaveBeenCalled();
+  });
+
+  it('prevents duplicate submissions while the server is saving an alert', async () => {
+    const user = userEvent.setup();
+    let release;
+    const onSave = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        })
+    );
+    render(
+      <AlertThresholdModal
+        symbol="AAPL"
+        current={null}
+        currentPrice={190}
+        onSave={onSave}
+        onRemove={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+    await user.click(screen.getByText('נפח'));
+    await user.type(screen.getByRole('spinbutton'), '4');
+    const saveButton = screen.getByRole('button', { name: 'קבע התראה' });
+    await user.click(saveButton);
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(saveButton).toBeDisabled();
+    await user.click(saveButton);
+    expect(onSave).toHaveBeenCalledTimes(1);
+    release();
+    await waitFor(() => expect(saveButton).not.toBeDisabled());
   });
 
   it('lets you switch alert type via the back link without losing the existing alert', async () => {

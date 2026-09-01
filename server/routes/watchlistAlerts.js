@@ -29,36 +29,46 @@ router.post('/watchlist-alerts/:symbol', requireEliteOrTrial, async (req, res) =
 
     if (type === 'price') {
       const targetPrice = Number(req.body.targetPrice);
-      const clientReferencePrice = Number(req.body.referencePrice);
-      if (
-        !Number.isFinite(targetPrice) ||
-        targetPrice <= 0 ||
-        targetPrice > MAX_PRICE ||
-        !Number.isFinite(clientReferencePrice) ||
-        clientReferencePrice <= 0 ||
-        clientReferencePrice > MAX_PRICE
-      )
-        return res.status(400).json({ error: 'targetPrice and referencePrice (> 0) required' });
+      if (!Number.isFinite(targetPrice) || targetPrice <= 0 || targetPrice > MAX_PRICE)
+        return res.status(400).json({ error: 'targetPrice (> 0) is required' });
 
       // Which side of targetPrice the stock is on right now decides whether
       // the background checker later sees a real crossing or fires
       // immediately. That decision must not rest on a number the client
       // supplied and could be stale (the UI's own quote cache can be several
-      // minutes old) or simply wrong — re-fetch a live quote here and use
-      // IT as the authority. clientReferencePrice is only a fallback for the
-      // rare case the live fetch itself fails, so the alert can still be
-      // created instead of hard-failing the request.
-      let referencePrice = clientReferencePrice;
+      // minutes old) or simply wrong. A client referencePrice may still be
+      // sent by older app builds for compatibility, but it is deliberately
+      // ignored. If the server cannot verify a current price, do not create
+      // an alert whose starting side would be a guess.
+      let quotes;
       try {
-        const quotes = await quoteCache.getQuotes([symbol]);
-        const live = quotes.get(symbol);
-        if (live && live.regularMarketPrice > 0) referencePrice = live.regularMarketPrice;
+        quotes = await quoteCache.getQuotes([symbol]);
       } catch (_) {
-        // Live fetch failed — fall back to the client-supplied price rather
-        // than blocking the user from setting an alert at all.
+        return res.status(503).json({
+          code: 'DATA_UNAVAILABLE',
+          error: 'Current price data is unavailable right now. Try again in a few minutes.',
+        });
       }
 
-      const startingSide = referencePrice >= targetPrice ? 'above' : 'below';
+      const live = quotes && typeof quotes.get === 'function' ? quotes.get(symbol) : null;
+      const staleSymbols = new Set(
+        Array.isArray(quotes && quotes.staleSymbols)
+          ? quotes.staleSymbols.map((value) =>
+              String(value || '')
+                .trim()
+                .toUpperCase()
+            )
+          : []
+      );
+      const currentPrice = Number(live && live.regularMarketPrice);
+      if (!Number.isFinite(currentPrice) || currentPrice <= 0 || staleSymbols.has(symbol)) {
+        return res.status(503).json({
+          code: 'DATA_UNAVAILABLE',
+          error: 'Current price data is unavailable right now. Try again in a few minutes.',
+        });
+      }
+
+      const startingSide = currentPrice >= targetPrice ? 'above' : 'below';
       await setAlert(req.user.id, symbol, { type: 'price', targetPrice, startingSide });
       return res.json({ ok: true, symbol, type, targetPrice, startingSide });
     }

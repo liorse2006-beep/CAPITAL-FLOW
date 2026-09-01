@@ -53,6 +53,7 @@ function initValueFor(type, current) {
 export default function AlertThresholdModal({ symbol, current, currentPrice, onSave, onRemove, onClose }) {
   const [step, setStep] = useState(current ? current.type : 'type'); // 'type' | 'volume' | 'price'
   const [value, setValue] = useState(initValueFor(current ? current.type : 'volume', current));
+  const [submitting, setSubmitting] = useState(false);
   const panelRef = useModalA11y(onClose);
 
   function chooseType(type) {
@@ -63,24 +64,37 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
   const trimmed = value.trim();
   const editingSameType = !!current && current.type === step;
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
+    if (submitting) return;
     if (trimmed === '') {
-      if (editingSameType) onRemove();
+      if (editingSameType) {
+        setSubmitting(true);
+        try {
+          await onRemove();
+        } finally {
+          setSubmitting(false);
+        }
+      }
       return;
     }
     const num = parseFloat(trimmed);
     if (!(num > 0)) return;
-    if (step === 'volume') {
-      onSave({ type: 'volume', minRatio: num });
-    } else {
-      if (!(currentPrice > 0)) return;
-      onSave({
-        type: 'price',
-        targetPrice: num,
-        referencePrice: currentPrice,
-        startingSide: currentPrice >= num ? 'above' : 'below',
-      });
+    if (step === 'price' && !(currentPrice > 0)) return;
+    setSubmitting(true);
+    try {
+      if (step === 'volume') {
+        await onSave({ type: 'volume', minRatio: num });
+      } else {
+        await onSave({
+          type: 'price',
+          targetPrice: num,
+          referencePrice: currentPrice,
+          startingSide: currentPrice >= num ? 'above' : 'below',
+        });
+      }
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -92,11 +106,15 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
   let buttonDisabled = false;
   if (trimmed === '') {
     if (editingSameType) {
-      buttonLabel = 'הסר התראה';
+      buttonLabel = submitting ? 'מסיר…' : 'הסר התראה';
     } else {
       buttonDisabled = true;
     }
   } else if (step === 'price' && !(currentPrice > 0)) {
+    buttonDisabled = true;
+  }
+  if (submitting) {
+    buttonLabel = trimmed === '' ? 'מסיר…' : 'שומר…';
     buttonDisabled = true;
   }
 

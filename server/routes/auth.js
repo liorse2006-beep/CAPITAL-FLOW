@@ -73,6 +73,19 @@ const DUMMY_PASSWORD_HASH = '$2b$12$6o2c9QdDPpVJDkrxAXyZNOtcbhFwjkkB111QkvJjk3Hn
 const REFRESH_COOKIE_NAME = 'vs_refresh';
 const REFRESH_COOKIE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 
+// OAuth authorization and callback must both opt into Passport's state
+// verifier. Passport stores the nonce in the signed cookie-session configured
+// by server/index.js and rejects a callback that was not started by this
+// browser. Keep the options in named constants so the two halves cannot drift
+// apart during a future auth refactor, and so the contract is testable without
+// contacting Google.
+const GOOGLE_AUTH_OPTIONS = Object.freeze({
+  scope: ['profile', 'email'],
+  prompt: 'select_account',
+  state: true,
+});
+const GOOGLE_CALLBACK_AUTH_OPTIONS = Object.freeze({ session: false, state: true });
+
 function setRefreshCookie(res, refreshToken) {
   res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
     httpOnly: true,
@@ -226,10 +239,16 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
     }
   });
 
-  router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], prompt: 'select_account' }));
+  // Keep the OAuth authorization request bound to the signed cookie-session.
+  // Without `state: true`, an attacker can start Google OAuth in their own
+  // browser, then make a victim follow the callback URL and silently log the
+  // victim into the attacker's Capital Flow account (login CSRF). Passport
+  // stores the nonce in the cookie-session and rejects a callback whose state
+  // does not match the authorization request that started in that browser.
+  router.get('/google', passport.authenticate('google', GOOGLE_AUTH_OPTIONS));
 
   router.get('/google/callback', function (req, res, next) {
-    passport.authenticate('google', { session: false }, async function (err, user, _info) {
+    passport.authenticate('google', GOOGLE_CALLBACK_AUTH_OPTIONS, async function (err, user, _info) {
       if (err) {
         reportError(err, '[google/callback] passport error');
         return res.redirect(`${FRONTEND_URL || 'http://localhost:5173'}/?auth_error=google_failed`);
@@ -605,3 +624,5 @@ module.exports.setRefreshCookie = setRefreshCookie;
 module.exports.clearRefreshCookie = clearRefreshCookie;
 module.exports.serializePublicUser = serializePublicUser;
 module.exports.getGoogleAvatarUrl = getGoogleAvatarUrl;
+module.exports.GOOGLE_AUTH_OPTIONS = GOOGLE_AUTH_OPTIONS;
+module.exports.GOOGLE_CALLBACK_AUTH_OPTIONS = GOOGLE_CALLBACK_AUTH_OPTIONS;

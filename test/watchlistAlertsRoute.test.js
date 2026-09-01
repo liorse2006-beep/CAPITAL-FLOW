@@ -1,8 +1,8 @@
 // HTTP-level tests for POST /api/watchlist-alerts/:symbol — specifically the
 // price-alert branch's server-side re-verification of the reference price.
-// Regression for trusting a client-supplied referencePrice unconditionally:
-// the route now re-fetches a live quote and uses THAT to decide starting_side,
-// falling back to the client value only if the live fetch itself fails.
+// Regression for trusting a client-supplied referencePrice: the route
+// re-fetches a current quote and uses THAT to decide starting_side. If the
+// provider cannot verify a current price, it fails closed and creates nothing.
 require('./helpers/testEnv');
 const { test, before } = require('node:test');
 const assert = require('node:assert');
@@ -70,7 +70,7 @@ test('price alert uses the live-fetched quote for starting_side, ignoring a wron
   }
 });
 
-test('price alert falls back to the client referencePrice when the live quote fetch fails', async (t) => {
+test('price alert fails closed when the live quote fetch fails', async (t) => {
   t.mock.method(quoteCache, 'getQuotes', async () => {
     throw new Error('Yahoo is down');
   });
@@ -85,19 +85,17 @@ test('price alert falls back to the client referencePrice when the live quote fe
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify({ type: 'price', targetPrice: 50, referencePrice: 10 }),
     });
-    assert.strictEqual(res.status, 200, 'a live-fetch failure must not block setting the alert');
+    assert.strictEqual(res.status, 503, 'an unverified current price must block creating the alert');
     const body = await res.json();
-    assert.strictEqual(
-      body.startingSide,
-      'below',
-      'must fall back to the client value (10 < 50) when live data is unavailable'
-    );
+    assert.strictEqual(body.code, 'DATA_UNAVAILABLE');
+    assert.match(body.error, /unavailable/i);
+    assert.deepStrictEqual(await getWatchlistAlerts(user.id), {});
   } finally {
     server.close();
   }
 });
 
-test('price alert falls back when the live quote has no usable price for the symbol', async (t) => {
+test('price alert fails closed when the live quote has no usable price for the symbol', async (t) => {
   t.mock.method(quoteCache, 'getQuotes', async () => new Map()); // symbol not found
 
   const user = await makeEliteUser('alert-quote-missing@test.local');
@@ -110,13 +108,34 @@ test('price alert falls back when the live quote has no usable price for the sym
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify({ type: 'price', targetPrice: 50, referencePrice: 60 }),
     });
-    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.status, 503);
     const body = await res.json();
-    assert.strictEqual(
-      body.startingSide,
-      'above',
-      'falls back to the client value (60 > 50) when the symbol has no live quote'
-    );
+    assert.strictEqual(body.code, 'DATA_UNAVAILABLE');
+    assert.deepStrictEqual(await getWatchlistAlerts(user.id), {});
+  } finally {
+    server.close();
+  }
+});
+
+test('price alert fails closed when the only quote is a stale fallback', async (t) => {
+  const stale = new Map([['STALE', { symbol: 'STALE', regularMarketPrice: 100 }]]);
+  Object.defineProperty(stale, 'staleSymbols', { value: ['STALE'], enumerable: false });
+  t.mock.method(quoteCache, 'getQuotes', async () => stale);
+
+  const user = await makeEliteUser('alert-quote-stale@test.local');
+  const token = (await issueToken(user)).accessToken;
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/watchlist-alerts/STALE`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ type: 'price', targetPrice: 50, referencePrice: 10 }),
+    });
+    assert.strictEqual(res.status, 503);
+    const body = await res.json();
+    assert.strictEqual(body.code, 'DATA_UNAVAILABLE');
+    assert.deepStrictEqual(await getWatchlistAlerts(user.id), {});
   } finally {
     server.close();
   }
