@@ -148,14 +148,6 @@
   font-size: 14px;
   padding: 10px 22px;
 }
-@media (max-width: 800px) {
-  .cf-landing-page .cf-nav-links {
-    display: none;
-  }
-  .cf-landing-page .cf-nav {
-    padding: 0 20px;
-  }
-}
 .cf-landing-page .cf-hero {
   overflow-x: clip;
 }
@@ -2761,19 +2753,6 @@
   width: 10px;
   height: 10px;
 }
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-value {
-  grid-column: 3;
-  grid-row: 1;
-  justify-self: start;
-  font-size: 8px;
-  text-align: left;
-}
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-plan.is-featured .tier-matrix-value {
-  display: none;
-}
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-plan:not(.is-featured) .tier-matrix-feature:nth-child(n + 3) .tier-matrix-value {
-  display: none;
-}
 .cf-landing-page .cf-landing-pricing-matrix .tier-matrix-plan-footer {
   min-height: 30px;
   padding: 4px 5px;
@@ -3096,6 +3075,97 @@
   }
   .cf-landing-page .cf-feat-ai {
     min-height: 0;
+  }
+}
+
+/* Mobile keeps the same landing-page content as desktop. Only the geometry
+   changes: navigation wraps instead of disappearing, copy is allowed to wrap
+   instead of being clipped, and the comparison cards keep their full rows. */
+@media (max-width: 800px) {
+  .cf-landing-page .cf-nav-in {
+    width: 100%;
+    max-width: none;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 8px;
+    padding: 8px 10px 10px;
+    border-radius: 22px;
+  }
+
+  .cf-landing-page .cf-nav-logo {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .cf-landing-page .cf-nav-in > .cf-specular-cta-mount > .cf-specular-cta,
+  .cf-landing-page .cf-nav-in > .cf-specular-cta-mount > .cf-specular-cta-fallback {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    min-height: 36px;
+    padding: 9px 13px;
+    font-size: 12px;
+  }
+
+  .cf-landing-page .cf-nav-links {
+    display: flex;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px 13px;
+    margin: 0;
+    padding-top: 2px;
+  }
+
+  .cf-landing-page .cf-nav-links a {
+    font-size: 12px;
+    line-height: 1.25;
+  }
+
+  .cf-landing-page .cf-hero-copy,
+  .cf-landing-page .cf-proof-wrap,
+  .cf-landing-page .cf-signal-grid,
+  .cf-landing-page .cf-signal-copy,
+  .cf-landing-page .cf-signal-visual,
+  .cf-landing-page .cf-landing-pricing-matrix {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .cf-landing-page .cf-hero h1 .cf-metallic-heading--light {
+    white-space: normal;
+  }
+
+  .cf-landing-page .cf-landing-pricing-matrix .tier-matrix-feature {
+    grid-template-columns: 12px minmax(0, 1fr);
+    column-gap: 8px;
+    min-height: 29px;
+    padding: 4px 6px;
+  }
+
+  .cf-landing-page .cf-landing-pricing-matrix .tier-matrix-feature-name {
+    grid-column: 2;
+    min-width: 0;
+    font-size: 10px;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .cf-landing-page .cf-landing-pricing-matrix .tier-matrix-feature-specific {
+    display: inline;
+    white-space: normal;
+  }
+
+  .cf-landing-page .cf-landing-pricing-matrix .tier-matrix-status {
+    grid-column: 1;
+    width: 12px;
+    height: 12px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
