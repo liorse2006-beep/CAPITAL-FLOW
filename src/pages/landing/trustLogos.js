@@ -23,7 +23,7 @@ export const TRUST_LOGO_SYMBOLS = [
   'EPAM', 'EQIX', 'EQR', 'EQT', 'ES', 'ESS', 'ETN', 'ETR', 'ETSY', 'EVRG',
   'EW', 'EXC', 'EXPD', 'EXPE', 'EXR', 'F', 'FANG', 'FAST', 'FBHS', 'FCX',
   'FDS', 'FDX', 'FE', 'FFIV', 'FIS', 'FISV', 'FITB', 'FLT', 'FMC', 'FOX',
-  'FOXA', 'FRC', 'FRT', 'FTNT', 'FTV', 'GD', 'GE', 'GEHC', 'GEN', 'GILD',
+  'FOXA', 'FRC', 'FSLR', 'FTNT', 'FTV', 'GD', 'GE', 'GEHC', 'GEN', 'GILD',
   'GIS', 'GL', 'GLW', 'GM', 'GNRC', 'GOOG', 'GPC', 'GPN', 'GRMN', 'GS',
   'GWW', 'HAL', 'HAS', 'HBAN', 'HCA', 'HD', 'PEAK', 'HES', 'HIG', 'HII',
   'HLT', 'HOLX', 'HON', 'HPE', 'HPQ', 'HRL', 'HSIC', 'HST', 'HSY', 'HUM',
