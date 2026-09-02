@@ -15,10 +15,16 @@ vi.mock('@whop/checkout/react', () => ({
       data-testid="whop-express-button"
       data-checkout-configuration-id={props.checkoutConfigurationId}
       data-methods={props.methods.join(',')}
+      data-promo-code={props.promoCode || ''}
     />
   ),
   WhopCheckoutEmbed: (props) => (
-    <div data-testid="whop-checkout-embed" data-session-id={props.sessionId} data-return-url={props.returnUrl}>
+    <div
+      data-testid="whop-checkout-embed"
+      data-session-id={props.sessionId}
+      data-return-url={props.returnUrl}
+      data-promo-code={props.promoCode || ''}
+    >
       <button onClick={() => props.onComplete('plan_x', 'receipt_x', {})}>Simulate payment complete</button>
     </div>
   ),
@@ -160,6 +166,8 @@ describe('UpgradeModal', () => {
       )
     );
     expect(await screen.findByTestId('whop-checkout-embed')).toBeInTheDocument();
+    expect(screen.getByTestId('whop-checkout-embed')).toHaveAttribute('data-promo-code', 'SAVE10');
+    expect(screen.getByTestId('whop-express-button')).toHaveAttribute('data-promo-code', 'SAVE10');
     expect(screen.queryByText(/discounted price/i)).not.toBeInTheDocument();
   });
 
