@@ -1,7 +1,7 @@
 # Capital Flow — Launch Readiness Audit
 
 > This document records the baseline audit. The authoritative post-remediation
-> retest for the currently deployed runtime `6d77715c3ba7a323b59403e66f0a748e8623a7a9`
+> retest for the currently deployed runtime `ef0ab717a78a45404ab6146faa83025f24c196da`
 > is in
 > [REMEDIATION_RETEST.md](./REMEDIATION_RETEST.md). Where the two documents
 > differ, the retest is current.
