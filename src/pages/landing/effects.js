@@ -1775,14 +1775,29 @@ function mountTrustMarquee(el, assets, cleanupFns) {
     delete logo.dataset.src;
   };
 
+  const logoQueue = [];
+  let logoTimer = 0;
+  const enqueueLogo = (logo) => {
+    if (!logo.dataset.src || logo.getAttribute('src') || logoQueue.includes(logo)) return;
+    logoQueue.push(logo);
+    if (logoTimer) return;
+    const loadNext = () => {
+      logoTimer = 0;
+      const next = logoQueue.shift();
+      if (!next) return;
+      loadLogo(next);
+      logoTimer = window.setTimeout(loadNext, 180);
+    };
+    logoTimer = window.setTimeout(loadNext, 0);
+  };
+
   let logoObserver = null;
-  let fallbackTimer = 0;
   if (typeof IntersectionObserver === 'function') {
     logoObserver = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (!entry.isIntersecting) return;
-          loadLogo(entry.target);
+          enqueueLogo(entry.target);
           logoObserver.unobserve(entry.target);
         });
       },
@@ -1790,21 +1805,16 @@ function mountTrustMarquee(el, assets, cleanupFns) {
     );
     pendingLogos.forEach((logo) => logoObserver.observe(logo));
   } else {
-    // Older browsers still avoid a request burst by loading a small batch at
-    // a time instead of assigning all 600 cross-origin URLs immediately.
-    let cursor = 0;
-    const loadBatch = () => {
-      pendingLogos.slice(cursor, cursor + 12).forEach(loadLogo);
-      cursor += 12;
-      if (cursor < pendingLogos.length) fallbackTimer = window.setTimeout(loadBatch, 500);
-    };
-    loadBatch();
+    // Older browsers still avoid a request burst by feeding the same paced
+    // queue instead of assigning all 600 cross-origin URLs immediately.
+    pendingLogos.forEach(enqueueLogo);
   }
 
   el.style.setProperty('--cf-marq-duration', Math.max(26, assets.length * 0.48) + 's');
   cleanupFns.push(() => {
     logoObserver?.disconnect();
-    if (fallbackTimer) window.clearTimeout(fallbackTimer);
+    if (logoTimer) window.clearTimeout(logoTimer);
+    logoQueue.length = 0;
     el.textContent = '';
     el.style.removeProperty('--cf-marq-duration');
   });
