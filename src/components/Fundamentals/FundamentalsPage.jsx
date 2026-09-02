@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import useSeo from '../../hooks/useSeo';
 import { friendlyError, formatPrice } from '../../utils/format';
 
 const SYMBOL_RE = /^[A-Za-z0-9.-]{1,10}$/;
@@ -227,6 +228,13 @@ function removeRecentTicker(userId, symbol) {
 }
 
 export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount }) {
+  useSeo({
+    title: 'Fundamental Stock Analysis | Capital Flow',
+    description:
+      'Review P/E, forward P/E, PEG, debt-to-equity, growth, float, short interest, and earnings data for a stock.',
+    path: '/fundamentals',
+  });
+
   const { getToken, user } = useAuth();
   // Premium/Elite always; a free account also gets full (unlimited) access
   // for its 7-day trial — user.elite_access is the same server-computed

@@ -1,4 +1,5 @@
 import React from 'react';
+import useSeo from '../hooks/useSeo';
 
 function Part({ number, title, children }) {
   return (
@@ -28,6 +29,13 @@ const LIMITATIONS = [
 ];
 
 export default function AccessibilityStatementPage() {
+  useSeo({
+    title: 'Accessibility Statement | Capital Flow',
+    description:
+      "Read Capital Flow's accessibility statement, available features, known limitations, and contact details.",
+    path: '/accessibility',
+  });
+
   return (
     <div className="page-content policy-page">
       <h2 className="flow-title policy-title">Accessibility Statement</h2>

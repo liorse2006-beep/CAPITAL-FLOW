@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { fmt, alertLevelLabel, formatSignedPercent, formatPrice } from '../../utils/format';
+import useSeo from '../../hooks/useSeo';
 import AddTickerModal from './AddTickerModal';
 
 function RatioPill({ ratio }) {
@@ -93,6 +94,13 @@ export default function WatchlistPage({
   onRequireAuth,
   onCreateAccount,
 }) {
+  useSeo({
+    title: 'Stock Watchlist | Capital Flow',
+    description:
+      'Track favorite stock symbols, review current quotes, and manage price alerts in one focused watchlist.',
+    path: '/watchlist',
+  });
+
   const [showAddModal, setShowAddModal] = useState(false);
 
   function findQuote(sym) {
