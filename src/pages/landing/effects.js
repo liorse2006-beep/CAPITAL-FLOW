@@ -1727,7 +1727,10 @@ function mountTrustMarquee(el, assets, cleanupFns) {
         logo.src = 'https://assets.parqet.com/logos/symbol/' + asset.symbol + '?format=svg&size=32';
         logo.alt = '';
         logo.decoding = 'async';
-        logo.loading = 'eager';
+        // The marquee has two copies of the maintained logo set. Lazy loading
+        // keeps the browser from firing hundreds of cross-origin requests at
+        // once, which can trigger CDN throttling on slower devices.
+        logo.loading = 'lazy';
 
         const fallback = document.createElement('span');
         fallback.className = 'cf-marq-logo-fallback';
