@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Mesh, Program, Renderer, Triangle } from 'ogl';
+import { hasWebGL2 } from '../utils/webgl';
 import './Topography.css';
 
 const hexToRgb = (hex) => {
@@ -168,14 +169,26 @@ const Topography = ({
     if (!container) return undefined;
 
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const renderer = new Renderer({
-      webgl: 2,
-      alpha: true,
-      premultipliedAlpha: true,
-      antialias: false,
-      dpr: Math.min(window.devicePixelRatio || 1, 1.5),
-    });
+    // This layer is decorative. Some privacy modes, embedded browsers, and
+    // low-power devices expose the WebGL API but refuse to create a context.
+    // Do not let that take down the landing page or its CTAs; the scoped CSS
+    // background remains the intentional fallback.
+    if (!hasWebGL2()) return undefined;
+
+    let renderer;
+    try {
+      renderer = new Renderer({
+        webgl: 2,
+        alpha: true,
+        premultipliedAlpha: true,
+        antialias: false,
+        dpr: Math.min(window.devicePixelRatio || 1, 1.5),
+      });
+    } catch {
+      return undefined;
+    }
     const gl = renderer.gl;
+    if (!gl) return undefined;
     gl.clearColor(0, 0, 0, 0);
     const canvas = gl.canvas;
     canvas.style.width = '100%';

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Color, Mesh, Program, Renderer, Triangle } from 'ogl';
+import { hasWebGL } from '../utils/webgl';
 import './SpecularButton.css';
 
 const PAD = 20;
@@ -122,6 +123,11 @@ const SpecularButton = ({
     const btn = btnRef.current;
     const fx = fxRef.current;
     if (!btn || !fx) return undefined;
+
+    // The CSS border/shine is the accessible fallback. Avoid constructing an
+    // OGL renderer when a browser has WebGL disabled, which otherwise logs a
+    // noisy context error and can throw during the first paint.
+    if (!hasWebGL()) return undefined;
 
     const dpr = window.devicePixelRatio || 1;
     let renderer;
