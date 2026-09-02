@@ -212,3 +212,63 @@ test('MA scan rejects unknown markets and unbounded/unknown sector filters', asy
     server.close();
   }
 });
+
+test('async MA scan returns immediately and makes the complete result available by scan id', async (t) => {
+  const gate = deferred();
+  t.mock.method(maScannerService, 'scanMA', async () => {
+    await gate.promise;
+    return { results: [ROW], processed: 40, qualified: 1, errors: [], dataStatus: 'complete' };
+  });
+
+  const user = await makeEliteUser('ma-async@test.local');
+  const otherUser = await makeEliteUser('ma-async-other@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  const headers = { Authorization: 'Bearer ' + user.token };
+  const otherHeaders = { Authorization: 'Bearer ' + otherUser.token };
+  const url =
+    `http://localhost:${port}/api/scan-ma?async=1&ma=150&distance=2&interval=1wk&market=sectors` +
+    `&sectors=${encodeURIComponent('Technology,Financials')}`;
+
+  try {
+    const start = await fetch(url, { headers });
+    assert.strictEqual(start.status, 202);
+    const queued = await start.json();
+    assert.strictEqual(queued.queued, true);
+    assert.match(queued.scanId, /^[0-9a-f-]{36}$/);
+
+    const progress = await (await fetch(`http://localhost:${port}/api/ma-progress`, { headers })).json();
+    assert.strictEqual(progress.running, true);
+    assert.strictEqual(progress.scanId, queued.scanId);
+
+    gate.resolve();
+    let completed = null;
+    for (let i = 0; i < 50; i++) {
+      const response = await fetch(
+        `http://localhost:${port}/api/ma-last-results?scanId=${encodeURIComponent(queued.scanId)}`,
+        { headers }
+      );
+      if (response.ok) {
+        completed = await response.json();
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    assert.ok(completed, 'the complete MA result must become available after the job resolves');
+    assert.strictEqual(completed.scanId, queued.scanId);
+    assert.deepStrictEqual(
+      completed.results.map((r) => r.symbol),
+      ['AAPL']
+    );
+    assert.strictEqual(completed.dataStatus, 'complete');
+
+    const foreignRead = await fetch(
+      `http://localhost:${port}/api/ma-last-results?scanId=${encodeURIComponent(queued.scanId)}`,
+      { headers: otherHeaders }
+    );
+    assert.strictEqual(foreignRead.status, 409, 'a different account cannot read this scan result by id');
+  } finally {
+    server.close();
+  }
+});

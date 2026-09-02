@@ -257,3 +257,60 @@ test('a below-floor filter request runs its own private scan with the user filte
     server.close();
   }
 });
+
+test('async scan returns a correlated job immediately and exposes only the completed result set', async (t) => {
+  backgroundCache.results = null;
+  backgroundCache.scanTime = null;
+
+  const gate = deferred();
+  t.mock.method(scanner, 'scanTickers', async () => {
+    await gate.promise;
+    return { results: [ROW], errors: [], processed: 100 };
+  });
+
+  const user = await makeEliteUser('conc-async@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  const headers = { Authorization: 'Bearer ' + user.token };
+
+  try {
+    const start = await fetch(
+      `http://localhost:${port}/api/scan?async=1&list=nasdaq100&minVolumeRatio=1.5&minMarketCap=1000000000`,
+      { headers }
+    );
+    assert.strictEqual(start.status, 202);
+    const queued = await start.json();
+    assert.strictEqual(queued.queued, true);
+    assert.match(queued.scanId, /^[0-9a-f-]{36}$/);
+
+    const progress = await (await fetch(`http://localhost:${port}/api/progress`, { headers })).json();
+    assert.strictEqual(progress.running, true);
+    assert.strictEqual(progress.scanId, queued.scanId);
+
+    gate.resolve();
+    let completed = null;
+    for (let i = 0; i < 50; i++) {
+      const response = await fetch(
+        `http://localhost:${port}/api/last-results?scanId=${encodeURIComponent(queued.scanId)}`,
+        { headers }
+      );
+      if (response.ok) {
+        completed = await response.json();
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    assert.ok(completed, 'the completed result must become available after the job resolves');
+    assert.strictEqual(completed.scanId, queued.scanId);
+    assert.deepStrictEqual(
+      completed.results.map((r) => r.symbol),
+      ['AAPL']
+    );
+    assert.strictEqual(completed.dataStatus, 'complete');
+  } finally {
+    server.close();
+    backgroundCache.results = null;
+    backgroundCache.scanTime = null;
+  }
+});

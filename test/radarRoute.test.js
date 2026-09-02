@@ -96,3 +96,60 @@ test('Radar API rejects a second saved scan and a second active scan', async () 
     server.close();
   }
 });
+
+test("Radar delete cannot remove another user's state or schedule history", async () => {
+  const ownerId = await makeEliteUser('radar-delete-owner@test.local');
+  const attackerId = await makeEliteUser('radar-delete-attacker@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  const ownerHeaders = await authHeaders(ownerId);
+  const attackerHeaders = await authHeaders(attackerId);
+
+  try {
+    const create = await fetch(`http://127.0.0.1:${port}/api/radars`, {
+      method: 'POST',
+      headers: ownerHeaders,
+      body: JSON.stringify(radarPayload()),
+    });
+    assert.equal(create.status, 201);
+    const { radar } = await create.json();
+    const radarId = Number(radar.id);
+
+    await db
+      .prepare(
+        `INSERT INTO radar_states
+          (radar_id, symbol, matches, entered_at, last_seen_at, missed_checks)
+         VALUES (?, 'AAPL', 1, '2026-09-02T10:00:00.000Z', '2026-09-02T10:00:00.000Z', 0)`
+      )
+      .run(radarId);
+    await db
+      .prepare(
+        `INSERT INTO radar_schedule_runs
+          (radar_id, run_date, scheduled_time, status)
+         VALUES (?, '2099-12-31', '11:00', 'pending')`
+      )
+      .run(radarId);
+
+    const forgedDelete = await fetch(`http://127.0.0.1:${port}/api/radars/${radarId}`, {
+      method: 'DELETE',
+      headers: attackerHeaders,
+    });
+    assert.equal(forgedDelete.status, 404);
+
+    const parent = await db
+      .prepare('SELECT id FROM capital_flow_radars WHERE id = ? AND user_id = ?')
+      .get(radarId, ownerId);
+    const state = await db
+      .prepare('SELECT radar_id FROM radar_states WHERE radar_id = ? AND symbol = ?')
+      .get(radarId, 'AAPL');
+    const run = await db
+      .prepare('SELECT radar_id FROM radar_schedule_runs WHERE radar_id = ? AND run_date = ? AND scheduled_time = ?')
+      .get(radarId, '2099-12-31', '11:00');
+
+    assert.equal(Number(parent.id), radarId);
+    assert.equal(Number(state.radar_id), radarId);
+    assert.equal(Number(run.radar_id), radarId);
+  } finally {
+    server.close();
+  }
+});

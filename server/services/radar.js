@@ -525,8 +525,27 @@ async function updateRadar(userId, radarId, input) {
 async function deleteRadar(userId, radarId) {
   const result = await db.transaction([
     { sql: 'DELETE FROM radar_events WHERE radar_id = ? AND user_id = ?', args: [radarId, userId] },
-    { sql: 'DELETE FROM radar_states WHERE radar_id = ?', args: [radarId] },
-    { sql: 'DELETE FROM radar_schedule_runs WHERE radar_id = ?', args: [radarId] },
+    // Child rows do not carry a user_id. Keep the ownership predicate on
+    // every delete so a forged Radar id cannot erase another user's state or
+    // schedule history while the parent row remains protected below.
+    {
+      sql: `DELETE FROM radar_states
+              WHERE radar_id = ?
+                AND EXISTS (
+                  SELECT 1 FROM capital_flow_radars
+                   WHERE id = ? AND user_id = ?
+                )`,
+      args: [radarId, radarId, userId],
+    },
+    {
+      sql: `DELETE FROM radar_schedule_runs
+              WHERE radar_id = ?
+                AND EXISTS (
+                  SELECT 1 FROM capital_flow_radars
+                   WHERE id = ? AND user_id = ?
+                )`,
+      args: [radarId, radarId, userId],
+    },
     { sql: 'DELETE FROM capital_flow_radars WHERE id = ? AND user_id = ?', args: [radarId, userId] },
   ]);
   const last = Array.isArray(result) ? result[result.length - 1] : null;

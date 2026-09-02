@@ -1143,6 +1143,89 @@ function App() {
       setLiveResults([]);
 
       if (poll.current) clearInterval(poll.current);
+      var activeScanId = null;
+      var resolvingAsyncResult = false;
+      var scanSettled = false;
+      var scanUiTimeout = window.setTimeout(
+        function () {
+          if (!activeScanId || scanSettled) return;
+          scanSettled = true;
+          activeScanId = null;
+          resolvingAsyncResult = false;
+          if (poll.current) {
+            clearInterval(poll.current);
+            poll.current = null;
+          }
+          setScanning(false);
+          setProgress(null);
+          setError('The scan took too long to return a verified result. Please try again.');
+        },
+        10 * 60 * 1000
+      );
+
+      function clearScanPolling() {
+        if (poll.current) {
+          clearInterval(poll.current);
+          poll.current = null;
+        }
+        window.clearTimeout(scanUiTimeout);
+      }
+
+      function applyCompletedScan(d) {
+        if (!d || !Array.isArray(d.results))
+          throw new Error('The scan returned no complete result set. Please try again.');
+        setResults(d.results);
+        setScanTime(d.scanTime);
+        setScanDataStatus(d.dataStatus || null);
+        setScanDataAsOf(d.dataAsOf || d.scanTime || null);
+        if (typeof d.marketClosed === 'boolean') setMarketClosed(d.marketClosed);
+        setFromCache(!!d.fromCache);
+        setCacheAge(d.cacheAge || 0);
+        setScanMeta({ tier: d.tier, isPremium: d.isPremium, premium: d.premium, free: d.free });
+        track('scan_run', { scanMode: scanMode || 'all', resultCount: d.results.length });
+      }
+
+      function finishAsyncError(message) {
+        if (scanSettled) return;
+        scanSettled = true;
+        activeScanId = null;
+        resolvingAsyncResult = false;
+        clearScanPolling();
+        setScanning(false);
+        setProgress(null);
+        setError(message || 'The scan could not return a verified result. Please try again.');
+      }
+
+      function fetchCompletedAsyncResult() {
+        if (!activeScanId || resolvingAsyncResult || scanSettled) return;
+        resolvingAsyncResult = true;
+        fetch('/api/last-results?scanId=' + encodeURIComponent(activeScanId), {
+          headers: { Authorization: 'Bearer ' + getToken() },
+        })
+          .then(function (r) {
+            if (r.status === 409) return null; // completion state and result write are adjacent; retry on the next poll
+            if (!r.ok)
+              return r.json().then(function (d) {
+                throw new Error(d.error || 'The completed scan could not be loaded.');
+              });
+            return r.json();
+          })
+          .then(function (d) {
+            resolvingAsyncResult = false;
+            if (!d || scanSettled) return;
+            if (d.scanId !== activeScanId) return;
+            applyCompletedScan(d);
+            scanSettled = true;
+            activeScanId = null;
+            clearScanPolling();
+            setScanning(false);
+            setProgress(null);
+          })
+          .catch(function (e) {
+            finishAsyncError(e.message);
+          });
+      }
+
       poll.current = setInterval(function () {
         fetch('/api/progress', { headers: { Authorization: 'Bearer ' + getToken() } })
           .then(function (r) {
@@ -1151,20 +1234,24 @@ function App() {
           .then(function (d) {
             if (d.progress) setProgress(d.progress);
             if (d.liveResults && d.liveResults.length) setLiveResults(d.liveResults);
-            if (!d.running) {
-              clearInterval(poll.current);
-              poll.current = null;
+            // Before the start request returns there is no id to correlate,
+            // so an empty progress response must not stop the poller. Once a
+            // queued scan has an id, only its own completed result can settle
+            // the screen.
+            if (activeScanId && !d.running && d.lastScanId === activeScanId) {
+              if (d.error) finishAsyncError(d.error.message);
+              else fetchCompletedAsyncResult();
             }
           })
           .catch(function () {});
       }, 600);
 
       var cap = parseFloat(minCap) * 1e9;
-      // Edge-cached via the Cloudflare Worker when VITE_SCAN_WORKER_URL is set
-      // (see cloudflare-worker/scan-cache-worker.js); falls back to the app's
-      // own origin otherwise, so local dev is unaffected.
-      var scanWorkerBase = (import.meta.env.VITE_SCAN_WORKER_URL || '').replace(/\/+$/, '');
-      var scanUrl = scanWorkerBase + '/api/scan?minVolumeRatio=' + minRatio + '&minMarketCap=' + cap;
+      // The interactive UI uses the origin's async scan contract so a
+      // reverse-proxy timeout cannot leave the table in an ambiguous state.
+      // The optional edge cache remains available for legacy synchronous API
+      // callers, but must not cache a user-specific queued scan id.
+      var scanUrl = '/api/scan?async=1&minVolumeRatio=' + minRatio + '&minMarketCap=' + cap;
       if (minPrice) scanUrl += '&minPrice=' + minPrice;
       if (maxPrice) scanUrl += '&maxPrice=' + maxPrice;
       if (minVol) scanUrl += '&minVol=' + encodeURIComponent(minVol);
@@ -1189,20 +1276,25 @@ function App() {
             return r.json().then(function (d) {
               throw new Error(d.error || 'Scan failed');
             });
+          if (r.status === 202)
+            return r.json().then(function (d) {
+              if (!d.queued || !d.scanId) throw new Error('The scan could not be queued. Please try again.');
+              activeScanId = d.scanId;
+              if (d.progress) setProgress(d.progress);
+              return null;
+            });
           return r.json();
         })
         .then(function (d) {
-          setResults(d.results);
-          setScanTime(d.scanTime);
-          setScanDataStatus(d.dataStatus || null);
-          setScanDataAsOf(d.dataAsOf || d.scanTime || null);
-          setMarketClosed(!!d.marketClosed);
-          setFromCache(!!d.fromCache);
-          setCacheAge(d.cacheAge || 0);
-          setScanMeta({ tier: d.tier, isPremium: d.isPremium, premium: d.premium, free: d.free });
-          track('scan_run', { scanMode: scanMode || 'all', resultCount: d.results ? d.results.length : 0 });
+          // 202 means the progress/result poller owns the remainder of the
+          // flow. It must not be finalized by this request's finally block.
+          if (d) applyCompletedScan(d);
         })
         .catch(function (e) {
+          if (activeScanId) {
+            finishAsyncError(e.message);
+            return;
+          }
           if (e.code === 'SCAN_LIMIT') {
             if (isPremium) openUpgradeModal();
             else setShowTrialEndedModal(true);
@@ -1211,10 +1303,11 @@ function App() {
           setError(e.message);
         })
         .finally(function () {
+          if (activeScanId) return;
+          scanSettled = true;
+          clearScanPolling();
           setScanning(false);
           setProgress(null);
-          clearInterval(poll.current);
-          poll.current = null;
         });
     },
     [

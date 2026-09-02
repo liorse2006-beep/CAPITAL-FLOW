@@ -108,12 +108,87 @@ export default function MAScannerPage({
     setResults(null);
     setProgress({ processed: 0, total: 0, found: 0, phase: 1 });
 
+    let activeScanId = null;
+    let resolvingAsyncResult = false;
+    let scanSettled = false;
+    const scanUiTimeout = window.setTimeout(
+      () => {
+        if (!activeScanId || scanSettled) return;
+        scanSettled = true;
+        activeScanId = null;
+        resolvingAsyncResult = false;
+        if (pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+        setLoading(false);
+        setProgress(null);
+        setError('The scan took too long to return a verified result. Please try again.');
+      },
+      10 * 60 * 1000
+    );
+
+    const clearScanPolling = () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+      window.clearTimeout(scanUiTimeout);
+    };
+
+    const applyCompletedScan = (d) => {
+      if (!d || !Array.isArray(d.results))
+        throw new Error('The scan returned no complete result set. Please try again.');
+      setResults(d.results);
+      setScanTime(d.scanTime);
+      setDataStatus(d.dataStatus || null);
+      setDataAsOf(d.dataAsOf || d.scanTime || null);
+      setScanMeta({ tier: d.tier, isPremium: d.isPremium, premium: d.premium, free: d.free });
+    };
+
+    const finishAsyncError = (message) => {
+      if (scanSettled) return;
+      scanSettled = true;
+      activeScanId = null;
+      resolvingAsyncResult = false;
+      clearScanPolling();
+      setLoading(false);
+      setProgress(null);
+      setError(message || 'The scan could not return a verified result. Please try again.');
+    };
+
+    const fetchCompletedAsyncResult = () => {
+      if (!activeScanId || resolvingAsyncResult || scanSettled) return;
+      resolvingAsyncResult = true;
+      fetch(`/api/ma-last-results?scanId=${encodeURIComponent(activeScanId)}`, { headers: authH() })
+        .then((r) => {
+          if (r.status === 409) return null;
+          if (!r.ok)
+            return r.json().then((d) => {
+              throw new Error(d.error || 'The completed scan could not be loaded.');
+            });
+          return r.json();
+        })
+        .then((d) => {
+          resolvingAsyncResult = false;
+          if (!d || scanSettled) return;
+          if (d.scanId !== activeScanId) return;
+          applyCompletedScan(d);
+          scanSettled = true;
+          activeScanId = null;
+          clearScanPolling();
+          setLoading(false);
+          setProgress(null);
+        })
+        .catch((e) => finishAsyncError(e.message));
+    };
+
     const params = new URLSearchParams({ ma, distance, interval: timeframe, market });
     if (market === 'sectors' && selectedSectors.length > 0) {
       params.set('sectors', selectedSectors.join(','));
     }
 
-    fetch(`/api/scan-ma?${params}`, { headers: authH() })
+    fetch(`/api/scan-ma?${params}&async=1`, { headers: authH() })
       .then((r) => {
         if (r.status === 403)
           return r.json().then((d) => {
@@ -123,25 +198,34 @@ export default function MAScannerPage({
           return r.json().then((d) => {
             throw new Error(d.error || 'Scan failed');
           });
+        if (r.status === 202)
+          return r.json().then((d) => {
+            if (!d.queued || !d.scanId) throw new Error('The scan could not be queued. Please try again.');
+            activeScanId = d.scanId;
+            if (d.progress) setProgress(d.progress);
+            return null;
+          });
         return r.json();
       })
       .then((d) => {
-        setResults(d.results);
-        setScanTime(d.scanTime);
-        setDataStatus(d.dataStatus || null);
-        setDataAsOf(d.dataAsOf || d.scanTime || null);
-        setScanMeta({ tier: d.tier, isPremium: d.isPremium, premium: d.premium, free: d.free });
+        if (!d) return;
+        applyCompletedScan(d);
+        scanSettled = true;
+        clearScanPolling();
         setLoading(false);
-        clearInterval(pollRef.current);
       })
       .catch((e) => {
+        if (activeScanId) {
+          finishAsyncError(e.message);
+          return;
+        }
         if (e.code === 'SCAN_LIMIT') {
           refreshQuota();
           if (!isPremium) onTrialEnded();
         }
         setError(e.message);
         setLoading(false);
-        clearInterval(pollRef.current);
+        clearScanPolling();
       });
 
     pollRef.current = setInterval(() => {
@@ -149,6 +233,10 @@ export default function MAScannerPage({
         .then((r) => r.json())
         .then((d) => {
           if (d.running) setProgress(d);
+          else if (activeScanId && d.scanId === activeScanId) {
+            if (d.error) finishAsyncError(d.error.message);
+            else fetchCompletedAsyncResult();
+          }
         })
         .catch(() => {});
     }, 1500);

@@ -12,10 +12,14 @@ const userScanStates = new Map(); // userId → state
 function newState() {
   return {
     running: false,
+    activeScanId: null,
     progress: null,
     liveResults: [],
     lastResults: null,
+    lastScanId: null,
+    lastScanError: null,
     lastScanTime: null,
+    lastMarketClosed: null,
     lastDataStatus: null,
     lastDataAsOf: null,
     touchedAt: Date.now(),

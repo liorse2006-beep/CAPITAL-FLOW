@@ -161,6 +161,17 @@ export default {
     }
 
     const url = new URL(request.url);
+    // A queued scan response is user-specific and short-lived. Never put its
+    // scan id or queued state into the shared edge cache; the app's UI uses
+    // the origin progress/result endpoints for this mode.
+    if (url.pathname === '/api/scan' && url.searchParams.get('async') === '1') {
+      const originResp = await fetch(env.ORIGIN + url.pathname + url.search, { headers: { Authorization: auth } });
+      const body = await originResp.text();
+      return new Response(body, {
+        status: originResp.status,
+        headers: { 'Content-Type': originResp.headers.get('Content-Type') || 'application/json', ...cors },
+      });
+    }
     const cacheKeyUrl = new URL(url.origin + url.pathname + '?' + new URLSearchParams([...url.searchParams].sort()));
     const cacheKey = new Request(cacheKeyUrl.toString(), { method: 'GET' });
     const cache = caches.default;

@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const crypto = require('crypto');
 const { requireAuth, requireScanQuota } = require('../middleware/authMiddleware');
 const { refundScan, quotaFor } = require('../services/scanQuota');
 // Accessed via the module object (maScannerService.scanMA(...)) rather than
@@ -10,8 +11,13 @@ const maScannerService = require('../services/maScanner');
 const { SP500, NASDAQ100, ALL_TICKERS, SECTOR_TICKERS } = require('../../tickers');
 const { reportError } = require('../utils/reportError');
 
-// Per-user scan progress (in-memory, cleared when scan finishes)
+// Per-user scan progress. A completed entry is intentionally retained as a
+// small status record so an async client can distinguish "not started" from
+// "finished" without receiving the whole result set on every progress poll.
 const scanProgress = new Map(); // userId → { processed, total, found, phase, running }
+const lastResultsByUser = new Map(); // userId → { scanId, payload, expiresAt }
+const LAST_RESULT_TTL_MS = 24 * 60 * 60 * 1000;
+const MAX_RESULT_USERS = 500;
 
 // Short-lived result cache, keyed by the exact param combination. An MA scan
 // walks the whole ticker universe (up to ~500 symbols) — without this, two
@@ -31,6 +37,29 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 // request joins whichever scan for its exact param combination is already
 // in flight instead of starting a duplicate one.
 const inFlightScans = new Map(); // cacheKey → { promise, subscribers: Set<userId> }
+
+function rememberLastResult(userId, payload) {
+  lastResultsByUser.set(userId, { scanId: payload.scanId, payload, expiresAt: Date.now() + LAST_RESULT_TTL_MS });
+  if (lastResultsByUser.size <= MAX_RESULT_USERS) return;
+  const now = Date.now();
+  for (const [id, entry] of lastResultsByUser) {
+    if (entry.expiresAt <= now) lastResultsByUser.delete(id);
+  }
+  for (const id of lastResultsByUser.keys()) {
+    if (lastResultsByUser.size <= MAX_RESULT_USERS) break;
+    lastResultsByUser.delete(id);
+  }
+}
+
+function readLastResult(userId) {
+  const entry = lastResultsByUser.get(userId);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    lastResultsByUser.delete(userId);
+    return null;
+  }
+  return entry;
+}
 
 function cacheKeyFor(ma, distance, interval, direction, market, sectors) {
   return [ma, distance, interval, direction, market, sectors.slice().sort().join('+')].join('|');
@@ -123,66 +152,91 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
     return res.status(409).json({ error: 'Scan already in progress' });
   }
 
-  scanProgress.set(userId, { processed: 0, total: tickersToScan.length, found: 0, phase: 1, running: true });
+  const scanId = crypto.randomUUID();
+  scanProgress.set(userId, { processed: 0, total: tickersToScan.length, found: 0, phase: 1, running: true, scanId });
+  lastResultsByUser.delete(userId);
+
+  const runScan = async () => {
+    try {
+      // Join whichever scan for this exact cacheKey is already running instead
+      // of starting a duplicate one — see inFlightScans' own comment above.
+      let entry = inFlightScans.get(cacheKey);
+      if (!entry) {
+        entry = { subscribers: new Set() };
+        entry.promise = maScannerService
+          .scanMA(tickersToScan, {
+            ma,
+            distance,
+            interval,
+            direction,
+            // Broadcast progress to every subscriber's own progress slot, not
+            // just the request that happened to start the scan — /ma-progress
+            // is polled per-user, so a joining subscriber still sees live
+            // progress instead of a frozen 0% until the shared scan finishes.
+            onProgress: (p) => {
+              entry.subscribers.forEach((uid) => {
+                const current = scanProgress.get(uid);
+                if (current) scanProgress.set(uid, { ...current, ...p, running: true, scanId: current.scanId });
+              });
+            },
+          })
+          .finally(() => inFlightScans.delete(cacheKey));
+        inFlightScans.set(cacheKey, entry);
+      }
+      entry.subscribers.add(userId);
+
+      const scan = await entry.promise;
+      const results = scan.results || [];
+
+      const scanTime = new Date().toISOString();
+      const payload = {
+        scanId,
+        results,
+        scanTime,
+        dataStatus: scan.dataStatus || (scan.errors && scan.errors.length ? 'partial' : 'complete'),
+        dataAsOf: scan.dataAsOf || scanTime,
+        errors: scan.errors || [],
+        checkedSymbols: scan.checkedSymbols || [],
+      };
+      resultCache.set(cacheKey, { ...payload, expiresAt: Date.now() + CACHE_TTL_MS });
+      rememberLastResult(userId, payload);
+      scanProgress.set(userId, { running: false, scanId, error: null });
+
+      return payload;
+    } catch (err) {
+      scanProgress.set(userId, {
+        running: false,
+        scanId,
+        error: {
+          code: 'SCAN_FAILED',
+          message: 'Scan failed. Market data is temporarily unavailable. Please try again in a few minutes.',
+        },
+      });
+      lastResultsByUser.delete(userId);
+      try {
+        await refundScan(req.user, req.scanReservation);
+      } catch (refundError) {
+        reportError(refundError, '[ma-scanner] quota refund');
+      }
+      reportError(err, '[ma-scanner]');
+      throw err;
+    }
+  };
+
+  if (req.query.async === '1') {
+    void runScan().catch(() => {});
+    return res.status(202).json({
+      queued: true,
+      scanId,
+      params: { ma, distance, interval, direction, market, sectors },
+      progress: scanProgress.get(userId),
+    });
+  }
 
   try {
-    // Join whichever scan for this exact cacheKey is already running instead
-    // of starting a duplicate one — see inFlightScans' own comment above.
-    let entry = inFlightScans.get(cacheKey);
-    if (!entry) {
-      entry = { subscribers: new Set() };
-      entry.promise = maScannerService
-        .scanMA(tickersToScan, {
-          ma,
-          distance,
-          interval,
-          direction,
-          // Broadcast progress to every subscriber's own progress slot, not
-          // just the request that happened to start the scan — /ma-progress
-          // is polled per-user, so a joining subscriber still sees live
-          // progress instead of a frozen 0% until the shared scan finishes.
-          onProgress: (p) => {
-            entry.subscribers.forEach((uid) => {
-              if (scanProgress.get(uid)) scanProgress.set(uid, { ...p, running: true });
-            });
-          },
-        })
-        .finally(() => inFlightScans.delete(cacheKey));
-      inFlightScans.set(cacheKey, entry);
-    }
-    entry.subscribers.add(userId);
-
-    const scan = await entry.promise;
-    const results = scan.results || [];
-
-    scanProgress.delete(userId);
-
-    const scanTime = new Date().toISOString();
-    resultCache.set(cacheKey, {
-      results,
-      scanTime,
-      dataStatus: scan.dataStatus || (scan.errors && scan.errors.length ? 'partial' : 'complete'),
-      dataAsOf: scan.dataAsOf || scanTime,
-      errors: scan.errors || [],
-      checkedSymbols: scan.checkedSymbols || [],
-      expiresAt: Date.now() + CACHE_TTL_MS,
-    });
-
-    res.json({
-      results,
-      scanTime,
-      params: { ma, distance, interval, direction, market, sectors },
-      dataStatus: scan.dataStatus || (scan.errors && scan.errors.length ? 'partial' : 'complete'),
-      dataAsOf: scan.dataAsOf || scanTime,
-      errors: scan.errors || [],
-      checkedSymbols: scan.checkedSymbols || [],
-      ...quotaFor(req.user),
-    });
+    return res.json({ ...(await runScan()), ...quotaFor(req.user) });
   } catch (err) {
-    scanProgress.delete(userId);
-    await refundScan(req.user, req.scanReservation);
-    reportError(err, '[ma-scanner]');
-    res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -190,6 +244,15 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
 router.get('/ma-progress', requireAuth, (req, res) => {
   const p = scanProgress.get(req.user.id);
   res.json(p || { running: false });
+});
+
+router.get('/ma-last-results', requireAuth, (req, res) => {
+  const requestedScanId = typeof req.query.scanId === 'string' ? req.query.scanId : null;
+  const entry = readLastResult(req.user.id);
+  if (!entry || (requestedScanId && entry.scanId !== requestedScanId)) {
+    return res.status(409).json({ error: 'Scan result is not ready', scanId: entry?.scanId || null });
+  }
+  return res.json({ ...entry.payload, ...quotaFor(req.user) });
 });
 
 module.exports = router;

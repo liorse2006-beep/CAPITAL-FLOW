@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const crypto = require('crypto');
 const scanner = require('../services/scanner');
 const { backgroundCache, filterCachedResults, isMarketOpen } = require('../services/backgroundScan');
 const { getUserScanState } = require('../state');
@@ -155,7 +156,9 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
       });
       const state = getUserScanState(req.user.id);
       state.lastResults = cachedFiltered;
+      state.lastScanError = null;
       state.lastScanTime = backgroundCache.scanTime;
+      state.lastMarketClosed = !marketOpen;
       state.lastDataStatus = backgroundCache.dataStatus || 'complete';
       state.lastDataAsOf = backgroundCache.dataAsOf || backgroundCache.scanTime;
       // Served from cache — no real work happened, so it costs no quota.
@@ -203,77 +206,119 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
   state.running = true;
   state.progress = { processed: 0, total: tickersToScan.length, found: 0 };
   state.liveResults = [];
+  state.activeScanId = crypto.randomUUID();
+  state.lastScanError = null;
+  // Do not let a refresh during a new run make the previous snapshot look
+  // like the result of the current request. The final endpoint is populated
+  // only after the complete scan has finished.
+  state.lastResults = null;
+  const scanId = state.activeScanId;
 
   // A request below the shared floor can't reuse the shared scan (its
   // baseline filters would hide rows this user asked to see) — run private.
   const canShare = minVolumeRatio >= FLOOR_RATIO && minMarketCap >= FLOOR_CAP;
   const universeKey = universeKeyFor(list, sectors);
 
-  try {
-    let results;
-    let errors = [];
-    let processed = tickersToScan.length;
-    let dataStatus = 'complete';
-    let dataAsOf = null;
+  const runScan = async () => {
+    try {
+      let results;
+      let errors = [];
+      let processed = tickersToScan.length;
+      let dataStatus = 'complete';
+      let dataAsOf = null;
 
-    if (canShare) {
-      const raw = await joinSharedScan(universeKey, tickersToScan, state, userOpts);
-      errors = raw.errors;
-      processed = raw.processed;
-      dataStatus = raw.dataStatus || (errors.length ? 'partial' : 'complete');
-      dataAsOf = raw.dataAsOf || null;
-      results = raw.results.filter((r) => rowPasses(r, userOpts));
-      // The full-universe floor scan is byte-for-byte what the background
-      // scheduler produces — refresh the shared cache so the next caller
-      // gets an instant hit.
-      if (universeKey === 'all') {
-        backgroundCache.results = raw.results;
-        backgroundCache.scanTime = new Date().toISOString();
-        backgroundCache.dataStatus = dataStatus;
-        backgroundCache.dataAsOf = dataAsOf || backgroundCache.scanTime;
+      if (canShare) {
+        const raw = await joinSharedScan(universeKey, tickersToScan, state, userOpts);
+        errors = raw.errors;
+        processed = raw.processed;
+        dataStatus = raw.dataStatus || (errors.length ? 'partial' : 'complete');
+        dataAsOf = raw.dataAsOf || null;
+        results = raw.results.filter((r) => rowPasses(r, userOpts));
+        // The full-universe floor scan is byte-for-byte what the background
+        // scheduler produces — refresh the shared cache so the next caller
+        // gets an instant hit.
+        if (universeKey === 'all') {
+          backgroundCache.results = raw.results;
+          backgroundCache.scanTime = new Date().toISOString();
+          backgroundCache.dataStatus = dataStatus;
+          backgroundCache.dataAsOf = dataAsOf || backgroundCache.scanTime;
+        }
+      } else {
+        const raw = await scanner.scanTickers(tickersToScan, {
+          minVolumeRatio,
+          minMarketCap,
+          minPrice,
+          maxPrice,
+          minVolRaw,
+          onProgress: (p) => {
+            state.progress = p;
+          },
+          onMatch: (match) => {
+            state.liveResults.push(match);
+          },
+        });
+        errors = raw.errors;
+        processed = raw.processed;
+        dataStatus = raw.dataStatus || (errors.length ? 'partial' : 'complete');
+        dataAsOf = raw.dataAsOf || null;
+        results = raw.results;
       }
-    } else {
-      const raw = await scanner.scanTickers(tickersToScan, {
-        minVolumeRatio,
-        minMarketCap,
-        minPrice,
-        maxPrice,
-        minVolRaw,
-        onProgress: (p) => {
-          state.progress = p;
-        },
-        onMatch: (match) => {
-          state.liveResults.push(match);
-        },
-      });
-      errors = raw.errors;
-      processed = raw.processed;
-      dataStatus = raw.dataStatus || (errors.length ? 'partial' : 'complete');
-      dataAsOf = raw.dataAsOf || null;
-      results = raw.results;
+
+      state.lastResults = results;
+      state.lastScanTime = new Date().toISOString();
+      state.lastDataStatus = dataStatus;
+      state.lastDataAsOf = dataAsOf || state.lastScanTime;
+      state.lastScanId = scanId;
+      state.lastScanError = null;
+      state.lastMarketClosed = !isMarketOpen();
+      state.activeScanId = null;
+      state.running = false;
+      state.progress = null;
+
+      return {
+        results,
+        scanId,
+        scanTime: state.lastScanTime,
+        tickersScanned: processed,
+        errors: errors.length,
+        dataStatus,
+        dataAsOf: dataAsOf || state.lastScanTime,
+        marketClosed: !isMarketOpen(),
+        ...quotaFor(req.user),
+      };
+    } catch (err) {
+      state.running = false;
+      state.activeScanId = null;
+      state.progress = null;
+      state.liveResults = [];
+      state.lastScanId = scanId;
+      state.lastScanError = {
+        code: 'SCAN_FAILED',
+        message: 'Scan failed. Market data is temporarily unavailable. Please try again in a few minutes.',
+      };
+      try {
+        await refundScan(req.user, req.scanReservation); // the reserved slot bought nothing — give it back
+      } catch (refundError) {
+        reportError(refundError, '[scan] quota refund');
+      }
+      reportError(err, '[scan]');
+      throw err;
     }
+  };
 
-    state.lastResults = results;
-    state.lastScanTime = new Date().toISOString();
-    state.lastDataStatus = dataStatus;
-    state.lastDataAsOf = dataAsOf || state.lastScanTime;
-    state.running = false;
+  // Full-market scans can legitimately outlive a reverse-proxy request
+  // window. Return a durable-in-process scan id immediately and let the
+  // authenticated progress/result endpoints carry the rest of the flow.
+  // The legacy synchronous response remains available for non-UI callers.
+  if (req.query.async === '1') {
+    void runScan().catch(() => {});
+    return res.status(202).json({ queued: true, scanId, progress: state.progress });
+  }
 
-    res.json({
-      results,
-      scanTime: state.lastScanTime,
-      tickersScanned: processed,
-      errors: errors.length,
-      dataStatus,
-      dataAsOf: dataAsOf || state.lastScanTime,
-      marketClosed: !isMarketOpen(),
-      ...quotaFor(req.user),
-    });
+  try {
+    return res.json(await runScan());
   } catch (err) {
-    state.running = false;
-    await refundScan(req.user, req.scanReservation); // the reserved slot bought nothing — give it back
-    reportError(err, '[scan]');
-    res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -281,6 +326,9 @@ router.get('/progress', requireAuth, (req, res) => {
   const state = getUserScanState(req.user.id);
   res.json({
     running: state.running,
+    scanId: state.activeScanId,
+    lastScanId: state.lastScanId,
+    error: state.lastScanError || null,
     progress: state.progress,
     liveResults: state.liveResults || [],
   });
@@ -289,10 +337,14 @@ router.get('/progress', requireAuth, (req, res) => {
 router.get('/last-results', requireAuth, (req, res) => {
   const state = getUserScanState(req.user.id);
   res.json({
+    scanId: state.lastScanId,
     results: state.lastResults,
     scanTime: state.lastScanTime,
+    marketClosed: state.lastMarketClosed,
     dataStatus: state.lastDataStatus || null,
     dataAsOf: state.lastDataAsOf || null,
+    error: state.lastScanError || null,
+    ...quotaFor(req.user),
   });
 });
 
