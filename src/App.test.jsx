@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './context/AuthContext';
 
@@ -41,7 +41,23 @@ window.matchMedia =
 
 afterEach(() => {
   vi.restoreAllMocks();
+  localStorage.clear();
 });
+
+function CheckoutRepeatHarness() {
+  const navigate = useNavigate();
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        localStorage.setItem('vs_pending_tier', 'elite');
+        navigate('/?status=success');
+      }}
+    >
+      Simulate second checkout
+    </button>
+  );
+}
 
 describe('App routing', () => {
   it('renders the public landing page at the root path for a logged-out visitor', async () => {
@@ -70,5 +86,21 @@ describe('App routing', () => {
     const watchlistTab = container.querySelector('.nav-tabs .nav-tab:nth-child(5)');
     expect(watchlistTab.textContent).toMatch(/Watchlist/);
     expect(watchlistTab.className).toMatch(/active/);
+  });
+
+  it('processes a second checkout success in the same mounted App instance', async () => {
+    localStorage.setItem('vs_pending_tier', 'premium');
+    render(
+      <AuthProvider>
+        <MemoryRouter initialEntries={['/?status=success']}>
+          <CheckoutRepeatHarness />
+          <App />
+        </MemoryRouter>
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(localStorage.getItem('vs_pending_tier')).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Simulate second checkout' }));
+    await waitFor(() => expect(localStorage.getItem('vs_pending_tier')).toBeNull());
   });
 });

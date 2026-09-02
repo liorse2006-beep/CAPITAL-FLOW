@@ -6,10 +6,18 @@ import { useEffect, useRef } from 'react';
 // attach to the modal's outer panel element (not the overlay backdrop).
 export default function useModalA11y(onClose) {
   const panelRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+
+  // Modal contents can change while the same panel stays mounted (for
+  // example, pricing -> checkout). Keep Escape wired to the latest close
+  // behavior without re-running the focus/scroll-lock lifecycle.
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     function handleKeyDown(e) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     }
     document.addEventListener('keydown', handleKeyDown);
 
@@ -29,7 +37,6 @@ export default function useModalA11y(onClose) {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run on mount/unmount, not every onClose identity change
   }, []);
 
   return panelRef;

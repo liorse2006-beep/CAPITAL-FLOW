@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useModalA11y from '../../hooks/useModalA11y';
 import { useAuth } from '../../context/AuthContext';
@@ -16,12 +16,22 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
   const { getToken } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const panelRef = useModalA11y(onClose);
   const [payingTier, setPayingTier] = useState(null);
   const [payError, setPayError] = useState('');
   const [couponCode, setCouponCode] = useState('');
   const [appliedPromo, setAppliedPromo] = useState(null);
   const [checkoutSession, setCheckoutSession] = useState(null); // { sessionId, tierKey, promoCode } | null
+  const checkoutSessionRef = useRef(false);
+  React.useEffect(() => {
+    checkoutSessionRef.current = Boolean(checkoutSession);
+  }, [checkoutSession]);
+
+  function handleClose() {
+    if (checkoutSessionRef.current) localStorage.removeItem('vs_pending_tier');
+    onClose();
+  }
+
+  const panelRef = useModalA11y(handleClose);
 
   async function goToCheckout(tierKey) {
     setPayError('');
@@ -69,7 +79,7 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
 
   if (checkoutSession) {
     return (
-      <div className="upgrade-overlay" onClick={onClose}>
+      <div className="upgrade-overlay" onClick={handleClose}>
         <div
           className="upgrade-modal checkout-embed-modal"
           ref={panelRef}
@@ -79,7 +89,7 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
           aria-label={'Checkout — ' + TIER_LABEL[checkoutSession.tierKey]}
           onClick={(e) => e.stopPropagation()}
         >
-          <button className="upgrade-close" onClick={onClose} aria-label="Close">
+          <button className="upgrade-close" onClick={handleClose} aria-label="Close">
             ×
           </button>
           <button
@@ -115,7 +125,7 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
   }
 
   return (
-    <div className="upgrade-overlay" onClick={onClose}>
+    <div className="upgrade-overlay" onClick={handleClose}>
       <div
         className={'upgrade-modal pricing-cards-modal' + (trialEnded ? ' pricing-cards-modal-trial-ended' : '')}
         ref={panelRef}
@@ -125,7 +135,7 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
         aria-label={trialEnded ? 'Keep your Capital Flow access' : 'Compare plans'}
         onClick={(e) => e.stopPropagation()}
       >
-        <button className="upgrade-close" onClick={onClose} aria-label="Close">
+        <button className="upgrade-close" onClick={handleClose} aria-label="Close">
           ×
         </button>
         {trialEnded && (

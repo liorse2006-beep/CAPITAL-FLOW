@@ -179,6 +179,27 @@ describe('UpgradeModal', () => {
     await waitFor(() => expect(localStorage.getItem('vs_pending_tier')).toBe('elite'));
   });
 
+  it('clears the pending tier handoff when checkout is explicitly closed', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ sessionId: 'ch_test123', planId: 'plan_test' }),
+      })
+    );
+    const onClose = vi.fn();
+    renderWithProviders(<UpgradeModal userTier="free" onClose={onClose} />);
+
+    await user.click(screen.getByRole('button', { name: /get premium/i }));
+    await screen.findByTestId('whop-checkout-embed');
+    expect(localStorage.getItem('vs_pending_tier')).toBe('premium');
+
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(localStorage.getItem('vs_pending_tier')).toBeNull();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('shows a real error and stays on the plan table when the session can not be created', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(

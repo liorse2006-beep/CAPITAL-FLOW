@@ -1,15 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useModalA11y from '../../hooks/useModalA11y';
 import { tierFeatureChecklist } from '../../constants/tierFeatures';
 import { useAuth } from '../../context/AuthContext';
 import EmbeddedCheckout from './EmbeddedCheckout';
-
-// How long the "confirming with Whop" indicator stays up before we quietly
-// stop showing it — the badge/copy already reflect the tier the user just
-// bought regardless, so an indicator that never resolves would just look
-// broken instead of adding real information past this point.
-var CONFIRM_TIMEOUT_MS = 12000;
 
 var COPY = {
   premium: {
@@ -27,14 +21,23 @@ var COPY = {
 };
 
 export default function WelcomeTierModal({ tier, confirmed, onClose, eliteUpgradeAvailable = true }) {
-  const panelRef = useModalA11y(onClose);
   const { getToken } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [showConfirming, setShowConfirming] = useState(!confirmed);
   const [upgrading, setUpgrading] = useState(false);
   const [upgradeError, setUpgradeError] = useState('');
   const [checkoutSessionId, setCheckoutSessionId] = useState(null);
+  const checkoutSessionRef = useRef(false);
+  React.useEffect(() => {
+    checkoutSessionRef.current = Boolean(checkoutSessionId);
+  }, [checkoutSessionId]);
+
+  function handleClose() {
+    if (checkoutSessionRef.current) localStorage.removeItem('vs_pending_tier');
+    onClose();
+  }
+
+  const panelRef = useModalA11y(handleClose);
 
   // The exact same tier-was-requested handoff UpgradeModal uses — stashed
   // before mounting the embed so that if this converts, the user lands back
@@ -73,19 +76,6 @@ export default function WelcomeTierModal({ tier, confirmed, onClose, eliteUpgrad
     localStorage.removeItem('vs_pending_tier');
   }
 
-  useEffect(
-    function () {
-      if (confirmed) return;
-      var t = setTimeout(function () {
-        setShowConfirming(false);
-      }, CONFIRM_TIMEOUT_MS);
-      return function () {
-        clearTimeout(t);
-      };
-    },
-    [confirmed]
-  );
-
   var copy = COPY[tier];
   if (!copy) return null;
   // Every tier's screen lists the SAME full feature set — Elite checks off
@@ -102,7 +92,7 @@ export default function WelcomeTierModal({ tier, confirmed, onClose, eliteUpgrad
 
   if (checkoutSessionId) {
     return (
-      <div className="upgrade-overlay welcome-tier-overlay" onClick={onClose}>
+      <div className="upgrade-overlay welcome-tier-overlay" onClick={handleClose}>
         <div
           className="upgrade-modal checkout-embed-modal"
           ref={panelRef}
@@ -112,7 +102,7 @@ export default function WelcomeTierModal({ tier, confirmed, onClose, eliteUpgrad
           aria-label="Checkout — Elite"
           onClick={(e) => e.stopPropagation()}
         >
-          <button className="upgrade-close" onClick={onClose} aria-label="Close">
+          <button className="upgrade-close" onClick={handleClose} aria-label="Close">
             ×
           </button>
           <button
@@ -134,7 +124,7 @@ export default function WelcomeTierModal({ tier, confirmed, onClose, eliteUpgrad
   }
 
   return (
-    <div className="upgrade-overlay welcome-tier-overlay" onClick={onClose}>
+    <div className="upgrade-overlay welcome-tier-overlay" onClick={handleClose}>
       <div
         className={'upgrade-modal welcome-tier-modal ' + copy.badgeClass}
         ref={panelRef}
@@ -144,55 +134,51 @@ export default function WelcomeTierModal({ tier, confirmed, onClose, eliteUpgrad
         aria-label={copy.headline}
         onClick={(e) => e.stopPropagation()}
       >
-        <button className="upgrade-close" onClick={onClose} aria-label="Close">
+        <button className="upgrade-close" onClick={handleClose} aria-label="Close">
           ×
         </button>
 
         <div className="welcome-tier-badge-wrap">
           <span className={'welcome-tier-badge ' + copy.badgeClass}>{copy.label}</span>
-          {!confirmed && showConfirming && (
-            <span className="welcome-tier-confirming">
-              <span className="welcome-tier-spinner" />
-              Confirming with Whop…
+          {!confirmed && (
+            <span className="welcome-tier-confirming" role="status" aria-live="polite">
+              <span className="welcome-tier-spinner" aria-hidden="true" />
+              Checkout reported success — confirming access…
             </span>
           )}
         </div>
 
-        <h2 className="upgrade-title welcome-tier-headline">{copy.headline}</h2>
-        <p className="upgrade-desc welcome-tier-body">{copy.body}</p>
-
-        <ul className="welcome-tier-features">
-          {included.map((f) => (
-            <li key={f.label}>
-              <svg
-                viewBox="0 0 24 24"
-                width="15"
-                height="15"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              <span>
-                {f.label}
-                {f.value && f.value !== 'Included' && <small className="welcome-tier-feature-detail">{f.value}</small>}
-              </span>
-            </li>
-          ))}
-        </ul>
-
-        {excluded.length > 0 && (
+        {!confirmed ? (
           <>
-            <div className="welcome-tier-divider">
-              <span className="welcome-tier-divider-label">Also included with Elite</span>
-            </div>
-            <ul className="welcome-tier-features welcome-tier-features-excluded">
-              {excluded.map((f) => (
+            <h2 className="upgrade-title welcome-tier-headline">Confirming your access</h2>
+            <p className="upgrade-desc welcome-tier-body welcome-tier-pending-body">
+              Checkout reported success. We are waiting for the secure server confirmation before showing paid features.
+              This can take a moment. You can close this window and refresh shortly if your access does not appear.
+            </p>
+            <button className="upgrade-cta welcome-tier-cta welcome-tier-cta-secondary" onClick={handleClose}>
+              Close
+            </button>
+          </>
+        ) : (
+          <>
+            <h2 className="upgrade-title welcome-tier-headline">{copy.headline}</h2>
+            <p className="upgrade-desc welcome-tier-body">{copy.body}</p>
+
+            <ul className="welcome-tier-features">
+              {included.map((f) => (
                 <li key={f.label}>
-                  <span className="welcome-tier-dot" />
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="15"
+                    height="15"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
                   <span>
                     {f.label}
                     {f.value && f.value !== 'Included' && (
@@ -202,32 +188,53 @@ export default function WelcomeTierModal({ tier, confirmed, onClose, eliteUpgrad
                 </li>
               ))}
             </ul>
+
+            {excluded.length > 0 && (
+              <>
+                <div className="welcome-tier-divider">
+                  <span className="welcome-tier-divider-label">Also included with Elite</span>
+                </div>
+                <ul className="welcome-tier-features welcome-tier-features-excluded">
+                  {excluded.map((f) => (
+                    <li key={f.label}>
+                      <span className="welcome-tier-dot" />
+                      <span>
+                        {f.label}
+                        {f.value && f.value !== 'Included' && (
+                          <small className="welcome-tier-feature-detail">{f.value}</small>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {tier === 'premium' && eliteUpgradeAvailable && (
+              <div className="welcome-upsell">
+                <span className="welcome-upsell-badge">One-time offer</span>
+                <button
+                  className="upgrade-cta welcome-tier-cta welcome-upsell-cta"
+                  onClick={upgradeToElite}
+                  disabled={upgrading}
+                >
+                  {upgrading ? 'Loading…' : 'Upgrade to Elite — 50% off'}
+                </button>
+                <p className="welcome-upsell-sub">
+                  $14.95 instead of $29.90 — a one-time 50% upgrade offer shown only after Premium purchase.
+                </p>
+                {upgradeError && <p className="welcome-upsell-error">{upgradeError}</p>}
+              </div>
+            )}
+
+            <button
+              className={'upgrade-cta welcome-tier-cta' + (tier === 'premium' ? ' welcome-tier-cta-secondary' : '')}
+              onClick={handleClose}
+            >
+              Start scanning
+            </button>
           </>
         )}
-
-        {tier === 'premium' && eliteUpgradeAvailable && (
-          <div className="welcome-upsell">
-            <span className="welcome-upsell-badge">One-time offer</span>
-            <button
-              className="upgrade-cta welcome-tier-cta welcome-upsell-cta"
-              onClick={upgradeToElite}
-              disabled={upgrading}
-            >
-              {upgrading ? 'Loading…' : 'Upgrade to Elite — 50% off'}
-            </button>
-            <p className="welcome-upsell-sub">
-              $14.95 instead of $29.90 — a one-time 50% upgrade offer shown only after Premium purchase.
-            </p>
-            {upgradeError && <p className="welcome-upsell-error">{upgradeError}</p>}
-          </div>
-        )}
-
-        <button
-          className={'upgrade-cta welcome-tier-cta' + (tier === 'premium' ? ' welcome-tier-cta-secondary' : '')}
-          onClick={onClose}
-        >
-          Start scanning
-        </button>
       </div>
     </div>
   );

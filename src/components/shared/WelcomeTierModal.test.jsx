@@ -71,9 +71,13 @@ describe('WelcomeTierModal', () => {
     expect(container.querySelectorAll('.welcome-tier-features li').length).toBe(12);
   });
 
-  it('shows a "confirming" indicator when not yet confirmed, and hides it once confirmed', () => {
+  it('does not claim paid access before the server confirms the webhook', () => {
     const { rerender } = renderWithProviders(<WelcomeTierModal tier="elite" confirmed={false} onClose={vi.fn()} />);
-    expect(screen.getByText(/Confirming with Whop/)).toBeInTheDocument();
+    expect(screen.getByText(/Checkout reported success — confirming access/)).toBeInTheDocument();
+    expect(screen.getByText('Confirming your access')).toBeInTheDocument();
+    expect(screen.queryByText('Welcome to Elite')).not.toBeInTheDocument();
+    expect(screen.queryByText('Capi — your AI market mentor')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Close' })).toHaveLength(2);
 
     rerender(
       <MemoryRouter>
@@ -82,7 +86,10 @@ describe('WelcomeTierModal', () => {
         </AuthProvider>
       </MemoryRouter>
     );
-    expect(screen.queryByText(/Confirming with Whop/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Checkout reported success/)).not.toBeInTheDocument();
+    expect(screen.getByText('Welcome to Elite')).toBeInTheDocument();
+    expect(screen.getByText('Capi — your AI market mentor')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start scanning' })).toBeInTheDocument();
   });
 
   it('does not show the confirming indicator when already confirmed on mount', () => {

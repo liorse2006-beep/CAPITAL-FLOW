@@ -830,9 +830,22 @@ function App() {
   useEffect(
     function () {
       var status = new URLSearchParams(location.search).get('status');
-      if (!status) return;
+      if (!status) {
+        // Reset only after the success/error query has been consumed. This
+        // keeps React StrictMode's replay idempotent while still allowing a
+        // second purchase (for example, Premium followed by Elite upgrade)
+        // during the same mounted App instance.
+        handledStatusRef.current = false;
+        return;
+      }
       navigate(location.pathname, { replace: true });
-      if (status !== 'success') return;
+      if (status !== 'success') {
+        // A cancelled/failed checkout must not leave a stale tier handoff in
+        // this browser. Otherwise a later, unrelated success callback could
+        // open the wrong welcome screen.
+        localStorage.removeItem('vs_pending_tier');
+        return;
+      }
       if (handledStatusRef.current) return;
       handledStatusRef.current = true;
       var pendingTier = localStorage.getItem('vs_pending_tier');
