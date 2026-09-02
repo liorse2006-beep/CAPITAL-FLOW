@@ -1738,7 +1738,6 @@ function mountTrustMarquee(el, assets, cleanupFns) {
         fallback.className = 'cf-marq-logo-fallback';
         fallback.setAttribute('aria-hidden', 'true');
         fallback.innerHTML = '<i></i><i></i><i></i>';
-        logo.hidden = true;
 
         logo.addEventListener(
           'load',
