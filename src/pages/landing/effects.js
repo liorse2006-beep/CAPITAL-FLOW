@@ -1726,7 +1726,7 @@ function mountTrustMarquee(el, assets, cleanupFns) {
 
         const logo = document.createElement('img');
         logo.className = 'cf-marq-logo';
-        logo.dataset.src = 'https://assets.parqet.com/logos/symbol/' + asset.symbol + '?format=svg&size=32';
+        logo.dataset.src = '/landing-logo/' + encodeURIComponent(asset.symbol);
         logo.alt = '';
         logo.decoding = 'async';
         // The marquee has two copies of the maintained logo set. Lazy loading

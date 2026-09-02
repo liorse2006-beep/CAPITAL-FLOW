@@ -232,6 +232,62 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Proxy only the landing page's curated company logos through the same
+// origin. The upstream CDN is public, but asking every visitor's browser to
+// open hundreds of cross-origin image requests at once is fragile on mobile
+// networks and can be throttled by the CDN. A fixed upstream plus a strict
+// ticker allowlist avoids SSRF while same-origin responses work consistently
+// with the site's CSP and service worker.
+const LANDING_LOGO_ORIGIN = 'https://assets.parqet.com/logos/symbol/';
+const landingLogoCache = new Map();
+
+app.get('/landing-logo/:symbol', async (req, res) => {
+  const symbol = String(req.params.symbol || '').toUpperCase();
+  if (!/^[A-Z]{1,6}$/.test(symbol)) {
+    return res.status(400).type('text/plain').send('Invalid symbol');
+  }
+
+  let logoPromise = landingLogoCache.get(symbol);
+  if (!logoPromise) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    logoPromise = fetch(`${LANDING_LOGO_ORIGIN}${symbol}?format=svg&size=32`, {
+      redirect: 'error',
+      signal: controller.signal,
+      headers: { Accept: 'image/svg+xml,image/*;q=0.8' },
+    })
+      .then(async (upstream) => {
+        if (!upstream.ok) return { status: upstream.status, body: null };
+        const contentType = upstream.headers.get('content-type') || '';
+        if (!/^image\/svg\+xml(?:;|$)/i.test(contentType)) {
+          return { status: 502, body: null };
+        }
+        const body = Buffer.from(await upstream.arrayBuffer());
+        if (!body.length || body.length > 100_000) return { status: 502, body: null };
+        return { status: 200, body };
+      })
+      .catch(() => ({ status: 502, body: null }))
+      .finally(() => clearTimeout(timeout));
+
+    // Keep the cache bounded; the landing set is large enough that an
+    // unbounded per-process map would otherwise grow across long uptimes.
+    if (landingLogoCache.size >= 400) {
+      landingLogoCache.delete(landingLogoCache.keys().next().value);
+    }
+    landingLogoCache.set(symbol, logoPromise);
+  }
+
+  const logo = await logoPromise;
+  if (logo.status !== 200 || !logo.body) {
+    return res.status(logo.status === 404 ? 404 : 502).type('text/plain').send('Logo unavailable');
+  }
+
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  return res.send(logo.body);
+});
+
 // Serve static files — dist/ if built, else public/ fallback (checked at request time)
 const distDir = path.join(__dirname, '../dist');
 const publicDir = path.join(__dirname, '../public');
