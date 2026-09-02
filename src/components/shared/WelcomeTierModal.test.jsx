@@ -73,6 +73,7 @@ describe('WelcomeTierModal', () => {
 
   it('does not claim paid access before the server confirms the webhook', () => {
     const { rerender } = renderWithProviders(<WelcomeTierModal tier="elite" confirmed={false} onClose={vi.fn()} />);
+    expect(screen.getByText('VERIFYING')).toBeInTheDocument();
     expect(screen.getByText(/Checkout reported success — confirming access/)).toBeInTheDocument();
     expect(screen.getByText('Confirming your access')).toBeInTheDocument();
     expect(screen.queryByText('Welcome to Elite')).not.toBeInTheDocument();

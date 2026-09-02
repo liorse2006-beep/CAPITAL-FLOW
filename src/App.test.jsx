@@ -103,4 +103,12 @@ describe('App routing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Simulate second checkout' }));
     await waitFor(() => expect(localStorage.getItem('vs_pending_tier')).toBeNull());
   });
+
+  it('clears a stale tier handoff and gives feedback after a failed checkout callback', async () => {
+    localStorage.setItem('vs_pending_tier', 'elite');
+    renderAt('/?status=error');
+
+    await waitFor(() => expect(localStorage.getItem('vs_pending_tier')).toBeNull());
+    expect(screen.getByText('Checkout was not completed. Please try again.')).toBeInTheDocument();
+  });
 });

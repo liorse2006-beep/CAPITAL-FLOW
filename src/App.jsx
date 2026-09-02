@@ -844,6 +844,7 @@ function App() {
         // this browser. Otherwise a later, unrelated success callback could
         // open the wrong welcome screen.
         localStorage.removeItem('vs_pending_tier');
+        showToast('Checkout was not completed. Please try again.');
         return;
       }
       if (handledStatusRef.current) return;
@@ -853,7 +854,13 @@ function App() {
       if (pendingTier === 'premium' || pendingTier === 'elite') {
         queueMicrotask(() => setWelcomeTier(pendingTier));
       } else {
-        showToast('Payment received! Upgrading your account…');
+        // A success callback without a local tier handoff can happen when a
+        // checkout was completed in another tab. Refresh once, but do not
+        // start a long tier-specific polling loop when there is no tier to
+        // verify.
+        showToast('Payment status received. Refreshing your access…');
+        refreshUser().catch(() => {});
+        return;
       }
       // Poll /api/auth/me until the tier matches the purchased tier, backing
       // off gradually. The Whop webhook can trail the redirect by anywhere

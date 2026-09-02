@@ -131,7 +131,7 @@ export default function WelcomeTierModal({ tier, confirmed, onClose, eliteUpgrad
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label={copy.headline}
+        aria-label={confirmed ? copy.headline : 'Confirming your access'}
         onClick={(e) => e.stopPropagation()}
       >
         <button className="upgrade-close" onClick={handleClose} aria-label="Close">
@@ -139,7 +139,7 @@ export default function WelcomeTierModal({ tier, confirmed, onClose, eliteUpgrad
         </button>
 
         <div className="welcome-tier-badge-wrap">
-          <span className={'welcome-tier-badge ' + copy.badgeClass}>{copy.label}</span>
+          <span className={'welcome-tier-badge ' + copy.badgeClass}>{confirmed ? copy.label : 'VERIFYING'}</span>
           {!confirmed && (
             <span className="welcome-tier-confirming" role="status" aria-live="polite">
               <span className="welcome-tier-spinner" aria-hidden="true" />
