@@ -45,7 +45,7 @@ function AlertBell(props) {
 
   return React.createElement(
     'div',
-    { style: { position: 'relative' } },
+    { className: 'alert-bell-wrap' },
     React.createElement(
       'button',
       {
@@ -53,6 +53,8 @@ function AlertBell(props) {
         onClick: onBellClick,
         title: 'Alert history',
         'aria-label': 'Alert history' + (unreadCount > 0 ? ', ' + unreadCount + ' unread' : ''),
+        'aria-controls': 'alert-history-panel',
+        'aria-haspopup': 'dialog',
         'aria-expanded': showAlertPanel,
       },
       React.createElement(
@@ -80,7 +82,7 @@ function AlertBell(props) {
     showAlertPanel &&
       React.createElement(
         'div',
-        { className: 'alert-panel', role: 'dialog', 'aria-label': 'Notifications' },
+        { id: 'alert-history-panel', className: 'alert-panel', role: 'dialog', 'aria-label': 'Notifications' },
         React.createElement(
           'div',
           { className: 'alert-panel-header' },

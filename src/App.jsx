@@ -68,7 +68,11 @@ function App() {
   // navigation a real, bookmarkable, back/forward-able browser route.
   const page = location.pathname === '/' ? 'scanner' : location.pathname.slice(1).split('/')[0];
   function setPage(p) {
-    navigate(p === 'scanner' ? '/' : '/' + p);
+    // Keep the public landing page at `/`, but never send a visitor who is
+    // already inside the app back to marketing when they choose Capital Flow
+    // from the primary navigation. `/scanner` is the bookmarkable scanner
+    // route for both guests and signed-in users.
+    navigate(p === 'scanner' ? '/scanner' : '/' + p);
   }
 
   // Profile has one scheduling action, but the product already owns a real

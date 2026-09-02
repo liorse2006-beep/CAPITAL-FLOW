@@ -15572,3 +15572,131 @@ html.a11y-highlight-links a {
     text-align: left;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FINAL MOBILE SURFACE GUARDRAILS
+
+   The application document is RTL for the Hebrew public surface, while the
+   authenticated product controls are English. These rules keep the controls
+   in their existing visual order, but make anchored menus use the full
+   topbar as their containing block. Previously the bell/profile wrappers
+   were the containing blocks; in RTL the bell sits at the inline-start edge,
+   so a right-aligned 360px panel was rendered mostly outside the viewport.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.alert-bell-wrap {
+  position: relative;
+}
+
+/* The bell is at the visual start of the RTL action row. Opening toward the
+   visual end keeps the panel inside the app on both desktop and narrow
+   screens; the mobile override below expands it to the available width. */
+.alert-panel {
+  left: 0;
+  right: auto;
+  direction: ltr;
+  box-sizing: border-box;
+}
+
+.topbar-profile-menu {
+  left: auto;
+  right: 0;
+  direction: ltr;
+  z-index: 201;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .app,
+  .topbar,
+  .topbar-left,
+  .topbar-right,
+  .nav-tabs,
+  .page-content {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Keep all five primary destinations visible. At tablet widths this is
+     still compact; at phone widths it avoids a hidden horizontal tab strip. */
+  .nav-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2px;
+    overflow: visible;
+    touch-action: auto;
+  }
+
+  .nav-tab {
+    min-width: 0;
+    min-height: 44px;
+    justify-content: center;
+    overflow: hidden;
+    padding-inline: 4px;
+    text-overflow: ellipsis;
+  }
+
+  .notif-bell,
+  .topbar-profile-trigger {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  /* Make both anchored menus use the action row's full width and height.
+     This also handles the extra wrapped row at 320px without a hard-coded
+     viewport top that could overlap a taller signed-in header. */
+  .topbar-right {
+    position: relative;
+  }
+
+  .topbar-profile-wrap,
+  .alert-bell-wrap {
+    position: static;
+  }
+
+  .topbar-profile-menu,
+  .alert-panel {
+    top: calc(100% + 8px);
+    left: 0;
+    right: auto;
+    width: 100%;
+    max-width: none;
+    max-height: min(520px, calc(100dvh - 124px));
+    box-sizing: border-box;
+  }
+
+  .topbar-profile-menu {
+    padding: 8px;
+  }
+
+  .alert-panel {
+    border-radius: 12px;
+  }
+
+  .topbar-profile-menu-item,
+  .alert-panel-close,
+  .alert-panel-del {
+    min-height: 44px;
+  }
+
+  .auth-close {
+    z-index: 2;
+    min-width: 44px;
+    min-height: 44px;
+    color: rgba(228, 228, 231, 0.68);
+    touch-action: manipulation;
+  }
+
+  .auth-close:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}

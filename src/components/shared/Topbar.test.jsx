@@ -92,6 +92,7 @@ describe('Topbar tier badge', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
     expect(screen.getByRole('menu', { name: 'Profile menu' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open profile menu' })).toHaveAttribute('aria-controls', 'profile-menu');
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Account & workspace' }));
     expect(screen.getByRole('dialog', { name: 'Account Center' })).toBeInTheDocument();
@@ -161,6 +162,60 @@ describe('Topbar tier badge', () => {
       'src',
       'https://lh3.googleusercontent.com/avatar'
     );
+  });
+
+  it('keeps the alert trigger and panel linked for assistive technology', () => {
+    render(
+      <Topbar
+        {...baseProps({
+          user: { id: 1, email: 'user@example.com' },
+          showAlertPanel: true,
+        })}
+      />
+    );
+
+    const bell = screen.getByRole('button', { name: 'Alert history' });
+    const panel = screen.getByRole('dialog', { name: 'Notifications' });
+
+    expect(bell).toHaveAttribute('aria-controls', 'alert-history-panel');
+    expect(bell).toHaveAttribute('aria-expanded', 'true');
+    expect(panel).toHaveAttribute('id', 'alert-history-panel');
+    expect(panel.parentElement).toHaveClass('alert-bell-wrap');
+  });
+
+  it('keeps the profile and notification surfaces from occupying the same mobile layer', () => {
+    const onClosePanel = vi.fn();
+    const onBellClick = vi.fn();
+
+    const { rerender } = render(
+      <Topbar
+        {...baseProps({
+          user: { id: 1, email: 'user@example.com' },
+          showAlertPanel: true,
+          onClosePanel,
+          onBellClick,
+        })}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
+    expect(onClosePanel).toHaveBeenCalledOnce();
+    expect(screen.getByRole('menu', { name: 'Profile menu' })).toBeInTheDocument();
+
+    rerender(
+      <Topbar
+        {...baseProps({
+          user: { id: 1, email: 'user@example.com' },
+          showAlertPanel: false,
+          onClosePanel,
+          onBellClick,
+        })}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Alert history' }));
+    expect(onBellClick).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('menu', { name: 'Profile menu' })).not.toBeInTheDocument();
   });
 });
 

@@ -88,6 +88,15 @@ describe('App routing', () => {
     expect(watchlistTab.className).toMatch(/active/);
   });
 
+  it('keeps Capital Flow inside the app when navigating from another app route', async () => {
+    renderAt('/watchlist');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Capital Flow' }));
+
+    await waitFor(() => expect(screen.getByText('Full Scan')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Capital Flow' }).className).toMatch(/active/);
+  });
+
   it('processes a second checkout success in the same mounted App instance', async () => {
     localStorage.setItem('vs_pending_tier', 'premium');
     render(

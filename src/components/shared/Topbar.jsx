@@ -198,16 +198,20 @@ export default function Topbar({
               <button
                 className="topbar-profile-trigger"
                 type="button"
-                onClick={() => setProfileMenuOpen((open) => !open)}
+                onClick={() => {
+                  if (!profileMenuOpen && showAlertPanel) onClosePanel?.();
+                  setProfileMenuOpen((open) => !open);
+                }}
                 aria-label="Open profile menu"
                 aria-haspopup="menu"
                 aria-expanded={profileMenuOpen}
+                aria-controls="profile-menu"
                 title="Open profile"
               >
                 <UserAvatar user={user} className="topbar-profile-avatar" />
               </button>
               {profileMenuOpen && (
-                <div className="topbar-profile-menu" role="menu" aria-label="Profile menu">
+                <div id="profile-menu" className="topbar-profile-menu" role="menu" aria-label="Profile menu">
                   <div className="topbar-profile-menu-head">
                     <div className="topbar-profile-menu-email" title={user.email}>
                       {user.email}
@@ -262,7 +266,10 @@ export default function Topbar({
           <AlertBell
             notificationsEnabled={notificationsEnabled}
             showAlertPanel={showAlertPanel}
-            onBellClick={onBellClick}
+            onBellClick={() => {
+              if (!showAlertPanel) setProfileMenuOpen(false);
+              onBellClick();
+            }}
             unreadCount={unreadCount}
             alertHistory={alertHistory}
             onClearAll={onClearAll}

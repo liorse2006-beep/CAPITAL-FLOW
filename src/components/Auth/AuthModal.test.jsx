@@ -60,3 +60,19 @@ it('the OTP Verify button is enabled (not stuck on the signup loading state) onc
 
   expect(verifyBtn).not.toBeDisabled();
 });
+
+it('closes the authentication dialog from its close button', async () => {
+  const user = userEvent.setup();
+  const onClose = vi.fn();
+  mockFetchSequence([{ body: {} }]);
+
+  render(
+    <AuthProvider>
+      <AuthModal onClose={onClose} />
+    </AuthProvider>
+  );
+
+  await user.click(screen.getByRole('button', { name: 'Close' }));
+
+  expect(onClose).toHaveBeenCalledOnce();
+});
