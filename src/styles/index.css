@@ -10466,6 +10466,31 @@ html.a11y-highlight-links a {
     display: none;
   }
 
+  /* Keep every primary destination visible on narrow phones. A horizontally
+     scrolling tab strip hides destinations and makes the current page look
+     clipped; two compact rows keep the full navigation reachable without
+     sideways movement. */
+  @media (max-width: 480px) {
+    .nav-tabs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 2px;
+      overflow: visible;
+      overscroll-behavior: auto;
+      touch-action: auto;
+      -webkit-overflow-scrolling: auto;
+    }
+    .nav-tab {
+      min-width: 0;
+      justify-content: center;
+      padding: 9px 4px;
+      font-size: 10px;
+      gap: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
   .chart-modal-backdrop {
     padding: 0;
   }
