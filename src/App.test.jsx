@@ -8,7 +8,7 @@ import { AuthProvider } from './context/AuthContext';
 // page mounts canvas/effects and several nested React roots; loading that
 // marketing surface here makes the assertion depend on animation/effect
 // scheduling and can race the test runner on a slower CI worker.
-vi.mock('./pages/LandingPage', () => ({
+vi.mock('./pages/LandingPage?landing-preview-v2', () => ({
   default: function MockLandingPage() {
     return <h1>Capital Flow landing</h1>;
   },

@@ -150,7 +150,7 @@ Impact: A deployment-only access gap could expose a paid feature or another user
 Root cause: Production identities and seeded cross-user data were not available.
 Recommendation: Automate a redacted staging entitlement matrix and run it on every release; add approved production smoke accounts if policy permits.
 Fix status: Code/test hardening complete; environment verification pending.
-Retest evidence: 401 backend tests passed; no production identity test.
+Retest evidence: 407 backend tests passed; no production identity test.
 Residual risk: Direct-API and cross-user behavior in the deployed database remains unknown.
 Confidence: 97%
 
@@ -169,7 +169,7 @@ Impact: Provider drift or timestamp/unit mismatch can change a signal or mislead
 Root cause: External provider data is time-sensitive and the full market matrix was not available for a controlled audit.
 Recommendation: Add contract fixtures and a monitored reconciliation job with explicit delayed/stale/unavailable states.
 Fix status: Defensive handling improved; reconciliation remains open.
-Retest evidence: 401 backend tests and stale fallback/Radar tests pass; live reconciliation not performed.
+Retest evidence: 407 backend tests and stale fallback/Radar tests pass; live reconciliation not performed.
 Residual risk: Provider drift, session boundaries, corporate actions, and unit errors.
 Confidence: 90%
 
@@ -284,7 +284,7 @@ The score below is conservative and evidence-based. Local code/test improvements
 | Performance, scalability and reliability | 8 | 5 | Build/lazy chunks and defensive timeouts pass; production SLO metrics remain unknown |
 | Infrastructure, deployment, backups and disaster recovery | 6 | 4 | CI/deploy/health/SHA and public headers pass; restore/failover/rollback remain unknown |
 | AI grounding and safety | 4 | 3 | Local auth, prompt-boundary, fallback, and stream tests pass; adversarial production behavior remains unknown |
-| QA, tests and release engineering | 3 | 3 | 401 backend, 148 frontend, 8 Worker, cluster, lint, and build pass |
+| QA, tests and release engineering | 3 | 3 | 407 backend, 150 frontend, 8 Worker, cluster, lint, and build pass |
 | SEO, dependencies, licensing and compliance risk | 3 | 2 | Dependency vulnerability and public SEO smoke pass; full licensing/editorial/legal review remains unknown |
 | **TOTAL** | **100** | **75** | Conservative current retest score |
 

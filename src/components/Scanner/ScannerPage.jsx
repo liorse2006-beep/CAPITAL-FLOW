@@ -196,11 +196,12 @@ export default function ScannerPage({
   onCreateAccount,
   radarEvent,
 }) {
-    useSeo({
-          title: 'Capital Flow — סורק נפח מסחר בזמן אמת ל-S&P 500 ו-NASDAQ 100',
-          description: 'סרקו את כל שוק המניות בלחיצה אחת, מצאו תנועות נפח חריגות ופוטנציאל פריצה, ופתחו בדיקה מסודרת על כל מניה — בלי לעבור על עשרות טאבים. 7 ימי ניסיון חינם.',
-          path: '/scanner',
-    });
+  useSeo({
+    title: 'Capital Flow — סורק נפח מסחר בזמן אמת ל-S&P 500 ו-NASDAQ 100',
+    description:
+      'סרקו את כל שוק המניות בלחיצה אחת, מצאו תנועות נפח חריגות ופוטנציאל פריצה, ופתחו בדיקה מסודרת על כל מניה — בלי לעבור על עשרות טאבים. 7 ימי ניסיון חינם.',
+    path: '/scanner',
+  });
   const [currentTime, setCurrentTime] = useState(null);
   const [showSectorModal, setShowSectorModal] = useState(false);
 

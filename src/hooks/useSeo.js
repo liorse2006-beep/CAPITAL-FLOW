@@ -28,7 +28,7 @@ export default function useSeo({ title, description, path, ogImage }) {
     const previousTitle = document.title;
     if (title) document.title = title;
 
-            const previousDescription = setAttr('meta[name="description"]', 'content', description);
+    const previousDescription = setAttr('meta[name="description"]', 'content', description);
     const previousOgTitle = setAttr('meta[property="og:title"]', 'content', title);
     const previousOgDescription = setAttr('meta[property="og:description"]', 'content', description);
     const previousOgUrl = setAttr('meta[property="og:url"]', 'content', url);
@@ -37,16 +37,16 @@ export default function useSeo({ title, description, path, ogImage }) {
     const previousTwitterDescription = setAttr('meta[name="twitter:description"]', 'content', description);
     const previousCanonical = setAttr('link[rel="canonical"]', 'href', url);
 
-            return () => {
-              document.title = previousTitle;
-              setAttr('meta[name="description"]', 'content', previousDescription);
-              setAttr('meta[property="og:title"]', 'content', previousOgTitle);
-              setAttr('meta[property="og:description"]', 'content', previousOgDescription);
-              setAttr('meta[property="og:url"]', 'content', previousOgUrl);
-              setAttr('meta[property="og:image"]', 'content', previousOgImage);
-              setAttr('meta[name="twitter:title"]', 'content', previousTwitterTitle);
-              setAttr('meta[name="twitter:description"]', 'content', previousTwitterDescription);
-              setAttr('link[rel="canonical"]', 'href', previousCanonical);
-            };
+    return () => {
+      document.title = previousTitle;
+      setAttr('meta[name="description"]', 'content', previousDescription);
+      setAttr('meta[property="og:title"]', 'content', previousOgTitle);
+      setAttr('meta[property="og:description"]', 'content', previousOgDescription);
+      setAttr('meta[property="og:url"]', 'content', previousOgUrl);
+      setAttr('meta[property="og:image"]', 'content', previousOgImage);
+      setAttr('meta[name="twitter:title"]', 'content', previousTwitterTitle);
+      setAttr('meta[name="twitter:description"]', 'content', previousTwitterDescription);
+      setAttr('link[rel="canonical"]', 'href', previousCanonical);
+    };
   }, [title, description, path, ogImage]);
 }

@@ -18,11 +18,12 @@ export default function MoneyFlow({
   alertLevels,
   promptCreateAlert,
 }) {
-    useSeo({
-          title: 'מעקב תזרים הון לפי סקטורים בזמן אמת | Capital Flow',
-          description: 'ראו לאן זורם הכסף בשוק המניות: מעקב אחר תזרים כניסות ויציאות לפי סקטור, בזמן אמת, כדי לזהות מגמות לפני כולם.',
-          path: '/flow',
-    });
+  useSeo({
+    title: 'מעקב תזרים הון לפי סקטורים בזמן אמת | Capital Flow',
+    description:
+      'ראו לאן זורם הכסף בשוק המניות: מעקב אחר תזרים כניסות ויציאות לפי סקטור, בזמן אמת, כדי לזהות מגמות לפני כולם.',
+    path: '/flow',
+  });
   const { user, getToken } = useAuth();
   // Trial users receive the same scan/filter surface as Elite. The server
   // still enforces the real tier and quota independently.

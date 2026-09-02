@@ -43,11 +43,11 @@ export default function MAScannerPage({
   alertLevels,
   promptCreateAlert,
 }) {
-    useSeo({
-          title: 'סורק ממוצעים נעים (Moving Average) למניות | Capital Flow',
-          description: 'סרקו מניות לפי חציות ממוצעים נעים ואיתותי מגמה, ומצאו הזדמנויות טכניות בשוק במהירות.',
-          path: '/ma',
-    });
+  useSeo({
+    title: 'סורק ממוצעים נעים (Moving Average) למניות | Capital Flow',
+    description: 'סרקו מניות לפי חציות ממוצעים נעים ואיתותי מגמה, ומצאו הזדמנויות טכניות בשוק במהירות.',
+    path: '/ma',
+  });
   const { getToken, user } = useAuth();
   // Trial users receive the same scanner surface as Elite for the duration
   // of the seven-day trial; the backend remains authoritative for quota.
