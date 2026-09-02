@@ -19,6 +19,7 @@ const { startStatusMonitor } = require('./services/statusMonitor');
 const { scanLimiter, apiLimiter, adminLimiter } = require('./middleware/rateLimiters');
 const { isSingletonWorker } = require('./services/clusterBus');
 const { safeErrorSummary } = require('./utils/reportError');
+const { servePublicApp } = require('./publicMetadata');
 
 const app = express();
 
@@ -323,7 +324,7 @@ app.use('/api', (req, res) => {
 // SPA fallback — MUST be last
 app.get('/{*splat}', (req, res) => {
   const serveDir = fs.existsSync(distDir) ? distDir : publicDir;
-  res.sendFile(path.join(serveDir, 'index.html'));
+  servePublicApp(req, res, serveDir);
 });
 
 // Sentry's error handler must be registered after all routes so it sees
