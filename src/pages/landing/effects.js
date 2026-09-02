@@ -1707,6 +1707,8 @@ function setupSpecularCtas(root, onGetStarted, cleanupFns) {
 }
 
 function mountTrustMarquee(el, assets, cleanupFns) {
+  const pendingLogos = [];
+
   function buildSegment() {
     const seg = document.createElement('div');
     seg.className = 'cf-marq-seg';
@@ -1724,7 +1726,7 @@ function mountTrustMarquee(el, assets, cleanupFns) {
 
         const logo = document.createElement('img');
         logo.className = 'cf-marq-logo';
-        logo.src = 'https://assets.parqet.com/logos/symbol/' + asset.symbol + '?format=svg&size=32';
+        logo.dataset.src = 'https://assets.parqet.com/logos/symbol/' + asset.symbol + '?format=svg&size=32';
         logo.alt = '';
         logo.decoding = 'async';
         // The marquee has two copies of the maintained logo set. Lazy loading
@@ -1735,10 +1737,18 @@ function mountTrustMarquee(el, assets, cleanupFns) {
         const fallback = document.createElement('span');
         fallback.className = 'cf-marq-logo-fallback';
         fallback.setAttribute('aria-hidden', 'true');
-        fallback.hidden = true;
         fallback.innerHTML = '<i></i><i></i><i></i>';
+        logo.hidden = true;
 
-        logo.addEventListener('load', () => frame.classList.add('has-logo'), { once: true });
+        logo.addEventListener(
+          'load',
+          () => {
+            frame.classList.add('has-logo');
+            logo.hidden = false;
+            fallback.hidden = true;
+          },
+          { once: true }
+        );
         logo.addEventListener(
           'error',
           () => {
@@ -1749,7 +1759,7 @@ function mountTrustMarquee(el, assets, cleanupFns) {
           { once: true }
         );
 
-        if (logo.complete && logo.naturalWidth > 0) frame.classList.add('has-logo');
+        pendingLogos.push(logo);
         frame.append(logo, fallback);
         item.appendChild(frame);
         seg.appendChild(item);
@@ -1759,8 +1769,43 @@ function mountTrustMarquee(el, assets, cleanupFns) {
   }
   el.appendChild(buildSegment());
   el.appendChild(buildSegment());
+
+  const loadLogo = (logo) => {
+    if (!logo.dataset.src || logo.getAttribute('src')) return;
+    logo.src = logo.dataset.src;
+    delete logo.dataset.src;
+  };
+
+  let logoObserver = null;
+  let fallbackTimer = 0;
+  if (typeof IntersectionObserver === 'function') {
+    logoObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          loadLogo(entry.target);
+          logoObserver.unobserve(entry.target);
+        });
+      },
+      { root: null, rootMargin: '120px 260px', threshold: 0.01 }
+    );
+    pendingLogos.forEach((logo) => logoObserver.observe(logo));
+  } else {
+    // Older browsers still avoid a request burst by loading a small batch at
+    // a time instead of assigning all 600 cross-origin URLs immediately.
+    let cursor = 0;
+    const loadBatch = () => {
+      pendingLogos.slice(cursor, cursor + 12).forEach(loadLogo);
+      cursor += 12;
+      if (cursor < pendingLogos.length) fallbackTimer = window.setTimeout(loadBatch, 500);
+    };
+    loadBatch();
+  }
+
   el.style.setProperty('--cf-marq-duration', Math.max(26, assets.length * 0.48) + 's');
   cleanupFns.push(() => {
+    logoObserver?.disconnect();
+    if (fallbackTimer) window.clearTimeout(fallbackTimer);
     el.textContent = '';
     el.style.removeProperty('--cf-marq-duration');
   });
