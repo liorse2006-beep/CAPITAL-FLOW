@@ -6,19 +6,19 @@ This addendum supersedes stale baseline measurements in `LAUNCH_READINESS_REPORT
 
 | Item | Evidence |
 |---|---|
-| Application runtime commit | `ef0ab717a78a45404ab6146faa83025f24c196da` — `Harden checkout confirmation flow` |
-| Latest deployed application commit | `ef0ab717a78a45404ab6146faa83025f24c196da` — `Harden checkout confirmation flow` |
-| Public application/runtime release at follow-up verification | `ef0ab717a78a45404ab6146faa83025f24c196da` — exact runtime SHA returned by the production health endpoint |
+| Application runtime commit | `7d713ffb3b35e5d0b6ebfa5e4f781dbaa6c597f3` — `Clarify checkout callback states` |
+| Latest deployed application commit | `7d713ffb3b35e5d0b6ebfa5e4f781dbaa6c597f3` — `Clarify checkout callback states` |
+| Public application/runtime release at follow-up verification | `7d713ffb3b35e5d0b6ebfa5e4f781dbaa6c597f3` — exact runtime SHA returned by the production health endpoint |
 | Branch | `main` |
 | Repository | `https://github.com/liorse2006-beep/CAPITAL-FLOW.git` |
-| Audit/retest time | `2026-09-02 10:42:28 +03:00`, Asia/Jerusalem |
+| Audit/retest time | `2026-09-02 10:55:55 +03:00`, Asia/Jerusalem |
 | Local environment | Windows PowerShell; Node `v24.15.0`; npm `11.12.1`; Python and Docker unavailable |
 | Production URL | `https://capitalflow.vip/` |
 | Health URL | `https://capitalflow.vip/health` |
 | Status URL | `https://status.capitalflow.vip/status` |
-| Production health verification | `GET https://capitalflow.vip/health?audit=ef0ab71-report` → `200`, `status=ok`, `releaseCommit=ef0ab717a78a45404ab6146faa83025f24c196da`, `timestamp=2026-09-02T07:42:13.644Z` |
-| CI run | `33604284159` (#319) — success for exact `ef0ab717a78a45404ab6146faa83025f24c196da` |
-| Deploy run | `33604284201` (#313) — success for exact `ef0ab717a78a45404ab6146faa83025f24c196da` |
+| Production health verification | `GET https://capitalflow.vip/health?audit=7d713ff-report` → `200`, `status=ok`, `releaseCommit=7d713ffb3b35e5d0b6ebfa5e4f781dbaa6c597f3`, `timestamp=2026-09-02T07:56:06.412Z` |
+| CI run | `33605582521` (#320) — success for exact `7d713ffb3b35e5d0b6ebfa5e4f781dbaa6c597f3` |
+| Deploy run | `33605582518` (#314) — success for exact `7d713ffb3b35e5d0b6ebfa5e4f781dbaa6c597f3` |
 | Working tree | Focused release changes committed; unrelated pre-existing untracked workspace artifacts remain un-staged |
 
 No secrets, cookies, tokens, passwords, payment credentials, personal data, or provider keys were included in this addendum.
@@ -80,7 +80,7 @@ The checked release is a descendant of the earlier data/release-hardening commit
 | Check | Result | Evidence |
 |---|---|---|
 | Backend suite | `VERIFIED PASS` | `npm run test:all` backend phase: 409/409 tests passed |
-| Frontend suite | `VERIFIED PASS` | `npm run test:frontend`: 155/155 tests passed; 23 files |
+| Frontend suite | `VERIFIED PASS` | `npm run test:frontend`: 156/156 tests passed; 23 files |
 | Cloudflare Worker suite | `VERIFIED PASS` | 8/8 tests passed |
 | Cluster integration | `VERIFIED PASS` | 1/1 broadcast test passed |
 | Lint | `VERIFIED PASS` | `npm run lint` exit 0 with no output/warnings |
@@ -88,10 +88,10 @@ The checked release is a descendant of the earlier data/release-hardening commit
 | Scoped formatting | `VERIFIED PASS` | Prettier check passed on changed implementation and test files; full `npm run format:check` also passed |
 | Diff whitespace | `VERIFIED PASS` | `git diff --check` passed before commit |
 | Production dependency audit | `VERIFIED PASS` | `npm audit --omit=dev --audit-level=high` returned 0 vulnerabilities |
-| Targeted regression tests | `VERIFIED PASS` | Checkout confirmation, repeat-purchase, modal-close, background alert/watchdog, and landing trust-logo tests passed; current full run includes 409 backend, 155 frontend, 8 Worker, and 1 cluster tests |
-| GitHub CI | `VERIFIED PASS` | Run `33604284159` (#319), SHA `ef0ab717...`, conclusion `success` |
-| GitHub Deploy | `VERIFIED PASS` | Run `33604284201` (#313), SHA `ef0ab717...`, deploy conclusion `success` |
-| Production health | `VERIFIED PASS` | `GET /health?audit=ef0ab71-report` → 200; body releaseCommit exactly `ef0ab717a78a45404ab6146faa83025f24c196da` |
+| Targeted regression tests | `VERIFIED PASS` | Checkout confirmation, repeat-purchase, cancel feedback, modal-close, background alert/watchdog, and landing trust-logo tests passed; current full run includes 409 backend, 156 frontend, 8 Worker, and 1 cluster tests |
+| GitHub CI | `VERIFIED PASS` | Run `33605582521` (#320), SHA `7d713ff...`, conclusion `success` |
+| GitHub Deploy | `VERIFIED PASS` | Run `33605582518` (#314), SHA `7d713ff...`, deploy conclusion `success` |
+| Production health | `VERIFIED PASS` | `GET /health?audit=7d713ff-report` → 200; body releaseCommit exactly `7d713ffb3b35e5d0b6ebfa5e4f781dbaa6c597f3` |
 | Production asset deployment | `VERIFIED PASS` | Public routes returned `200` after the exact-SHA health check; the Vite asset manifest was served by the deployed origin |
 | Public route smoke | `VERIFIED PASS` | Current read-only probe: `/`, `/scanner`, `/ma`, `/flow`, `/fundamentals`, `/watchlist`, `/policy`, `/accessibility`, `/robots.txt`, `/sitemap.xml`, and `https://status.capitalflow.vip/status` all returned `200` |
 | Current public metadata | `VERIFIED PASS` | Current route probe returned trusted titles and canonicals for all eight indexable app routes; `/robots.txt` remained `text/plain` and `/sitemap.xml` remained `application/xml` |
@@ -99,7 +99,7 @@ The checked release is a descendant of the earlier data/release-hardening commit
 | Anonymous protected API smoke | `VERIFIED PASS` | `2026-09-02` read-only GETs to `/api/auth/me`, `/api/account/summary`, `/api/radars`, `/api/scheduled-scans`, and `/api/chat/history` all returned `401`; no write request was sent |
 | Safe coupon endpoint probe | `VERIFIED PASS` | Arbitrary sample POST returned 410 `provider_checkout_required`; no local discount was returned |
 | Guest mobile overflow | `VERIFIED PASS` | Headless Puppeteer against the deployed origin: `/scanner` at 320/360/390/430/768 had document/body width equal to viewport and no overflow; all `/scanner`, `/ma`, `/flow`, `/fundamentals`, `/watchlist` checks at 390 had `documentWidth=bodyWidth=390`, no overflow, and Capi hidden |
-| Current public browser smoke | `VERIFIED PASS` | Chrome extension smoke after Deploy #313 at `https://capitalflow.vip/?audit=ef0ab71-browser`: after SPA settle, `innerWidth=1280`, `documentWidth=1265`, `bodyWidth=1265`, no horizontal overflow, `missingImages=[]`, interactive controls `23`, error log `[]`; this is a desktop-width smoke, not a replacement for the authenticated mobile matrix |
+| Current public browser smoke | `VERIFIED PASS` | Chrome extension smoke after Deploy #314 at `https://capitalflow.vip/?audit=7d713ff-browser`: after SPA and image settle, `innerWidth=1280`, `documentWidth=1265`, `bodyWidth=1265`, no horizontal overflow, `missingImages=[]`, interactive controls `23`, error log `[]`; this is a desktop-width smoke, not a replacement for the authenticated mobile matrix |
 | Real payment/wallet | `UNKNOWN` by policy | No transaction or authorization was performed |
 | Production backup restore | `UNKNOWN` | Read-only `/admin/api/backup-status` returned HTTP 200 with `lastBackupAt=2026-08-30 00:50:57 +03:00`; this proves recorded backup metadata only, not backup contents or restoreability |
 | Authenticated production matrix | `UNKNOWN` | No approved seeded accounts for every tier/ownership case were used |
@@ -295,7 +295,7 @@ The score below is conservative and evidence-based. Local code/test improvements
 | Performance, scalability and reliability | 8 | 5 | Build/lazy chunks and defensive timeouts pass; production SLO metrics remain unknown |
 | Infrastructure, deployment, backups and disaster recovery | 6 | 4 | CI/deploy/health/SHA and public headers pass; restore/failover/rollback remain unknown |
 | AI grounding and safety | 4 | 3 | Local auth, prompt-boundary, fallback, and stream tests pass; adversarial production behavior remains unknown |
-| QA, tests and release engineering | 3 | 3 | 409 backend, 155 frontend, 8 Worker, 1 cluster, lint, format, and build pass on the checked HEAD |
+| QA, tests and release engineering | 3 | 3 | 409 backend, 156 frontend, 8 Worker, 1 cluster, lint, format, and build pass on the checked HEAD |
 | SEO, dependencies, licensing and compliance risk | 3 | 2 | Dependency vulnerability and public SEO smoke pass; full licensing/editorial/legal review remains unknown |
 | **TOTAL** | **100** | **75** | Conservative current retest score |
 
@@ -385,6 +385,6 @@ Recommended order is the order above; items 1–3 are launch gates, 4–6 are re
 
 ## 9. Release recommendation
 
-The checked application runtime `ef0ab71` is successfully deployed and passes the current local, CI, public health, route, header, and browser smoke checks recorded above. The release is **not** eligible for an unconditional launch recommendation under the supplied launch policy because three High evidence gates remain Unknown: wallet completion/promo final amount, production backup restore, and authenticated entitlement/ownership verification. The next safe action is to execute the three controlled environment checks in the recommended order, then rerun this report and recalculate the score. A score of 100 must not be assigned until those evidence gaps and the remaining core unknowns are actually closed.
+The checked application runtime `7d713ff` is successfully deployed and passes the current local, CI, public health, route, header, and browser smoke checks recorded above. The release is **not** eligible for an unconditional launch recommendation under the supplied launch policy because three High evidence gates remain Unknown: wallet completion/promo final amount, production backup restore, and authenticated entitlement/ownership verification. The next safe action is to execute the three controlled environment checks in the recommended order, then rerun this report and recalculate the score. A score of 100 must not be assigned until those evidence gaps and the remaining core unknowns are actually closed.
 
 Commercial/legal/payment/email review remains separate and is not approved by this technical retest.
