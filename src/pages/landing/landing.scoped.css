@@ -1232,6 +1232,12 @@
   object-fit: contain;
   filter: saturate(1.18) contrast(1.22) brightness(1.16) drop-shadow(0 0 2px rgba(243, 237, 225, 0.38));
 }
+/* The author rule above overrides the browser's default [hidden] rule.
+   Keep failed third-party images out of the strip so their broken-image
+   placeholder can never appear while the styled fallback is shown. */
+.cf-landing-page .cf-marq-logo[hidden] {
+  display: none;
+}
 .cf-landing-page .cf-marq-logo-fallback {
   display: grid;
   place-items: center;
