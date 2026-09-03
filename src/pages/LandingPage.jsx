@@ -49,7 +49,7 @@ function mountTopography(root) {
 function LandingPage({ onGetStarted }) {
   const rootRef = useRef(null);
   useSeo({
-    title: 'Capital Flow — לראות מה זז בשוק',
+    title: 'Capital Flow — מה שכל סוחר צריך, במקום אחד',
     description:
       'Capital Flow עוזר לך לסרוק את השוק, למצוא מניות עם תנועה חריגה ולפתוח בדיקה מסודרת — בלי לעבור על עשרות טאבים. מתחילים ב־7 ימים בחינם.',
     path: '/',
