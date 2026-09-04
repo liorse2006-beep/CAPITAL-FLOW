@@ -256,3 +256,72 @@ test('PUT /api/scheduled-scans cannot reactivate a schedule beyond the active ca
     server.close();
   }
 });
+
+// IDOR coverage: server/routes/scheduledScans.js scopes every PUT/DELETE by
+// `WHERE id = ? AND user_id = ?`, but that had never been exercised by a
+// forged cross-user request through the actual route — every other owned
+// resource (watchlist, alerts, notifications, radar, push) already has this
+// exact adversarial test; scheduled scans did not.
+test("PUT /api/scheduled-scans/:id cannot modify another user's schedule", async () => {
+  const ownerId = await makeEliteUser('sched-idor-owner@test.local');
+  const attackerId = await makeEliteUser('sched-idor-attacker-put@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    const created = await fetch(`http://127.0.0.1:${port}/api/scheduled-scans`, {
+      method: 'POST',
+      headers: await authHeaders(ownerId),
+      body: JSON.stringify({ scan_type: 'capitalFlow', scan_time: '09:00' }),
+    });
+    assert.strictEqual(created.status, 200);
+    const { id } = await created.json();
+
+    const forgedPut = await fetch(`http://127.0.0.1:${port}/api/scheduled-scans/${id}`, {
+      method: 'PUT',
+      headers: await authHeaders(attackerId),
+      body: JSON.stringify({ scan_time: '23:59', active: false }),
+    });
+    assert.strictEqual(forgedPut.status, 404, 'an attacker must never learn the row exists, let alone edit it');
+
+    const stillOwned = await db.prepare('SELECT scan_time, active FROM scheduled_scans WHERE id = ?').get(id);
+    assert.strictEqual(stillOwned.scan_time, '09:00', "the owner's schedule must be untouched by the forged request");
+    assert.strictEqual(stillOwned.active, 1);
+  } finally {
+    server.close();
+  }
+});
+
+test("DELETE /api/scheduled-scans/:id cannot remove another user's schedule", async () => {
+  const ownerId = await makeEliteUser('sched-idor-owner2@test.local');
+  const attackerId = await makeEliteUser('sched-idor-attacker-del@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    const created = await fetch(`http://127.0.0.1:${port}/api/scheduled-scans`, {
+      method: 'POST',
+      headers: await authHeaders(ownerId),
+      body: JSON.stringify({ scan_type: 'maScanner', scan_time: '10:00' }),
+    });
+    assert.strictEqual(created.status, 200);
+    const { id } = await created.json();
+
+    const forgedDelete = await fetch(`http://127.0.0.1:${port}/api/scheduled-scans/${id}`, {
+      method: 'DELETE',
+      headers: await authHeaders(attackerId),
+    });
+    assert.strictEqual(forgedDelete.status, 404);
+
+    const stillExists = await db.prepare('SELECT id FROM scheduled_scans WHERE id = ?').get(id);
+    assert.ok(stillExists, "the owner's schedule must survive the forged delete from another account");
+
+    // Prove the route itself works for the real owner, so a 404 above means
+    // "not this user's row," not "the DELETE route is broken."
+    const realDelete = await fetch(`http://127.0.0.1:${port}/api/scheduled-scans/${id}`, {
+      method: 'DELETE',
+      headers: await authHeaders(ownerId),
+    });
+    assert.strictEqual(realDelete.status, 200);
+  } finally {
+    server.close();
+  }
+});
