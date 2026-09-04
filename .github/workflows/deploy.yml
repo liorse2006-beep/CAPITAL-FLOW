@@ -45,7 +45,24 @@ jobs:
             echo "No changed source files require a formatting check."
           fi
       - run: npm run build
-      - run: npm audit --omit=dev --audit-level=high
+      # registry.npmjs.org/-/npm/v1/security/advisories/bulk has hit
+      # transient network timeouts multiple times in practice — "npm warn
+      # audit network timeout at: ...advisories/bulk" followed by "audit
+      # endpoint returned an error", exit code 1 — with zero relation to
+      # this commit's actual dependency tree (reproduced locally the same
+      # way, against a lockfile with no real known vulnerabilities). That
+      # single unretried step blocked deploy on an otherwise fully green
+      # commit three times in a row, each requiring a manual "Re-run failed
+      # jobs" click. Same retry shape as the npm ci step above, which
+      # already exists for exactly this class of flakiness.
+      - name: Audit production dependencies
+        run: |
+          for attempt in 1 2 3 4 5; do
+            npm audit --omit=dev --audit-level=high && exit 0
+            echo "npm audit failed (possibly a transient registry timeout); retrying in $((attempt * 10))s (attempt $attempt/5)"
+            sleep $((attempt * 10))
+          done
+          exit 1
 
   # ── 2. Trigger Render redeploy via deploy hook ────────────────────────────
   deploy:

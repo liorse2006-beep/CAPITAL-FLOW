@@ -59,4 +59,15 @@ jobs:
         run: npm run build
 
       - name: Audit production dependencies for high/critical vulnerabilities
-        run: npm audit --omit=dev --audit-level=high
+        # registry.npmjs.org's advisories/bulk endpoint has hit transient
+        # network timeouts in practice, unrelated to the actual dependency
+        # tree — same retry shape as the npm ci step above, which already
+        # exists for exactly this class of flakiness. See deploy.yml's
+        # matching step for the full incident notes.
+        run: |
+          for attempt in 1 2 3 4 5; do
+            npm audit --omit=dev --audit-level=high && exit 0
+            echo "npm audit failed (possibly a transient registry timeout); retrying in $((attempt * 10))s (attempt $attempt/5)"
+            sleep $((attempt * 10))
+          done
+          exit 1
