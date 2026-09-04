@@ -8674,6 +8674,13 @@ html.a11y-highlight-links a {
   justify-content: center;
   z-index: 2000;
   padding: 24px;
+  /* A short browser window (a non-maximized desktop window, a laptop with
+     little vertical room) is not just a mobile concern — the panel below
+     can be taller than the viewport on any width. overflow-y here means
+     the whole overlay scrolls as a fallback if centering still can't fit
+     it, matching the max-width:480px rule below rather than only mobile
+     getting this treatment. */
+  overflow-y: auto;
   animation: auth-overlay-in 0.26s ease-out;
 }
 
@@ -8689,6 +8696,16 @@ html.a11y-highlight-links a {
   padding: 38px 32px 30px;
   width: 100%;
   max-width: 430px;
+  /* Without this, a viewport shorter than the panel's intrinsic content
+     height (auth tabs + Google button + email + password + submit) has
+     nowhere to put the overflow: centered flex layout doesn't shrink the
+     panel, so it spills past both the top and bottom edges of the browser
+     window with no way to scroll to what's cut off — confirmed live in a
+     575px-tall real browser window. The max-width:480px rule below already
+     had this exact fix for mobile; short DESKTOP windows hit the identical
+     problem and need the same treatment, not just narrow ones. */
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
   box-shadow:
     0 30px 90px rgba(0, 0, 0, 0.78),
     0 0 0 1px rgba(245, 158, 11, 0.12),
