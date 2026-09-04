@@ -1,5 +1,19 @@
 <!doctype html>
-<html lang="he" dir="rtl">
+<!-- lang/dir here is the default for EVERY route this SPA serves — this is
+     one shared shell, not a per-route template (server/publicMetadata.js
+     only swaps title/OG tags per route, never lang/dir). The authenticated
+     app (Scanner, MA Scanner, Fundamentals, Watchlist, admin, status — every
+     route except the marketing landing page) is built and styled in English/
+     LTR throughout. Only the Hebrew landing page is RTL, and it already
+     declares its own dir="rtl" lang="he" locally on its own wrapper element
+     (src/pages/LandingPage.jsx's root div) — that local declaration is
+     unaffected by whatever this root value is. Setting rtl/he HERE instead
+     forces the mirrored/RTL bidi algorithm onto every English screen in the
+     app: flipped flex/grid ordering (nav, buttons, cards), and neutral
+     punctuation (periods, arrows) reattaching to the visual-start edge of
+     English sentences, e.g. ".Catch the moment a setup appears" instead of
+     "Catch the moment a setup appears." — confirmed live on /scanner. -->
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <!-- Chrome/Edge can fire beforeinstallprompt as soon as it decides the
