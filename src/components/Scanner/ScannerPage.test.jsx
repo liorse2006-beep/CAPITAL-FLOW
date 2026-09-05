@@ -192,7 +192,7 @@ describe('ScannerPage Radar placement', () => {
       />
     );
 
-    expect(screen.getAllByRole('heading', { name: /catch the moment a setup appears/i })).toHaveLength(1);
+    expect(screen.getAllByRole('heading', { name: /capital radar.*ultimate scan/i })).toHaveLength(1);
   });
 });
 
