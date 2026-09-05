@@ -599,7 +599,7 @@ export default function CapitalFlowRadar({
           <div>
             <span className="cfr-radar-kicker">CAPITAL FLOW / RADAR</span>
             <h3 id="capital-flow-radar-title">
-              {hasSavedRadar && !setupOpen ? 'SIGNAL CARDS' : 'Catch the moment a setup appears.'}
+              {hasSavedRadar && !setupOpen ? 'SIGNAL CARDS' : 'Capital Radar — Ultimate Scan'}
             </h3>
             {hasSavedRadar && !setupOpen && (
               <span className="cfr-radar-results-heading">CAPITAL FLOW RADAR RESULTS</span>
