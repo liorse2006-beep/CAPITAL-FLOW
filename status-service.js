@@ -42,7 +42,6 @@ process.env.INDEPENDENT_STATUS_SERVICE = 'true';
 
 const express = require('express');
 const helmet = require('helmet');
-const proxyaddr = require('proxy-addr');
 const db = require('./server/db');
 const statusRouter = require('./server/routes/status');
 const {
@@ -53,14 +52,15 @@ const {
 } = require('./server/services/statusMonitor');
 const { startScheduledStatusBackup } = require('./server/services/statusDbBackup');
 const { PORT, TRUSTED_PROXY_CIDRS } = require('./server/config');
+const { resolveTrustedProxy } = require('./server/proxyTrust');
 const { safeErrorSummary } = require('./server/utils/reportError');
 
 const app = express();
 app.disable('x-powered-by');
-// The status host does not need forwarded IPs. Keep the same explicit
-// allowlist as the main app so an accidental direct exposure cannot make
-// client-controlled forwarding headers authoritative later.
-app.set('trust proxy', TRUSTED_PROXY_CIDRS.length ? proxyaddr.compile(TRUSTED_PROXY_CIDRS) : false);
+// Keep the status host on the same narrowly-scoped proxy policy as the main
+// app. Render's documented two-hop public path is supported automatically;
+// every other deployment needs explicit trusted ingress CIDRs.
+app.set('trust proxy', resolveTrustedProxy({ cidrs: TRUSTED_PROXY_CIDRS }));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use((req, res, next) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), usb=()');

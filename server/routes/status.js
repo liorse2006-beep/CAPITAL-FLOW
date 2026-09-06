@@ -1,8 +1,9 @@
 const express = require('express');
 const crypto = require('crypto');
-const { rateLimit } = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const router = express.Router();
 const db = require('../db');
+const { realIp } = require('../middleware/rateLimiters');
 const { ADMIN_EMAIL, STATUS_INTERNAL_TOKEN, STATUS_CHECK_INTERVAL_MS } = require('../config');
 const { checkAdminToken } = require('../services/adminAccess');
 const {
@@ -20,11 +21,19 @@ const { reportError } = require('../utils/reportError');
 const { runStatusBackup } = require('../services/statusDbBackup');
 const { probeNewsProviders } = require('../services/newsService');
 
+// Keep status controls on the same safe resolved address as the main app.
+// Supplying an explicit generator also prevents express-rate-limit from
+// treating a deliberately untrusted forwarding header as an accidental proxy
+// configuration. The address is still socket-based unless the app's shared
+// proxy policy has verified the ingress chain.
+const statusIpKey = (req) => ipKeyGenerator(realIp(req));
+
 const statusAdminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: statusIpKey,
   message: { error: 'Too many status-admin requests. Please wait a few minutes.' },
 });
 
@@ -33,6 +42,7 @@ const statusProbeLimiter = rateLimit({
   max: 12,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: statusIpKey,
   message: { error: 'Too many status probe requests.' },
 });
 

@@ -7,10 +7,10 @@ const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const cookieSession = require('cookie-session');
 const passport = require('passport');
-const proxyaddr = require('proxy-addr');
 const path = require('path');
 const fs = require('fs');
 const { PORT, SESSION_SECRET, FRONTEND_URL, TRUSTED_PROXY_CIDRS } = require('./config');
+const { resolveTrustedProxy } = require('./proxyTrust');
 const { startBackgroundScheduler } = require('./services/backgroundScan');
 const { startScheduledDigest } = require('./services/scheduledDigest');
 const { startScheduledScanRunner } = require('./services/scheduledScanRunner');
@@ -24,14 +24,14 @@ const { servePublicApp } = require('./publicMetadata');
 const app = express();
 
 // Never trust X-Forwarded-For merely because the app happens to be behind a
-// proxy in one deployment. If the origin is reachable directly, a hop-count
-// setting lets an attacker manufacture a different client IP and rotate
-// through every IP-based credential bucket. Trust only explicitly configured
-// proxy source networks; an empty list deliberately falls back to the socket
-// address (safe, though less granular behind an unconfigured proxy).
-const trustedProxy = TRUSTED_PROXY_CIDRS.length ? proxyaddr.compile(TRUSTED_PROXY_CIDRS) : false;
+// proxy in one deployment. Non-Render deployments must explicitly provide
+// proxy source networks. Render is the one platform exception: its documented
+// public path is Cloudflare -> Render load balancer -> container, and Render's
+// service port is not directly reachable from the public internet. The shared
+// resolver keeps this exception narrow and rejects `trust proxy = true`.
+const trustedProxy = resolveTrustedProxy({ cidrs: TRUSTED_PROXY_CIDRS });
 app.set('trust proxy', trustedProxy);
-if (process.env.NODE_ENV === 'production' && !TRUSTED_PROXY_CIDRS.length) {
+if (process.env.NODE_ENV === 'production' && !TRUSTED_PROXY_CIDRS.length && process.env.RENDER !== 'true') {
   console.warn('[startup] TRUSTED_PROXY_CIDRS is empty; forwarded client IPs are ignored for rate limiting.');
 }
 

@@ -7,9 +7,9 @@ const { resolveSseTicket } = require('./authMiddleware');
 // origin is provably reachable exclusively through Cloudflare; this app also
 // has a direct origin path in some environments, so accepting that header
 // would let a caller rotate IP buckets and bypass credential throttles.
-// The proxy topology is configured in server/index.js (`trust proxy = 1`),
-// which keeps direct requests keyed to their socket address and avoids
-// blindly trusting arbitrary headers.
+// The proxy topology is resolved centrally in server/proxyTrust.js: explicit
+// ingress CIDRs win, Render uses its documented edge chain, and all other
+// unconfigured deployments keep direct requests keyed to their socket address.
 function realIp(req) {
   return req.ip || req.socket?.remoteAddress || 'unknown';
 }
