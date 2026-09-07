@@ -365,7 +365,7 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at);
 
     -- Legacy assistant history — retained for non-destructive data
-    -- compatibility; no active product surface reads or writes this table.
+    -- compatibility, no active product surface reads or writes this table.
     CREATE TABLE IF NOT EXISTS chat_messages (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id    INTEGER NOT NULL,
