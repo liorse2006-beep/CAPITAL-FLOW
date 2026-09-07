@@ -270,7 +270,7 @@ describe('ScannerPage result table integrity', () => {
     );
 
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Market data may be delayed and may not reflect the current moment. Do not rely on it alone—do your own research.'
+      'Market data may be delayed or estimated. Confirm all information before making any decision.'
     );
 
     const table = screen.getByRole('table');

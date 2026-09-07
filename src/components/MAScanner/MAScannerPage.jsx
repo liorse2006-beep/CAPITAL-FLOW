@@ -763,7 +763,7 @@ export default function MAScannerPage({
               { className: 'data-status-banner ' + dataStatus, role: 'status' },
               dataStatus === 'unavailable'
                 ? 'Market data is temporarily unavailable. Please try again in a few minutes.'
-                : 'Market data may be delayed and may not reflect the current moment. Do not rely on it alone—do your own research.'
+                : 'Market data may be delayed or estimated. Confirm all information before making any decision.'
             ),
 
           React.createElement(MobileResultSort, {

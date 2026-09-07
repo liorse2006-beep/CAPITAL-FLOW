@@ -771,7 +771,7 @@ export default function ScannerPage({
               <div className={'data-status-banner ' + scanDataStatus} role="status">
                 {scanDataStatus === 'unavailable'
                   ? 'Market data is temporarily unavailable. Please try again in a few minutes.'
-                  : 'Market data may be delayed and may not reflect the current moment. Do not rely on it alone—do your own research.'}
+                  : 'Market data may be delayed or estimated. Confirm all information before making any decision.'}
               </div>
             )}
 
