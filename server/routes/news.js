@@ -10,7 +10,7 @@ const { reportError } = require('../utils/reportError');
 var SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
 
 // News is available to every signed-in tier (Free/Premium/Elite alike) —
-// unlike Capi or push, it isn't a paid-tier differentiator, just login-gated.
+// unlike push, it isn't a paid-tier differentiator, just login-gated.
 router.get('/news/:symbol', requireAuth, scanLimiter, async function (req, res) {
   var symbol = (req.params.symbol || '').toUpperCase();
   if (!SYMBOL_RE.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });

@@ -44,7 +44,6 @@ test('GET /api/account/summary returns current counts without sensitive fields',
   await db
     .prepare('INSERT INTO scheduled_scans (user_id, scan_type, scan_time) VALUES (?, ?, ?)')
     .run(user.id, 'capitalFlow', '09:00');
-  await db.prepare('INSERT INTO chat_messages (user_id, role, content) VALUES (?, ?, ?)').run(user.id, 'user', 'Hello');
 
   const server = await startTestApp();
   const port = server.address().port;
@@ -57,7 +56,6 @@ test('GET /api/account/summary returns current counts without sensitive fields',
     assert.strictEqual(data.usage.watchlistCount, 1);
     assert.strictEqual(data.usage.alertCount, 1);
     assert.strictEqual(data.usage.scheduleCount, 1);
-    assert.strictEqual(data.usage.chatMessageCount, 1);
     assert.strictEqual(data.security.activeSessionCount, 1);
     assert.strictEqual('password_hash' in data.user, false);
     assert.strictEqual('google_id' in data.user, false);

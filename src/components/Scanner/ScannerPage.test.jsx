@@ -197,7 +197,7 @@ describe('ScannerPage Radar placement', () => {
 });
 
 describe('ScannerPage mobile result surface', () => {
-  it('keeps desktop data and actions that fit while removing news and Capi actions', () => {
+  it('keeps desktop data and actions that fit while removing unavailable assistant actions', () => {
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = vi.fn(() => ({
       matches: true,
@@ -223,7 +223,7 @@ describe('ScannerPage mobile result surface', () => {
       expect(screen.getByText('CURRENT VOLUME')).toBeInTheDocument();
       expect(screen.getByText('SECTOR')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /read market news/i })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /ask capi/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /ask the assistant/i })).not.toBeInTheDocument();
     } finally {
       window.matchMedia = originalMatchMedia;
     }
@@ -247,5 +247,28 @@ describe('ScannerPage mobile result surface', () => {
 
     expect(screen.getByRole('heading', { name: '51 Results' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /load .* more/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('ScannerPage result table integrity', () => {
+  it('keeps the action rail inside the table and explains delayed data plainly', () => {
+    render(
+      <ScannerPage
+        {...baseProps({
+          results: [mockRow],
+          sorted: [mockRow],
+          scanTime: new Date().toISOString(),
+          scanDataStatus: 'partial',
+        })}
+      />
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Market data may be delayed and may not reflect the current moment. Do not rely on it alone—do your own research.'
+    );
+
+    const table = screen.getByRole('table');
+    expect(table.querySelector('th.result-actions-col')).toBeTruthy();
+    expect(table.querySelector('tbody td.result-row-actions .result-row-actions-inner')).toBeTruthy();
   });
 });

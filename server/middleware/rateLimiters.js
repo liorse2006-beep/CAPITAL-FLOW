@@ -18,7 +18,7 @@ function realIp(req) {
 // endpoints (see authLimiter/otpLimiter below, which must stay IP-keyed:
 // that's exactly the brute-force surface, and there's no authenticated
 // identity yet to key by instead). But for limiters that gate a signed-in
-// account's own usage (scans, the API floor, chat), IP-keying means every
+   // account's own usage (scans and the API floor), IP-keying means every
 // customer behind the same shared IP — an office, a campus, a mobile
 // carrier's CGNAT (common in Israel) — draws from ONE shared budget and can
 // throttle each other even though each of them individually did nothing
@@ -139,19 +139,6 @@ const adminLimiter = rateLimit({
   message: { error: 'Too many requests. Please wait a few minutes and try again.' },
 });
 
-// Capi (chat) calls a metered external API — this is tighter than
-// scanLimiter to keep one chatty user from burning through the app-wide
-// daily Gemini quota (see services/chatbot.js's own DAILY_CALL_CAP too).
-// Keyed by account for the same reason as scanLimiter.
-const chatLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 12,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: userOrIpKey,
-  message: { error: 'Too many messages. Please slow down.' },
-});
-
 // Public endpoints that write data or trigger provider work need a tighter
 // limit than the general API floor. This is keyed by the trusted proxy IP.
 const publicWriteLimiter = rateLimit({
@@ -211,7 +198,6 @@ module.exports = {
   scanLimiter,
   apiLimiter,
   adminLimiter,
-  chatLimiter,
   publicWriteLimiter,
   publicDataLimiter,
   sessionLimiter,

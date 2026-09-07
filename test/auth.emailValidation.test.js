@@ -69,7 +69,7 @@ test('signup accepts a normal, well-formed email', async () => {
 // normalizing at every entry point, signing up as "Case@Test.local" and
 // later logging in as "case@test.local" (e.g. autofill on a different
 // device) would silently create a second account instead of matching the
-// first, splitting that person's chat history, watchlist, and push
+// first, splitting that person's saved history, watchlist, and push
 // subscriptions across two "different" users who are really the same
 // customer on two devices.
 test('signup + login resolve to the same account regardless of email casing', async () => {

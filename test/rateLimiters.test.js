@@ -78,7 +78,7 @@ async function hitAs(port, n, token) {
   return codes;
 }
 
-// Regression: scanLimiter (and apiLimiter/chatLimiter, same keyGenerator)
+// Regression: scanLimiter and apiLimiter share the account-aware key generator
 // used to key purely by IP, so two different signed-in customers behind the
 // same shared IP — an office, a campus, mobile CGNAT — drew from ONE shared
 // 30/min budget and could throttle each other despite each individually

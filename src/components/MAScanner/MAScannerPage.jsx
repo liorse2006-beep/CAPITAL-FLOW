@@ -763,7 +763,7 @@ export default function MAScannerPage({
               { className: 'data-status-banner ' + dataStatus, role: 'status' },
               dataStatus === 'unavailable'
                 ? 'Market data is temporarily unavailable. Please try again in a few minutes.'
-                : 'Some market data could not be verified. Review results with caution.'
+                : 'Market data may be delayed and may not reflect the current moment. Do not rely on it alone—do your own research.'
             ),
 
           React.createElement(MobileResultSort, {
@@ -869,13 +869,13 @@ export default function MAScannerPage({
                 React.createElement(
                   'tr',
                   null,
-                  React.createElement('th', { style: { width: 36 } }, '#'),
+                  React.createElement('th', { className: 'result-rank-col' }, '#'),
                   React.createElement(TH, { label: 'Ticker', field: 'symbol' }),
                   React.createElement(TH, { label: 'Name', field: 'name' }),
                   React.createElement(TH, { label: 'Price', field: 'price' }),
                   React.createElement(TH, { label: `SMA${ma}`, field: 'maValue' }),
                   React.createElement(TH, { label: 'Distance %', field: 'maDistance' }),
-                  React.createElement('th', { style: { width: 120 } })
+                  React.createElement('th', { className: 'result-actions-col' })
                 )
               ),
               React.createElement(
@@ -932,9 +932,13 @@ export default function MAScannerPage({
                         ),
                         React.createElement(
                           'td',
-                          { style: { display: 'flex', gap: 5, alignItems: 'center' } },
-                          chartBtn(r.symbol),
-                          alertBtn(r.symbol, r.price)
+                          { className: 'result-row-actions' },
+                          React.createElement(
+                            'div',
+                            { className: 'result-row-actions-inner' },
+                            chartBtn(r.symbol),
+                            alertBtn(r.symbol, r.price)
+                          )
                         )
                       );
                     })

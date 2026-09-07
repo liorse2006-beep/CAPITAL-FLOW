@@ -40,7 +40,7 @@ describe('WelcomeTierModal', () => {
     ].map((li) => li.textContent);
     const excluded = [...container.querySelectorAll('.welcome-tier-features-excluded li')].map((li) => li.textContent);
     // Fundamentals and full market scans remain quota rows, so the welcome
-    // checklist keeps them out while the full comparison matrix shows them.
+    // checklist keeps them out while the plan details retain them.
     expect(included).toEqual([
       'Sector scan breadthUp to 5 sectors',
       'Advanced filters & sorting',
@@ -50,7 +50,6 @@ describe('WelcomeTierModal', () => {
       'Historical volume contextSigned-in access',
     ]);
     expect(excluded).toEqual([
-      'Capi — your AI market mentor',
       'Push notifications',
       'Real-time alert stream',
       'Daily scheduled scan',
@@ -64,11 +63,10 @@ describe('WelcomeTierModal', () => {
     const { container } = renderWithProviders(<WelcomeTierModal tier="elite" confirmed={true} onClose={vi.fn()} />);
     expect(screen.getByText('ELITE')).toBeInTheDocument();
     expect(screen.getByText('Welcome to Elite')).toBeInTheDocument();
-    expect(screen.getByText('Capi — your AI market mentor')).toBeInTheDocument();
     expect(screen.getByText('Push notifications')).toBeInTheDocument();
     expect(container.querySelector('.welcome-tier-features-excluded')).toBeNull();
     expect(screen.queryByText('Also included with Elite')).not.toBeInTheDocument();
-    expect(container.querySelectorAll('.welcome-tier-features li').length).toBe(12);
+    expect(container.querySelectorAll('.welcome-tier-features li').length).toBe(11);
   });
 
   it('does not claim paid access before the server confirms the webhook', () => {
@@ -77,7 +75,6 @@ describe('WelcomeTierModal', () => {
     expect(screen.getByText(/Checkout reported success — confirming access/)).toBeInTheDocument();
     expect(screen.getByText('Confirming your access')).toBeInTheDocument();
     expect(screen.queryByText('Welcome to Elite')).not.toBeInTheDocument();
-    expect(screen.queryByText('Capi — your AI market mentor')).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Close' })).toHaveLength(2);
 
     rerender(
@@ -89,7 +86,6 @@ describe('WelcomeTierModal', () => {
     );
     expect(screen.queryByText(/Checkout reported success/)).not.toBeInTheDocument();
     expect(screen.getByText('Welcome to Elite')).toBeInTheDocument();
-    expect(screen.getByText('Capi — your AI market mentor')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start scanning' })).toBeInTheDocument();
   });
 

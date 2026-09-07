@@ -3871,9 +3871,18 @@ button.topbar-premium-badge:hover {
 }
 
 .table-wrap {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--bg-4) transparent;
+}
+.table-wrap > table {
+  min-width: 100%;
 }
 .table-wrap::-webkit-scrollbar {
   height: 3px;
@@ -4022,6 +4031,26 @@ td {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 12px;
+}
+
+/* Keep row actions inside a real table cell. Applying flex directly to a
+   <td> removes its table-cell layout role and can make the final column
+   overlap or clip at the right edge. */
+.result-row-actions {
+  width: 1%;
+  min-width: 78px;
+  padding-inline: 8px 12px;
+  white-space: nowrap;
+  text-align: right;
+  vertical-align: middle;
+}
+.result-row-actions-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  min-width: max-content;
+  white-space: nowrap;
 }
 .col-pos {
   color: var(--green);
@@ -5978,12 +6007,12 @@ html.a11y-highlight-links a {
   }
 }
 
-/* ── Tier comparison table (Free vs Premium vs Elite) ── */
+/* ── Upgrade modal and checkout layout ── */
 .upgrade-modal-wide {
   width: 620px;
   text-align: left;
 }
-.pricing-cards-modal {
+.upgrade-plan-modal {
   width: 760px;
   max-width: 94vw;
   text-align: left;
@@ -6124,182 +6153,6 @@ html.a11y-highlight-links a {
   color: var(--text-1);
   font-weight: 700;
 }
-.pricing-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  align-items: stretch;
-}
-.pricing-card {
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  padding: 22px 18px 18px;
-  background: var(--bg-1);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  text-align: center;
-}
-.pricing-card-featured {
-  border-color: var(--accent);
-  background: linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, var(--bg-1) 45%);
-  box-shadow:
-    0 0 0 1px var(--accent),
-    0 8px 28px -8px rgba(245, 158, 11, 0.45);
-  padding-top: 30px;
-}
-.pricing-card-ribbon {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: var(--accent-vivid);
-  color: #1a1200;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  padding: 4px 12px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-.pricing-card-tier {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  font-family: var(--font);
-}
-.pricing-card-premium .pricing-card-tier {
-  color: var(--tier-premium);
-}
-.pricing-card-elite .pricing-card-tier {
-  color: var(--accent);
-}
-.pricing-card-price {
-  font-size: 32px;
-  font-weight: 800;
-  color: var(--text-0);
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  margin-top: 6px;
-  letter-spacing: -0.02em;
-}
-.pricing-card-subprice {
-  font-size: 11px;
-  color: var(--text-3);
-  font-family: var(--font);
-  margin-top: 2px;
-  min-height: 14px;
-}
-.pricing-card-subprice-onetime {
-  color: var(--text-2);
-  font-weight: 600;
-}
-.pricing-card-scans {
-  margin-top: 16px;
-  padding: 8px 10px;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-1);
-  font-family: var(--mono);
-}
-/* Stacks directly under .pricing-card-scans as a second, visually lighter
-   row of the same box — one glance at "quota-shaped" facts (Scans,
-   Fundamentals), not two competing boxes. */
-.pricing-card-fundamentals {
-  margin-top: 6px;
-  font-weight: 600;
-  color: var(--text-2);
-}
-.pricing-card-features {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  margin: 16px 0 0;
-  padding: 0;
-  list-style: none;
-  text-align: left;
-}
-.pricing-card-features li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-1);
-  font-family: var(--font);
-}
-.pricing-card-feature-copy {
-  display: inline-flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-.pricing-card-feature-copy small {
-  color: var(--text-3);
-  font-family: var(--mono);
-  font-size: 9px;
-  line-height: 1.2;
-}
-.pricing-card-feature-off {
-  color: var(--text-3);
-}
-.pricing-card-feature-icon {
-  display: inline-flex;
-  flex-shrink: 0;
-  width: 15px;
-  justify-content: center;
-}
-.pricing-card-feature-yes {
-  color: var(--green);
-}
-.pricing-card-elite .pricing-card-feature-yes {
-  color: var(--accent);
-}
-.pricing-card-feature-no {
-  color: var(--text-3);
-  font-size: 14px;
-}
-.pricing-card-cta-slot {
-  margin-top: 18px;
-}
-.pricing-card-cta {
-  width: 100%;
-  padding: 10px 18px;
-  font-size: 12.5px;
-}
-.pricing-card-cta-premium {
-  background: var(--tier-premium-vivid);
-  color: #1a0d00;
-}
-.pricing-card-cta-elite {
-  background: var(--accent-vivid);
-  color: #1a1200;
-}
-.pricing-card-current {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  color: var(--text-3);
-  font-family: var(--mono);
-  padding: 10px 0;
-}
-@media (max-width: 700px) {
-  .pricing-cards {
-    grid-template-columns: 1fr;
-  }
-  .pricing-card-featured {
-    order: -1;
-  }
-}
-
 /* ── Upgrade modal payment feedback (Whop) ── */
 .upgrade-payment-error {
   font-size: 12px;
@@ -6577,7 +6430,7 @@ html.a11y-highlight-links a {
 }
 
 /* ── Conversion-oriented plan selector ── */
-.pricing-cards-modal {
+.upgrade-plan-modal {
   width: 920px;
   max-width: 94vw;
   padding: 30px 30px 22px;
@@ -6586,7 +6439,7 @@ html.a11y-highlight-links a {
     linear-gradient(145deg, var(--bg-1), var(--bg-0));
   border-color: var(--border-strong);
 }
-.pricing-cards-modal-trial-ended {
+.upgrade-plan-modal-trial-ended {
   border-color: rgba(245, 158, 11, 0.32);
   box-shadow:
     0 30px 100px rgba(0, 0, 0, 0.72),
@@ -6667,48 +6520,114 @@ html.a11y-highlight-links a {
   font-family: var(--mono);
   font-size: 9px;
 }
-.pricing-cards-paid {
+.upgrade-plan-options {
+  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   max-width: 760px;
   margin: 0 auto;
-  gap: 18px;
 }
-.pricing-cards-paid .pricing-card {
-  min-height: 535px;
-  padding: 24px 22px 20px;
-}
-.pricing-card-topline {
+.upgrade-plan-option {
   display: flex;
+  min-width: 0;
   flex-direction: column;
+  padding: 16px 17px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.018);
+  text-align: left;
+}
+.upgrade-plan-option.is-featured {
+  border-color: rgba(245, 158, 11, 0.46);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.025));
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.08);
+}
+.upgrade-plan-option-header {
+  display: flex;
+  min-height: 92px;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.upgrade-plan-option-badge {
+  display: inline-flex;
+  margin-bottom: 6px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--accent-vivid);
+  color: #1a1200;
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.upgrade-plan-option-name {
+  margin: 0;
+  color: var(--tier-premium);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.upgrade-plan-option.is-featured .upgrade-plan-option-name {
+  color: var(--accent);
+}
+.upgrade-plan-option-price {
+  display: block;
+  margin-top: 7px;
+  color: var(--text-0);
+  font-family: var(--mono);
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.upgrade-plan-option-details {
+  margin-top: 7px;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 9px;
+  line-height: 1.25;
+}
+.upgrade-plan-option-summary {
+  min-height: 34px;
+  margin: 14px 0 16px;
+  color: var(--text-1);
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.upgrade-plan-option-footer {
+  display: flex;
+  min-height: 34px;
   align-items: center;
-  gap: 5px;
-}
-.pricing-card-positioning {
-  color: var(--text-2);
-  font-family: var(--font);
-  font-size: 10px;
-}
-.pricing-card-pitch {
-  min-height: 31px;
-  margin: 9px auto 0;
-  max-width: 220px;
-  color: var(--text-2);
-  font-family: var(--font);
-  font-size: 10.5px;
-  line-height: 1.4;
-  text-align: center;
-}
-.pricing-cards-paid .pricing-card-scans {
-  margin-top: 17px;
-  padding: 9px 11px;
-}
-.pricing-cards-paid .pricing-card-features {
-  gap: 10px;
-  margin-top: 17px;
-}
-.pricing-cards-paid .pricing-card-cta-slot {
   margin-top: auto;
-  padding-top: 18px;
+  padding-top: 2px;
+}
+.upgrade-plan-option-cta {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 10px;
+  line-height: 1.2;
+}
+.upgrade-plan-option-cta-premium {
+  background: var(--tier-premium-vivid);
+  color: #1a0d00;
+}
+.upgrade-plan-option-cta-elite {
+  background: var(--accent-vivid);
+  color: #1a1200;
+}
+.upgrade-plan-option-current {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .upgrade-trust-row {
   margin-top: 12px;
@@ -6745,18 +6664,15 @@ html.a11y-highlight-links a {
   .upgrade-proof-strip span:last-child {
     border-bottom: none;
   }
-  .pricing-cards-paid {
+  .upgrade-plan-modal {
+    padding: 24px 18px 18px;
+  }
+  .upgrade-plan-options {
     grid-template-columns: 1fr;
     max-width: 500px;
   }
-  .pricing-cards-paid .pricing-card-featured {
-    order: -1;
-  }
-  .pricing-cards-paid .pricing-card {
-    min-height: 0;
-  }
-  .pricing-cards-modal {
-    padding: 24px 18px 18px;
+  .upgrade-plan-option {
+    padding: 14px 15px 13px;
   }
   .upgrade-context-row {
     align-items: flex-start;
@@ -9697,7 +9613,7 @@ html.a11y-highlight-links a {
 
 /* News gets its own "trading terminal" visual language — green phosphor
    accents, monospace, sharp corners, hairline borders — deliberately
-   distinct from Capi's warm gold/gradient chrome so each feature reads as
+   distinct from the app's warm gold/gradient chrome so each feature reads as
    its own thing rather than a reused template. */
 .news-modal {
   width: 420px;
@@ -11131,11 +11047,8 @@ html.a11y-highlight-links a {
     transform: translateX(-50%) translateY(0);
   }
 }
-/* On phone widths the banner's width == 100vw - 24px, so its right edge
-   (where the close button sits) always lands under the Capi launcher —
-   both are bottom:20px, and the launcher's z-index (1500) sits above the
-   banner's (1100), silently swallowing the close tap. Lift the banner clear
-   of the launcher's 56px circle instead of letting them share a row. */
+/* On phone widths keep the install banner clear of other fixed controls so
+   its close action remains easy to reach. */
 @media (max-width: 640px) {
   .install-prompt {
     bottom: 88px;
@@ -11700,403 +11613,6 @@ html.a11y-highlight-links a {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   CAPI CHAT WIDGET
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.chat-widget {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 1500;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-
-.chat-fab {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: 1.5px solid var(--accent-vivid);
-  background: transparent;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  overflow: hidden;
-  transition:
-    transform var(--transition),
-    filter var(--transition);
-}
-.chat-fab:hover {
-  transform: scale(1.06);
-  filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.55));
-}
-.chat-fab img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-/* Glows in sync with the teaser bubble while it's showing, so the two read
-   as one connected unit instead of an unrelated button + a floating box.
-   Static, not pulsing — a steady glow reads as "there" without blinking. */
-.chat-fab.teaser-active {
-  filter: drop-shadow(0 0 9px rgba(245, 158, 11, 0.65));
-}
-
-.chat-teaser {
-  position: relative;
-  max-width: 190px;
-  background: var(--bg-1);
-  border: 1.5px solid var(--accent);
-  border-radius: 10px;
-  padding: 8px 22px 8px 11px;
-  font-size: 12px;
-  color: var(--text-0);
-  line-height: 1.35;
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.35),
-    0 0 12px 2px rgba(245, 158, 11, 0.5);
-}
-/* Speech-bubble tail pointing down at the launcher button — two stacked
-   triangles (border-colored, then a smaller background-colored one on top)
-   to fake a bordered pointer, roughly centered over the 56px circle below. */
-.chat-teaser::before,
-.chat-teaser::after {
-  content: '';
-  position: absolute;
-  right: 20px;
-  width: 0;
-  height: 0;
-  border-left: 9px solid transparent;
-  border-right: 9px solid transparent;
-}
-.chat-teaser::before {
-  bottom: -9px;
-  border-top: 9px solid var(--accent);
-}
-.chat-teaser::after {
-  bottom: -6.5px;
-  border-top: 7px solid var(--bg-1);
-}
-.chat-teaser-close {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  background: none;
-  border: none;
-  color: var(--text-2);
-  font-size: 14px;
-  cursor: pointer;
-  width: 18px;
-  height: 18px;
-  line-height: 1;
-}
-.chat-teaser-close:hover {
-  color: var(--text-0);
-}
-
-.chat-panel {
-  width: 340px;
-  max-width: calc(100vw - 40px);
-  height: 460px;
-  max-height: calc(100vh - 120px);
-  display: flex;
-  flex-direction: column;
-  border: 1px solid transparent;
-  border-radius: 14px;
-  background:
-    radial-gradient(120% 60% at 50% 0%, var(--bg-2), var(--bg-1) 65%) padding-box,
-    linear-gradient(135deg, rgba(245, 158, 11, 0.5), rgba(245, 158, 11, 0.04) 45%, rgba(245, 158, 11, 0.3)) border-box;
-  box-shadow:
-    0 14px 40px rgba(0, 0, 0, 0.5),
-    0 0 26px rgba(245, 158, 11, 0.09);
-  overflow: hidden;
-  transform-origin: bottom right;
-  animation: chatPanelIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-}
-@keyframes chatPanelIn {
-  from {
-    opacity: 0;
-    transform: scale(0.92) translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-.chat-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-}
-.chat-panel-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.chat-avatar-wrap {
-  position: relative;
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.chat-avatar-wrap::before {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(245, 158, 11, 0.4), transparent 70%);
-  filter: blur(2px);
-}
-.chat-avatar {
-  position: relative;
-  z-index: 1;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid rgba(245, 158, 11, 0.35);
-}
-.chat-title-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.chat-title-name {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  color: var(--text-0);
-}
-.chat-title-tag {
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--accent);
-  opacity: 0.9;
-}
-.chat-title-status {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  color: var(--text-2);
-}
-.chat-status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 4px rgba(34, 197, 94, 0.7);
-  flex-shrink: 0;
-}
-.chat-panel-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.chat-clear-btn {
-  background: none;
-  border: none;
-  color: var(--text-2);
-  font-size: 11px;
-  cursor: pointer;
-}
-.chat-clear-btn:hover {
-  color: var(--text-0);
-}
-.chat-panel-close {
-  background: none;
-  border: none;
-  color: var(--text-2);
-  font-size: 18px;
-  cursor: pointer;
-  line-height: 1;
-}
-.chat-panel-close:hover {
-  color: var(--text-0);
-}
-.chat-panel-body {
-  flex: 1;
-  /* Without this, a flex child's default min-height:auto refuses to shrink
-     below its content's intrinsic height — so on a short mobile viewport the
-     message list just grows past the panel's own bounds (clipped by
-     .chat-panel's overflow:hidden) instead of becoming scrollable. This is
-     the actual reason "can't scroll" only ever showed up on phones. */
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.chat-empty {
-  color: var(--text-2);
-  font-size: 12px;
-  line-height: 1.5;
-  text-align: center;
-  margin: auto;
-}
-.chat-bubble-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
-}
-.chat-bubble-row.user {
-  justify-content: flex-end;
-}
-.chat-msg-avatar {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
-  margin-bottom: 2px;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-.chat-bubble {
-  max-width: 85%;
-  padding: 9px 13px;
-  border-radius: 12px;
-  font-size: 13px;
-  line-height: 1.45;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.chat-bubble.user {
-  background: linear-gradient(135deg, #fbbf24, #f59e0b);
-  color: #0a0a0a;
-  font-weight: 500;
-  border-bottom-right-radius: 4px;
-  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
-}
-.chat-bubble.assistant {
-  background: var(--bg-2);
-  border: none;
-  border-left: 2px solid var(--accent);
-  color: var(--text-0);
-  border-radius: 3px 12px 12px 3px;
-}
-.chat-bullet-line {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin: 2px 0;
-}
-.chat-bullet-line.nested {
-  margin-inline-start: 16px;
-}
-.chat-bullet-dot {
-  flex-shrink: 0;
-  color: var(--accent);
-  line-height: 1.45;
-}
-.chat-line-gap {
-  height: 6px;
-}
-.chat-typing {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 12px;
-}
-.chat-typing span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-2);
-  animation: chatTypingBounce 1.2s infinite ease-in-out;
-}
-.chat-typing span:nth-child(2) {
-  animation-delay: 0.15s;
-}
-.chat-typing span:nth-child(3) {
-  animation-delay: 0.3s;
-}
-@keyframes chatTypingBounce {
-  0%,
-  60%,
-  100% {
-    transform: translateY(0);
-    opacity: 0.5;
-  }
-  30% {
-    transform: translateY(-4px);
-    opacity: 1;
-  }
-}
-.chat-panel-input {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px;
-  border-top: 1px solid var(--border);
-}
-.chat-panel-input input {
-  flex: 1;
-  background: var(--bg-2);
-  border: 1px solid var(--border-strong);
-  border-radius: 20px;
-  padding: 8px 14px;
-  font-size: 13px;
-  color: var(--text-0);
-  outline: none;
-}
-.chat-panel-input input:focus {
-  border-color: var(--accent);
-  box-shadow:
-    0 0 0 3px rgba(245, 158, 11, 0.12),
-    0 0 10px rgba(245, 158, 11, 0.25);
-}
-.chat-panel-input button {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: none;
-  background: linear-gradient(135deg, #fbbf24, #f59e0b);
-  color: #0a0a0a;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
-  transition:
-    transform var(--transition),
-    box-shadow var(--transition);
-}
-.chat-panel-input button:hover:not(:disabled) {
-  transform: scale(1.06);
-  box-shadow: 0 2px 14px rgba(245, 158, 11, 0.5);
-}
-.chat-panel-input button:disabled {
-  opacity: 0.4;
-  cursor: default;
-  box-shadow: none;
-}
-.chat-disclaimer {
-  margin: 0;
-  padding: 6px 14px 10px;
-  font-size: 10px;
-  line-height: 1.4;
-  color: var(--text-3);
-  text-align: center;
-}
-
 /* ── Scheduled scan results — shown when a scheduled-scan push/bell
    notification is tapped, so it opens the exact scan it fired for instead of
    dropping the user on an empty/unrelated page. ── */
@@ -12253,16 +11769,6 @@ html.a11y-highlight-links a {
   .scheduled-results-row-actions {
     grid-column: 1 / -1;
     justify-content: flex-start;
-  }
-}
-
-@media (max-width: 480px) {
-  .chat-widget {
-    right: 12px;
-    bottom: 12px;
-  }
-  .chat-panel {
-    width: calc(100vw - 24px);
   }
 }
 
@@ -12670,11 +12176,6 @@ html.a11y-highlight-links a {
     font-weight: 400;
   }
 
-  /* Capi stays desktop-only on the product's phone experience. */
-  .chat-widget {
-    display: none !important;
-  }
-
   .scheduled-results-modal {
     width: calc(100vw - 24px);
     max-width: calc(100vw - 24px);
@@ -12785,326 +12286,6 @@ html.a11y-highlight-links a {
   font-size: 14px;
 }
 
-/* ── Compact plan comparison matrix ──────────────────────────────────────
-   Each paid tier is a self-contained card. Every card repeats the complete
-   feature list so users can evaluate one plan without looking across a
-   separate feature column. */
-.pricing-cards-modal {
-  width: min(1040px, calc(100vw - 24px));
-  max-width: 96vw;
-  max-height: calc(100dvh - 24px);
-  padding: 17px 18px 13px;
-  background:
-    radial-gradient(circle at 96% 0%, rgba(245, 158, 11, 0.1), transparent 28%),
-    linear-gradient(145deg, var(--bg-1), var(--bg-0));
-}
-.tier-matrix-scroll {
-  width: 100%;
-  min-width: 0;
-  margin-top: 11px;
-  overflow: hidden;
-  border: 1px solid var(--border-strong);
-  border-radius: 9px;
-  background: rgba(5, 5, 5, 0.48);
-  padding: 7px;
-  direction: ltr;
-}
-.tier-matrix {
-  width: 100%;
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
-  direction: ltr;
-}
-.tier-matrix-plan {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.012);
-  direction: ltr;
-  text-align: left;
-}
-.tier-matrix-plan.is-featured {
-  border-color: rgba(245, 158, 11, 0.45);
-  background: linear-gradient(180deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.025));
-  box-shadow: 0 0 22px rgba(245, 158, 11, 0.08);
-}
-.tier-matrix-plan-heading {
-  position: relative;
-  min-height: 88px;
-  padding: 10px 11px 9px;
-  border-bottom: 1px solid var(--border-strong);
-  background: rgba(255, 255, 255, 0.012);
-}
-.tier-matrix-plan-name {
-  margin: 0;
-  color: var(--tier-premium);
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.tier-matrix-plan.is-featured .tier-matrix-plan-name {
-  color: var(--accent);
-}
-.tier-matrix-plan-price {
-  display: block;
-  margin-top: 5px;
-  color: var(--text-0);
-  font-family: var(--mono);
-  font-size: 22px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.04em;
-  line-height: 1;
-}
-.tier-matrix-plan-details {
-  margin-top: 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 8px;
-  border: 1px solid rgba(255, 59, 48, 0.8);
-  border-radius: 999px;
-  background: linear-gradient(135deg, rgba(255, 59, 48, 0.22), rgba(220, 38, 38, 0.12));
-  color: #ff4d4d;
-  font-family: var(--mono);
-  font-size: 8px;
-  font-weight: 900;
-  letter-spacing: 0.02em;
-  line-height: 1.2;
-  white-space: nowrap;
-  box-shadow: 0 0 14px rgba(255, 59, 48, 0.2);
-}
-.tier-matrix-popular {
-  display: inline-flex;
-  margin-bottom: 5px;
-  padding: 3px 7px;
-  border-radius: 999px;
-  background: var(--accent-vivid);
-  color: #1a1200;
-  font-family: var(--mono);
-  font-size: 7px;
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.tier-matrix-feature-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.tier-matrix-feature {
-  display: grid;
-  grid-template-columns: 13px minmax(0, 1fr);
-  align-items: center;
-  gap: 6px;
-  min-height: 29px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border);
-  direction: ltr;
-  text-align: left;
-}
-.tier-matrix-feature:nth-child(even) {
-  background: rgba(255, 255, 255, 0.012);
-}
-.tier-matrix-plan.is-featured .tier-matrix-feature:nth-child(even) {
-  background: rgba(245, 158, 11, 0.045);
-}
-.tier-matrix-feature-name {
-  grid-column: 2;
-  grid-row: 1;
-  min-width: 0;
-  color: var(--text-1);
-  font-family: var(--font);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0;
-  line-height: 1.15;
-  text-align: left;
-  text-transform: none;
-  overflow-wrap: anywhere;
-}
-.tier-matrix-feature-specific {
-  color: var(--text-2);
-  font-family: var(--mono);
-  font-size: 0.88em;
-  font-weight: 600;
-  white-space: normal;
-}
-.tier-matrix-feature.is-excluded .tier-matrix-feature-name {
-  color: var(--text-3);
-}
-.tier-matrix-access {
-  display: inline-flex;
-  grid-column: 1;
-  grid-row: 1;
-  align-items: center;
-  justify-content: flex-start;
-  width: 13px;
-  height: 13px;
-  margin: 0;
-  line-height: 1.15;
-  text-align: left;
-}
-.tier-matrix-status {
-  display: inline-flex;
-  flex: 0 0 13px;
-  align-items: center;
-  justify-content: center;
-  width: 13px;
-  height: 13px;
-  margin-top: 0;
-}
-.tier-matrix-access.is-included .tier-matrix-status {
-  color: var(--green);
-}
-.tier-matrix-plan.is-featured .tier-matrix-access.is-included .tier-matrix-status {
-  color: var(--accent);
-}
-.tier-matrix-access.is-excluded {
-  color: var(--text-3);
-}
-.tier-matrix-access.is-excluded .tier-matrix-status {
-  color: var(--text-3);
-}
-.tier-matrix-plan-footer {
-  display: flex;
-  min-height: 48px;
-  align-items: center;
-  margin-top: auto;
-  padding: 8px 9px 9px;
-  border-top: 1px solid var(--border-strong);
-}
-.tier-matrix-current {
-  display: inline-flex;
-  align-items: center;
-  min-height: 29px;
-  color: var(--text-3);
-  font-family: var(--mono);
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.tier-matrix-cta {
-  width: 100%;
-  min-height: 30px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  font-size: 9px;
-  line-height: 1.2;
-  white-space: normal;
-}
-.tier-matrix-cta-premium {
-  background: var(--tier-premium-vivid);
-  color: #1a0d00;
-}
-.tier-matrix-cta-elite {
-  background: var(--accent-vivid);
-  color: #1a1200;
-}
-.tier-matrix-cta:hover:not(:disabled) {
-  filter: brightness(1.08);
-}
-
-@media (max-width: 760px) {
-  .pricing-cards-modal {
-    width: calc(100vw - 12px);
-    max-width: calc(100vw - 12px);
-    max-height: calc(100dvh - 12px);
-    padding: 12px 7px 9px;
-  }
-  .tier-matrix-scroll {
-    margin-top: 9px;
-    padding: 4px;
-  }
-  .tier-matrix {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 5px;
-  }
-  .tier-matrix-plan-heading {
-    min-height: 76px;
-    padding: 7px 6px 6px;
-  }
-  .tier-matrix-feature {
-    grid-template-columns: 10px minmax(0, 1fr);
-    gap: 3px;
-    min-height: 25px;
-    padding: 3px 4px;
-  }
-  .tier-matrix-feature-name {
-    font-size: 7.8px;
-    line-height: 1.1;
-  }
-  .tier-matrix-access {
-    width: 10px;
-    height: 10px;
-  }
-  .tier-matrix-status {
-    flex-basis: 10px;
-    width: 10px;
-    height: 10px;
-  }
-  .tier-matrix-status svg {
-    width: 10px;
-    height: 10px;
-  }
-  .tier-matrix-feature-specific {
-    font-size: 0.86em;
-  }
-  .tier-matrix-plan-name {
-    font-size: 9px;
-  }
-  .tier-matrix-plan-price {
-    font-size: 18px;
-  }
-  .tier-matrix-plan-details {
-    max-width: 100%;
-    padding: 3px 4px;
-    font-size: 6.2px;
-    white-space: normal;
-    text-align: center;
-  }
-  .tier-matrix-popular {
-    margin-bottom: 3px;
-    padding: 2px 4px;
-    font-size: 5.7px;
-  }
-  .tier-matrix-plan-footer {
-    min-height: 38px;
-    padding: 5px 5px 6px;
-  }
-  .tier-matrix-cta {
-    min-height: 25px;
-    padding: 4px 3px;
-    font-size: 7px;
-  }
-  .coupon-input-row {
-    grid-template-columns: 1fr;
-    gap: 7px;
-    padding-inline: 8px;
-  }
-  .coupon-input-label,
-  .coupon-input,
-  .coupon-input-help {
-    grid-column: 1;
-  }
-  .coupon-input {
-    width: 100%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tier-matrix-cta {
-    transition: none;
-  }
-}
-
 /* ── Scanner result direction: Signal Rail × Terminal Ledger ──────────────
    The result content stays unchanged. These rules only give the Capital Flow
    and MA Scanner result surfaces the selected row-card hierarchy: a compact
@@ -13159,12 +12340,67 @@ html.a11y-highlight-links a {
 }
 
 .signal-rail-results .table-wrap {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 0 12px 12px;
 }
 
 .signal-rail-results .table-wrap table {
+  width: max(100%, 1020px);
+  min-width: 1020px;
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0 6px;
+}
+
+/* The result table has a fixed action rail and predictable data columns. On
+   narrower desktop/tablet widths the wrapper scrolls as one clean surface,
+   rather than letting the last cell be pushed outside the card. */
+.signal-rail-results .table-wrap .result-rank-col,
+.signal-rail-results .table-wrap tbody .col-rank {
+  width: 42px;
+}
+.signal-rail-results .table-wrap .result-actions-col,
+.signal-rail-results .table-wrap tbody .result-row-actions {
+  width: 86px;
+  min-width: 86px;
+}
+.signal-rail-results .table-wrap thead th:nth-child(2) {
+  width: 112px;
+}
+.signal-rail-results .table-wrap thead th:nth-child(3) {
+  width: 205px;
+}
+.signal-rail-results .table-wrap thead th:nth-child(4) {
+  width: 105px;
+}
+.signal-rail-results .table-wrap thead th:nth-child(5) {
+  width: 95px;
+}
+.signal-rail-results .table-wrap thead th:nth-child(6) {
+  width: 105px;
+}
+.signal-rail-results .table-wrap thead th:nth-child(7) {
+  width: 125px;
+}
+.signal-rail-results .table-wrap thead th:nth-child(8) {
+  width: 145px;
+}
+.signal-rail-results .table-wrap thead th.result-actions-col {
+  width: 86px;
+}
+.signal-rail-results .table-wrap tbody td:not(.result-row-actions) {
+  min-width: 0;
+}
+.signal-rail-results .table-wrap tbody td.col-name {
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.signal-rail-results .table-wrap tbody td.result-row-actions {
+  overflow: visible;
 }
 
 .signal-rail-results .table-wrap thead th {

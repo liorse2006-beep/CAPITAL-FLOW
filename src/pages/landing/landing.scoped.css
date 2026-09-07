@@ -730,124 +730,6 @@
     transition: none;
   }
 }
-.cf-landing-page .cf-pricing-lifetime {
-  font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 800;
-  color: var(--accent);
-  margin: 0;
-}
-.cf-landing-page .cf-compare-table {
-  margin-top: 56px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.cf-landing-page .cf-compare-row {
-  display: grid;
-  grid-template-columns: 2.1fr 1fr 1fr 1fr;
-  align-items: center;
-  gap: 10px;
-  padding: 16px 16px;
-  background: var(--bg-1);
-  border-radius: var(--radius-sm);
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.25),
-    0 22px 38px -24px rgba(0, 0, 0, 0.7);
-}
-.cf-landing-page .cf-compare-label {
-  font-size: 14px;
-  color: var(--text-1);
-}
-.cf-landing-page .cf-compare-row > div:not(.cf-compare-label) {
-  text-align: center;
-  font-size: 13.5px;
-  color: var(--text-1);
-}
-.cf-landing-page .cf-compare-row .elite:not(.cf-compare-tier) {
-  color: var(--text-0);
-  font-weight: 600;
-  background: var(--bg-2);
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  margin: -16px 0;
-}
-.cf-landing-page .cf-compare-head {
-  background: transparent;
-  box-shadow: none;
-  padding: 0 16px 12px;
-}
-.cf-landing-page .cf-compare-tier {
-  text-align: center;
-  padding: 18px 10px;
-  border-radius: var(--radius) var(--radius) 0 0;
-  position: relative;
-}
-.cf-landing-page .cf-compare-tier.elite {
-  background: var(--bg-1);
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.25),
-    0 22px 38px -24px rgba(0, 0, 0, 0.7),
-    inset 0 2px 0 var(--accent);
-  margin: 0;
-  border-radius: var(--radius);
-}
-.cf-landing-page .cf-price-badge {
-  position: absolute;
-  top: -13px;
-  left: 50%;
-  transform: translateX(50%);
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-size: 10.5px;
-  font-weight: 700;
-  padding: 5px 13px;
-  border-radius: 100px;
-  white-space: nowrap;
-}
-.cf-landing-page .cf-price-tier {
-  font-size: 13px;
-  color: var(--text-2);
-  margin-bottom: 8px;
-}
-.cf-landing-page .cf-price-amount {
-  font-family: var(--font-mono);
-  font-size: 24px;
-  font-weight: 700;
-}
-.cf-landing-page .cf-price-amount span {
-  display: block;
-  font-size: 11px;
-  color: var(--text-2);
-  font-weight: 500;
-  font-family: var(--font-body);
-  margin-top: 2px;
-}
-.cf-landing-page .cf-compare-cta {
-  background: transparent;
-  box-shadow: none;
-  padding: 10px 16px 0;
-}
-.cf-landing-page .cf-compare-cta > div.elite {
-  background: transparent;
-  padding: 0 8px;
-  margin: 0;
-}
-.cf-landing-page .cf-check {
-  color: var(--up);
-  font-weight: 700;
-}
-.cf-landing-page .cf-dash {
-  color: var(--text-3);
-}
-.cf-landing-page .cf-btn-outline {
-  background: transparent;
-  color: var(--text-0);
-  box-shadow: inset 0 0 0 1px var(--text-3);
-}
 .cf-landing-page .cf-final {
   text-align: center;
 }
@@ -1710,7 +1592,6 @@
   font-size: 15.5px;
 }
 .cf-landing-page .cf-proof-section,
-.cf-landing-page .cf-plans-section,
 .cf-landing-page .cf-faq-section {
   background: rgba(12, 9, 6, 0.3);
 }
@@ -2547,236 +2428,6 @@
   transform: translate3d(0, 0, 0);
 }
 
-.cf-landing-page .cf-plans-section {
-  padding-top: 72px;
-  padding-bottom: 72px;
-}
-.cf-landing-page .cf-plans-section .cf-sec-head {
-  margin-bottom: 30px;
-}
-.cf-landing-page .cf-plans-section .cf-pricing-head h2 {
-  margin: 0;
-}
-.cf-landing-page .cf-pricing-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  max-width: 1060px;
-  margin: 0 auto;
-  align-items: stretch;
-}
-.cf-landing-page .cf-plan-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  min-height: 420px;
-  padding: 28px 25px 23px;
-  border: 1px solid rgba(226, 165, 69, 0.14);
-  border-radius: 17px;
-  background: linear-gradient(180deg, rgba(34, 26, 17, 0.75), rgba(23, 18, 12, 0.6));
-}
-.cf-landing-page .cf-plan-premium {
-  border-color: rgba(226, 165, 69, 0.28);
-}
-.cf-landing-page .cf-plan-elite {
-  border-color: rgba(226, 165, 69, 0.62);
-  background: linear-gradient(155deg, rgba(226, 165, 69, 0.17), rgba(23, 18, 12, 0.82) 48%);
-  box-shadow:
-    0 30px 65px -38px rgba(226, 165, 69, 0.62),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-.cf-landing-page .cf-plan-ribbon {
-  position: absolute;
-  top: -13px;
-  right: 22px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-size: 11px;
-  font-weight: 800;
-}
-.cf-landing-page .cf-plan-top {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid rgba(226, 165, 69, 0.12);
-}
-.cf-landing-page .cf-plan-name {
-  font-size: 20px;
-  font-weight: 800;
-}
-.cf-landing-page .cf-plan-label {
-  color: var(--text-2);
-  font-size: 13px;
-}
-.cf-landing-page .cf-plan-price {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin: 22px 0 18px;
-}
-.cf-landing-page .cf-plan-price b {
-  color: var(--accent);
-  font-family: var(--font-mono);
-  font-size: 34px;
-}
-.cf-landing-page .cf-plan-price span {
-  color: var(--text-2);
-  font-size: 12px;
-}
-.cf-landing-page .cf-plan-card ul {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 0 22px;
-  padding: 0;
-  list-style: none;
-  color: var(--text-1);
-  font-size: 14px;
-  line-height: 1.45;
-}
-.cf-landing-page .cf-plan-card li::before {
-  content: '✓';
-  display: inline-block;
-  width: 20px;
-  color: var(--up);
-  font-weight: 800;
-}
-.cf-landing-page .cf-plan-card .cf-btn {
-  justify-content: center;
-  width: 100%;
-  min-height: 50px;
-  font-size: 15px;
-}
-.cf-landing-page .cf-btn-outline {
-  border: 1px solid rgba(226, 165, 69, 0.3);
-  color: var(--text-0);
-  background: rgba(226, 165, 69, 0.03);
-  transition:
-    background 0.18s ease,
-    border-color 0.18s ease,
-    transform 0.18s ease;
-}
-.cf-landing-page .cf-btn-outline:hover {
-  border-color: rgba(226, 165, 69, 0.62);
-  background: rgba(226, 165, 69, 0.1);
-  transform: translateY(-2px);
-}
-.cf-landing-page .cf-plan-card > small {
-  display: block;
-  margin-top: 12px;
-  color: var(--text-3);
-  font-size: 11px;
-  text-align: center;
-}
-.cf-landing-page .cf-payment-trust {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px 22px;
-  margin: 26px auto 0;
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.03em;
-}
-.cf-landing-page .cf-payment-trust b {
-  color: var(--text-1);
-}
-.cf-landing-page .cf-payment-trust b::before {
-  content: '·';
-  color: var(--accent);
-  margin-left: 10px;
-}
-.cf-landing-page .cf-landing-pricing-matrix {
-  max-width: 760px;
-  margin: 0 auto;
-  direction: ltr;
-}
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-scroll {
-  margin-top: 3px;
-  padding: 3px;
-}
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix {
-  gap: 3px;
-}
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-plan-heading {
-  min-height: 70px;
-  padding: 7px 7px 6px;
-}
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-plan-name {
-  font-size: 9.5px;
-}
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-plan-price {
-  margin-top: 4px;
-  font-size: 20px;
-}
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-plan-details {
-  margin-top: 3px;
-  padding: 2px 4px;
-  font-size: 7px;
-}
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-popular {
-  margin-bottom: 2px;
-  padding: 1px 4px;
-  font-size: 6px;
-}
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-feature {
-  display: grid;
-  grid-template-columns: auto minmax(0, max-content) auto;
-  justify-content: start;
-  column-gap: 18px;
-  row-gap: 0;
-  min-height: 22px;
-  padding: 2px 5px;
-}
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-feature-name {
-  grid-column: 2;
-  grid-row: 1;
-  min-width: 0;
-  font-size: 10px;
-  line-height: 1.15;
-  text-align: left;
-}
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-access {
-  display: contents;
-  margin-left: 0;
-  text-align: left;
-}
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-status {
-  grid-column: 1;
-  grid-row: 1;
-  flex-basis: 10px;
-  width: 10px;
-  height: 10px;
-}
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-plan-footer {
-  min-height: 30px;
-  padding: 4px 5px;
-}
-.cf-landing-page .cf-landing-pricing-matrix .tier-matrix-cta {
-  min-height: 23px;
-  padding: 2px 4px;
-  font-size: 7.8px;
-}
-.cf-landing-page .cf-landing-pricing-matrix .upgrade-trust-row {
-  margin-top: 5px;
-}
-.cf-landing-page .cf-pricing-bottom-cta {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 9px;
-  margin: 26px auto 0;
-  text-align: center;
-}
-.cf-landing-page .cf-pricing-bottom-cta > small {
-  color: var(--text-3);
-  font-size: 11px;
-}
 .cf-landing-page .cf-faq-section {
   position: relative;
   isolation: isolate;
@@ -2927,8 +2578,7 @@
   }
 }
 @media (max-width: 900px) {
-  .cf-landing-page .cf-signal-grid,
-  .cf-landing-page .cf-pricing-grid {
+  .cf-landing-page .cf-signal-grid {
     grid-template-columns: 1fr;
   }
   .cf-landing-page .cf-signal-grid {
@@ -2943,12 +2593,6 @@
   }
   .cf-landing-page .cf-signal-step {
     flex: 0 0 auto;
-  }
-  .cf-landing-page .cf-plan-card {
-    min-height: 0;
-  }
-  .cf-landing-page .cf-plan-elite {
-    order: -1;
   }
   .cf-landing-page .cf-feat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3051,10 +2695,6 @@
   .cf-landing-page .cf-feat {
     min-height: 0;
   }
-  .cf-landing-page .cf-payment-trust {
-    gap: 8px 13px;
-    line-height: 1.6;
-  }
   .cf-landing-page .cf-final-card {
     padding: 52px 22px;
   }
@@ -3079,8 +2719,8 @@
 }
 
 /* Mobile keeps the same landing-page content as desktop. Only the geometry
-   changes: navigation wraps instead of disappearing, copy is allowed to wrap
-   instead of being clipped, and the comparison cards keep their full rows. */
+   changes: navigation wraps instead of disappearing and copy is allowed to
+   wrap instead of being clipped. */
 @media (max-width: 800px) {
   .cf-landing-page .cf-nav-in {
     width: 100%;
@@ -3132,8 +2772,7 @@
   .cf-landing-page .cf-proof-wrap,
   .cf-landing-page .cf-signal-grid,
   .cf-landing-page .cf-signal-copy,
-  .cf-landing-page .cf-signal-visual,
-  .cf-landing-page .cf-landing-pricing-matrix {
+  .cf-landing-page .cf-signal-visual {
     min-width: 0;
     max-width: 100%;
   }
@@ -3142,31 +2781,6 @@
     white-space: normal;
   }
 
-  .cf-landing-page .cf-landing-pricing-matrix .tier-matrix-feature {
-    grid-template-columns: 12px minmax(0, 1fr);
-    column-gap: 8px;
-    min-height: 29px;
-    padding: 4px 6px;
-  }
-
-  .cf-landing-page .cf-landing-pricing-matrix .tier-matrix-feature-name {
-    grid-column: 2;
-    min-width: 0;
-    font-size: 10px;
-    line-height: 1.2;
-    overflow-wrap: anywhere;
-  }
-
-  .cf-landing-page .cf-landing-pricing-matrix .tier-matrix-feature-specific {
-    display: inline;
-    white-space: normal;
-  }
-
-  .cf-landing-page .cf-landing-pricing-matrix .tier-matrix-status {
-    grid-column: 1;
-    width: 12px;
-    height: 12px;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .cf-landing-page .cf-btn-large:hover,

@@ -25,7 +25,6 @@ function summaryResponse() {
         radarCount: 1,
         activeRadarCount: 1,
         pushDeviceCount: 0,
-        chatMessageCount: 3,
         quota: { tier: 'elite' },
       },
       security: { authProvider: 'Email and password', activeSessionCount: 1 },

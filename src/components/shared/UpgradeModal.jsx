@@ -3,9 +3,58 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import useModalA11y from '../../hooks/useModalA11y';
 import { useAuth } from '../../context/AuthContext';
 import EmbeddedCheckout from './EmbeddedCheckout';
-import TierComparisonMatrix from './TierComparisonMatrix';
+import { TIER_COLUMNS } from '../../constants/tierFeatures';
 
 const TIER_LABEL = { premium: 'Premium', elite: 'Elite' };
+const TIER_RANK = { free: 0, premium: 1, elite: 2 };
+const PLAN_SUMMARIES = {
+  premium: '5 scans per 24 hours, charts, and advanced filters.',
+  elite: 'Unlimited scans, alerts, schedules, and Radar.',
+};
+const PLAN_OPTIONS = TIER_COLUMNS.filter((column) => column.key !== 'free');
+
+function PlanOption({ column, userTier, trialEnded, payingTier, onCheckout }) {
+  const headingId = 'upgrade-plan-' + column.key + '-heading';
+  const isCurrent = userTier === column.key;
+  const canChoose = !isCurrent && (TIER_RANK[userTier] || 0) <= TIER_RANK[column.key];
+  const buttonLabel = trialEnded
+    ? column.key === 'elite'
+      ? 'Unlock Elite'
+      : 'Keep scanning with Premium'
+    : 'Get ' + column.label;
+
+  return (
+    <article
+      className={'upgrade-plan-option' + (column.featured ? ' is-featured' : '')}
+      aria-labelledby={headingId}
+    >
+      <header className="upgrade-plan-option-header">
+        {column.featured && <span className="upgrade-plan-option-badge">Most popular</span>}
+        <h3 id={headingId} className="upgrade-plan-option-name">
+          {column.label}
+        </h3>
+        <strong className="upgrade-plan-option-price">{column.price}</strong>
+        <span className="upgrade-plan-option-details">{column.details}</span>
+      </header>
+      <p className="upgrade-plan-option-summary">{PLAN_SUMMARIES[column.key]}</p>
+      <footer className="upgrade-plan-option-footer">
+        {isCurrent ? (
+          <span className="upgrade-plan-option-current">Your plan</span>
+        ) : canChoose ? (
+          <button
+            className={'upgrade-cta upgrade-plan-option-cta upgrade-plan-option-cta-' + column.key}
+            onClick={() => onCheckout(column.key)}
+            disabled={payingTier === column.key}
+          >
+            {payingTier === column.key ? 'Loading…' : buttonLabel}
+          </button>
+        ) : (
+          <span className="upgrade-plan-option-current">Included in your access</span>
+        )}
+      </footer>
+    </article>
+  );
+}
 //
 // Clicking "Get <tier>" swaps this same modal over to Whop's checkout
 // embed, mounted inline (an iframe scoped to the payment form) — the user
@@ -127,12 +176,12 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
   return (
     <div className="upgrade-overlay" onClick={handleClose}>
       <div
-        className={'upgrade-modal pricing-cards-modal' + (trialEnded ? ' pricing-cards-modal-trial-ended' : '')}
+        className={'upgrade-modal upgrade-plan-modal' + (trialEnded ? ' upgrade-plan-modal-trial-ended' : '')}
         ref={panelRef}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label={trialEnded ? 'Keep your Capital Flow access' : 'Compare plans'}
+         aria-label={trialEnded ? 'Keep your Capital Flow access' : 'Choose a plan'}
         onClick={(e) => e.stopPropagation()}
       >
         <button className="upgrade-close" onClick={handleClose} aria-label="Close">
@@ -176,12 +225,18 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
           </div>
         )}
 
-        <TierComparisonMatrix
-          userTier={userTier}
-          trialEnded={trialEnded}
-          payingTier={payingTier}
-          onCheckout={goToCheckout}
-        />
+        <div className="upgrade-plan-options" aria-label="Available plans">
+          {PLAN_OPTIONS.map((column) => (
+            <PlanOption
+              key={column.key}
+              column={column}
+              userTier={userTier}
+              trialEnded={trialEnded}
+              payingTier={payingTier}
+              onCheckout={goToCheckout}
+            />
+          ))}
+        </div>
         <div className="coupon-input-row">
           <label htmlFor="upgrade-coupon-input" className="coupon-input-label">
             Have a promo code?

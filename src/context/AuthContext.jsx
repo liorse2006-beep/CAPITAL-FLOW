@@ -47,8 +47,8 @@ export function AuthProvider({ children }) {
       // A sleeping Render free instance can take 30-50s to answer the very
       // first request while it wakes up. The old 8s timeout aborted long
       // before that and then DELETED the token, silently logging the user out
-      // on every cold start — which is what made their watchlist and Capi
-      // history "disappear" until they signed in again. So: a generous
+      // on every cold start — which is what made their saved account data
+      // "disappear" until they signed in again. So: a generous
       // timeout, and a couple of retries on the initial load. Only a genuine
       // auth failure (a real 401/403 response) ever removes the token now.
       const MAX_ATTEMPTS = isRevalidation ? 1 : 3;

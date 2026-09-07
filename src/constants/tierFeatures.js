@@ -1,6 +1,6 @@
 // Single source of truth for the current in-app Free/Premium/Elite entitlements.
-// Every comparison surface must render these rows instead of maintaining its
-// own partial feature list. Values are intentionally explicit: a checkmark
+// Every plan-information surface must render these rows instead of maintaining
+// its own partial feature list. Values are intentionally explicit: a checkmark
 // means the capability is available and the adjacent value explains the
 // current quota or access window.
 export const TIER_ROWS = [
@@ -37,7 +37,6 @@ export const TIER_ROWS = [
     premium: 'Signed-in access',
     elite: 'Signed-in access',
   },
-  { label: 'Capi — your AI market mentor', free: '7-day trial', premium: false, elite: 'Included' },
   { label: 'Push notifications', free: '7-day trial', premium: false, elite: 'Included' },
   { label: 'Real-time alert stream', free: '7-day trial', premium: false, elite: 'Included' },
   { label: 'Daily scheduled scan', free: '7-day trial', premium: false, elite: 'Included' },
@@ -45,10 +44,10 @@ export const TIER_ROWS = [
   { label: 'Capital Flow Radar', free: '7-day trial', premium: false, elite: 'Included' },
 ];
 
-// Header data belongs next to the feature matrix so price copy cannot drift
-// between plan cards and the comparison table. Prices are the current product
-// prices in the app; do not add an old-price/discount claim without a verified
-// active offer from the checkout configuration.
+// Header data belongs next to the plan data so price copy cannot drift between
+// the selector and checkout. Prices are the current product prices in the app;
+// do not add an old-price/discount claim without a verified active offer from
+// the checkout configuration.
 export const TIER_COLUMNS = [
   {
     key: 'free',
@@ -72,7 +71,7 @@ export const TIER_COLUMNS = [
 ];
 
 // The welcome modal intentionally keeps a concise post-purchase checklist;
-// the comparison matrix above is the complete source used for plan selection.
+// this remains the single source for entitlement copy shown after checkout.
 // A string means included (possibly for the trial or for all signed-in users);
 // false is the only excluded value.
 export function tierFeatureChecklist(tierKey) {

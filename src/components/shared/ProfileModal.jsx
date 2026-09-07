@@ -495,11 +495,6 @@ export default function ProfileModal({
                             />
                             <Stat label="Devices" value={number(usage.pushDeviceCount)} detail="Push subscriptions" />
                             <Stat
-                              label="Capi messages"
-                              value={number(usage.chatMessageCount)}
-                              detail="Saved conversations"
-                            />
-                            <Stat
                               label="Sessions"
                               value={number(security.activeSessionCount)}
                               detail="Signed-in devices"

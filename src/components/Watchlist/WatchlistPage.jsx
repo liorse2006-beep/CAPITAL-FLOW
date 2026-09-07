@@ -377,22 +377,24 @@ export default function WatchlistPage({
                           <td>—</td>
                         </>
                       )}
-                      <td style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                        <ChartLink symbol={sym} />
-                        <AlertButton
-                          symbol={sym}
-                          price={d && d.price}
-                          alertLevels={alertLevels}
-                          promptCreateAlert={promptCreateAlert}
-                        />
-                        <button
-                          className="star-btn-remove"
-                          onClick={() => toggleWatchlistTicker(sym)}
-                          title="Remove"
-                          aria-label={'Remove ' + sym + ' from watchlist'}
-                        >
-                          {'\xd7'}
-                        </button>
+                      <td className="result-row-actions">
+                        <div className="result-row-actions-inner">
+                          <ChartLink symbol={sym} />
+                          <AlertButton
+                            symbol={sym}
+                            price={d && d.price}
+                            alertLevels={alertLevels}
+                            promptCreateAlert={promptCreateAlert}
+                          />
+                          <button
+                            className="star-btn-remove"
+                            onClick={() => toggleWatchlistTicker(sym)}
+                            title="Remove"
+                            aria-label={'Remove ' + sym + ' from watchlist'}
+                          >
+                            {'\xd7'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

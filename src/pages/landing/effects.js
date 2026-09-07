@@ -1067,7 +1067,7 @@ function mountScrollFloat(el, cleanupFns) {
 }
 
 function setupScrollFloat(root, cleanupFns) {
-  root.querySelectorAll('#why h2, #proof h2, #why-tools h2, #faq h2, #start h2, #plans h2').forEach((el) => {
+  root.querySelectorAll('#why h2, #proof h2, #why-tools h2, #faq h2, #start h2').forEach((el) => {
     mountScrollFloat(el, cleanupFns);
   });
 }
@@ -1085,7 +1085,6 @@ function setupScrollReveals(root, cleanupFns) {
     { selector: '#why-tools .cf-feat', variant: 'feature', stagger: 58 },
     { selector: '#faq .cf-faq-item', variant: 'card', stagger: 64 },
     { selector: '#start .cf-final-card > .cf-specular-cta-mount', variant: 'visual', stagger: 0 },
-    { selector: '#plans .cf-pricing-matrix-mount', variant: 'visual', stagger: 0 },
   ];
   const targets = [];
   const seen = new Set();
@@ -1663,8 +1662,7 @@ function mountSignalChart(root, cleanupFns) {
 // purely to avoid maintaining two copies of the same logo list by hand.
 function setupSpecularCtas(root, onGetStarted, cleanupFns) {
   const targets = Array.from(root.querySelectorAll('.cf-specular-cta-mount'));
-  const pricingTarget = root.querySelector('.cf-pricing-matrix-mount');
-  if (!targets.length && !pricingTarget) return;
+  if (!targets.length) return;
 
   const fallbacks = targets
     .map((target) => target.querySelector('.cf-specular-cta-fallback'))
@@ -1687,7 +1685,7 @@ function setupSpecularCtas(root, onGetStarted, cleanupFns) {
   let reactRoot;
   try {
     reactRoot = createRoot(host);
-    reactRoot.render(createElement(LandingCtaPortals, { targets, pricingTarget, onGetStarted }));
+    reactRoot.render(createElement(LandingCtaPortals, { targets }));
   } catch (error) {
     host.remove();
     fallbacks.forEach(({ element, hidden }) => {
@@ -1836,15 +1834,6 @@ function setupCtaDelegation(root, onGetStarted, cleanupFns) {
     const btn = e.target.closest('[data-cta-location]');
     if (btn && root.contains(btn)) {
       e.preventDefault();
-      if (btn.getAttribute('data-cta-location') === 'pre-pricing') {
-        const plans = root.querySelector('#plans');
-        if (plans) {
-          const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-          plans.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
-          window.history.replaceState(null, '', '#plans');
-        }
-        return;
-      }
       onGetStarted();
     }
   }

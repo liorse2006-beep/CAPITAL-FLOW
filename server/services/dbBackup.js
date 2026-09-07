@@ -19,7 +19,7 @@ const { BACKUP_TABLES: TABLES } = require('./backupTables');
 // (see services/auth.js), so a backed-up copy is always stale garbage by
 // the time anyone would ever restore it. Every other user-facing or
 // operationally-relevant table is included: a restore that silently drops
-// starred watchlists, chat history, in-app notifications, the admin audit
+// starred watchlists, legacy assistant history, in-app notifications, the admin audit
 // trail, or the webhook idempotency ledger (risking a replayed Whop event
 // being reprocessed after restore) is not actually a usable backup.
 // Gmail rejects attachments over 25MB — silently, from this app's point of

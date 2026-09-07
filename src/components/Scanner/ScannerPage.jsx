@@ -771,7 +771,7 @@ export default function ScannerPage({
               <div className={'data-status-banner ' + scanDataStatus} role="status">
                 {scanDataStatus === 'unavailable'
                   ? 'Market data is temporarily unavailable. Please try again in a few minutes.'
-                  : 'Some market data could not be verified. Review results with caution.'}
+                  : 'Market data may be delayed and may not reflect the current moment. Do not rely on it alone—do your own research.'}
               </div>
             )}
 
@@ -840,7 +840,7 @@ export default function ScannerPage({
                   <table>
                     <thead>
                       <tr>
-                        <th style={{ width: 40 }}>#</th>
+                        <th className="result-rank-col">#</th>
                         <TH
                           label="Ticker"
                           field="symbol"
@@ -904,7 +904,7 @@ export default function ScannerPage({
                           onSort={handleSort}
                           onSortReset={handleSortDoubleClick}
                         />
-                        <th style={{ width: 36 }}></th>
+                        <th className="result-actions-col"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -987,50 +987,52 @@ export default function ScannerPage({
                           <td>
                             <span className="sector-chip">{r.sector}</span>
                           </td>
-                          <td style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                            <button
-                              className="chart-open-btn"
-                              onClick={(e) => handleChart(r.symbol, r.name, e)}
-                              title={isPremium ? 'Open price chart' : 'Unlock price chart'}
-                              aria-label={isPremium ? 'Open price chart' : 'Unlock price chart'}
-                            >
-                              <svg
-                                viewBox="0 0 24 24"
-                                width="14"
-                                height="14"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
+                          <td className="result-row-actions">
+                            <div className="result-row-actions-inner">
+                              <button
+                                className="chart-open-btn"
+                                onClick={(e) => handleChart(r.symbol, r.name, e)}
+                                title={isPremium ? 'Open price chart' : 'Unlock price chart'}
+                                aria-label={isPremium ? 'Open price chart' : 'Unlock price chart'}
                               >
-                                <path d="M3 3v18h18" />
-                                <path d="M18.7 8l-5.1 5.1-4-4L3 15.6" />
-                              </svg>
-                            </button>
-                            <button
-                              className={'alert-create-btn' + (alertLevels && alertLevels[r.symbol] ? ' active' : '')}
-                              onClick={() => promptCreateAlert(r.symbol, r.price)}
-                              title={
-                                alertLevels && alertLevels[r.symbol]
-                                  ? 'Alert set at ' + alertLevelLabel(alertLevels[r.symbol]) + ' — click to edit'
-                                  : 'Create an alert'
-                              }
-                            >
-                              <svg
-                                viewBox="0 0 24 24"
-                                width="14"
-                                height="14"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  width="14"
+                                  height="14"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M3 3v18h18" />
+                                  <path d="M18.7 8l-5.1 5.1-4-4L3 15.6" />
+                                </svg>
+                              </button>
+                              <button
+                                className={'alert-create-btn' + (alertLevels && alertLevels[r.symbol] ? ' active' : '')}
+                                onClick={() => promptCreateAlert(r.symbol, r.price)}
+                                title={
+                                  alertLevels && alertLevels[r.symbol]
+                                    ? 'Alert set at ' + alertLevelLabel(alertLevels[r.symbol]) + ' — click to edit'
+                                    : 'Create an alert'
+                                }
                               >
-                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                              </svg>
-                            </button>
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  width="14"
+                                  height="14"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                                </svg>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

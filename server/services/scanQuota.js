@@ -45,7 +45,7 @@ function freeTrialActive(user) {
  * True if this user has access to the full Elite feature set right now —
  * either they're actually Elite (or a pilot/admin resolved to Elite), OR
  * they're a free account still inside the 7-day trial. This is the single
- * source of truth for "can use Capi / push / alerts / scheduled scans",
+ * source of truth for "can use push / alerts / scheduled scans",
  * surfaced to the client as user.elite_access on /me and enforced on the
  * server by requireEliteOrTrial.
  */

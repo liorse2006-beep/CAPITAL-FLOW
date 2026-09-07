@@ -364,8 +364,8 @@ async function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at);
 
-    -- Capi chat history — persisted per account (not just per session) so
-    -- a returning user still sees their earlier conversation.
+    -- Legacy assistant history — retained for non-destructive data
+    -- compatibility; no active product surface reads or writes this table.
     CREATE TABLE IF NOT EXISTS chat_messages (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id    INTEGER NOT NULL,
@@ -657,9 +657,6 @@ async function initDb() {
     `ALTER TABLE users ADD COLUMN last_login_at INTEGER`,
     `ALTER TABLE users ADD COLUMN avatar_url TEXT`,
     `ALTER TABLE coupons ADD COLUMN paddle_discount_id TEXT`,
-    // Chains multi-turn Capi conversations server-side on Gemini's end —
-    // see services/chatbot.js. Null just means "start a fresh conversation".
-    `ALTER TABLE users ADD COLUMN gemini_interaction_id TEXT`,
     // Lets a scheduled-scan notification carry its own scan's actual results,
     // so tapping the push notification can show exactly what that run found
     // instead of dropping the user on an empty/unrelated page. Null for every

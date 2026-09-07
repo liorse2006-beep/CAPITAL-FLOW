@@ -4,7 +4,6 @@ import Toast from './components/shared/Toast';
 import useSSE from './hooks/useSSE';
 import useScanQuota from './hooks/useScanQuota';
 import usePushSubscription from './hooks/usePushSubscription';
-import useIsMobile from './hooks/useIsMobile';
 import { parseVolInput, formatPrice } from './utils/format';
 import { categoryQuota } from './utils/quota';
 import { hasEliteAccess, hasPremiumFeatureAccess } from './utils/access';
@@ -31,7 +30,6 @@ const FundamentalsPage = lazy(() => import('./components/Fundamentals/Fundamenta
 const PolicyPage = lazy(() => import('./pages/PolicyPage'));
 const AccessibilityStatementPage = lazy(() => import('./pages/AccessibilityStatementPage'));
 const AuthModal = lazy(() => import('./components/Auth/AuthModal'));
-const ChatWidget = lazy(() => import('./components/shared/ChatWidget'));
 const WelcomeTierModal = lazy(() => import('./components/shared/WelcomeTierModal'));
 const ScheduledScanResultsModal = lazy(() => import('./components/shared/ScheduledScanResultsModal'));
 const LandingPage = lazy(() => import('./pages/LandingPage?landing-preview-v2'));
@@ -62,7 +60,6 @@ function App() {
   const navigate = useNavigate();
   const landingGetStarted = useCallback(() => navigate('/scanner'), [navigate]);
   const location = useLocation();
-  const isMobile = useIsMobile();
   // Derived from the URL rather than its own state — keeps every existing
   // `page === 'x'` / `setPage('x')` call site unchanged while making page
   // navigation a real, bookmarkable, back/forward-able browser route.
@@ -428,7 +425,7 @@ function App() {
     [refreshQuota, page]
   );
 
-  // The 7-day free trial grants the COMPLETE Elite feature set — Capi, push,
+  // The 7-day free trial grants the COMPLETE Elite feature set — push,
   // watchlist alerts, AND daily scheduled scans — to every account, free.
   // `user.elite_access` is the server's authoritative answer (Elite OR still
   // in-trial), available immediately from /me; the scanMeta fallback covers a
@@ -437,7 +434,6 @@ function App() {
   var eliteAccess = hasEliteAccess(user, scanMeta);
   var premiumFeatureAccess = hasPremiumFeatureAccess(user, scanMeta);
   var canNotify = eliteAccess;
-  var trialEnded = !!(user && userTier === 'free' && scanMeta && scanMeta.free && !scanMeta.free.trialActive);
 
   /* ── Trial-ended popup — auto-shown once per site visit the first time a
         free-tier user's scanMeta confirms the 7-day trial has ended, and
@@ -1383,10 +1379,8 @@ function App() {
     return sortDir === 'asc' ? av - bv : bv - av;
   });
 
-  // The public marketing page shown to logged-out visitors at "/" — Capi
-  // (below) is an in-app tool with nothing to do until someone has an
-  // account, so it stays hidden here instead of floating over the page's
-  // own "Start free" CTAs.
+  // The public marketing page shown to logged-out visitors at "/" stays
+  // separate from the signed-in application shell.
   var isGuestLanding = location.pathname === '/' && !user;
 
   return (
@@ -1436,19 +1430,6 @@ function App() {
             if (removed) setAlertModalSymbol(null);
           }}
         />
-      )}
-
-      {!isGuestLanding && !isMobile && (
-        <Suspense fallback={null}>
-          <ChatWidget
-            user={user}
-            isElite={eliteAccess}
-            trialEnded={trialEnded}
-            getToken={getToken}
-            onRequireAuth={() => setShowAuthModal(true)}
-            onTrialEnded={onTrialEnded}
-          />
-        </Suspense>
       )}
 
       {welcomeTier && (

@@ -140,7 +140,7 @@ export default function TrialEndedModal({ onClose, onUpgrade }) {
               </span>
               <span>
                 <strong>Decision-ready context</strong>
-                <small>Fundamentals, charts, news, and Capi</small>
+                <small>Fundamentals, charts, and news</small>
               </span>
             </div>
           </div>

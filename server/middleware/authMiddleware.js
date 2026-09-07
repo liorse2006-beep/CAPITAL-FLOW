@@ -304,7 +304,7 @@ async function requireElite(req, res, next) {
 /**
  * Require Elite, OR a free-tier account still inside its 7-day trial window.
  * This is the shared gate for the complete Elite experience during Trial:
- * Capi, push, alerts, scheduled scans and their supporting endpoints.
+ * Push, alerts, scheduled scans and their supporting endpoints.
  */
 async function requireEliteOrTrial(req, res, next) {
   const header = req.headers.authorization;

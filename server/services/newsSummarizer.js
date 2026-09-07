@@ -14,8 +14,8 @@ const MODEL = 'gemini-3.6-flash';
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 const API_REVISION = '2026-05-20';
 
-// Shares the app-wide free Gemini quota with Capi (services/chatbot.js) —
-// kept modest since this fires per news-scan click, batched one call per
+// Uses the app-wide free Gemini quota — kept modest since this fires per
+// news-scan click, batched one call per
 // symbol rather than one per article.
 const DAILY_CALL_CAP = 300;
 const MAX_ARTICLES_PER_REQUEST = 12;

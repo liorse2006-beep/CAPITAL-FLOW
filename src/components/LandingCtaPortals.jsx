@@ -1,28 +1,18 @@
 import { createPortal } from 'react-dom';
 import SpecularButton from './SpecularButton';
-import LandingPricingMatrix from './LandingPricingMatrix';
 
 const LANDING_CTA_DEFINITIONS = {
   nav: { label: 'לנסות בחינם', size: 'sm', className: 'cf-specular-cta cf-specular-cta--nav' },
   hero: { label: 'התחל בחינם', size: 'lg', className: 'cf-specular-cta cf-specular-cta--large', arrow: true },
-  'pricing-free': { label: 'לנסות בחינם', size: 'md', className: 'cf-specular-cta cf-specular-cta--plan' },
-  'pricing-premium': { label: 'לבחור Premium', size: 'md', className: 'cf-specular-cta cf-specular-cta--plan' },
-  'pricing-elite': { label: 'לבחור Elite', size: 'md', className: 'cf-specular-cta cf-specular-cta--plan' },
-  'pre-pricing': {
-    label: 'בחר את המסלול שלך',
-    size: 'lg',
-    className: 'cf-specular-cta cf-specular-cta--large',
-    arrow: true,
-  },
-  'pricing-bottom': {
-    label: 'בדוק בחינם ללא כרטיס אשראי',
+  final: {
+    label: 'התחל בחינם',
     size: 'lg',
     className: 'cf-specular-cta cf-specular-cta--large',
     arrow: true,
   },
 };
 
-export default function LandingCtaPortals({ targets, pricingTarget, onGetStarted }) {
+export default function LandingCtaPortals({ targets }) {
   return (
     <>
       {targets.map((target) => {
@@ -67,9 +57,6 @@ export default function LandingCtaPortals({ targets, pricingTarget, onGetStarted
           location
         );
       })}
-      {pricingTarget
-        ? createPortal(<LandingPricingMatrix onGetStarted={onGetStarted} />, pricingTarget, 'landing-pricing-matrix')
-        : null}
     </>
   );
 }

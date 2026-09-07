@@ -407,59 +407,63 @@ export default function MoneyFlow({
                           React.createElement(
                             'td',
                             {
-                              style: { display: 'flex', gap: 5, alignItems: 'center' },
+                              className: 'result-row-actions',
                               onClick: (e) => e.stopPropagation(),
                             },
                             React.createElement(
-                              'a',
-                              {
-                                className: 'chart-open-btn',
-                                href: 'https://www.tradingview.com/chart/?symbol=' + d.symbol,
-                                target: '_blank',
-                                rel: 'noopener noreferrer',
-                                title: 'Open in TradingView',
-                                'aria-label': 'Open in TradingView',
-                              },
+                              'div',
+                              { className: 'result-row-actions-inner' },
                               React.createElement(
-                                'svg',
+                                'a',
                                 {
-                                  viewBox: '0 0 24 24',
-                                  width: 14,
-                                  height: 14,
-                                  fill: 'none',
-                                  stroke: 'currentColor',
-                                  strokeWidth: 2,
-                                  strokeLinecap: 'round',
-                                  strokeLinejoin: 'round',
+                                  className: 'chart-open-btn',
+                                  href: 'https://www.tradingview.com/chart/?symbol=' + d.symbol,
+                                  target: '_blank',
+                                  rel: 'noopener noreferrer',
+                                  title: 'Open in TradingView',
+                                  'aria-label': 'Open in TradingView',
                                 },
-                                React.createElement('path', { d: 'M3 3v18h18' }),
-                                React.createElement('path', { d: 'M18.7 8l-5.1 5.1-4-4L3 15.6' })
-                              )
-                            ),
-                            React.createElement(
-                              'button',
-                              {
-                                className: 'alert-create-btn' + (alertLevels && alertLevels[d.symbol] ? ' active' : ''),
-                                onClick: () => promptCreateAlert(d.symbol),
-                                title:
-                                  alertLevels && alertLevels[d.symbol]
-                                    ? 'Alert set at ' + alertLevels[d.symbol] + 'x — click to edit'
-                                    : 'Create a volume alert',
-                              },
+                                React.createElement(
+                                  'svg',
+                                  {
+                                    viewBox: '0 0 24 24',
+                                    width: 14,
+                                    height: 14,
+                                    fill: 'none',
+                                    stroke: 'currentColor',
+                                    strokeWidth: 2,
+                                    strokeLinecap: 'round',
+                                    strokeLinejoin: 'round',
+                                  },
+                                  React.createElement('path', { d: 'M3 3v18h18' }),
+                                  React.createElement('path', { d: 'M18.7 8l-5.1 5.1-4-4L3 15.6' })
+                                )
+                              ),
                               React.createElement(
-                                'svg',
+                                'button',
                                 {
-                                  viewBox: '0 0 24 24',
-                                  width: 14,
-                                  height: 14,
-                                  fill: 'none',
-                                  stroke: 'currentColor',
-                                  strokeWidth: 2,
-                                  strokeLinecap: 'round',
-                                  strokeLinejoin: 'round',
+                                  className: 'alert-create-btn' + (alertLevels && alertLevels[d.symbol] ? ' active' : ''),
+                                  onClick: () => promptCreateAlert(d.symbol),
+                                  title:
+                                    alertLevels && alertLevels[d.symbol]
+                                      ? 'Alert set at ' + alertLevels[d.symbol] + 'x — click to edit'
+                                      : 'Create a volume alert',
                                 },
-                                React.createElement('path', { d: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9' }),
-                                React.createElement('path', { d: 'M13.73 21a2 2 0 0 1-3.46 0' })
+                                React.createElement(
+                                  'svg',
+                                  {
+                                    viewBox: '0 0 24 24',
+                                    width: 14,
+                                    height: 14,
+                                    fill: 'none',
+                                    stroke: 'currentColor',
+                                    strokeWidth: 2,
+                                    strokeLinecap: 'round',
+                                    strokeLinejoin: 'round',
+                                  },
+                                  React.createElement('path', { d: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9' }),
+                                  React.createElement('path', { d: 'M13.73 21a2 2 0 0 1-3.46 0' })
+                                )
                               )
                             )
                           )

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import UpgradeModal from './UpgradeModal';
@@ -59,26 +59,10 @@ describe('UpgradeModal', () => {
     expect(screen.getByText('Have a promo code?', { exact: true })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('PROMO CODE')).toBeInTheDocument();
     expect(screen.getAllByText('One-time purchase · Lifetime access')).toHaveLength(2);
-    expect(screen.getAllByText(/Full market scans/)).toHaveLength(2);
+    expect(screen.getByText('5 scans per 24 hours, charts, and advanced filters.')).toBeInTheDocument();
+    expect(screen.getByText('Unlimited scans, alerts, schedules, and Radar.')).toBeInTheDocument();
     expect(screen.queryByText('Included', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('Not included', { exact: true })).not.toBeInTheDocument();
-    expect(screen.getAllByText('Capi — your AI market mentor')).toHaveLength(2);
-  });
-
-  it('shows Capital Flow Radar as Elite-only in the plan matrix', () => {
-    renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
-
-    const premiumPlan = screen.getByRole('article', { name: /^Premium/i });
-    const elitePlan = screen.getByRole('article', { name: /^Elite/i });
-    const premiumRadar = within(premiumPlan).getByText('Capital Flow Radar').closest('.tier-matrix-feature');
-    const eliteRadar = within(elitePlan).getByText('Capital Flow Radar').closest('.tier-matrix-feature');
-
-    expect(premiumRadar).toHaveClass('tier-matrix-feature');
-    expect(premiumRadar.querySelector('.tier-matrix-access')).toHaveClass('is-excluded');
-    expect(premiumRadar.querySelector('.tier-matrix-status')).toHaveAttribute('aria-label', 'Not included');
-    expect(eliteRadar).toHaveClass('tier-matrix-feature');
-    expect(eliteRadar.querySelector('.tier-matrix-access')).toHaveClass('is-included');
-    expect(eliteRadar.querySelector('.tier-matrix-status')).toHaveAttribute('aria-label', 'Included');
   });
 
   it('shows the post-trial value proposition with only the paid paths', () => {
@@ -208,7 +192,7 @@ describe('UpgradeModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('shows a real error and stays on the plan table when the session can not be created', async () => {
+  it('shows a real error and stays on the plan selector when the session can not be created', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       'fetch',

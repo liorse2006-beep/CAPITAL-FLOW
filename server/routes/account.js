@@ -37,7 +37,7 @@ router.get('/account/summary', requireAuth, async (req, res) => {
     const user = withEffectivePremium(await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id));
     if (!user) return res.status(401).json({ error: 'Account not found' });
 
-    const [watchlist, alerts, schedules, radars, pushDevices, chatMessages, sessions] = await Promise.all([
+    const [watchlist, alerts, schedules, radars, pushDevices, sessions] = await Promise.all([
       db.prepare('SELECT COUNT(*) AS count FROM watchlist WHERE user_id = ?').get(user.id),
       db.prepare('SELECT COUNT(*) AS count FROM watchlist_alerts WHERE user_id = ?').get(user.id),
       db
@@ -51,7 +51,6 @@ router.get('/account/summary', requireAuth, async (req, res) => {
         )
         .get(user.id),
       db.prepare('SELECT COUNT(*) AS count FROM push_subscriptions WHERE user_id = ?').get(user.id),
-      db.prepare('SELECT COUNT(*) AS count FROM chat_messages WHERE user_id = ?').get(user.id),
       db.prepare('SELECT COUNT(*) AS count FROM user_sessions WHERE user_id = ?').get(user.id),
     ]);
 
@@ -74,7 +73,6 @@ router.get('/account/summary', requireAuth, async (req, res) => {
         radarCount: Number(radars?.count || 0),
         activeRadarCount: Number(radars?.active || 0),
         pushDeviceCount: Number(pushDevices?.count || 0),
-        chatMessageCount: Number(chatMessages?.count || 0),
         quota,
       },
       security: {
@@ -144,7 +142,7 @@ router.post('/account/logout-all', authLimiter, requireAuth, async (req, res) =>
 router.get('/account/export', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
-    const [user, watchlist, alerts, schedules, radars, notifications, chatMessages, feedback] = await Promise.all([
+    const [user, watchlist, alerts, schedules, radars, notifications, feedback] = await Promise.all([
       db
         .prepare(
           'SELECT id, email, is_verified, is_premium, is_pilot, tier, created_at, last_login_at FROM users WHERE id = ?'
@@ -169,11 +167,6 @@ router.get('/account/export', requireAuth, async (req, res) => {
       db
         .prepare(
           'SELECT id, symbol, title, body, scan_type, is_read, results_json, created_at FROM notifications WHERE user_id = ? ORDER BY created_at ASC LIMIT ?'
-        )
-        .all(userId, MAX_EXPORT_ROWS),
-      db
-        .prepare(
-          'SELECT role, content, created_at FROM chat_messages WHERE user_id = ? ORDER BY created_at ASC LIMIT ?'
         )
         .all(userId, MAX_EXPORT_ROWS),
       db
@@ -214,7 +207,6 @@ router.get('/account/export', requireAuth, async (req, res) => {
           schedules,
           radars: safeRadars,
           notifications: safeNotifications,
-          chatMessages,
           feedback,
         },
       })

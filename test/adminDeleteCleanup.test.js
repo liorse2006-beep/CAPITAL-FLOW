@@ -49,7 +49,7 @@ test('admin user deletion cleans owned records and kills active sessions', async
   await db.prepare('INSERT INTO chat_messages (user_id, role, content) VALUES (?, ?, ?)').run(userId, 'user', 'hello');
   await db
     .prepare('INSERT INTO ai_usage (usage_date, scope, user_id, calls) VALUES (?, ?, ?, ?)')
-    .run('2099-01-01', 'capi', userId, 1);
+    .run('2099-01-01', 'legacy_assistant', userId, 1);
   await db
     .prepare('INSERT INTO otp_codes (email, code, type, expires_at) VALUES (?, ?, ?, ?)')
     .run(user.email, '123456', 'verify_email', 4102444800);
