@@ -1662,7 +1662,8 @@ function mountSignalChart(root, cleanupFns) {
 // purely to avoid maintaining two copies of the same logo list by hand.
 function setupSpecularCtas(root, onGetStarted, cleanupFns) {
   const targets = Array.from(root.querySelectorAll('.cf-specular-cta-mount'));
-  if (!targets.length) return;
+  const pricingTarget = root.querySelector('.cf-pricing-matrix-mount');
+  if (!targets.length && !pricingTarget) return;
 
   const fallbacks = targets
     .map((target) => target.querySelector('.cf-specular-cta-fallback'))
@@ -1685,7 +1686,7 @@ function setupSpecularCtas(root, onGetStarted, cleanupFns) {
   let reactRoot;
   try {
     reactRoot = createRoot(host);
-    reactRoot.render(createElement(LandingCtaPortals, { targets }));
+    reactRoot.render(createElement(LandingCtaPortals, { targets, pricingTarget, onGetStarted }));
   } catch (error) {
     host.remove();
     fallbacks.forEach(({ element, hidden }) => {

@@ -1,9 +1,16 @@
 import { createPortal } from 'react-dom';
 import SpecularButton from './SpecularButton';
+import LandingPricingMatrix from './LandingPricingMatrix';
 
 const LANDING_CTA_DEFINITIONS = {
   nav: { label: 'לנסות בחינם', size: 'sm', className: 'cf-specular-cta cf-specular-cta--nav' },
   hero: { label: 'התחל בחינם', size: 'lg', className: 'cf-specular-cta cf-specular-cta--large', arrow: true },
+  'pricing-bottom': {
+    label: 'התחל בחינם',
+    size: 'lg',
+    className: 'cf-specular-cta cf-specular-cta--large',
+    arrow: true,
+  },
   final: {
     label: 'התחל בחינם',
     size: 'lg',
@@ -12,7 +19,7 @@ const LANDING_CTA_DEFINITIONS = {
   },
 };
 
-export default function LandingCtaPortals({ targets }) {
+export default function LandingCtaPortals({ targets, pricingTarget, onGetStarted }) {
   return (
     <>
       {targets.map((target) => {
@@ -57,6 +64,9 @@ export default function LandingCtaPortals({ targets }) {
           location
         );
       })}
+      {pricingTarget
+        ? createPortal(<LandingPricingMatrix onGetStarted={onGetStarted} />, pricingTarget, 'landing-pricing-matrix')
+        : null}
     </>
   );
 }
