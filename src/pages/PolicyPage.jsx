@@ -33,7 +33,6 @@ const THIRD_PARTY_PROVIDERS = [
   "Cloudflare Turnstile (to verify you're not a bot during sign-in)",
   'Resend (to deliver essential account emails such as verification codes and password resets)',
   'Whop (our payment processor for checkout and billing; we never see or store your full card details)',
-  'Google AI Studio (Gemini) (used for AI-generated news summaries)',
   'Gmail (our operator receives a weekly, encrypted-in-transit database backup and any downtime alerts by email to this address — this is an internal operational backup, not a marketing or third-party analytics use)',
   'Analytics and error-monitoring providers (only where explicitly enabled)',
 ];

@@ -304,7 +304,7 @@ export default function WatchlistPage({
             </button>
           </div>
           <div className="table-wrap">
-            <table>
+            <table className="results-table watchlist-results-table">
               <thead>
                 <tr>
                   <th>Ticker</th>
@@ -404,7 +404,7 @@ export default function WatchlistPage({
           </div>
 
           {/* Mobile watchlist cards */}
-          <div className="mobile-cards">
+          <div className="mobile-cards mobile-result-list watchlist-result-list">
             {watchlist.map((sym) => {
               const d = findQuote(sym);
               return (

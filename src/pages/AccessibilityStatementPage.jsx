@@ -24,7 +24,7 @@ const MEASURES = [
 ];
 
 const LIMITATIONS = [
-  'Some content comes from external data providers (such as market data and news) that is not fully within our control and may not meet every accessibility requirement.',
+  'Some market content comes from external data providers that are not fully within our control and may not meet every accessibility requirement.',
   'The site is under continuous accessibility improvement, and a small number of individual components may not yet be fully adapted.',
 ];
 

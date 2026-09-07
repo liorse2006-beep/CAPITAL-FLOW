@@ -25,10 +25,7 @@ describe('tier entitlement matrix', () => {
   it('retains explicit excluded values for the post-purchase checklist', () => {
     const premium = tierFeatureChecklist('premium');
     expect(premium.find((row) => row.label === 'Capital Flow Radar')).toMatchObject({ included: false });
-    expect(premium.find((row) => row.label === 'News & AI summaries')).toMatchObject({
-      included: true,
-      value: 'Signed-in access',
-    });
+    expect(premium.some((row) => /news|ai summaries/i.test(row.label))).toBe(false);
   });
 
   it('keeps Capital Flow Radar limited to the trial and Elite', () => {

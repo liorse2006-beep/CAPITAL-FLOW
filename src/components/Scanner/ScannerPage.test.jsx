@@ -206,7 +206,7 @@ describe('ScannerPage mobile result surface', () => {
     }));
 
     try {
-      render(
+      const { container } = render(
         <ScannerPage
           {...baseProps({
             isPremium: true,
@@ -224,6 +224,12 @@ describe('ScannerPage mobile result surface', () => {
       expect(screen.getByText('SECTOR')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /read market news/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /ask the assistant/i })).not.toBeInTheDocument();
+
+      const mobileResults = container.querySelector('.scanner-result-list');
+      expect(mobileResults).toBeTruthy();
+      expect(mobileResults.querySelector('.mobile-card-top')).toBeTruthy();
+      expect(mobileResults.querySelector('.mobile-card-identity')).toBeTruthy();
+      expect(mobileResults.querySelector('.mobile-card-actions')).toBeTruthy();
     } finally {
       window.matchMedia = originalMatchMedia;
     }

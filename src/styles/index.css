@@ -7916,6 +7916,283 @@ html.a11y-highlight-links a {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESULT SURFACE LAYOUT CONTRACT
+
+   The scanner result components intentionally share the same visual surface,
+   but their older markup uses both `mobile-card-*` and
+   `mobile-result-card-*` names. Keep the shared contract explicit, while the
+   final mobile guard at the end of this stylesheet prevents later legacy
+   rules from pushing the identity column off-screen or leaving only the
+   action icons visible at phone widths.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.results-table {
+  table-layout: fixed;
+}
+
+.results-table th,
+.results-table td {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.results-table .result-row-actions,
+.results-table .result-actions-col {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.scanner-results-table th:nth-child(1),
+.scanner-results-table td:nth-child(1) {
+  width: 42px;
+}
+
+.scanner-results-table th:nth-child(2),
+.scanner-results-table td:nth-child(2) {
+  width: 112px;
+}
+
+.scanner-results-table th:nth-child(3),
+.scanner-results-table td:nth-child(3) {
+  width: 205px;
+}
+
+.scanner-results-table th:nth-child(4),
+.scanner-results-table td:nth-child(4) {
+  width: 105px;
+}
+
+.scanner-results-table th:nth-child(5),
+.scanner-results-table td:nth-child(5) {
+  width: 95px;
+}
+
+.scanner-results-table th:nth-child(6),
+.scanner-results-table td:nth-child(6) {
+  width: 105px;
+}
+
+.scanner-results-table th:nth-child(7),
+.scanner-results-table td:nth-child(7) {
+  width: 125px;
+}
+
+.scanner-results-table th:nth-child(8),
+.scanner-results-table td:nth-child(8) {
+  width: 145px;
+}
+
+.scanner-results-table th:nth-child(9),
+.scanner-results-table td:nth-child(9) {
+  width: 86px;
+}
+
+.ma-results-table th:nth-child(1),
+.ma-results-table td:nth-child(1) {
+  width: 42px;
+}
+
+.ma-results-table th:nth-child(2),
+.ma-results-table td:nth-child(2) {
+  width: 112px;
+}
+
+.ma-results-table th:nth-child(3),
+.ma-results-table td:nth-child(3) {
+  width: 205px;
+}
+
+.ma-results-table th:nth-child(4),
+.ma-results-table td:nth-child(4),
+.ma-results-table th:nth-child(5),
+.ma-results-table td:nth-child(5),
+.ma-results-table th:nth-child(6),
+.ma-results-table td:nth-child(6) {
+  width: 132px;
+}
+
+.ma-results-table th:nth-child(7),
+.ma-results-table td:nth-child(7) {
+  width: 86px;
+}
+
+.watchlist-results-table th:nth-child(1),
+.watchlist-results-table td:nth-child(1) {
+  width: 140px;
+}
+
+.watchlist-results-table th:nth-child(2),
+.watchlist-results-table td:nth-child(2) {
+  width: 220px;
+}
+
+.watchlist-results-table th:nth-child(3),
+.watchlist-results-table td:nth-child(3),
+.watchlist-results-table th:nth-child(4),
+.watchlist-results-table td:nth-child(4) {
+  width: 105px;
+}
+
+.watchlist-results-table th:nth-child(5),
+.watchlist-results-table td:nth-child(5),
+.watchlist-results-table th:nth-child(6),
+.watchlist-results-table td:nth-child(6) {
+  width: 120px;
+}
+
+.watchlist-results-table th:nth-child(7),
+.watchlist-results-table td:nth-child(7) {
+  width: 120px;
+}
+
+.money-flow-results-table th:nth-child(1),
+.money-flow-results-table td:nth-child(1) {
+  width: 42px;
+}
+
+.money-flow-results-table th:nth-child(2),
+.money-flow-results-table td:nth-child(2) {
+  width: 112px;
+}
+
+.money-flow-results-table th:nth-child(3),
+.money-flow-results-table td:nth-child(3) {
+  width: 205px;
+}
+
+.money-flow-results-table th:nth-child(4),
+.money-flow-results-table td:nth-child(4),
+.money-flow-results-table th:nth-child(5),
+.money-flow-results-table td:nth-child(5),
+.money-flow-results-table th:nth-child(6),
+.money-flow-results-table td:nth-child(6),
+.money-flow-results-table th:nth-child(7),
+.money-flow-results-table td:nth-child(7),
+.money-flow-results-table th:nth-child(8),
+.money-flow-results-table td:nth-child(8) {
+  width: 112px;
+}
+
+.money-flow-results-table th:nth-child(9),
+.money-flow-results-table td:nth-child(9) {
+  width: 120px;
+}
+
+@media (max-width: 900px) and (min-width: 641px) {
+  /* Tablets are not wide enough for the desktop Radar card's three-column
+     proof rail. Let the proof column absorb the available width instead of
+     creating a clipped horizontal surface. */
+  .cfr-radar-signal-card {
+    grid-template-columns: 150px minmax(0, 1fr) 142px 18px;
+    min-height: 166px;
+  }
+
+  .cfr-radar-signal-identity,
+  .cfr-radar-signal-proof,
+  .cfr-radar-signal-stats {
+    padding: 14px;
+  }
+
+  .cfr-radar-signal-condition {
+    grid-template-columns: 22px minmax(72px, 0.7fr) minmax(0, 1fr);
+    gap: 6px;
+    padding-inline: 8px;
+  }
+}
+
+@media (max-width: 768px) {
+  .scanner-result-list,
+  .ma-result-list,
+  .watchlist-result-list,
+  .money-flow-results {
+    display: flex !important;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: visible;
+  }
+
+  .scanner-result-list > .mobile-result-card,
+  .ma-result-list > .mobile-result-card,
+  .watchlist-result-list > .mobile-result-card,
+  .money-flow-results > .mobile-result-card {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .scanner-result-list .mobile-card-top,
+  .ma-result-list .mobile-card-top,
+  .watchlist-result-list .mobile-result-card-header,
+  .money-flow-results .mobile-result-card-header {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    gap: 8px;
+    overflow: hidden;
+  }
+
+  .scanner-result-list .mobile-card-identity,
+  .ma-result-list .mobile-card-identity,
+  .watchlist-result-list .mobile-result-card-identity,
+  .money-flow-results .mobile-result-card-identity {
+    flex: 1 1 0;
+    width: 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .scanner-result-list .mobile-card-actions,
+  .ma-result-list .mobile-card-actions,
+  .watchlist-result-list .mobile-result-card-actions,
+  .money-flow-results .mobile-result-card-actions {
+    flex: 0 0 auto;
+    min-width: max-content;
+    max-width: 100%;
+    margin-inline-start: auto;
+    white-space: nowrap;
+  }
+
+  .scanner-result-list .mobile-card-name,
+  .ma-result-list .mobile-card-name,
+  .watchlist-result-list .mobile-card-name,
+  .money-flow-results .mobile-card-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    margin-inline-start: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .scanner-result-list .chart-open-btn,
+  .scanner-result-list .alert-create-btn,
+  .ma-result-list .chart-open-btn,
+  .ma-result-list .alert-create-btn,
+  .watchlist-result-list .chart-open-btn,
+  .watchlist-result-list .alert-create-btn,
+  .watchlist-result-list .star-btn-remove,
+  .money-flow-results .chart-open-btn,
+  .money-flow-results .alert-create-btn {
+    flex: 0 0 32px;
+  }
+
+  .cfr-radar-signal-identity {
+    padding-inline-end: 44px;
+  }
+
+  .cfr-radar-signal-arrow {
+    inset-inline-end: 10px;
+  }
+}
+
 @media (max-width: 480px) {
   .nav-tabs {
     flex-direction: row;
@@ -14954,5 +15231,65 @@ html.a11y-highlight-links a {
   .auth-close:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+  }
+}
+
+/* Final mobile guard: this is deliberately last so legacy responsive rules
+   cannot reintroduce the clipped/"icons only" result rows. */
+@media (max-width: 768px) {
+  .scanner-result-list .mobile-card-top,
+  .ma-result-list .mobile-card-top,
+  .watchlist-result-list .mobile-result-card-header,
+  .money-flow-results .mobile-result-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .scanner-result-list .mobile-card-identity,
+  .ma-result-list .mobile-card-identity,
+  .watchlist-result-list .mobile-result-card-identity,
+  .money-flow-results .mobile-result-card-identity {
+    flex: 1 1 0;
+    width: 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .scanner-result-list .mobile-card-actions,
+  .ma-result-list .mobile-card-actions,
+  .watchlist-result-list .mobile-result-card-actions,
+  .money-flow-results .mobile-result-card-actions {
+    flex: 0 0 auto;
+    min-width: max-content;
+    margin-inline-start: auto;
+    white-space: nowrap;
+  }
+
+  .scanner-result-list .mobile-card-name,
+  .ma-result-list .mobile-card-name,
+  .watchlist-result-list .mobile-card-name,
+  .money-flow-results .mobile-card-name {
+    min-width: 0;
+    max-width: 100%;
+    margin-inline-start: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cfr-radar-signal-identity {
+    padding-inline-end: 44px;
+  }
+
+  .cfr-radar-signal-arrow {
+    inset-inline-end: 10px;
+    inset-inline-start: auto;
   }
 }

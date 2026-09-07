@@ -20,12 +20,6 @@ export const TIER_ROWS = [
   { label: 'Advanced filters & sorting', free: '7-day trial', premium: 'Included', elite: 'Included' },
   { label: 'Price charts', free: '7-day trial', premium: 'Included', elite: 'Included' },
   {
-    label: 'News & AI summaries',
-    free: 'Signed-in access',
-    premium: 'Signed-in access',
-    elite: 'Signed-in access',
-  },
-  {
     label: 'Watchlist tracking & quotes',
     free: 'Signed-in access',
     premium: 'Signed-in access',

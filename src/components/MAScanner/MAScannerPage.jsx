@@ -784,7 +784,7 @@ export default function MAScannerPage({
           // vanish with no results visible and no error.
           React.createElement(
             'div',
-            { className: 'mobile-cards' },
+            { className: 'mobile-cards mobile-result-list ma-result-list' },
             sorted.length === 0
               ? React.createElement(
                   'div',
@@ -862,7 +862,7 @@ export default function MAScannerPage({
             { className: 'table-wrap' },
             React.createElement(
               'table',
-              null,
+              { className: 'results-table ma-results-table' },
               React.createElement(
                 'thead',
                 null,

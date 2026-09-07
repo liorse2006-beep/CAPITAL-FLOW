@@ -1,6 +1,6 @@
 # Capital Flow
 
-Real-time stock volume scanner for the S&P 500 and NASDAQ 100 — finds unusual volume spikes, tracks sector money flow, and surfaces catalyst news, with an AI assistant ("Capi") to explain what a scan result means.
+Real-time stock volume scanner for the S&P 500 and NASDAQ 100 — finds unusual volume spikes, tracks sector money flow, and helps you focus on verified market signals.
 
 Live at [capitalflow.vip](https://capitalflow.vip).
 
@@ -11,7 +11,7 @@ Live at [capitalflow.vip](https://capitalflow.vip).
 - **Database:** Turso (libSQL/SQLite) in production, a local SQLite file in dev
 - **Auth:** Google OAuth + email/password (JWT), `express-session` for the OAuth handshake
 - **Payments:** Whop embedded checkout (cards plus Apple Pay/Google Pay when the buyer's device and wallet are eligible)
-- **Data providers:** Finnhub (quotes/fundamentals), Yahoo Finance (sparklines), Massive / MarketAux / NewsData.io (news, fallback chain), Google AI Studio (Gemini, news catalyst tagging and Capi)
+- **Data providers:** Finnhub (quotes/fundamentals), Yahoo Finance (sparklines), and internal provider probes used by the operations status service
 - **Deployment:** Render (web service), optional Cloudflare Worker edge cache, auto-deploys on push to `main`; the status service can run as a separate process/service
 
 ## Local setup
@@ -32,8 +32,7 @@ Full list with setup instructions for each provider lives in [.env.example](.env
 
 - **Core:** `PORT`, `JWT_SECRET`, `SESSION_SECRET`
 - **Market data:** `FINNHUB_API_KEY` (+ optional `FINNHUB_API_KEY_POOL_1..4` for rotation)
-- **News:** `MASSIVE_API_KEY`, `MARKETAUX_API_KEY`, `NEWSDATA_API_KEY`
-- **AI (Capi + news):** `GOOGLE_AI_STUDIO_KEY`
+- **Operations-only provider probes:** `MASSIVE_API_KEY`, `MARKETAUX_API_KEY`, `NEWSDATA_API_KEY`, `GOOGLE_AI_STUDIO_KEY` (not exposed as a user-facing feature)
 - **Email:** `RESEND_API_KEY`/`RESEND_FROM_EMAIL` (transactional and backup fallback), `GMAIL_USER`/`GMAIL_APP_PASSWORD` (optional preferred weekly app-DB backup sender)
 - **Auth:** `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_CALLBACK_URL`, `TURNSTILE_SECRET`/`VITE_TURNSTILE_SITE_KEY`
 - **Push:** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`

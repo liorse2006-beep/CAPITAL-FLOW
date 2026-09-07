@@ -45,7 +45,6 @@ describe('WelcomeTierModal', () => {
       'Sector scan breadthUp to 5 sectors',
       'Advanced filters & sorting',
       'Price charts',
-      'News & AI summariesSigned-in access',
       'Watchlist tracking & quotesSigned-in access',
       'Historical volume contextSigned-in access',
     ]);
@@ -66,7 +65,7 @@ describe('WelcomeTierModal', () => {
     expect(screen.getByText('Push notifications')).toBeInTheDocument();
     expect(container.querySelector('.welcome-tier-features-excluded')).toBeNull();
     expect(screen.queryByText('Also included with Elite')).not.toBeInTheDocument();
-    expect(container.querySelectorAll('.welcome-tier-features li').length).toBe(11);
+    expect(container.querySelectorAll('.welcome-tier-features li').length).toBe(10);
   });
 
   it('does not claim paid access before the server confirms the webhook', () => {

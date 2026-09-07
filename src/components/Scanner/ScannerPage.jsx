@@ -837,7 +837,7 @@ export default function ScannerPage({
                   </div>
                 )}
                 <div className="table-wrap">
-                  <table>
+                  <table className="results-table scanner-results-table">
                     <thead>
                       <tr>
                         <th className="result-rank-col">#</th>
@@ -1040,7 +1040,7 @@ export default function ScannerPage({
                   </table>
                 </div>
                 {/* Mobile cards */}
-                <div className="mobile-cards">
+                <div className="mobile-cards mobile-result-list scanner-result-list">
                   {sorted.map((r, i) => {
                     const ratioClass =
                       r.volumeRatio >= 5 ? 'ratio-hot' : r.volumeRatio >= 3.5 ? 'ratio-warm' : 'ratio-ok';

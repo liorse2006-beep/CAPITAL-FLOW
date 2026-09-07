@@ -279,7 +279,10 @@ app.get('/landing-logo/:symbol', async (req, res) => {
 
   const logo = await logoPromise;
   if (logo.status !== 200 || !logo.body) {
-    return res.status(logo.status === 404 ? 404 : 502).type('text/plain').send('Logo unavailable');
+    return res
+      .status(logo.status === 404 ? 404 : 502)
+      .type('text/plain')
+      .send('Logo unavailable');
   }
 
   res.setHeader('Content-Type', 'image/svg+xml');
@@ -350,7 +353,8 @@ app.use('/api', require('./routes/chart'));
 app.use('/api', require('./routes/watchlist'));
 app.use('/api', require('./routes/watchlistAlerts'));
 app.use('/api', require('./routes/notifications'));
-app.use('/api', require('./routes/news'));
+// User-facing news and AI surfaces are retired. Keep provider code available
+// only for the private status probe; do not expose a public news API.
 app.use('/api', require('./routes/volumeContext'));
 app.use('/api', require('./routes/background'));
 app.use('/api', require('./routes/stream').router);

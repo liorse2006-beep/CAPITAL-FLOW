@@ -333,7 +333,7 @@ export default function MoneyFlow({
                 onSort={handleFlowSort}
               />
               <div className="table-wrap">
-                <table>
+                <table className="results-table money-flow-results-table">
                   <thead>
                     <tr>
                       <th style={{ width: 36 }}>#</th>
@@ -442,7 +442,8 @@ export default function MoneyFlow({
                               React.createElement(
                                 'button',
                                 {
-                                  className: 'alert-create-btn' + (alertLevels && alertLevels[d.symbol] ? ' active' : ''),
+                                  className:
+                                    'alert-create-btn' + (alertLevels && alertLevels[d.symbol] ? ' active' : ''),
                                   onClick: () => promptCreateAlert(d.symbol),
                                   title:
                                     alertLevels && alertLevels[d.symbol]

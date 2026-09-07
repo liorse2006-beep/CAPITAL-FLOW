@@ -36,7 +36,7 @@ const QUESTIONS = [
   {
     id: 'money_flow',
     question: 'Would you want to know where the big money is flowing — before it moves the price?',
-    subtitle: 'Before it shows up on Twitter, Reddit, or your news feed',
+    subtitle: 'Before the market moves and everyone else notices',
     options: [
       { label: "Yes — that's exactly the edge I need", emoji: '🎯', desc: 'I want to follow smart money in real time' },
       { label: "Definitely — I'm tired of being last", emoji: '🔥', desc: 'Done missing moves I could have caught' },
