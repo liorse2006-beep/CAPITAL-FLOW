@@ -4,6 +4,7 @@ const { scanLimiter } = require('../middleware/rateLimiters');
 const { requireAuth } = require('../middleware/authMiddleware');
 const { getWatchlist, addToWatchlist, removeFromWatchlist, MAX_WATCHLIST_SIZE } = require('../services/watchlist');
 const { reportError } = require('../utils/reportError');
+const { buildFinancialProvenance, CAPITAL_FLOW_SOURCES } = require('../services/financialProvenance');
 
 var SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
 
@@ -57,8 +58,27 @@ router.get('/watchlist-quotes', requireAuth, scanLimiter, async (req, res) => {
   if (symbols.length === 0) return res.json({ results: [] });
   if (symbols.length > 50) symbols = symbols.slice(0, 50);
   try {
-    var results = await quickScan(symbols);
-    res.json({ results: results, fetchTime: new Date().toISOString() });
+    var scan = await quickScan(symbols, { withMetadata: true });
+    var fetchTime = new Date().toISOString();
+    res.json({
+      results: scan.results,
+      fetchTime: fetchTime,
+      dataStatus: scan.dataStatus,
+      quoteDataStatus: scan.quoteDataStatus,
+      staleCount: scan.staleCount,
+      dataAsOf: scan.dataAsOf,
+      dataProvenance: buildFinancialProvenance({
+        dataAsOf: scan.dataAsOf,
+        capturedAt: fetchTime,
+        status: scan.dataStatus,
+        quoteStatus: scan.quoteDataStatus,
+        sources: CAPITAL_FLOW_SOURCES.map((source) => ({
+          ...source,
+          asOf: source.role === 'quote baseline' ? scan.dataAsOf : null,
+          status: source.role === 'quote baseline' ? scan.quoteDataStatus : 'unknown',
+        })),
+      }),
+    });
   } catch (err) {
     reportError(err, '[watchlist-quotes]');
     res.status(500).json({ error: 'Server error' });

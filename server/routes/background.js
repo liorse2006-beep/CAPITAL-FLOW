@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { backgroundCache } = require('../services/backgroundScan');
+const { buildFinancialProvenance, CAPITAL_FLOW_SOURCES } = require('../services/financialProvenance');
 
 router.get('/background-status', function (req, res) {
   var hasCache = !!(backgroundCache.results && backgroundCache.scanTime);
@@ -11,6 +12,17 @@ router.get('/background-status', function (req, res) {
     scanTime: backgroundCache.scanTime,
     dataStatus: backgroundCache.dataStatus,
     dataAsOf: backgroundCache.dataAsOf,
+    dataProvenance: buildFinancialProvenance({
+      dataAsOf: backgroundCache.dataAsOf,
+      capturedAt: backgroundCache.scanTime,
+      status: backgroundCache.dataStatus || 'unknown',
+      quoteStatus: backgroundCache.dataStatus || 'unknown',
+      sources: CAPITAL_FLOW_SOURCES.map((source) => ({
+        ...source,
+        asOf: source.role === 'quote baseline' ? backgroundCache.dataAsOf : null,
+        status: source.role === 'quote baseline' ? backgroundCache.dataStatus || 'unknown' : 'unknown',
+      })),
+    }),
     resultsCount: hasCache ? backgroundCache.results.length : 0,
     nextScanIn: nextScanIn,
     running: backgroundCache.running,

@@ -2,6 +2,7 @@ const yahooFinance = require('./yahoo');
 const quoteCache = require('./quoteCache');
 const { fetchFinnhubQuote, fetchFinnhubMetric } = require('./finnhub');
 const { getETMinutes, calculateRVOL } = require('./rvol');
+const { buildFinancialProvenance, CAPITAL_FLOW_SOURCES } = require('./financialProvenance');
 
 // ── Slow-data caches ─────────────────────────────────────────────────────────
 // Finnhub metric (52wk range, 10d avg vol, market cap) and the 7-day sparkline
@@ -363,12 +364,32 @@ async function scanTickers(tickers, options) {
     quoteDataStatus: quoteDataStale ? 'stale' : quotesMap.providerFailure ? 'unavailable' : 'complete',
     staleCount: Number(quotesMap.staleCount || 0),
     staleSymbols: [...staleQuoteSymbols],
-    dataAsOf: quoteDataAsOf || new Date().toISOString(),
+    dataAsOf: quoteDataAsOf,
+    dataProvenance: buildFinancialProvenance({
+      dataAsOf: quoteDataAsOf || null,
+      status: dataStatus,
+      quoteStatus: quoteDataStale ? 'stale' : quotesMap.providerFailure ? 'unavailable' : 'complete',
+      sources: CAPITAL_FLOW_SOURCES.map(function (source) {
+        return {
+          ...source,
+          asOf: source.role === 'quote baseline' ? quoteDataAsOf || null : null,
+          status:
+            source.role === 'quote baseline'
+              ? quoteDataStale
+                ? 'stale'
+                : quotesMap.providerFailure
+                  ? 'unavailable'
+                  : 'complete'
+              : 'unknown',
+        };
+      }),
+    }),
     processed: tickers.length,
   };
 }
 
-async function quickScan(symbols) {
+async function quickScan(symbols, options) {
+  options = options || {};
   var quotesMap = await quoteCache.getQuotes(symbols);
   var results = [];
 
@@ -400,7 +421,27 @@ async function quickScan(symbols) {
     });
   });
 
-  return results;
+  if (!options.withMetadata) return results;
+
+  const quoteDataStatus =
+    quotesMap.usedStaleFallback === true || Number(quotesMap.staleCount || 0) > 0
+      ? 'stale'
+      : quotesMap.providerFailure
+        ? 'unavailable'
+        : 'complete';
+  const dataStatus =
+    quotesMap.providerFailure && results.length === 0
+      ? 'unavailable'
+      : quoteDataStatus !== 'complete' || results.length < symbols.length
+        ? 'partial'
+        : 'complete';
+  return {
+    results,
+    dataStatus,
+    quoteDataStatus,
+    staleCount: Number(quotesMap.staleCount || 0),
+    dataAsOf: quotesMap.dataAsOf || null,
+  };
 }
 
 module.exports = { sleep, enrichSector, scanTickers, quickScan, mapWithConcurrency, ENRICH_CONCURRENCY };

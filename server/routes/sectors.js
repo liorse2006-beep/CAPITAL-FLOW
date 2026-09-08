@@ -4,6 +4,7 @@ const { finnhubFetch } = require('../services/finnhub');
 const { requireScanQuota } = require('../middleware/authMiddleware');
 const { refundScan, quotaFor } = require('../services/scanQuota');
 const { reportError } = require('../utils/reportError');
+const { buildFinancialProvenance, SECTOR_FLOW_SOURCES } = require('../services/financialProvenance');
 
 // Sector-flow has no per-user params — every caller gets the same 15 ETFs —
 // so a short shared cache turns N concurrent requests into 1 upstream fetch.
@@ -23,6 +24,31 @@ function roundOrNull(value, digits) {
   return Math.round(number * factor) / factor;
 }
 
+function providerTimeOrNull(value) {
+  if (value == null || value === '') return null;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    const date = new Date(numeric < 1e12 ? numeric * 1000 : numeric);
+    return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+  }
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+function latestTimestamp(values) {
+  return values.reduce((latest, value) => {
+    const timestamp = providerTimeOrNull(value);
+    return timestamp && (!latest || timestamp > latest) ? timestamp : latest;
+  }, null);
+}
+
+function oldestTimestamp(values) {
+  return values.reduce((oldest, value) => {
+    const timestamp = providerTimeOrNull(value);
+    return timestamp && (!oldest || timestamp < oldest) ? timestamp : oldest;
+  }, null);
+}
+
 router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) => {
   if (flowCache.results && flowCache.expiresAt > Date.now()) {
     // Cache hit — free, same policy as the main scanner. requireScanQuota
@@ -34,6 +60,17 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
       fetchTime: flowCache.fetchTime,
       dataStatus: flowCache.dataStatus,
       dataAsOf: flowCache.dataAsOf,
+      dataProvenance: buildFinancialProvenance({
+        dataAsOf: flowCache.dataAsOf,
+        capturedAt: flowCache.fetchTime,
+        status: flowCache.dataStatus,
+        quoteStatus: flowCache.dataStatus,
+        sources: SECTOR_FLOW_SOURCES.map((source) => ({
+          ...source,
+          asOf: source.provider === 'Yahoo Finance' ? flowCache.dataAsOf : null,
+          status: source.provider === 'Yahoo Finance' ? flowCache.dataStatus : 'unknown',
+        })),
+      }),
       fromCache: true,
       ...quotaFor(req.user),
     });
@@ -91,6 +128,9 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
               return new Date(b.date) - new Date(a.date);
             })
             .slice(0, 10);
+          const historicalAsOf = latestTimestamp(recent.map((bar) => bar.date));
+          let sourceAsOf = providerTimeOrNull(quote.regularMarketTime);
+          let sourceProvider = sourceAsOf ? 'Yahoo Finance' : null;
           const avgVol =
             recent.length >= 3
               ? Math.round(
@@ -134,6 +174,11 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
               dayHigh = finiteOrNull(fData.h) ?? dayHigh;
               dayLow = finiteOrNull(fData.l) ?? dayLow;
               prevClose = finiteOrNull(fData.pc) ?? prevClose;
+              const finnhubAsOf = providerTimeOrNull(fData.t);
+              if (finnhubAsOf) {
+                sourceAsOf = finnhubAsOf;
+                sourceProvider = 'Finnhub';
+              }
             }
           } catch (e) {}
 
@@ -159,6 +204,8 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
             prevClose: prevClose,
             lastSession: lastSession,
             dataStatus: dataStatus,
+            dataAsOf: sourceAsOf || historicalAsOf || null,
+            dataSource: sourceProvider || (historicalAsOf ? 'Yahoo Finance' : null),
           };
         } catch (e) {
           return {
@@ -174,6 +221,8 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
             prevClose: null,
             lastSession: false,
             dataStatus: 'unavailable',
+            dataAsOf: null,
+            dataSource: null,
           };
         }
       })
@@ -182,14 +231,32 @@ router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) =>
     const unavailableCount = results.filter((result) => result.dataStatus === 'unavailable').length;
     const dataStatus =
       unavailableCount === results.length ? 'unavailable' : unavailableCount > 0 ? 'partial' : 'complete';
+    const dataAsOf = oldestTimestamp(results.map((result) => result.dataAsOf));
     flowCache = {
       results: results,
       fetchTime: fetchTime,
       dataStatus: dataStatus,
-      dataAsOf: fetchTime,
+      dataAsOf,
       expiresAt: Date.now() + CACHE_TTL_MS,
     };
-    res.json({ results: results, fetchTime: fetchTime, dataStatus, dataAsOf: fetchTime, ...quotaFor(req.user) });
+    res.json({
+      results: results,
+      fetchTime: fetchTime,
+      dataStatus,
+      dataAsOf,
+      dataProvenance: buildFinancialProvenance({
+        dataAsOf,
+        capturedAt: fetchTime,
+        status: dataStatus,
+        quoteStatus: dataStatus,
+        sources: SECTOR_FLOW_SOURCES.map((source) => ({
+          ...source,
+          asOf: source.provider === 'Yahoo Finance' ? dataAsOf : null,
+          status: source.provider === 'Yahoo Finance' ? dataStatus : 'unknown',
+        })),
+      }),
+      ...quotaFor(req.user),
+    });
   } catch (err) {
     await refundScan(req.user, req.scanReservation);
     reportError(err, '[sectors]');

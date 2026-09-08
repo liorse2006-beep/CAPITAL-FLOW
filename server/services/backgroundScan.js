@@ -235,7 +235,7 @@ async function runBackgroundScan(options = {}) {
     backgroundCache.results = res.results;
     backgroundCache.scanTime = new Date().toISOString();
     backgroundCache.dataStatus = res.dataStatus || (res.errors && res.errors.length ? 'partial' : 'complete');
-    backgroundCache.dataAsOf = res.dataAsOf || backgroundCache.scanTime;
+    backgroundCache.dataAsOf = res.dataAsOf || null;
     console.log(
       `[Background] ${res.results.length} results at ${backgroundCache.scanTime} ` +
         `(data=${backgroundCache.dataStatus}, asOf=${backgroundCache.dataAsOf})`

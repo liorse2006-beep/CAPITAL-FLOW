@@ -10,6 +10,7 @@ const { refundScan, quotaFor } = require('../services/scanQuota');
 const maScannerService = require('../services/maScanner');
 const { SP500, NASDAQ100, ALL_TICKERS, SECTOR_TICKERS } = require('../../tickers');
 const { reportError } = require('../utils/reportError');
+const { buildFinancialProvenance, MOVING_AVERAGE_SOURCES } = require('../services/financialProvenance');
 
 // Per-user scan progress. A completed entry is intentionally retained as a
 // small status record so an async client can distinguish "not started" from
@@ -119,6 +120,17 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
       params: { ma, distance, interval, direction, market, sectors },
       dataStatus: cached.dataStatus,
       dataAsOf: cached.dataAsOf,
+      dataProvenance: buildFinancialProvenance({
+        dataAsOf: cached.dataAsOf,
+        capturedAt: cached.scanTime,
+        status: cached.dataStatus,
+        quoteStatus: cached.quoteDataStatus || cached.dataStatus,
+        sources: MOVING_AVERAGE_SOURCES.map((source) => ({
+          ...source,
+          asOf: cached.dataAsOf,
+          status: cached.quoteDataStatus || cached.dataStatus,
+        })),
+      }),
       errors: cached.errors,
       checkedSymbols: cached.checkedSymbols,
       fromCache: true,
@@ -194,7 +206,18 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
         results,
         scanTime,
         dataStatus: scan.dataStatus || (scan.errors && scan.errors.length ? 'partial' : 'complete'),
-        dataAsOf: scan.dataAsOf || scanTime,
+        dataAsOf: scan.dataAsOf || null,
+        dataProvenance: buildFinancialProvenance({
+          dataAsOf: scan.dataAsOf || null,
+          capturedAt: scanTime,
+          status: scan.dataStatus || (scan.errors && scan.errors.length ? 'partial' : 'complete'),
+          quoteStatus: scan.quoteDataStatus || scan.dataStatus || 'unknown',
+          sources: MOVING_AVERAGE_SOURCES.map((source) => ({
+            ...source,
+            asOf: scan.dataAsOf || null,
+            status: scan.quoteDataStatus || scan.dataStatus || 'unknown',
+          })),
+        }),
         errors: scan.errors || [],
         checkedSymbols: scan.checkedSymbols || [],
       };

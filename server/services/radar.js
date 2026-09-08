@@ -11,6 +11,7 @@ const { SP500, NASDAQ100, SECTOR_TICKERS } = require('../../tickers');
 const { ADMIN_EMAIL } = require('../config');
 const { freeTrialActive } = require('./scanQuota');
 const { reportError } = require('../utils/reportError');
+const { buildFinancialProvenance } = require('./financialProvenance');
 const {
   MA_PERIODS,
   MA_DISTANCES,
@@ -34,6 +35,18 @@ const MAX_ACTIVE_RADARS_PER_USER = 1;
 const MAX_EVENTS_PER_RADAR = 50;
 const DATA_UNAVAILABLE_MESSAGE = 'Data is not available right now. Try again in a few minutes.';
 const PARTIAL_DATA_MESSAGE = 'Some market data is unavailable right now. Try again in a few minutes.';
+const RADAR_DATA_SOURCES = [
+  {
+    provider: 'Yahoo Finance',
+    role: 'Capital Flow quotes and moving-average history',
+    fields: ['price', 'volume', 'market cap', 'moving average', 'distance'],
+  },
+  {
+    provider: 'Finnhub',
+    role: 'Capital Flow quote enrichment',
+    fields: ['price', 'change', 'day high', 'day low', 'previous close'],
+  },
+];
 const RADAR_SCHEDULE_MESSAGE = 'Choose one or two scan times and an expiry date before activating this Radar.';
 const RADAR_LIMIT_MESSAGE =
   'Only one Radar scan can be saved per account. Edit or remove the current Radar before creating another.';
@@ -286,6 +299,7 @@ function statusForRow(row) {
 
 function serializeRadar(row, events) {
   const status = statusForRow(row);
+  const dataStatus = row.last_data_status || status.state;
   return {
     id: Number(row.id),
     name: row.name,
@@ -316,6 +330,17 @@ function serializeRadar(row, events) {
     conditionVersion: row.condition_version || CONDITION_VERSION,
     lastDataStatus: row.last_data_status || 'waiting',
     lastDataAsOf: row.last_data_as_of || null,
+    dataProvenance: buildFinancialProvenance({
+      dataAsOf: row.last_data_as_of || null,
+      capturedAt: row.last_check_at || null,
+      status: dataStatus,
+      quoteStatus: dataStatus,
+      sources: RADAR_DATA_SOURCES.map((source) => ({
+        ...source,
+        asOf: source.provider === 'Yahoo Finance' ? row.last_data_as_of || null : null,
+        status: source.provider === 'Yahoo Finance' ? dataStatus : 'unknown',
+      })),
+    }),
     lastScanRunId: row.last_scan_run_id || null,
     maxScansPerDay: MAX_RADAR_SCANS_PER_DAY,
     scheduleTimezone: RADAR_TIMEZONE,
@@ -582,7 +607,18 @@ function eventPayload(row, scanTime, meta = {}) {
     conditionVersion: meta.conditionVersion || CONDITION_VERSION,
     scanId: meta.scanId || null,
     dataStatus: meta.dataStatus || 'complete',
-    dataAsOf: meta.dataAsOf || scanTime,
+    dataAsOf: meta.dataAsOf || null,
+    dataProvenance: buildFinancialProvenance({
+      dataAsOf: meta.dataAsOf || null,
+      capturedAt: scanTime,
+      status: meta.dataStatus || 'complete',
+      quoteStatus: meta.dataStatus || 'complete',
+      sources: RADAR_DATA_SOURCES.map((source) => ({
+        ...source,
+        asOf: source.provider === 'Yahoo Finance' ? meta.dataAsOf || null : null,
+        status: source.provider === 'Yahoo Finance' ? meta.dataStatus || 'complete' : 'unknown',
+      })),
+    }),
     scanTime,
   };
 }
@@ -747,7 +783,7 @@ async function processRadarScan(results, scanTime, meta) {
   const checkedSymbols = Array.isArray(scanMeta.checkedSymbols) ? scanMeta.checkedSymbols : [];
   const conditionStatusByRadarId = scanMeta.conditionStatusByRadarId || {};
   const scanId = String(scanMeta.scanId || `radar-${new Date(scanTime).getTime()}`);
-  const dataAsOf = scanMeta.dataAsOf || scanTime;
+  const dataAsOf = scanMeta.dataAsOf || null;
   const emitted = [];
 
   for (const radar of activeRadars) {
@@ -902,12 +938,7 @@ async function processRadarScan(results, scanTime, meta) {
                   last_data_status = 'unavailable', last_data_as_of = ?, updated_at = unixepoch()
             WHERE id = ?`
         )
-        .run(
-          new Date().toISOString(),
-          JSON.stringify([err.code || 'RADAR_PROCESSING_FAILED']),
-          new Date().toISOString(),
-          radar.id
-        )
+        .run(new Date().toISOString(), JSON.stringify([err.code || 'RADAR_PROCESSING_FAILED']), null, radar.id)
         .catch((stateErr) => reportError(stateErr, `[Radar ${radar.id}] failure status persistence`));
     }
   }
@@ -918,7 +949,8 @@ async function markRadarsUnavailable(radarIds, metadata = {}) {
   const ids = [...new Set((radarIds || []).map(Number).filter((id) => Number.isSafeInteger(id) && id > 0))];
   if (ids.length === 0) return;
   const placeholders = ids.map(() => '?').join(',');
-  const checkedAt = metadata.dataAsOf || new Date().toISOString();
+  const checkedAt = new Date().toISOString();
+  const dataAsOf = metadata.dataAsOf || null;
   const errorDetail =
     Array.isArray(metadata.errors) && metadata.errors.length > 0 ? JSON.stringify(metadata.errors.slice(0, 100)) : null;
   await db
@@ -929,7 +961,7 @@ async function markRadarsUnavailable(radarIds, metadata = {}) {
               last_partial_count = 0, updated_at = unixepoch()
         WHERE active = 1 AND id IN (${placeholders})`
     )
-    .run(checkedAt, errorDetail, checkedAt, metadata.scanId || null, ...ids);
+    .run(checkedAt, errorDetail, dataAsOf, metadata.scanId || null, ...ids);
 }
 
 module.exports = {

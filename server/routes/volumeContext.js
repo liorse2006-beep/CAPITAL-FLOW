@@ -3,6 +3,7 @@ const { getHistoricalVolumeContext } = require('../services/volumeContext');
 const { scanLimiter } = require('../middleware/rateLimiters');
 const { requireAuth } = require('../middleware/authMiddleware');
 const { reportError } = require('../utils/reportError');
+const { buildFinancialProvenance } = require('../services/financialProvenance');
 
 var SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
 var RATIO_RE = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
@@ -19,7 +20,26 @@ router.get('/volume-context/:symbol', requireAuth, scanLimiter, async function (
     if (!context) {
       return res.json({ found: false, context: null });
     }
-    return res.json({ found: true, context: context });
+    return res.json({
+      found: true,
+      context: context,
+      dataAsOf: context.dataAsOf || null,
+      dataProvenance: buildFinancialProvenance({
+        dataAsOf: context.dataAsOf || null,
+        capturedAt: new Date().toISOString(),
+        status: 'complete',
+        quoteStatus: 'complete',
+        sources: [
+          {
+            provider: 'Yahoo Finance',
+            role: 'historical volume context',
+            fields: ['daily volume', 'daily close', 'spike date', 'five-day move'],
+            asOf: context.dataAsOf || null,
+            status: 'complete',
+          },
+        ],
+      }),
+    });
   } catch (err) {
     reportError(err, '[volume-context]');
     return res.status(500).json({ error: 'Server error' });

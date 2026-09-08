@@ -4,6 +4,7 @@ const yahooFinance = require('../services/yahoo');
 const { finnhubFetch } = require('../services/finnhub');
 const { reportError } = require('../utils/reportError');
 const { createTTLCache } = require('../utils/ttlCache');
+const { buildFinancialProvenance } = require('../services/financialProvenance');
 
 // Every premium or in-trial free user opening the same popular ticker's chart within the
 // same window previously re-fetched from Yahoo + Finnhub independently —
@@ -25,6 +26,23 @@ function isoDateOrNull(value) {
   if (value == null) return null;
   const date = value instanceof Date ? value : new Date(value);
   return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+function providerTimeOrNull(value) {
+  if (value == null || value === '') return null;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return isoDateOrNull(new Date(numeric < 1e12 ? numeric * 1000 : numeric));
+  }
+  return isoDateOrNull(value);
+}
+
+function latestTimestamp(values) {
+  return values.reduce((latest, value) => {
+    const timestamp = isoDateOrNull(value);
+    if (!timestamp) return latest;
+    return !latest || timestamp > latest ? timestamp : latest;
+  }, null);
 }
 
 // period → { interval, lookbackMs }
@@ -82,8 +100,17 @@ router.get('/chart/:symbol', requirePremiumOrTrial, async (req, res) => {
       .filter(Boolean);
 
     if (quotes.length === 0) {
-      return res.status(503).json({ error: 'Chart data is not available right now. Try again in a few minutes.' });
+      return res.status(503).json({
+        error: 'Chart data is not available right now. Try again in a few minutes.',
+        dataProvenance: buildFinancialProvenance({
+          status: 'unavailable',
+          quoteStatus: 'unavailable',
+          capturedAt: new Date().toISOString(),
+          sources: [{ provider: 'Yahoo Finance', role: 'historical bars', fields: ['OHLCV'], status: 'unavailable' }],
+        }),
+      });
     }
+    const historicalAsOf = latestTimestamp(quotes.map((quote) => quote.date));
 
     // Moving averages (only meaningful for daily+ bars with enough data)
     let ma20 = [],
@@ -96,6 +123,7 @@ router.get('/chart/:symbol', requirePremiumOrTrial, async (req, res) => {
 
     // Real-time quote enrichment
     let currentPrice = null;
+    let currentPriceSource = null;
     try {
       const fRes = await finnhubFetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}`);
       const fData = fRes ? await fRes.json() : null;
@@ -107,7 +135,9 @@ router.get('/chart/:symbol', requirePremiumOrTrial, async (req, res) => {
           high: finiteOrNull(fData.h),
           low: finiteOrNull(fData.l),
           prevClose: finiteOrNull(fData.pc),
+          dataAsOf: providerTimeOrNull(fData.t),
         };
+        currentPriceSource = 'Finnhub';
       }
     } catch (_) {}
 
@@ -122,12 +152,45 @@ router.get('/chart/:symbol', requirePremiumOrTrial, async (req, res) => {
             high: finiteOrNull(q.regularMarketDayHigh),
             low: finiteOrNull(q.regularMarketDayLow),
             prevClose: finiteOrNull(q.regularMarketPreviousClose),
+            dataAsOf: providerTimeOrNull(q.regularMarketTime),
           };
+          currentPriceSource = 'Yahoo Finance';
         }
       } catch (_) {}
     }
 
-    const payload = { quotes, ma20, ma50, currentPrice, period, interval };
+    const capturedAt = new Date().toISOString();
+    const payload = {
+      quotes,
+      ma20,
+      ma50,
+      currentPrice,
+      period,
+      interval,
+      dataAsOf: currentPrice?.dataAsOf || historicalAsOf || null,
+      dataProvenance: buildFinancialProvenance({
+        dataAsOf: currentPrice?.dataAsOf || historicalAsOf || null,
+        capturedAt,
+        status: 'complete',
+        quoteStatus: currentPrice ? 'complete' : 'unavailable',
+        sources: [
+          {
+            provider: 'Yahoo Finance',
+            role: 'historical bars',
+            fields: ['OHLCV', 'moving averages'],
+            asOf: historicalAsOf,
+            status: 'complete',
+          },
+          {
+            provider: currentPriceSource || 'Finnhub / Yahoo Finance',
+            role: 'current quote enrichment',
+            fields: ['price', 'change', 'day high', 'day low', 'previous close'],
+            asOf: currentPrice?.dataAsOf || null,
+            status: currentPrice ? 'complete' : 'unavailable',
+          },
+        ],
+      }),
+    };
     chartCache.set(cacheKey, payload);
     res.json(payload);
   } catch (err) {

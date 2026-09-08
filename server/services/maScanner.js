@@ -1,5 +1,6 @@
 const yahooFinance = require('./yahoo');
 const quoteCache = require('./quoteCache');
+const { buildFinancialProvenance, MOVING_AVERAGE_SOURCES } = require('./financialProvenance');
 
 const CHART_BATCH_SIZE = 20;
 const CHART_DELAY_MS = 250;
@@ -259,7 +260,17 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
     quoteDataStatus: quoteDataStale ? 'stale' : quotesMap.providerFailure ? 'unavailable' : 'complete',
     staleCount: Number(quotesMap.staleCount || 0),
     staleSymbols: [...staleQuoteSymbols],
-    dataAsOf: quoteDataAsOf || new Date().toISOString(),
+    dataAsOf: quoteDataAsOf,
+    dataProvenance: buildFinancialProvenance({
+      dataAsOf: quoteDataAsOf || null,
+      status: dataStatus,
+      quoteStatus: quoteDataStale ? 'stale' : quotesMap.providerFailure ? 'unavailable' : 'complete',
+      sources: MOVING_AVERAGE_SOURCES.map((source) => ({
+        ...source,
+        asOf: quoteDataAsOf || null,
+        status: quoteDataStale ? 'stale' : quotesMap.providerFailure ? 'unavailable' : 'complete',
+      })),
+    }),
   };
 }
 

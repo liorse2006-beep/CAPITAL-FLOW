@@ -21,7 +21,22 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://capitalflow.vip/fundamentals</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://capitalflow.vip/watchlist</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://capitalflow.vip/policy</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://capitalflow.vip/accessibility</loc>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>

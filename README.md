@@ -9,7 +9,7 @@ Live at [capitalflow.vip](https://capitalflow.vip).
 - **Frontend:** React 19 + Vite, plain CSS (no framework), `react-router-dom`
 - **Backend:** Node.js + Express 5
 - **Database:** Turso (libSQL/SQLite) in production, a local SQLite file in dev
-- **Auth:** Google OAuth + email/password (JWT), `express-session` for the OAuth handshake
+- **Auth:** Google OAuth + email/password (JWT), `cookie-session` for the OAuth handshake
 - **Payments:** Whop embedded checkout (cards plus Apple Pay/Google Pay when the buyer's device and wallet are eligible)
 - **Data providers:** Finnhub (quotes/fundamentals), Yahoo Finance (sparklines), and internal provider probes used by the operations status service
 - **Deployment:** Render (web service), optional Cloudflare Worker edge cache, auto-deploys on push to `main`; the status service can run as a separate process/service
@@ -81,6 +81,8 @@ For outage resilience, run `status-service.js` (or `npm run start:status`) with 
 The status worker now has a database-backed lease so two replicas cannot run duplicate cycles, a heartbeat watchdog that exposes stale monitoring as a degraded component, and an external GitHub Actions watchdog in `.github/workflows/keepalive.yml` for the case where the status process itself is unreachable. That external path uses a durable GitHub issue marker so repeated scheduler runs do not send repeated outage emails, then sends one recovery email and closes the marker. Configure the repository secrets `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `STATUS_ALERT_RECIPIENTS` for that external email path. The internal market-data probe fails closed in production when `STATUS_INTERNAL_TOKEN` is missing; it is never a public data endpoint.
 
 The independent status database backup is disabled by default (`STATUS_BACKUP_ENABLED=false`) so it does not create a second email stream. If explicitly enabled, it is a gzip JSON attachment on the configured schedule, containing only status tables and never application users or credentials. Raw checks are retained for the configured window and rolled into durable daily aggregates before pruning, so long-term availability history does not depend on unbounded logs. Run `node restoreStatusDb.js <backup.json.gz>` for a dry run; add `--confirm` only after verifying the target database and backup source. The status admin console also exposes a guarded “Backup status DB” action.
+
+The public sitemap is maintained in `public/sitemap.xml` and mirrors the indexable routes declared in `server/publicMetadata.js`. Authenticated application screens and API routes are not public sitemap entries.
 
 Two safe verification tools are included:
 

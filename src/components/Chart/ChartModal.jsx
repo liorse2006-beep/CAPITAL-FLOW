@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { fmt, formatPrice, formatSignedPercent } from '../../utils/format';
 import { useAuth } from '../../context/AuthContext';
 import useModalA11y from '../../hooks/useModalA11y';
+import FinancialDataProvenance from '../shared/FinancialDataProvenance';
 
 const PERIODS = ['1D', '1W', '1M', '3M', '1Y'];
 
@@ -203,6 +204,8 @@ export default function ChartModal({ symbol, name, onClose }) {
   const [error, setError] = useState(null);
   const [tooltip, setTooltip] = useState(null);
   const [quote, setQuote] = useState(null);
+  const [dataAsOf, setDataAsOf] = useState(null);
+  const [dataProvenance, setDataProvenance] = useState(null);
 
   const load = useCallback(
     (p, signal) => {
@@ -225,6 +228,8 @@ export default function ChartModal({ symbol, name, onClose }) {
           }
           dataRef.current = d;
           setQuote(d.currentPrice);
+          setDataAsOf(d.dataAsOf || null);
+          setDataProvenance(d.dataProvenance || null);
           setLoading(false);
           requestAnimationFrame(() => {
             helpersRef.current = drawChart(canvasRef.current, d, p);
@@ -472,7 +477,13 @@ export default function ChartModal({ symbol, name, onClose }) {
               React.createElement('span', null, fmt(tooltip.q.volume))
             )
           )
-      )
+      ),
+
+      React.createElement(FinancialDataProvenance, {
+        provenance: dataProvenance,
+        dataAsOf,
+        capturedAt: dataProvenance?.capturedAt,
+      })
     )
   );
 }

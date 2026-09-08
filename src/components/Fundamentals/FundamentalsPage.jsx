@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import useSeo from '../../hooks/useSeo';
 import { friendlyError, formatPrice } from '../../utils/format';
+import FinancialDataProvenance from '../shared/FinancialDataProvenance';
 
 const SYMBOL_RE = /^[A-Za-z0-9.-]{1,10}$/;
 
@@ -254,6 +255,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
   const [dataStatus, setDataStatus] = useState(null);
   const [quoteDataStatus, setQuoteDataStatus] = useState(null);
   const [dataAsOf, setDataAsOf] = useState(null);
+  const [dataProvenance, setDataProvenance] = useState(null);
   const [recentTickers, setRecentTickers] = useState(() => loadRecentTickers(user && user.id));
 
   function toggleMetric(key) {
@@ -289,6 +291,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
     setDataStatus(null);
     setQuoteDataStatus(null);
     setDataAsOf(null);
+    setDataProvenance(null);
 
     try {
       const res = await fetch('/api/fundamentals?symbol=' + encodeURIComponent(symbol), {
@@ -310,7 +313,8 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
       setResult(d.result);
       setDataStatus(d.dataStatus || null);
       setQuoteDataStatus(d.quoteDataStatus || null);
-      setDataAsOf(d.dataAsOf || d.scanTime || null);
+      setDataAsOf(d.dataAsOf || null);
+      setDataProvenance(d.dataProvenance || null);
       setRecentTickers(saveRecentTicker(user.id, symbol));
     } catch (e2) {
       setError(friendlyError(e2));
@@ -548,6 +552,13 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
               {dataAsOf && <span className="data-status-as-of"> Data as of {new Date(dataAsOf).toLocaleString()}</span>}
             </div>
           )}
+
+          <FinancialDataProvenance
+            provenance={dataProvenance}
+            dataStatus={dataStatus}
+            dataAsOf={dataAsOf}
+            fallbackSources={['Yahoo Finance', 'Finnhub']}
+          />
 
           {visibleMetrics.length === 0 ? (
             <div className="fund-empty-hint">No metrics selected — pick some above, or hit “Select all”.</div>

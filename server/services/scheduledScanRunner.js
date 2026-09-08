@@ -312,7 +312,7 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
       errors: [...ALL_TICKERS],
       checkedSymbols: [],
       dataStatus: 'unavailable',
-      dataAsOf: scanStartedAt,
+      dataAsOf: null,
     };
   }
 
@@ -330,7 +330,7 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
       )
       .filter(Boolean)
   );
-  const capitalFlowAsOf = capitalFlowScan.dataAsOf || new Date().toISOString();
+  const capitalFlowAsOf = capitalFlowScan.dataAsOf || null;
 
   // The MA chart work is shared by exact recipe settings. A Radar still
   // applies its own Capital Flow thresholds and universe locally, so users
@@ -368,7 +368,7 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
         errors: [...ALL_TICKERS],
         checkedSymbols: [],
         dataStatus: 'unavailable',
-        dataAsOf: scanStartedAt,
+        dataAsOf: null,
       };
     }
 
@@ -471,8 +471,10 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
           ? 'partial'
           : 'complete';
     });
-    const maAsOf = maScan.dataAsOf || scanStartedAt;
-    const scanTime = maAsOf > capitalFlowAsOf ? maAsOf : capitalFlowAsOf;
+    const maAsOf = maScan.dataAsOf || null;
+    // `scanTime` is the execution timestamp. It is deliberately separate from
+    // provider `asOf` timestamps, which may be unavailable during an outage.
+    const scanTime = new Date().toISOString();
 
     try {
       await require('./radar').processRadarScan(compositeResults, scanTime, {
@@ -486,7 +488,7 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
         startedAt: scanStartedAt,
         capitalFlowAsOf,
         maAsOf,
-        dataAsOf: scanTime,
+        dataAsOf: capitalFlowAsOf || maAsOf || null,
         conditionVersion: first.conditionVersion,
         maDirection: 'all',
         conditionStatusByRadarId,
@@ -514,7 +516,7 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
           errors,
           dataStatus,
           scanId,
-          dataAsOf: scanTime,
+          dataAsOf: capitalFlowAsOf || maAsOf || null,
           capitalFlowCount: capitalFlowResults.length,
           maCount: maResults.length,
           completedAt: nowSeconds,
@@ -525,7 +527,7 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
           errors,
           dataStatus: 'unavailable',
           scanId,
-          dataAsOf: scanTime,
+          dataAsOf: capitalFlowAsOf || maAsOf || null,
           capitalFlowCount: capitalFlowResults.length,
           maCount: maResults.length,
           completedAt: nowSeconds,
@@ -537,7 +539,7 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
         await require('./radar').markRadarsUnavailable(groupIds, {
           scanId,
           errors: [err.code || 'PROCESSING_FAILED'],
-          dataAsOf: scanTime,
+          dataAsOf: capitalFlowAsOf || maAsOf || null,
         });
         await saveRadarRunSnapshot({
           scanId,
@@ -557,7 +559,7 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
           errors: [err.code || 'PROCESSING_FAILED'],
           dataStatus: 'unavailable',
           scanId,
-          dataAsOf: scanTime,
+          dataAsOf: capitalFlowAsOf || maAsOf || null,
           capitalFlowCount: capitalFlowResults.length,
           maCount: maResults.length,
           completedAt: nowSeconds,
@@ -782,7 +784,7 @@ async function runScheduledScansCycle() {
         results: [],
         errors: ['PROVIDER_UNAVAILABLE'],
         dataStatus: 'unavailable',
-        dataAsOf: new Date().toISOString(),
+        dataAsOf: null,
       };
     }
     // Fan out to every subscriber concurrently (bounded), so a 16:30 window

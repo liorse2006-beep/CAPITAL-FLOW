@@ -141,6 +141,7 @@ function App() {
   const [scanTime, setScanTime] = useState(null);
   const [scanDataStatus, setScanDataStatus] = useState(null);
   const [scanDataAsOf, setScanDataAsOf] = useState(null);
+  const [scanDataProvenance, setScanDataProvenance] = useState(null);
   const [marketClosed, setMarketClosed] = useState(false);
   const [fromCache, setFromCache] = useState(false);
   const [cacheAge, setCacheAge] = useState(0);
@@ -246,7 +247,8 @@ function App() {
           setResults(d.results);
           setScanTime(d.scanTime || null);
           setScanDataStatus(d.dataStatus || null);
-          setScanDataAsOf(d.dataAsOf || d.scanTime || null);
+          setScanDataAsOf(d.dataAsOf || null);
+          setScanDataProvenance(d.dataProvenance || null);
           setFromCache(true);
           setCacheAge(0);
           setRestoredFromLastScan(false);
@@ -946,7 +948,8 @@ function App() {
             setResults(d.results);
             setScanTime(d.scanTime);
             setScanDataStatus(d.dataStatus || null);
-            setScanDataAsOf(d.dataAsOf || d.scanTime || null);
+            setScanDataAsOf(d.dataAsOf || null);
+            setScanDataProvenance(d.dataProvenance || null);
             setRestoredFromLastScan(true);
           }
         })
@@ -1177,7 +1180,8 @@ function App() {
         setResults(d.results);
         setScanTime(d.scanTime);
         setScanDataStatus(d.dataStatus || null);
-        setScanDataAsOf(d.dataAsOf || d.scanTime || null);
+        setScanDataAsOf(d.dataAsOf || null);
+        setScanDataProvenance(d.dataProvenance || null);
         if (typeof d.marketClosed === 'boolean') setMarketClosed(d.marketClosed);
         setFromCache(!!d.fromCache);
         setCacheAge(d.cacheAge || 0);
@@ -1332,6 +1336,7 @@ function App() {
       setScanTime,
       setScanDataStatus,
       setScanDataAsOf,
+      setScanDataProvenance,
       setMarketClosed,
       setFromCache,
       setCacheAge,
@@ -1615,6 +1620,7 @@ function App() {
                   scanTime={scanTime}
                   scanDataStatus={scanDataStatus}
                   scanDataAsOf={scanDataAsOf}
+                  scanDataProvenance={scanDataProvenance}
                   fromCache={fromCache}
                   cacheAge={cacheAge}
                   restoredFromLastScan={restoredFromLastScan}

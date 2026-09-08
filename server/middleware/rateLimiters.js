@@ -18,7 +18,7 @@ function realIp(req) {
 // endpoints (see authLimiter/otpLimiter below, which must stay IP-keyed:
 // that's exactly the brute-force surface, and there's no authenticated
 // identity yet to key by instead). But for limiters that gate a signed-in
-   // account's own usage (scans and the API floor), IP-keying means every
+// account's own usage (scans and the API floor), IP-keying means every
 // customer behind the same shared IP — an office, a campus, a mobile
 // carrier's CGNAT (common in Israel) — draws from ONE shared budget and can
 // throttle each other even though each of them individually did nothing

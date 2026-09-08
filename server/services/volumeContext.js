@@ -13,9 +13,19 @@ const yahooFinance = require('./yahoo');
 const CHART_TTL_MS = 24 * 60 * 60 * 1000;
 const chartCache = new Map(); // symbol → { quotes, fetchedAt }
 
+function latestTimestamp(quotes) {
+  return quotes.reduce(function (latest, quote) {
+    if (!quote || !quote.date) return latest;
+    const date = new Date(quote.date);
+    if (!Number.isFinite(date.getTime())) return latest;
+    const iso = date.toISOString();
+    return !latest || iso > latest ? iso : latest;
+  }, null);
+}
+
 async function getCachedQuotes(symbol, sixMonthsAgo) {
   var cached = chartCache.get(symbol);
-  if (cached && Date.now() - cached.fetchedAt < CHART_TTL_MS) return cached.quotes;
+  if (cached && Date.now() - cached.fetchedAt < CHART_TTL_MS) return cached;
 
   var chart = await yahooFinance.chart(symbol, { period1: sixMonthsAgo, interval: '1d' });
   var rawQuotes = chart && chart.quotes ? chart.quotes : [];
@@ -26,8 +36,9 @@ async function getCachedQuotes(symbol, sixMonthsAgo) {
     .sort(function (a, b) {
       return new Date(a.date) - new Date(b.date);
     });
-  chartCache.set(symbol, { quotes: quotes, fetchedAt: Date.now() });
-  return quotes;
+  const entry = { quotes: quotes, dataAsOf: latestTimestamp(quotes), fetchedAt: Date.now() };
+  chartCache.set(symbol, entry);
+  return entry;
 }
 
 async function getHistoricalVolumeContext(symbol, currentVolumeRatio) {
@@ -35,7 +46,9 @@ async function getHistoricalVolumeContext(symbol, currentVolumeRatio) {
     var sixMonthsAgo = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
     var quotes;
     try {
-      quotes = await getCachedQuotes(symbol, sixMonthsAgo);
+      const cachedChart = await getCachedQuotes(symbol, sixMonthsAgo);
+      quotes = cachedChart.quotes;
+      var dataAsOf = cachedChart.dataAsOf;
     } catch (e) {
       return null;
     }
@@ -97,6 +110,7 @@ async function getHistoricalVolumeContext(symbol, currentVolumeRatio) {
       priceAfter5Days: Math.round(priceAfter5Days * 100) / 100,
       movePercent: movePercent,
       direction: direction,
+      dataAsOf: dataAsOf || null,
     };
   } catch (e) {
     return null;

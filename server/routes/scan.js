@@ -7,6 +7,7 @@ const { SP500, NASDAQ100, ALL_TICKERS, SECTOR_TICKERS } = require('../../tickers
 const { requireAuth, requireScanQuota } = require('../middleware/authMiddleware');
 const { refundScan, quotaFor } = require('../services/scanQuota');
 const { reportError } = require('../utils/reportError');
+const { buildFinancialProvenance, CAPITAL_FLOW_SOURCES } = require('../services/financialProvenance');
 
 // The broadest (most permissive) filter set a shared scan runs with. Any
 // request at-or-above this floor can be served by one shared scan and
@@ -160,7 +161,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
       state.lastScanTime = backgroundCache.scanTime;
       state.lastMarketClosed = !marketOpen;
       state.lastDataStatus = backgroundCache.dataStatus || 'complete';
-      state.lastDataAsOf = backgroundCache.dataAsOf || backgroundCache.scanTime;
+      state.lastDataAsOf = backgroundCache.dataAsOf || null;
       // Served from cache — no real work happened, so it costs no quota.
       // Premium's 5/day pool only ever pays for scans that hit the market.
       // requireScanQuota already reserved a slot before we knew this would
@@ -173,7 +174,18 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
         tickersScanned: ALL_TICKERS.length,
         errors: 0,
         dataStatus: backgroundCache.dataStatus || 'complete',
-        dataAsOf: backgroundCache.dataAsOf || backgroundCache.scanTime,
+        dataAsOf: backgroundCache.dataAsOf || null,
+        dataProvenance: buildFinancialProvenance({
+          dataAsOf: backgroundCache.dataAsOf || null,
+          capturedAt: backgroundCache.scanTime,
+          status: backgroundCache.dataStatus || 'complete',
+          quoteStatus: backgroundCache.dataStatus || 'complete',
+          sources: CAPITAL_FLOW_SOURCES.map((source) => ({
+            ...source,
+            asOf: source.role === 'quote baseline' ? backgroundCache.dataAsOf || null : null,
+            status: source.role === 'quote baseline' ? backgroundCache.dataStatus || 'complete' : 'unknown',
+          })),
+        }),
         fromCache: true,
         cacheAge: Math.round(cacheAgeMs / 1000),
         marketClosed: !marketOpen,
@@ -225,6 +237,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
       let errors = [];
       let processed = tickersToScan.length;
       let dataStatus = 'complete';
+      let quoteDataStatus = 'complete';
       let dataAsOf = null;
 
       if (canShare) {
@@ -232,6 +245,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
         errors = raw.errors;
         processed = raw.processed;
         dataStatus = raw.dataStatus || (errors.length ? 'partial' : 'complete');
+        quoteDataStatus = raw.quoteDataStatus || dataStatus;
         dataAsOf = raw.dataAsOf || null;
         results = raw.results.filter((r) => rowPasses(r, userOpts));
         // The full-universe floor scan is byte-for-byte what the background
@@ -241,7 +255,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
           backgroundCache.results = raw.results;
           backgroundCache.scanTime = new Date().toISOString();
           backgroundCache.dataStatus = dataStatus;
-          backgroundCache.dataAsOf = dataAsOf || backgroundCache.scanTime;
+          backgroundCache.dataAsOf = dataAsOf || null;
         }
       } else {
         const raw = await scanner.scanTickers(tickersToScan, {
@@ -260,6 +274,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
         errors = raw.errors;
         processed = raw.processed;
         dataStatus = raw.dataStatus || (errors.length ? 'partial' : 'complete');
+        quoteDataStatus = raw.quoteDataStatus || dataStatus;
         dataAsOf = raw.dataAsOf || null;
         results = raw.results;
       }
@@ -267,7 +282,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
       state.lastResults = results;
       state.lastScanTime = new Date().toISOString();
       state.lastDataStatus = dataStatus;
-      state.lastDataAsOf = dataAsOf || state.lastScanTime;
+      state.lastDataAsOf = dataAsOf || null;
       state.lastScanId = scanId;
       state.lastScanError = null;
       state.lastMarketClosed = !isMarketOpen();
@@ -282,7 +297,18 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
         tickersScanned: processed,
         errors: errors.length,
         dataStatus,
-        dataAsOf: dataAsOf || state.lastScanTime,
+        dataAsOf,
+        dataProvenance: buildFinancialProvenance({
+          dataAsOf,
+          capturedAt: state.lastScanTime,
+          status: dataStatus,
+          quoteStatus: quoteDataStatus,
+          sources: CAPITAL_FLOW_SOURCES.map((source) => ({
+            ...source,
+            asOf: source.role === 'quote baseline' ? dataAsOf : null,
+            status: source.role === 'quote baseline' ? quoteDataStatus : 'unknown',
+          })),
+        }),
         marketClosed: !isMarketOpen(),
         ...quotaFor(req.user),
       };
@@ -343,6 +369,17 @@ router.get('/last-results', requireAuth, (req, res) => {
     marketClosed: state.lastMarketClosed,
     dataStatus: state.lastDataStatus || null,
     dataAsOf: state.lastDataAsOf || null,
+    dataProvenance: buildFinancialProvenance({
+      dataAsOf: state.lastDataAsOf || null,
+      capturedAt: state.lastScanTime || null,
+      status: state.lastDataStatus || 'unknown',
+      quoteStatus: state.lastDataStatus || 'unknown',
+      sources: CAPITAL_FLOW_SOURCES.map((source) => ({
+        ...source,
+        asOf: source.role === 'quote baseline' ? state.lastDataAsOf || null : null,
+        status: source.role === 'quote baseline' ? state.lastDataStatus || 'unknown' : 'unknown',
+      })),
+    }),
     error: state.lastScanError || null,
     ...quotaFor(req.user),
   });

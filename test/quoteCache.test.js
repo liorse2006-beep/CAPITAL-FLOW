@@ -28,6 +28,7 @@ test('quoteCache reports a successful batch as fresh provider data', async (t) =
     {
       symbol: 'AUDIT_SUCCESS_UNCACHED',
       regularMarketPrice: 100,
+      regularMarketTime: Math.floor(Date.now() / 1000),
     },
   ]);
 

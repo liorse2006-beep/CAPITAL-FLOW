@@ -3,6 +3,7 @@ const { requirePremiumOrTrial } = require('../middleware/authMiddleware');
 const { scanLimiter } = require('../middleware/rateLimiters');
 const { scanFundamentals } = require('../services/fundamentalsScanner');
 const { reportError } = require('../utils/reportError');
+const { buildFinancialProvenance, FUNDAMENTALS_SOURCES } = require('../services/financialProvenance');
 
 const SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
 
@@ -34,6 +35,17 @@ router.get('/fundamentals', requirePremiumOrTrial, scanLimiter, async (req, res)
       quoteDataStatus: cached.quoteDataStatus,
       staleCount: cached.staleCount,
       dataAsOf: cached.dataAsOf,
+      dataProvenance: buildFinancialProvenance({
+        dataAsOf: cached.dataAsOf,
+        capturedAt: cached.scanTime,
+        status: cached.dataStatus,
+        quoteStatus: cached.quoteDataStatus,
+        sources: FUNDAMENTALS_SOURCES.map((source) => ({
+          ...source,
+          asOf: source.provider === 'Yahoo Finance' ? cached.dataAsOf : null,
+          status: source.provider === 'Yahoo Finance' ? cached.quoteDataStatus : 'unknown',
+        })),
+      }),
       fromCache: true,
     });
   }
@@ -47,6 +59,17 @@ router.get('/fundamentals', requirePremiumOrTrial, scanLimiter, async (req, res)
           dataStatus: 'unavailable',
           quoteDataStatus,
           dataAsOf,
+          dataProvenance: buildFinancialProvenance({
+            dataAsOf,
+            capturedAt: new Date().toISOString(),
+            status: 'unavailable',
+            quoteStatus: quoteDataStatus,
+            sources: FUNDAMENTALS_SOURCES.map((source) => ({
+              ...source,
+              asOf: source.provider === 'Yahoo Finance' ? dataAsOf : null,
+              status: source.provider === 'Yahoo Finance' ? quoteDataStatus : 'unknown',
+            })),
+          }),
         });
       }
       return res
@@ -65,7 +88,25 @@ router.get('/fundamentals', requirePremiumOrTrial, scanLimiter, async (req, res)
       expiresAt: Date.now() + CACHE_TTL_MS,
     });
 
-    res.json({ result: results[0], scanTime, dataStatus, quoteDataStatus, staleCount, dataAsOf });
+    res.json({
+      result: results[0],
+      scanTime,
+      dataStatus,
+      quoteDataStatus,
+      staleCount,
+      dataAsOf,
+      dataProvenance: buildFinancialProvenance({
+        dataAsOf,
+        capturedAt: scanTime,
+        status: dataStatus,
+        quoteStatus: quoteDataStatus,
+        sources: FUNDAMENTALS_SOURCES.map((source) => ({
+          ...source,
+          asOf: source.provider === 'Yahoo Finance' ? dataAsOf : null,
+          status: source.provider === 'Yahoo Finance' ? quoteDataStatus : 'unknown',
+        })),
+      }),
+    });
   } catch (err) {
     reportError(err, '[fundamentals-lookup]');
     res.status(500).json({ error: 'Server error' });

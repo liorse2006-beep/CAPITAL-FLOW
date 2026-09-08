@@ -34,6 +34,20 @@ const MAX_STALE_AGE_MS = 10 * 60 * 1000;
 // symbol → { data: QuoteResult, fetchedAt: number }
 const cache = new Map();
 
+function providerTimestampMs(quote) {
+  const raw = quote && (quote.regularMarketTime ?? quote.postMarketTime ?? quote.preMarketTime);
+  if (raw == null || raw === '') return null;
+  if (raw instanceof Date) return Number.isFinite(raw.getTime()) ? raw.getTime() : null;
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    // Yahoo normally returns epoch seconds; accept milliseconds as well so a
+    // provider-shape change cannot silently turn a real timestamp into 1970.
+    return numeric < 1e12 ? numeric * 1000 : numeric;
+  }
+  const parsed = new Date(raw);
+  return Number.isFinite(parsed.getTime()) ? parsed.getTime() : null;
+}
+
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -125,16 +139,19 @@ async function fetchBatch(symbols) {
 async function getQuotes(symbols, onBatchDone) {
   const result = new Map();
   const toFetch = [];
-  let oldestFetchedAt = null;
+  let oldestProviderTimestamp = null;
   let staleCount = 0;
   const staleSymbols = new Set();
   let usedStaleFallback = false;
   let providerFailure = false;
 
-  function recordUsedQuote(symbol) {
+  function recordUsedQuote(symbol, quote) {
     const entry = cache.get(symbol);
     if (!entry) return;
-    if (oldestFetchedAt === null || entry.fetchedAt < oldestFetchedAt) oldestFetchedAt = entry.fetchedAt;
+    const timestamp = providerTimestampMs(quote || entry.data);
+    if (timestamp !== null && (oldestProviderTimestamp === null || timestamp < oldestProviderTimestamp)) {
+      oldestProviderTimestamp = timestamp;
+    }
     if (Date.now() - entry.fetchedAt >= CACHE_TTL_MS) staleCount++;
   }
 
@@ -142,7 +159,7 @@ async function getQuotes(symbols, onBatchDone) {
     const entry = cache.get(sym);
     if (isFresh(entry)) {
       result.set(sym, entry.data);
-      recordUsedQuote(sym);
+      recordUsedQuote(sym, entry.data);
     } else {
       toFetch.push(sym);
     }
@@ -156,7 +173,7 @@ async function getQuotes(symbols, onBatchDone) {
     (batchResult.staleSymbols || []).forEach((symbol) => staleSymbols.add(symbol));
     batchResult.quotes.forEach((q) => {
       if (q && q.symbol) result.set(q.symbol, q);
-      if (q && q.symbol) recordUsedQuote(q.symbol);
+      if (q && q.symbol) recordUsedQuote(q.symbol, q);
     });
     if (onBatchDone) onBatchDone(Math.min(i + batch.length, toFetch.length), toFetch.length);
     if (i + BATCH_SIZE < toFetch.length) await sleep(INTER_BATCH_DELAY_MS);
@@ -168,7 +185,7 @@ async function getQuotes(symbols, onBatchDone) {
   // fetched at the moment the scan request completed.
   Object.defineProperties(result, {
     dataAsOf: {
-      value: oldestFetchedAt === null ? null : new Date(oldestFetchedAt).toISOString(),
+      value: oldestProviderTimestamp === null ? null : new Date(oldestProviderTimestamp).toISOString(),
       enumerable: false,
     },
     staleCount: { value: staleCount, enumerable: false },

@@ -24,10 +24,7 @@ function PlanOption({ column, userTier, trialEnded, payingTier, onCheckout }) {
     : 'Get ' + column.label;
 
   return (
-    <article
-      className={'upgrade-plan-option' + (column.featured ? ' is-featured' : '')}
-      aria-labelledby={headingId}
-    >
+    <article className={'upgrade-plan-option' + (column.featured ? ' is-featured' : '')} aria-labelledby={headingId}>
       <header className="upgrade-plan-option-header">
         {column.featured && <span className="upgrade-plan-option-badge">Most popular</span>}
         <h3 id={headingId} className="upgrade-plan-option-name">
@@ -181,7 +178,7 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-         aria-label={trialEnded ? 'Keep your Capital Flow access' : 'Choose a plan'}
+        aria-label={trialEnded ? 'Keep your Capital Flow access' : 'Choose a plan'}
         onClick={(e) => e.stopPropagation()}
       >
         <button className="upgrade-close" onClick={handleClose} aria-label="Close">

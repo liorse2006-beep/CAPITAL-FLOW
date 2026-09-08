@@ -21,6 +21,7 @@
 const yahooFinance = require('./yahoo');
 const quoteCache = require('./quoteCache');
 const finnhub = require('./finnhub');
+const { buildFinancialProvenance, FUNDAMENTALS_SOURCES } = require('./financialProvenance');
 
 // Finnhub's 24h-cached metric=all payload carries P/E, debt/equity, and 5yr
 // revenue growth (see finnhub.js's fetchFinnhubMetric) — no separate Yahoo
@@ -160,7 +161,24 @@ async function scanFundamentals(tickers) {
     dataStatus: errors.length ? 'unavailable' : quoteDataStale || incomplete ? 'partial' : 'complete',
     quoteDataStatus: quoteDataStale ? 'stale' : quotesMap.providerFailure ? 'unavailable' : 'complete',
     staleCount: Number(quotesMap.staleCount || 0),
-    dataAsOf: quotesMap.dataAsOf || new Date().toISOString(),
+    dataAsOf: quotesMap.dataAsOf || null,
+    dataProvenance: buildFinancialProvenance({
+      dataAsOf: quotesMap.dataAsOf || null,
+      status: errors.length ? 'unavailable' : quoteDataStale || incomplete ? 'partial' : 'complete',
+      quoteStatus: quoteDataStale ? 'stale' : quotesMap.providerFailure ? 'unavailable' : 'complete',
+      sources: FUNDAMENTALS_SOURCES.map((source) => ({
+        ...source,
+        asOf: source.provider === 'Yahoo Finance' ? quotesMap.dataAsOf || null : null,
+        status:
+          source.provider === 'Yahoo Finance'
+            ? quoteDataStale
+              ? 'stale'
+              : quotesMap.providerFailure
+                ? 'unavailable'
+                : 'complete'
+            : 'unknown',
+      })),
+    }),
   };
 }
 

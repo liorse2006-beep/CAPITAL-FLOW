@@ -6,6 +6,7 @@ import SectorPickerModal from './SectorPickerModal';
 import CapitalFlowRadar from './CapitalFlowRadar';
 import useSmoothProgress from '../../hooks/useSmoothProgress';
 import MobileResultSort from '../shared/MobileResultSort';
+import FinancialDataProvenance from '../shared/FinancialDataProvenance';
 import { fmt, friendlyError, alertLevelLabel, formatSignedPercent, formatPrice, formatRatio } from '../../utils/format';
 import useSeo from '../../hooks/useSeo';
 
@@ -172,6 +173,7 @@ export default function ScannerPage({
   scanTime,
   scanDataStatus,
   scanDataAsOf,
+  scanDataProvenance,
   fromCache,
   cacheAge,
   restoredFromLastScan,
@@ -774,6 +776,14 @@ export default function ScannerPage({
                   : 'Market data may be delayed or estimated. Confirm all information before making any decision.'}
               </div>
             )}
+
+            <FinancialDataProvenance
+              provenance={scanDataProvenance}
+              dataStatus={scanDataStatus}
+              dataAsOf={scanDataAsOf}
+              capturedAt={scanTime}
+              fallbackSources={['Yahoo Finance', 'Finnhub']}
+            />
 
             {sorted.length === 0 ? (
               <div className="no-match">
