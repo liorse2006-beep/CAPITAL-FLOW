@@ -33,7 +33,7 @@ describe('WelcomeTierModal', () => {
   it('shows the Premium badge/headline, checks off what Premium includes, and groups the Elite-only items separately', () => {
     const { container } = renderWithProviders(<WelcomeTierModal tier="premium" confirmed={true} onClose={vi.fn()} />);
     expect(screen.getByText('PREMIUM')).toBeInTheDocument();
-    expect(screen.getByText('Welcome to Premium')).toBeInTheDocument();
+    expect(screen.getByText('Premium is ready')).toBeInTheDocument();
 
     const included = [
       ...container.querySelectorAll('.welcome-tier-features:not(.welcome-tier-features-excluded) li'),
@@ -61,7 +61,7 @@ describe('WelcomeTierModal', () => {
   it('shows the Elite badge/headline with every paid feature checked off, and no excluded section at all', () => {
     const { container } = renderWithProviders(<WelcomeTierModal tier="elite" confirmed={true} onClose={vi.fn()} />);
     expect(screen.getByText('ELITE')).toBeInTheDocument();
-    expect(screen.getByText('Welcome to Elite')).toBeInTheDocument();
+    expect(screen.getByText('Elite is ready')).toBeInTheDocument();
     expect(screen.getByText('Push notifications')).toBeInTheDocument();
     expect(container.querySelector('.welcome-tier-features-excluded')).toBeNull();
     expect(screen.queryByText('Also included with Elite')).not.toBeInTheDocument();
@@ -70,11 +70,12 @@ describe('WelcomeTierModal', () => {
 
   it('does not claim paid access before the server confirms the webhook', () => {
     const { rerender } = renderWithProviders(<WelcomeTierModal tier="elite" confirmed={false} onClose={vi.fn()} />);
-    expect(screen.getByText('VERIFYING')).toBeInTheDocument();
-    expect(screen.getByText(/Checkout reported success — confirming access/)).toBeInTheDocument();
-    expect(screen.getByText('Confirming your access')).toBeInTheDocument();
-    expect(screen.queryByText('Welcome to Elite')).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Close' })).toHaveLength(2);
+    expect(screen.getByText('PAYMENT RECEIVED')).toBeInTheDocument();
+    expect(screen.getByText('Activating access…')).toBeInTheDocument();
+    expect(screen.getByText('Activating your access')).toBeInTheDocument();
+    expect(screen.queryByText('Elite is ready')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Close' })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument();
 
     rerender(
       <MemoryRouter>
@@ -83,8 +84,8 @@ describe('WelcomeTierModal', () => {
         </AuthProvider>
       </MemoryRouter>
     );
-    expect(screen.queryByText(/Checkout reported success/)).not.toBeInTheDocument();
-    expect(screen.getByText('Welcome to Elite')).toBeInTheDocument();
+    expect(screen.queryByText(/Activating access/)).not.toBeInTheDocument();
+    expect(screen.getByText('Elite is ready')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start scanning' })).toBeInTheDocument();
   });
 

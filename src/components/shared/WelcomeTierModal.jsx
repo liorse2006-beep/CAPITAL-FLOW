@@ -9,14 +9,14 @@ var COPY = {
   premium: {
     label: 'PREMIUM',
     badgeClass: 'tier-premium',
-    headline: 'Welcome to Premium',
-    body: "Thanks for backing what we're building — we don't take that lightly. Every tool below is live on your account right now.",
+    headline: 'Premium is ready',
+    body: 'Your Premium access is active. Start scanning when you’re ready.',
   },
   elite: {
     label: 'ELITE',
     badgeClass: 'tier-elite',
-    headline: 'Welcome to Elite',
-    body: 'Thank you for going all in with us — that means a lot. Every tool in Capital Flow is yours now, nothing held back.',
+    headline: 'Elite is ready',
+    body: 'Your Elite access is active. Every Capital Flow tool is ready for you.',
   },
 };
 
@@ -139,24 +139,23 @@ export default function WelcomeTierModal({ tier, confirmed, onClose, eliteUpgrad
         </button>
 
         <div className="welcome-tier-badge-wrap">
-          <span className={'welcome-tier-badge ' + copy.badgeClass}>{confirmed ? copy.label : 'VERIFYING'}</span>
+          <span className={'welcome-tier-badge ' + copy.badgeClass}>{confirmed ? copy.label : 'PAYMENT RECEIVED'}</span>
           {!confirmed && (
             <span className="welcome-tier-confirming" role="status" aria-live="polite">
               <span className="welcome-tier-spinner" aria-hidden="true" />
-              Checkout reported success — confirming access…
+              Activating access…
             </span>
           )}
         </div>
 
         {!confirmed ? (
           <>
-            <h2 className="upgrade-title welcome-tier-headline">Confirming your access</h2>
+            <h2 className="upgrade-title welcome-tier-headline">Activating your access</h2>
             <p className="upgrade-desc welcome-tier-body welcome-tier-pending-body">
-              Checkout reported success. We are waiting for the secure server confirmation before showing paid features.
-              This can take a moment. You can close this window and refresh shortly if your access does not appear.
+              Your payment was received. We’re securely activating your plan now.
             </p>
             <button className="upgrade-cta welcome-tier-cta welcome-tier-cta-secondary" onClick={handleClose}>
-              Close
+              Continue
             </button>
           </>
         ) : (

@@ -73,6 +73,18 @@ test('verifyWebhookSignature accepts a correctly signed body', () => {
   assert.strictEqual(whop.verifyWebhookSignature(body, sign(body)), true);
 });
 
+test('verifyWebhookSignature preserves raw bytes and accepts a valid signature among multiple entries', () => {
+  const body = Buffer.from('{"type":"payment.succeeded","note":"שלום"}', 'utf8');
+  const primary = sign(body.toString('utf8'), { id: 'wh_raw_bytes' });
+  const rotated = sign(body.toString('utf8'), { id: 'wh_raw_bytes', secret: 'old-secret' });
+  const headers = {
+    'Webhook-ID': primary['webhook-id'],
+    'Webhook-Timestamp': primary['webhook-timestamp'],
+    'Webhook-Signature': `${rotated['webhook-signature']} ${primary['webhook-signature']}`,
+  };
+  assert.strictEqual(whop.verifyWebhookSignature(body, headers), true);
+});
+
 test('verifyWebhookSignature rejects a tampered body', () => {
   const body = JSON.stringify({ type: 'payment_succeeded' });
   const headers = sign(body);
