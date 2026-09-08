@@ -655,6 +655,11 @@ async function initDb() {
     `ALTER TABLE users ADD COLUMN premium_scan_count INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE users ADD COLUMN premium_scan_window_start INTEGER`,
     `ALTER TABLE users ADD COLUMN last_login_at INTEGER`,
+    // Legacy compatibility column retained in existing Production databases.
+    // CAPI no longer has a user-facing surface, but restore must still carry
+    // historical values forward instead of rejecting or silently dropping
+    // the column from a real Production snapshot.
+    `ALTER TABLE users ADD COLUMN gemini_interaction_id TEXT`,
     `ALTER TABLE users ADD COLUMN avatar_url TEXT`,
     `ALTER TABLE coupons ADD COLUMN paddle_discount_id TEXT`,
     // Lets a scheduled-scan notification carry its own scan's actual results,
