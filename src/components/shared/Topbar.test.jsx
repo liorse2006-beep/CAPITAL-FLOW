@@ -99,6 +99,19 @@ describe('Topbar tier badge', () => {
     expect(screen.getByText('user@example.com')).toBeInTheDocument();
   });
 
+  it('closes Account Center before opening the current upgrade plans', async () => {
+    const onUpgrade = vi.fn();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+    render(<Topbar {...baseProps({ user: { id: 1, email: 'user@example.com' }, onUpgrade })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Account & workspace' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'View upgrade options' }));
+
+    expect(onUpgrade).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('dialog', { name: 'Account Center' })).not.toBeInTheDocument();
+  });
+
   it('exposes direct destinations for every profile area', async () => {
     const onOpenScheduling = vi.fn();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));

@@ -716,13 +716,6 @@ export default function ProfileModal({
             </main>
           </div>
 
-          <footer className="account-center-footer">
-            <span>Account changes apply to this workspace.</span>
-            <button className="profile-secondary-btn" onClick={onClose} type="button">
-              Done
-            </button>
-          </footer>
-
           {confirmAction && (
             <div className="profile-confirm-layer" role="presentation">
               <div

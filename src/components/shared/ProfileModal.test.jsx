@@ -61,6 +61,15 @@ afterEach(() => {
 });
 
 describe('ProfileModal preferences', () => {
+  it('uses the close control without rendering a redundant Done action', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(summaryResponse()));
+    renderProfile();
+
+    expect(await screen.findByRole('heading', { name: 'Account & workspace' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close profile' })).toBeInTheDocument();
+  });
+
   it('asks for confirmation before enabling notifications', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(summaryResponse()));
     const { props } = renderProfile();

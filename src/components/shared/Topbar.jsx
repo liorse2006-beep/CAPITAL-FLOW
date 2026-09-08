@@ -132,6 +132,15 @@ export default function Topbar({
     setProfileModalOpen(true);
   }
 
+  function openUpgradeFromProfile() {
+    // The Account Center and the pricing surface are separate modal layers.
+    // Close the first one before opening the current shared pricing matrix so
+    // mobile never leaves the new modal underneath an obsolete backdrop.
+    setProfileModalOpen(false);
+    setProfileModalSection(null);
+    onUpgrade?.();
+  }
+
   const profileMenuSections = [
     {
       label: 'ACCOUNT',
@@ -309,7 +318,7 @@ export default function Topbar({
           pushError={pushError}
           onEnablePush={onEnablePush}
           onDisablePush={onDisablePush}
-          onUpgrade={onUpgrade}
+          onUpgrade={openUpgradeFromProfile}
         />
       )}
 
