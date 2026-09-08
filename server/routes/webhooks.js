@@ -63,15 +63,19 @@ function providerPromoCode(event) {
 // exact bytes Whop sent.
 router.post('/webhooks/whop', async (req, res) => {
   try {
-    const rawBody = req.body.toString('utf8');
+    // Keep the exact bytes for signature verification. JSON parsing and even a
+    // decode/re-encode round-trip are unnecessary transformations on a
+    // security boundary, so derive text only after the signature passes.
+    const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(String(req.body ?? ''), 'utf8');
 
     if (!whop.verifyWebhookSignature(rawBody, req.headers)) {
       return res.status(401).json({ error: 'Invalid signature' });
     }
 
+    const bodyText = rawBody.toString('utf8');
     let event;
     try {
-      event = JSON.parse(rawBody);
+      event = JSON.parse(bodyText);
     } catch {
       return res.status(400).json({ error: 'Malformed payload' });
     }
