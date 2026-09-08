@@ -52,15 +52,22 @@ describe('UpgradeModal', () => {
   });
 
   it('shows the base prices', () => {
-    renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
+    const { container } = renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
     expect(screen.getByText('$14.90')).toBeInTheDocument();
     expect(screen.getByText('$29.90')).toBeInTheDocument();
     expect(screen.queryByText('Free', { exact: true })).not.toBeInTheDocument();
     expect(screen.getByText('Have a promo code?', { exact: true })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('PROMO CODE')).toBeInTheDocument();
     expect(screen.getAllByText('One-time purchase · Lifetime access')).toHaveLength(2);
-    expect(screen.getByText('5 scans per 24 hours, charts, and advanced filters.')).toBeInTheDocument();
-    expect(screen.getByText('Unlimited scans, alerts, schedules, and Radar.')).toBeInTheDocument();
+    expect(container.querySelector('.tier-matrix')).toBeInTheDocument();
+    expect(container.querySelector('.upgrade-plan-options')).toBeNull();
+    expect(screen.getAllByText(/Full market scans/)).toHaveLength(2);
+    expect(screen.getAllByText(/5 scans \/ 24h \(shared\)/)).toHaveLength(1);
+    expect(
+      [...container.querySelectorAll('.tier-matrix-feature-specific')].filter((element) =>
+        element.textContent.includes('Unlimited')
+      )
+    ).toHaveLength(4);
     expect(screen.queryByText('Included', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('Not included', { exact: true })).not.toBeInTheDocument();
   });
