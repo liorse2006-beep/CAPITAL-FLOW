@@ -864,29 +864,36 @@ function App() {
         refreshUser().catch(() => {});
         return;
       }
-      // Poll /api/auth/me until the tier matches the purchased tier, backing
-      // off gradually. The Whop webhook can trail the redirect by anywhere
-      // from 1s to ~90s on a cold Render instance, so a single 3s retry is
-      // not enough — the user would see "Free" in the nav until hard-refresh.
+    },
+    [location.pathname, location.search, navigate, refreshUser]
+  );
+
+  // Poll independently from the callback URL cleanup above. Navigating from
+  // ?status=success back to the clean route reruns the URL effect; keeping
+  // this loop in its own effect prevents that harmless navigation from
+  // cancelling the only refresh that can observe the webhook's tier update.
+  useEffect(
+    function () {
+      if (!welcomeTier) return undefined;
       var cancelled = false;
       var delays = [1000, 3000, 8000, 20000, 45000];
       (async function poll() {
         for (var i = 0; i < delays.length; i++) {
-          await new Promise(function (r) {
-            setTimeout(r, delays[i]);
+          await new Promise(function (resolve) {
+            setTimeout(resolve, delays[i]);
           });
           if (cancelled) return;
-          await refreshUser();
+          await refreshUser().catch(function () {});
           if (cancelled) return;
-          var u = userRef.current;
-          if (u && pendingTier && u.tier === pendingTier) return;
+          var currentUser = userRef.current;
+          if (currentUser && currentUser.tier === welcomeTier) return;
         }
       })();
       return function () {
         cancelled = true;
       };
     },
-    [location.pathname, location.search, navigate, refreshUser]
+    [welcomeTier, refreshUser]
   );
 
   // Tapping a scheduled-scan push notification (or clicking one in the bell
