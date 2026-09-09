@@ -61,13 +61,22 @@ function LandingPage({ onGetStarted }) {
     const cleanup = initLandingEffects(root, onGetStarted);
     const html = document.documentElement;
     const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
     const previousHtmlOverflowY = html.style.overflowY;
+    const previousBodyOverflow = body.style.overflow;
+    const previousBodyOverflowX = body.style.overflowX;
     const previousBodyOverflowY = body.style.overflowY;
 
-    // Keep one native scroll container for the landing page. The global app
-    // shell reserves a scrollbar by making body scrollable, but on this long
-    // marketing page that leaves body and html competing for wheel input.
+    // Keep the document root as the landing page's only scroll container. On
+    // mobile the global app rule `body { overflow-x: hidden; }` combines with
+    // `overflow-y: visible` and makes the browser compute the body's vertical
+    // overflow as `auto`. That creates a second, competing scroll container;
+    // on some mobile browsers the page then appears frozen at the top. Reset
+    // the full shorthand so the body stays transparent in both axes.
+    html.style.overflow = 'auto';
     html.style.overflowY = 'auto';
+    body.style.overflow = 'visible';
+    body.style.overflowX = 'visible';
     body.style.overflowY = 'visible';
 
     function onMarketingClick(event) {
@@ -87,7 +96,10 @@ function LandingPage({ onGetStarted }) {
       root.removeEventListener('click', onMarketingClick);
       cleanup();
       cleanupTopography();
+      html.style.overflow = previousHtmlOverflow;
       html.style.overflowY = previousHtmlOverflowY;
+      body.style.overflow = previousBodyOverflow;
+      body.style.overflowX = previousBodyOverflowX;
       body.style.overflowY = previousBodyOverflowY;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
