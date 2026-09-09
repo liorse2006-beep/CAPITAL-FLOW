@@ -59,6 +59,14 @@ it('the OTP Verify button is enabled (not stuck on the signup loading state) onc
   }
 
   expect(verifyBtn).not.toBeDisabled();
+  expect(global.fetch).toHaveBeenCalledWith(
+    '/api/auth/refresh',
+    expect.objectContaining({ method: 'POST', credentials: 'include' })
+  );
+  expect(global.fetch).toHaveBeenCalledWith(
+    '/api/auth/signup',
+    expect.objectContaining({ method: 'POST', credentials: 'include' })
+  );
 });
 
 it('closes the authentication dialog from its close button', async () => {

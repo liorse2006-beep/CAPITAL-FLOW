@@ -74,6 +74,22 @@ const DUMMY_PASSWORD_HASH = '$2b$12$6o2c9QdDPpVJDkrxAXyZNOtcbhFwjkkB111QkvJjk3Hn
 const REFRESH_COOKIE_NAME = 'vs_refresh';
 const REFRESH_COOKIE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 
+// The public app has both the apex and www host available in production.
+// Without a shared domain, a customer who signs in on one host and later
+// opens the other host gets a fresh browser context with no refresh cookie and
+// is incorrectly sent back to the login screen. Share the cookie only across
+// these two owned hosts; staging, localhost, and arbitrary custom hosts keep
+// their safer host-only cookie behavior.
+const AUTH_COOKIE_DOMAIN = (() => {
+  if (process.env.NODE_ENV !== 'production') return undefined;
+  try {
+    const host = new URL(FRONTEND_URL).hostname.toLowerCase();
+    return host === 'capitalflow.vip' || host === 'www.capitalflow.vip' ? 'capitalflow.vip' : undefined;
+  } catch {
+    return undefined;
+  }
+})();
+
 // OAuth authorization and callback must both opt into Passport's state
 // verifier. Passport stores the nonce in the signed cookie-session configured
 // by server/index.js and rejects a callback that was not started by this
@@ -88,13 +104,23 @@ const GOOGLE_AUTH_OPTIONS = Object.freeze({
 const GOOGLE_CALLBACK_AUTH_OPTIONS = Object.freeze({ session: false, state: true });
 
 function setRefreshCookie(res, refreshToken) {
-  res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
+  const options = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/api/auth',
     maxAge: REFRESH_COOKIE_MAX_AGE_MS,
-  });
+  };
+
+  if (AUTH_COOKIE_DOMAIN) {
+    // Remove a pre-existing host-only cookie from the release that preceded
+    // the apex/www migration. Leaving both cookies with the same name would
+    // make the server depend on browser cookie ordering during refresh.
+    res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth' });
+    options.domain = AUTH_COOKIE_DOMAIN;
+  }
+
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, options);
 }
 
 function isConfiguredAdmin(email) {
@@ -151,6 +177,9 @@ function getGoogleAvatarUrl(profile) {
 
 function clearRefreshCookie(res) {
   res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth' });
+  if (AUTH_COOKIE_DOMAIN) {
+    res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth', domain: AUTH_COOKIE_DOMAIN });
+  }
 }
 
 /* ── Cloudflare Turnstile verification ── */

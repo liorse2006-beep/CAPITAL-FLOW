@@ -157,6 +157,7 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
     const res = await fetch(`/api/auth/${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(body),
     });
     const data = await res.json();

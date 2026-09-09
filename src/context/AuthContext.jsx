@@ -25,22 +25,61 @@ export function AuthProvider({ children }) {
     accessTokenRef.current = token || null;
   }, []);
 
-  // Exchanges the httpOnly refresh cookie for a fresh access token. Returns
-  // the new token on success, or null (no active session, or the cookie is
-  // missing/blocked). The returned bearer is never persisted in browser
-  // storage.
-  const silentRefresh = useCallback(async () => {
-    try {
-      const res = await fetch('/api/auth/refresh', { method: 'POST' });
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (!data.token) return null;
-      setAccessToken(data.token);
-      return data.token;
-    } catch {
-      return null;
-    }
-  }, [setAccessToken]);
+  // Exchanges the httpOnly refresh cookie for a fresh access token. The
+  // result deliberately distinguishes an actually unauthenticated browser
+  // (401/403) from a temporary network/server failure. Treating a 5xx, 429,
+  // timeout, or cold-start failure as "logged out" is especially damaging on
+  // mobile: the app can be backgrounded while the server sleeps, then reopen
+  // with a perfectly valid cookie and incorrectly show the sign-in screen.
+  // The returned bearer is never persisted in browser storage.
+  const silentRefresh = useCallback(
+    async ({ retryTransient = false } = {}) => {
+      const maxAttempts = retryTransient ? 3 : 1;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+        try {
+          const res = await fetch('/api/auth/refresh', {
+            method: 'POST',
+            credentials: 'include',
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+
+          if (res.ok) {
+            const data = await res.json();
+            if (!data.token) return { token: null, status: 'unavailable' };
+            setAccessToken(data.token);
+            return { token: data.token, status: 'authenticated' };
+          }
+
+          // Only an explicit authorization failure means the cookie/session
+          // is no longer valid. Every other response is transient and must
+          // not turn a temporary outage into a false logout.
+          if (res.status === 401 || res.status === 403) {
+            return { token: null, status: 'unauthenticated' };
+          }
+
+          if (attempt < maxAttempts) {
+            await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+            continue;
+          }
+          return { token: null, status: 'unavailable' };
+        } catch {
+          clearTimeout(timeout);
+          if (attempt < maxAttempts) {
+            await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+            continue;
+          }
+          return { token: null, status: 'unavailable' };
+        }
+      }
+
+      return { token: null, status: 'unavailable' };
+    },
+    [setAccessToken]
+  );
 
   const fetchMe = useCallback(
     async (token, isRevalidation) => {
@@ -58,6 +97,7 @@ export function AuthProvider({ children }) {
         try {
           const res = await fetch('/api/auth/me', {
             headers: { Authorization: `Bearer ${token}` },
+            credentials: 'include',
             signal: controller.signal,
           });
           clearTimeout(timeout);
@@ -144,11 +184,16 @@ export function AuthProvider({ children }) {
     // and it also recovers a session if the browser cleared localStorage
     // but not cookies (Safari's storage-eviction rules differ between the
     // two, so this is a real, not just theoretical, recovery path).
-    silentRefresh()
-      .then((refreshed) => {
-        const tokenToUse = refreshed || tokenFromUrl || stored;
+    silentRefresh({ retryTransient: true })
+      .then((refreshResult) => {
+        const tokenToUse = refreshResult.token || tokenFromUrl || stored;
         if (tokenToUse) return fetchMe(tokenToUse);
-        setAuthLoadError(false);
+
+        // A transient refresh failure means the existing httpOnly cookie may
+        // still be valid. Keep the user out of a misleading guest state and
+        // let the startup retry affordance recover without asking for a
+        // password again.
+        setAuthLoadError(refreshResult.status === 'unavailable');
       })
       .finally(() => setIsLoading(false));
   }, [fetchMe, setAccessToken, silentRefresh]);
@@ -179,7 +224,11 @@ export function AuthProvider({ children }) {
     // hour) means the 90s recheck above almost never has to discover an
     // actually-expired token, only a genuinely revoked one.
     async function refreshThenRecheck() {
-      await silentRefresh();
+      const refreshResult = await silentRefresh();
+      // If refresh is temporarily unavailable, keep the existing in-memory
+      // account and let the next focus/interval retry. Only /me returning a
+      // real 401/403 may clear an already-established session.
+      if (refreshResult.status === 'unavailable') return;
       recheck();
     }
     const interval = setInterval(recheck, 90000);
@@ -236,6 +285,7 @@ export function AuthProvider({ children }) {
       ? fetch('/api/auth/apply-invite', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          credentials: 'include',
           body: JSON.stringify({ inviteCode: invite }),
         })
           .then(() => localStorage.removeItem('vs_pilot_invite'))
@@ -254,6 +304,7 @@ export function AuthProvider({ children }) {
     const res = await fetch('/api/auth/accept-pilot-terms', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
     });
     if (res.ok) await fetchMe(token);
   }

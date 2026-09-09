@@ -6,7 +6,7 @@
 // never leaves the browser either way. See routes/auth.js for the redirect
 // side of this fix.
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth } from './AuthContext';
 
 afterEach(() => {
@@ -107,7 +107,43 @@ describe('AuthContext — Google OAuth pending-token handoff', () => {
     expect(screen.getByTestId('auth-token')).toHaveTextContent('still-valid-token');
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/auth/me',
-      expect.objectContaining({ headers: { Authorization: 'Bearer still-valid-token' } })
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer still-valid-token' },
+        credentials: 'include',
+      })
+    );
+  });
+
+  it('retries a transient refresh failure and restores the session without showing sign-in', async () => {
+    let refreshAttempts = 0;
+    const fetchMock = vi.fn((url) => {
+      if (url === '/api/auth/refresh') {
+        refreshAttempts += 1;
+        if (refreshAttempts === 1) return Promise.resolve({ ok: false, status: 503 });
+        return Promise.resolve({ ok: true, json: async () => ({ token: 'fresh-token' }) });
+      }
+      if (url === '/api/auth/me') {
+        return Promise.resolve({ ok: true, json: async () => ({ user: { id: 7, email: 'mobile@test.local' } }) });
+      }
+      return Promise.reject(new Error('unexpected request'));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <AuthProvider>
+        <AuthHealthProbe />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('auth-token')).toHaveTextContent('fresh-token'), { timeout: 5000 });
+    expect(screen.getByTestId('auth-health')).toHaveTextContent('ok');
+    // React may mount effects more than once in the test harness; the
+    // contract is that a transient failure is retried, not that the browser
+    // performs exactly one retry under every renderer configuration.
+    expect(refreshAttempts).toBeGreaterThanOrEqual(2);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/auth/refresh',
+      expect.objectContaining({ method: 'POST', credentials: 'include' })
     );
   });
 });
