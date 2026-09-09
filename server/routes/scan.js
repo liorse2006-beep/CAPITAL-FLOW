@@ -159,7 +159,10 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
     Array.isArray(backgroundCache.results) &&
     backgroundCache.scanTime &&
     reusableBackgroundSnapshot &&
-    list !== 'sectors' &&
+    // The background snapshot is the full-market universe. Never reuse it
+    // for a named list, otherwise a NASDAQ 100 or S&P 500 request can show
+    // symbols from the wrong universe (for example, CMCSA in NASDAQ 100).
+    !list &&
     sectors.length === 0
   ) {
     const cacheAgeMs = Date.now() - new Date(backgroundCache.scanTime).getTime();

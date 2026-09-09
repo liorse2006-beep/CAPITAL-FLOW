@@ -16,6 +16,7 @@ const { issueToken } = require('../server/services/auth');
 const scanner = require('../server/services/scanner');
 const scanRouter = require('../server/routes/scan');
 const { backgroundCache } = require('../server/services/backgroundScan');
+const { NASDAQ100 } = require('../tickers');
 
 async function makeEliteUser(email) {
   const result = await db
@@ -235,6 +236,39 @@ test('a cache-served scan does not spend the premium 5/day quota', async (t) => 
   }
 });
 
+test('named universes never reuse the full-market background cache', async (t) => {
+  backgroundCache.results = [ROW];
+  backgroundCache.scanTime = new Date().toISOString();
+  backgroundCache.dataStatus = 'complete';
+  backgroundCache.dataAsOf = new Date().toISOString();
+
+  let scannedTickers = null;
+  t.mock.method(scanner, 'scanTickers', async (tickers) => {
+    scannedTickers = tickers;
+    return { results: [], errors: [], processed: tickers.length, dataStatus: 'complete' };
+  });
+
+  const user = await makeEliteUser('conc-list-cache@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(
+      `http://localhost:${port}/api/scan?list=nasdaq100&minVolumeRatio=1.5&minMarketCap=1000000000`,
+      { headers: { Authorization: 'Bearer ' + user.token } }
+    );
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.strictEqual(data.fromCache, undefined, 'named universes must not use the full-market cache');
+    assert.deepStrictEqual(scannedTickers, NASDAQ100);
+  } finally {
+    server.close();
+    backgroundCache.results = null;
+    backgroundCache.scanTime = null;
+    backgroundCache.dataStatus = null;
+    backgroundCache.dataAsOf = null;
+  }
+});
+
 test('does not serve an empty partial background snapshot as a user result', async (t) => {
   backgroundCache.results = [];
   backgroundCache.scanTime = new Date().toISOString();
@@ -260,7 +294,10 @@ test('does not serve an empty partial background snapshot as a user result', asy
     assert.strictEqual(res.status, 200);
     const data = await res.json();
     assert.strictEqual(data.fromCache, undefined, 'partial snapshots must not be reported as cache hits');
-    assert.deepStrictEqual(data.results.map((r) => r.symbol), ['AAPL']);
+    assert.deepStrictEqual(
+      data.results.map((r) => r.symbol),
+      ['AAPL']
+    );
     assert.strictEqual(mocked.mock.callCount(), 1, 'an empty partial cache must trigger a fresh scan');
   } finally {
     server.close();
