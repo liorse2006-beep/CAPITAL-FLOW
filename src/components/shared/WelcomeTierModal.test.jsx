@@ -70,12 +70,13 @@ describe('WelcomeTierModal', () => {
 
   it('does not claim paid access before the server confirms the webhook', () => {
     const { rerender } = renderWithProviders(<WelcomeTierModal tier="elite" confirmed={false} onClose={vi.fn()} />);
-    expect(screen.getByText('PAYMENT RECEIVED')).toBeInTheDocument();
-    expect(screen.getByText('Activating access…')).toBeInTheDocument();
-    expect(screen.getByText('Activating your access')).toBeInTheDocument();
+    expect(screen.getByText('Payment confirmed')).toBeInTheDocument();
+    expect(screen.getByText('Just a few seconds — your access will be ready.')).toBeInTheDocument();
+    expect(screen.getByText("We're activating your Elite access securely.")).toBeInTheDocument();
+    expect(screen.getByText('ACTIVATING ACCESS')).toBeInTheDocument();
     expect(screen.queryByText('Elite is ready')).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Close' })).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument();
 
     rerender(
       <MemoryRouter>
@@ -84,7 +85,7 @@ describe('WelcomeTierModal', () => {
         </AuthProvider>
       </MemoryRouter>
     );
-    expect(screen.queryByText(/Activating access/)).not.toBeInTheDocument();
+    expect(screen.queryByText('ACTIVATING ACCESS')).not.toBeInTheDocument();
     expect(screen.getByText('Elite is ready')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start scanning' })).toBeInTheDocument();
   });

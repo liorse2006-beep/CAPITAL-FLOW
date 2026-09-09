@@ -8,12 +8,14 @@ import EmbeddedCheckout from './EmbeddedCheckout';
 var COPY = {
   premium: {
     label: 'PREMIUM',
+    planName: 'Premium',
     badgeClass: 'tier-premium',
     headline: 'Premium is ready',
     body: 'Your Premium access is active. Start scanning when you’re ready.',
   },
   elite: {
     label: 'ELITE',
+    planName: 'Elite',
     badgeClass: 'tier-elite',
     headline: 'Elite is ready',
     body: 'Your Elite access is active. Every Capital Flow tool is ready for you.',
@@ -124,39 +126,61 @@ export default function WelcomeTierModal({ tier, confirmed, onClose, eliteUpgrad
   }
 
   return (
-    <div className="upgrade-overlay welcome-tier-overlay" onClick={handleClose}>
+    <div
+      className={'upgrade-overlay welcome-tier-overlay' + (!confirmed ? ' welcome-tier-overlay-pending' : '')}
+      onClick={handleClose}
+    >
       <div
-        className={'upgrade-modal welcome-tier-modal ' + copy.badgeClass}
+        className={
+          'upgrade-modal welcome-tier-modal ' + copy.badgeClass + (!confirmed ? ' welcome-tier-modal-pending' : '')
+        }
         ref={panelRef}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label={confirmed ? copy.headline : 'Confirming your access'}
+        aria-label={confirmed ? copy.headline : 'Payment confirmed — activating access'}
         onClick={(e) => e.stopPropagation()}
       >
         <button className="upgrade-close" onClick={handleClose} aria-label="Close">
           ×
         </button>
 
-        <div className="welcome-tier-badge-wrap">
-          <span className={'welcome-tier-badge ' + copy.badgeClass}>{confirmed ? copy.label : 'PAYMENT RECEIVED'}</span>
-          {!confirmed && (
-            <span className="welcome-tier-confirming" role="status" aria-live="polite">
-              <span className="welcome-tier-spinner" aria-hidden="true" />
-              Activating access…
+        {confirmed ? (
+          <div className="welcome-tier-badge-wrap">
+            <span className={'welcome-tier-badge ' + copy.badgeClass}>{copy.label}</span>
+          </div>
+        ) : (
+          <div className="welcome-tier-pending-visual" aria-hidden="true">
+            <span className="welcome-tier-pending-icon">
+              <svg
+                viewBox="0 0 24 24"
+                width="28"
+                height="28"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
             </span>
-          )}
-        </div>
+          </div>
+        )}
 
         {!confirmed ? (
           <>
-            <h2 className="upgrade-title welcome-tier-headline">Activating your access</h2>
+            <h2 className="upgrade-title welcome-tier-headline">Payment confirmed</h2>
             <p className="upgrade-desc welcome-tier-body welcome-tier-pending-body">
-              Your payment was received. We’re securely activating your plan now.
+              Just a few seconds — your access will be ready.
             </p>
-            <button className="upgrade-cta welcome-tier-cta welcome-tier-cta-secondary" onClick={handleClose}>
-              Continue
-            </button>
+            <p className="welcome-tier-pending-supporting">
+              We&apos;re activating your {copy.planName} access securely.
+            </p>
+            <div className="welcome-tier-pending-status" role="status" aria-live="polite">
+              <span className="welcome-tier-spinner" aria-hidden="true" />
+              <span>ACTIVATING ACCESS</span>
+            </div>
           </>
         ) : (
           <>
