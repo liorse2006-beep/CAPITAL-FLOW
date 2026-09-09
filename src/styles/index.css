@@ -5443,6 +5443,11 @@ td {
   align-items: center;
   align-items: safe center;
 }
+.welcome-tier-overlay-pending {
+  background: rgba(4, 5, 7, 0.82);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
 @property --welcome-ring-angle {
   syntax: '<angle>';
   inherits: false;
@@ -5502,6 +5507,107 @@ td {
   padding: 26px 24px 22px;
   z-index: 0;
   animation: welcomeTierIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.welcome-tier-modal-pending {
+  width: 460px;
+  max-width: calc(100vw - 32px);
+  padding: 38px 36px 30px;
+  border-color: rgba(245, 158, 11, 0.34);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(245, 158, 11, 0.09), transparent 42%),
+    linear-gradient(145deg, rgba(23, 25, 29, 0.98), rgba(11, 12, 14, 0.98));
+  box-shadow:
+    0 28px 90px rgba(0, 0, 0, 0.72),
+    0 0 0 1px rgba(255, 255, 255, 0.025) inset,
+    0 0 54px rgba(245, 158, 11, 0.12);
+}
+.welcome-tier-modal-pending::before {
+  display: none;
+}
+.welcome-tier-modal-pending .upgrade-close {
+  top: 16px;
+  right: 18px;
+}
+.welcome-tier-pending-visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 92px;
+  height: 92px;
+  margin: 0 auto 22px;
+  border-radius: 50%;
+  background: rgba(245, 158, 11, 0.04);
+}
+.welcome-tier-pending-visual::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 3px solid rgba(245, 158, 11, 0.16);
+  border-top-color: var(--accent-vivid);
+  border-right-color: rgba(255, 232, 166, 0.9);
+  border-radius: 50%;
+  animation: welcomeTierPendingSpin 1.6s linear infinite;
+}
+@keyframes welcomeTierPendingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.welcome-tier-pending-icon {
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border: 1px solid rgba(52, 211, 153, 0.28);
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.1);
+  color: #5eead4;
+  box-shadow: 0 0 24px rgba(16, 185, 129, 0.15);
+}
+.welcome-tier-modal-pending .welcome-tier-headline {
+  margin-bottom: 12px;
+  font-size: 27px;
+  letter-spacing: -0.02em;
+}
+.welcome-tier-modal-pending .welcome-tier-pending-body {
+  max-width: 360px;
+  margin-bottom: 8px;
+  color: var(--text-0);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.welcome-tier-pending-supporting {
+  max-width: 340px;
+  margin: 0 auto;
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.welcome-tier-pending-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 228px;
+  margin: 24px auto 0;
+  padding: 10px 16px;
+  border: 1px solid rgba(52, 211, 153, 0.28);
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.08);
+  color: #5eead4;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.welcome-tier-pending-status .welcome-tier-spinner {
+  width: 14px;
+  height: 14px;
+  border-color: rgba(94, 234, 212, 0.25);
+  border-top-color: #5eead4;
 }
 /* A true hollow ring, floating clear of the card with a visible gap — NOT a
    filled shape glued to the card's own edge. The -14px inset pushes the ring
@@ -5773,6 +5879,25 @@ td {
   }
   .welcome-upsell-cta {
     animation: none !important;
+  }
+  .welcome-tier-pending-visual::before {
+    animation: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .welcome-tier-modal-pending {
+    width: calc(100vw - 28px);
+    padding: 32px 20px 26px;
+  }
+  .welcome-tier-modal-pending .welcome-tier-headline {
+    font-size: 24px;
+  }
+  .welcome-tier-modal-pending .welcome-tier-pending-body {
+    font-size: 15px;
+  }
+  .welcome-tier-pending-supporting {
+    font-size: 12px;
   }
 }
 
