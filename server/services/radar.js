@@ -680,6 +680,10 @@ async function dispatchRadarEvent(radar, event) {
         body,
         radarId: radar.id,
         scanTime: event.scanTime,
+        // The push must open the exact persisted event snapshot. Without this
+        // deep link, tapping a valid Radar alert opened `/` and the customer
+        // saw no result data even though it had already been stored.
+        data: { url: '/scanner?notif=' + notificationId },
       });
     } catch (err) {
       // Push failure is recorded but never turns a valid Radar event into a

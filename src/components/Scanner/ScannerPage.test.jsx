@@ -257,6 +257,22 @@ describe('ScannerPage mobile result surface', () => {
 });
 
 describe('ScannerPage result table integrity', () => {
+  it('does not describe an incomplete empty scan as a verified no-match', () => {
+    render(
+      <ScannerPage
+        {...baseProps({
+          results: [],
+          sorted: [],
+          scanTime: new Date().toISOString(),
+          scanDataStatus: 'partial',
+        })}
+      />
+    );
+
+    expect(screen.getByText(/No verified matches are available because some market data was unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByText('No stocks matched your filters.')).not.toBeInTheDocument();
+  });
+
   it('keeps the action rail inside the table and explains delayed data plainly', () => {
     render(
       <ScannerPage

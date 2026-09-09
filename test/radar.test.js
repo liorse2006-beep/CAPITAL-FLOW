@@ -8,6 +8,7 @@ before(async () => {
 });
 
 const radarService = require('../server/services/radar');
+const webPush = require('../server/services/webPush');
 
 async function makeEliteUser(email) {
   const result = await db
@@ -94,6 +95,28 @@ test('Capital Flow Radar persists a new entry once and preserves it during an on
     .prepare("SELECT COUNT(*) AS count FROM notifications WHERE user_id = ? AND scan_type = 'capitalFlowRadar'")
     .get(user.id);
   assert.equal(Number(notificationCount.count), 1);
+});
+
+test('Capital Flow Radar push opens the exact notification snapshot', async (t) => {
+  const user = await makeEliteUser('radar-push-deeplink@test.local');
+  const radar = await radarService.createRadar(user.id, {
+    name: 'Push Link Radar',
+    mode: 'all',
+    selectedSectors: [],
+    minVolumeRatio: 1.5,
+    minMarketCap: 500_000_000,
+    ...scheduleFields(),
+  });
+  const pushMock = t.mock.method(webPush, 'sendPushToUser', async () => ({}));
+
+  await radarService.processRadarScan([scanRow()], '2026-08-25T13:00:00.000Z', { errors: [], radarIds: [radar.id] });
+
+  assert.strictEqual(pushMock.mock.callCount(), 1);
+  const notification = await db
+    .prepare("SELECT id FROM notifications WHERE user_id = ? AND scan_type = 'capitalFlowRadar' ORDER BY id DESC LIMIT 1")
+    .get(user.id);
+  assert.ok(notification);
+  assert.strictEqual(pushMock.mock.calls[0].arguments[1].data.url, '/scanner?notif=' + notification.id);
 });
 
 test('Capital Flow Radar does not invent a result while the scan is unavailable', async () => {

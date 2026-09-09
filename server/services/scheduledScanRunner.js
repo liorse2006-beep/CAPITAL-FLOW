@@ -674,7 +674,6 @@ const SCAN_URL = { capitalFlow: '/scanner', maScanner: '/ma', sectorMoving: '/fl
 async function notifyScheduledUser(sched, scan) {
   const normalized = normalizeScheduledScanResult(scan);
   const { results } = normalized;
-  const { title, body } = payloadForType(sched.scan_type, normalized);
 
   // A one-time schedule (scan_date set) has done its one job — deactivate it
   // the moment it fires so it can't run again. A recurring one (scan_date
@@ -686,6 +685,21 @@ async function notifyScheduledUser(sched, scan) {
        WHERE id = ?`
     )
     .run(Math.floor(Date.now() / 1000), results.length, sched.id);
+
+  // A scheduled notification is an actionable signal, not a provider-health
+  // report. Never send a customer an alert when the scan is partial/unavailable
+  // or when it has no matching rows: in those cases there is no verified stock
+  // snapshot for the notification to open. The old behavior sent a
+  // "Partial data" push with an empty results_json, which is exactly the
+  // notification that appeared without any data in the app.
+  if (normalized.dataStatus !== 'complete' || results.length === 0) {
+    console.log(
+      `[ScheduledScans] scan_id=${sched.id} notification suppressed status=${normalized.dataStatus} results=${results.length}`
+    );
+    return;
+  }
+
+  const { title, body } = payloadForType(sched.scan_type, normalized);
 
   // Persist to the in-app bell FIRST, so the user has proof the scheduled
   // scan actually ran even if they never granted push permission (or the

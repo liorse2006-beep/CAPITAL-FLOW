@@ -205,6 +205,7 @@ test('a cache-served scan does not spend the premium 5/day quota', async (t) => 
   // Fresh cache from "just now" so the fast path is taken even off-hours.
   backgroundCache.results = [ROW];
   backgroundCache.scanTime = new Date().toISOString();
+  backgroundCache.dataStatus = 'complete';
 
   const result = await db
     .prepare("INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, 'premium', 1)")
@@ -229,6 +230,44 @@ test('a cache-served scan does not spend the premium 5/day quota', async (t) => 
     server.close();
     backgroundCache.results = null;
     backgroundCache.scanTime = null;
+    backgroundCache.dataStatus = null;
+    backgroundCache.dataAsOf = null;
+  }
+});
+
+test('does not serve an empty partial background snapshot as a user result', async (t) => {
+  backgroundCache.results = [];
+  backgroundCache.scanTime = new Date().toISOString();
+  backgroundCache.dataStatus = 'partial';
+  backgroundCache.dataAsOf = '2019-06-28T22:07:38.000Z';
+
+  const mocked = t.mock.method(scanner, 'scanTickers', async () => ({
+    results: [ROW],
+    errors: [],
+    processed: 500,
+    dataStatus: 'complete',
+    dataAsOf: new Date().toISOString(),
+  }));
+
+  const user = await makeEliteUser('conc-partial-cache@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+
+  try {
+    const res = await fetch(`http://localhost:${port}/api/scan?minVolumeRatio=1.5&minMarketCap=1000000000`, {
+      headers: { Authorization: 'Bearer ' + user.token },
+    });
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.strictEqual(data.fromCache, undefined, 'partial snapshots must not be reported as cache hits');
+    assert.deepStrictEqual(data.results.map((r) => r.symbol), ['AAPL']);
+    assert.strictEqual(mocked.mock.callCount(), 1, 'an empty partial cache must trigger a fresh scan');
+  } finally {
+    server.close();
+    backgroundCache.results = null;
+    backgroundCache.scanTime = null;
+    backgroundCache.dataStatus = null;
+    backgroundCache.dataAsOf = null;
   }
 });
 

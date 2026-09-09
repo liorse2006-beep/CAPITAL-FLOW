@@ -789,7 +789,9 @@ export default function ScannerPage({
               <div className="no-match">
                 {scanDataStatus === 'unavailable'
                   ? 'No verified market data is available right now. Please try again in a few minutes.'
-                  : 'No stocks matched your filters.'}
+                  : scanDataStatus === 'partial'
+                    ? 'No verified matches are available because some market data was unavailable. Please try again in a few minutes.'
+                    : 'No stocks matched your filters.'}
               </div>
             ) : (
               <>

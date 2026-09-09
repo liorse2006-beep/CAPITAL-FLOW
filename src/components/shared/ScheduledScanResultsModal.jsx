@@ -1,7 +1,12 @@
 import React from 'react';
 import { fmt, formatPrice, formatRatio, formatSignedPercent } from '../../utils/format';
 
-var SCAN_LABEL = { capitalFlow: 'Capital Flow', maScanner: 'MA Scanner', sectorMoving: 'Hot Sectors' };
+var SCAN_LABEL = {
+  capitalFlow: 'Capital Flow',
+  maScanner: 'MA Scanner',
+  sectorMoving: 'Hot Sectors',
+  capitalFlowRadar: 'Capital Flow Radar',
+};
 
 function formatWhen(unixSec) {
   if (!unixSec) return '';

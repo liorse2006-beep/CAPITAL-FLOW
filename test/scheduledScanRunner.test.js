@@ -150,7 +150,7 @@ test('a scheduled scan persists an in-app notification, so it is visible even wi
   assert.strictEqual(pushPayload.data.url, '/scanner?notif=' + notif.id);
 });
 
-test('a provider failure is reported as unavailable instead of no signals', async (t) => {
+test('a provider failure does not send a customer notification without verified results', async (t) => {
   const u = await db
     .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
     .run('sched-unavailable@test.local');
@@ -169,13 +169,8 @@ test('a provider failure is reported as unavailable instead of no signals', asyn
   const notif = await db
     .prepare('SELECT title, body, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
     .get(userId);
-  assert.ok(notif);
-  assert.match(notif.title, /Data unavailable/);
-  assert.match(notif.body, /temporarily unavailable/i);
-  assert.doesNotMatch(notif.body, /No unusual volume/i);
-  assert.strictEqual(notif.results_json, null);
-  assert.strictEqual(pushMock.mock.callCount(), 1);
-  assert.match(pushMock.mock.calls[0].arguments[1].body, /temporarily unavailable/i);
+  assert.strictEqual(notif, undefined, 'provider failures must not create an empty customer alert');
+  assert.strictEqual(pushMock.mock.callCount(), 0, 'provider failures must not send a push without stock data');
 
   const schedule = await db
     .prepare('SELECT active, last_run_at, last_result_count FROM scheduled_scans WHERE user_id = ?')
@@ -183,6 +178,58 @@ test('a provider failure is reported as unavailable instead of no signals', asyn
   assert.strictEqual(schedule.active, 1, 'recurring schedules remain active after a transparent unavailable run');
   assert.ok(schedule.last_run_at > 0);
   assert.strictEqual(schedule.last_result_count, 0);
+});
+
+test('a partial empty scan does not send a notification without a verified result set', async (t) => {
+  const u = await db
+    .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
+    .run('sched-partial-empty@test.local');
+  const userId = u.lastInsertRowid;
+  await db
+    .prepare("INSERT INTO scheduled_scans (user_id, scan_type, scan_time, active) VALUES (?, 'capitalFlow', ?, 1)")
+    .run(userId, nowHHMM());
+
+  t.mock.method(scanner, 'scanTickers', async () => ({
+    results: [],
+    errors: ['AAPL'],
+    processed: 500,
+    dataStatus: 'partial',
+  }));
+  const pushMock = t.mock.method(webPush, 'sendPushToUser', async () => {});
+
+  await runScheduledScans();
+
+  const notif = await db
+    .prepare('SELECT id FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+    .get(userId);
+  assert.strictEqual(notif, undefined);
+  assert.strictEqual(pushMock.mock.callCount(), 0);
+});
+
+test('a partial scan with rows does not alert with data that is not fully verified', async (t) => {
+  const u = await db
+    .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
+    .run('sched-partial-rows@test.local');
+  const userId = u.lastInsertRowid;
+  await db
+    .prepare("INSERT INTO scheduled_scans (user_id, scan_type, scan_time, active) VALUES (?, 'capitalFlow', ?, 1)")
+    .run(userId, nowHHMM());
+
+  t.mock.method(scanner, 'scanTickers', async () => ({
+    results: [{ symbol: 'AAPL', volumeRatio: 3.2 }],
+    errors: ['MSFT'],
+    processed: 500,
+    dataStatus: 'partial',
+  }));
+  const pushMock = t.mock.method(webPush, 'sendPushToUser', async () => {});
+
+  await runScheduledScans();
+
+  const notif = await db
+    .prepare('SELECT id FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+    .get(userId);
+  assert.strictEqual(notif, undefined);
+  assert.strictEqual(pushMock.mock.callCount(), 0);
 });
 
 // ── one-time (scan_date) schedules ──────────────────────────────────────────

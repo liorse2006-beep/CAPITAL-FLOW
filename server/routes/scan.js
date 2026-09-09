@@ -143,7 +143,25 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
   const marketOpen = isMarketOpen();
   const maxCacheAge = marketOpen ? 15 * 60 * 1000 : 24 * 60 * 60 * 1000;
 
-  if (backgroundCache.results && backgroundCache.scanTime && list !== 'sectors' && sectors.length === 0) {
+  // A partial background snapshot with rows is usable as a best-effort result;
+  // the UI shows the PARTIAL warning alongside it. An empty partial snapshot,
+  // however, is not a valid answer to a user's scan: an outage can produce it,
+  // and serving it from the shared cache makes every new user see "no matches"
+  // without ever getting a chance to run against the provider again. Keep that
+  // empty snapshot out of the cache-hit path while preserving the fast path for
+  // complete snapshots and non-empty partial snapshots.
+  const reusableBackgroundSnapshot =
+    backgroundCache.dataStatus === 'complete' ||
+    (backgroundCache.dataStatus === 'partial' &&
+      Array.isArray(backgroundCache.results) &&
+      backgroundCache.results.length > 0);
+  if (
+    Array.isArray(backgroundCache.results) &&
+    backgroundCache.scanTime &&
+    reusableBackgroundSnapshot &&
+    list !== 'sectors' &&
+    sectors.length === 0
+  ) {
     const cacheAgeMs = Date.now() - new Date(backgroundCache.scanTime).getTime();
     if (cacheAgeMs < maxCacheAge && minVolumeRatio >= FLOOR_RATIO && minMarketCap >= FLOOR_CAP) {
       const cachedFiltered = filterCachedResults(backgroundCache.results, {
