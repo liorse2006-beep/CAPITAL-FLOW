@@ -78,7 +78,7 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
         });
       }
       if (String(url).includes('/api/auth/refresh')) {
-        return Promise.resolve({ ok: false });
+        return Promise.resolve({ ok: false, status: 401 });
       }
       if (String(url).includes('/api/fundamentals')) {
         return Promise.resolve({
@@ -242,7 +242,7 @@ describe("FundamentalsPage — free-tier access mirrors the server's trial gate"
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ user: meUser }) });
       }
       if (String(url).includes('/api/auth/refresh')) {
-        return Promise.resolve({ ok: false });
+        return Promise.resolve({ ok: false, status: 401 });
       }
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
     });
