@@ -11,6 +11,7 @@ RUN npm ci --omit=dev
 
 COPY server ./server
 COPY public ./public
+COPY tickers.js ./
 COPY status-service.js ./
 
 RUN mkdir -p data logs && chown -R app:app /app
