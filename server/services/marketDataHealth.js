@@ -22,6 +22,17 @@ function hasRequiredScanQuote(row) {
   );
 }
 
+function hasRequiredFinnhubQuote(row) {
+  return Number(row?.price) > 0;
+}
+
+function hasRequiredFinnhubMetric(row) {
+  // These are the two metric fields the scanner can actually use when Yahoo
+  // omits a slow daily field. An object with only null fields is not provider
+  // coverage and must not make the health check look complete.
+  return Number(row?.marketCap) > 0 && Number(row?.avgVol10d) > 0;
+}
+
 function normalizeFullScan(fullScan) {
   if (!fullScan || typeof fullScan !== 'object') return null;
   const requestedSymbols = Number(fullScan.requestedSymbols);
@@ -46,6 +57,27 @@ function coverageStatus(available, requested, providerFailure, staleCount) {
   return 'complete';
 }
 
+async function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, limit), items.length);
+
+  async function run() {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      try {
+        results[index] = await worker(items[index]);
+      } catch (_) {
+        results[index] = null;
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, run));
+  return results;
+}
+
 async function probeMarketData({ fullScan } = {}) {
   let quotes = new Map();
   let quoteProbeError = null;
@@ -68,19 +100,18 @@ async function probeMarketData({ fullScan } = {}) {
     staleSymbols.length
   );
 
-  let finnhubQuote = null;
-  let finnhubMetric = null;
-  try {
-    [finnhubQuote, finnhubMetric] = await Promise.all([
-      finnhub.fetchFinnhubQuote('AAPL'),
-      finnhub.fetchFinnhubMetric('AAPL'),
-    ]);
-  } catch (_) {
-    // The individual provider helpers already fail closed; keep this final
-    // guard so a future helper change cannot make the status route fail open.
-  }
-  const finnhubStatus =
-    finnhubQuote && finnhubMetric ? 'complete' : finnhubQuote || finnhubMetric ? 'partial' : 'unavailable';
+  const finnhubProbe = await mapWithConcurrency(MARKET_DATA_PROBE_SYMBOLS, 3, async (symbol) => {
+    const [quote, metric] = await Promise.all([finnhub.fetchFinnhubQuote(symbol), finnhub.fetchFinnhubMetric(symbol)]);
+    return {
+      symbol,
+      quoteOk: hasRequiredFinnhubQuote(quote),
+      metricOk: hasRequiredFinnhubMetric(metric),
+    };
+  });
+  const finnhubQuoteSymbols = finnhubProbe.filter((row) => row?.quoteOk).length;
+  const finnhubMetricSymbols = finnhubProbe.filter((row) => row?.metricOk).length;
+  const finnhubVerifiedSymbols = finnhubProbe.filter((row) => row?.quoteOk && row?.metricOk).length;
+  const finnhubStatus = coverageStatus(finnhubVerifiedSymbols, MARKET_DATA_PROBE_SYMBOLS.length, false, 0);
   const normalizedFullScan = normalizeFullScan(fullScan);
   const warnings = [];
 
@@ -90,7 +121,9 @@ async function probeMarketData({ fullScan } = {}) {
     );
   }
   if (finnhubStatus !== 'complete') {
-    warnings.push(`Finnhub enrichment status is ${finnhubStatus}.`);
+    warnings.push(
+      `Finnhub required-field coverage is ${finnhubStatus}: ${finnhubVerifiedSymbols}/${MARKET_DATA_PROBE_SYMBOLS.length} probe symbols verified (quotes ${finnhubQuoteSymbols}/${MARKET_DATA_PROBE_SYMBOLS.length}, metrics ${finnhubMetricSymbols}/${MARKET_DATA_PROBE_SYMBOLS.length}).`
+    );
   }
   if (!normalizedFullScan) {
     warnings.push('Full-universe scan coverage has not been recorded yet.');
@@ -124,11 +157,27 @@ async function probeMarketData({ fullScan } = {}) {
     },
     providers: {
       yahoo: { status: yahooStatus },
-      finnhub: { status: finnhubStatus },
+      finnhub: {
+        status: finnhubStatus,
+        coverage: {
+          probeSymbols: MARKET_DATA_PROBE_SYMBOLS.length,
+          verifiedSymbols: finnhubVerifiedSymbols,
+          missingSymbols: MARKET_DATA_PROBE_SYMBOLS.length - finnhubVerifiedSymbols,
+          verifiedQuoteSymbols: finnhubQuoteSymbols,
+          verifiedMetricSymbols: finnhubMetricSymbols,
+        },
+      },
     },
     fullScan: normalizedFullScan,
     warning: warnings.length > 0 ? warnings.join(' ') : null,
   };
 }
 
-module.exports = { MARKET_DATA_PROBE_SYMBOLS, hasRequiredScanQuote, normalizeFullScan, probeMarketData };
+module.exports = {
+  MARKET_DATA_PROBE_SYMBOLS,
+  hasRequiredScanQuote,
+  hasRequiredFinnhubQuote,
+  hasRequiredFinnhubMetric,
+  normalizeFullScan,
+  probeMarketData,
+};

@@ -31,7 +31,7 @@ test('market-data probe reports complete only when both providers and full scan 
     quoteMap(MARKET_DATA_PROBE_SYMBOLS.map((symbol) => [symbol, quote(symbol)]))
   );
   t.mock.method(finnhub, 'fetchFinnhubQuote', async () => ({ price: 100 }));
-  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => ({ marketCap: 5_000_000_000 }));
+  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => ({ marketCap: 5_000_000_000, avgVol10d: 2_000_000 }));
 
   const result = await probeMarketData({
     fullScan: {
@@ -75,6 +75,34 @@ test('market-data probe exposes partial provider and full-universe coverage', as
   assert.equal(result.coverage.missingProbeSymbols, 2);
   assert.equal(result.providers.finnhub.status, 'unavailable');
   assert.match(result.warning, /verified 494\/505/i);
+});
+
+test('market-data probe does not treat an incomplete Finnhub metric payload as coverage', async (t) => {
+  t.mock.method(quoteCache, 'getQuotes', async () =>
+    quoteMap(MARKET_DATA_PROBE_SYMBOLS.map((symbol) => [symbol, quote(symbol)]))
+  );
+  t.mock.method(finnhub, 'fetchFinnhubQuote', async (symbol) =>
+    symbol === MARKET_DATA_PROBE_SYMBOLS[0] ? { price: 100 } : null
+  );
+  t.mock.method(finnhub, 'fetchFinnhubMetric', async (symbol) =>
+    symbol === MARKET_DATA_PROBE_SYMBOLS[0] ? { marketCap: 5_000_000_000 } : { marketCap: null, avgVol10d: null }
+  );
+
+  const result = await probeMarketData({
+    fullScan: {
+      dataStatus: 'complete',
+      requestedSymbols: 505,
+      verifiedSymbols: 505,
+      missingSymbols: 0,
+    },
+  });
+
+  assert.equal(result.status, 'partial');
+  assert.equal(result.providers.finnhub.status, 'unavailable');
+  assert.equal(result.providers.finnhub.coverage.verifiedQuoteSymbols, 1);
+  assert.equal(result.providers.finnhub.coverage.verifiedMetricSymbols, 0);
+  assert.equal(result.providers.finnhub.coverage.verifiedSymbols, 0);
+  assert.match(result.warning, /required-field coverage is unavailable/i);
 });
 
 test('market-data probe fails closed when no required quote is available', async (t) => {

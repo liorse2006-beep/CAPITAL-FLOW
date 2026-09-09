@@ -186,7 +186,7 @@ async function readHttpCheck(component) {
       json && component.type === 'market-data'
         ? {
             provider: json.provider,
-            sample: json.sample.symbol,
+            sample: json.sample?.symbol || null,
             warning: json.warning || null,
             status: json.status || null,
             coverage: json.coverage || null,
