@@ -182,7 +182,17 @@ async function readHttpCheck(component) {
     responseMs: null,
     errorMessage,
     timedOut: false,
-    metadata: json && component.type === 'market-data' ? { provider: json.provider, sample: json.sample.symbol } : null,
+    metadata:
+      json && component.type === 'market-data'
+        ? {
+            provider: json.provider,
+            sample: json.sample.symbol,
+            warning: json.warning || null,
+            status: json.status || null,
+            coverage: json.coverage || null,
+            fullScan: json.fullScan || null,
+          }
+        : null,
   };
 }
 

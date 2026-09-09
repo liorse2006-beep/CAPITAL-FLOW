@@ -20,6 +20,8 @@ const { getFullAdminUrl, getStatusPublicUrl } = require('../services/statusConfi
 const { reportError } = require('../utils/reportError');
 const { runStatusBackup } = require('../services/statusDbBackup');
 const { probeNewsProviders } = require('../services/newsService');
+const { probeMarketData } = require('../services/marketDataHealth');
+const { backgroundCache } = require('../services/backgroundScan');
 
 // Keep status controls on the same safe resolved address as the main app.
 // Supplying an explicit generator also prevents express-rate-limit from
@@ -625,15 +627,17 @@ router.get(
     if (STATUS_INTERNAL_TOKEN && req.headers['x-status-check-token'] !== STATUS_INTERNAL_TOKEN)
       return res.status(401).json({ error: 'Unauthorized' });
     try {
-      const yahooFinance = require('../services/yahoo');
-      const quote = await yahooFinance.quote('AAPL');
-      const row = Array.isArray(quote) ? quote[0] : quote;
-      if (!row || !row.symbol) return res.status(503).json({ ok: false, error: 'No sample data' });
-      res.json({
-        ok: true,
-        provider: 'Yahoo Finance',
-        sample: { symbol: row.symbol, price: row.regularMarketPrice || row.postMarketPrice || null },
+      const result = await probeMarketData({
+        fullScan: {
+          dataStatus: backgroundCache.dataStatus,
+          requestedSymbols: backgroundCache.coverage?.requestedSymbols,
+          verifiedSymbols: backgroundCache.coverage?.verifiedSymbols,
+          missingSymbols: backgroundCache.coverage?.missingSymbols,
+          scanTime: backgroundCache.scanTime,
+          dataAsOf: backgroundCache.dataAsOf,
+        },
       });
+      res.status(result.ok ? 200 : 503).json(result);
     } catch (err) {
       reportError(err, '[status market-data probe]');
       res.status(503).json({ ok: false, error: 'Market data unavailable' });

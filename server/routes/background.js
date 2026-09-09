@@ -12,6 +12,7 @@ router.get('/background-status', function (req, res) {
     scanTime: backgroundCache.scanTime,
     dataStatus: backgroundCache.dataStatus,
     dataAsOf: backgroundCache.dataAsOf,
+    coverage: backgroundCache.coverage,
     dataProvenance: buildFinancialProvenance({
       dataAsOf: backgroundCache.dataAsOf,
       capturedAt: backgroundCache.scanTime,

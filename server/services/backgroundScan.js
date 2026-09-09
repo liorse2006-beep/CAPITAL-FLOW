@@ -8,6 +8,9 @@ var backgroundCache = {
   scanTime: null,
   dataStatus: null,
   dataAsOf: null,
+  // Last full-universe verification counts. Counts only — never expose a
+  // potentially large missing-symbol list through the public status route.
+  coverage: null,
   running: false,
   // A hard timeout cannot cancel a Promise that has already entered a
   // provider call. Keep tracking that Promise so a later scheduler tick does
@@ -236,6 +239,25 @@ async function runBackgroundScan(options = {}) {
     backgroundCache.scanTime = new Date().toISOString();
     backgroundCache.dataStatus = res.dataStatus || (res.errors && res.errors.length ? 'partial' : 'complete');
     backgroundCache.dataAsOf = res.dataAsOf || null;
+    if (Array.isArray(res.checkedSymbols)) {
+      const requestedSymbols = Number(res.processed) > 0 ? Number(res.processed) : ALL_TICKERS.length;
+      const verifiedSymbols = new Set(
+        res.checkedSymbols
+          .map((symbol) =>
+            String(symbol || '')
+              .trim()
+              .toUpperCase()
+          )
+          .filter(Boolean)
+      ).size;
+      const missingSymbols = Math.max(0, requestedSymbols - verifiedSymbols);
+      backgroundCache.coverage = {
+        requestedSymbols,
+        verifiedSymbols,
+        missingSymbols,
+        coveragePercent: Number(((verifiedSymbols / requestedSymbols) * 100).toFixed(2)),
+      };
+    }
     console.log(
       `[Background] ${res.results.length} results at ${backgroundCache.scanTime} ` +
         `(data=${backgroundCache.dataStatus}, asOf=${backgroundCache.dataAsOf})`
@@ -251,6 +273,7 @@ async function runBackgroundScan(options = {}) {
       scanTime: backgroundCache.scanTime,
       dataStatus: backgroundCache.dataStatus,
       dataAsOf: backgroundCache.dataAsOf,
+      coverage: backgroundCache.coverage,
     });
 
     // Check watchlist thresholds
