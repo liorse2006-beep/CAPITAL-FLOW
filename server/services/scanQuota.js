@@ -86,56 +86,107 @@ async function reserveScanWithToken(user, _category) {
   if (user.tier === 'free') return { reserved: freeTrialActive(user), reservation: null };
 
   const nowSec = Math.floor(Date.now() / 1000);
-  // The UPDATE and its reservation ledger insert are one write transaction.
-  // `changes()` in the immediately following INSERT ... SELECT is the
-  // atomic admission decision: if the quota WHERE clause rejected the update,
-  // no reservation row is created. A caller can therefore refund by id, not
-  // by blindly decrementing whatever count happens to exist later.
-  const results = await db.transaction([
-    {
-      sql: 'DELETE FROM scan_reservations WHERE created_at < ?',
-      args: [nowSec - 3 * 24 * 60 * 60],
-    },
-    {
-      sql: `UPDATE users SET
-             premium_scan_count = CASE
-               WHEN premium_scan_window_start IS NULL OR ? - premium_scan_window_start >= ? THEN 1
-               ELSE premium_scan_count + 1
-             END,
-             premium_scan_window_start = CASE
-               WHEN premium_scan_window_start IS NULL OR ? - premium_scan_window_start >= ? THEN ?
-               ELSE premium_scan_window_start
-             END
-           WHERE id = ?
-             AND (
-               premium_scan_window_start IS NULL
-               OR ? - premium_scan_window_start >= ?
-               OR premium_scan_count < ?
-             )`,
-      args: [
-        nowSec,
-        PREMIUM_WINDOW_SEC,
-        nowSec,
-        PREMIUM_WINDOW_SEC,
-        nowSec,
-        user.id,
-        nowSec,
-        PREMIUM_WINDOW_SEC,
-        PREMIUM_DAILY_LIMIT,
-      ],
-    },
-    {
-      sql: `INSERT INTO scan_reservations (user_id, window_start, created_at)
-            SELECT ?, premium_scan_window_start, ?
-              FROM users
-             WHERE id = ? AND changes() = 1`,
-      args: [user.id, nowSec, user.id],
-    },
-  ]);
+  let reservationId;
+  if (db.dialect === 'postgres') {
+    // PostgreSQL has no SQLite changes() function. The callback transaction
+    // branches in JavaScript after the guarded UPDATE, while keeping the
+    // update and reservation insert on one connection and one transaction.
+    const result = await db.transaction(async (tx) => {
+      await tx.prepare('DELETE FROM scan_reservations WHERE created_at < ?').run(nowSec - 3 * 24 * 60 * 60);
+      const updated = await tx
+        .prepare(
+          `UPDATE users SET
+                 premium_scan_count = CASE
+                   WHEN premium_scan_window_start IS NULL OR ? - premium_scan_window_start >= ? THEN 1
+                   ELSE premium_scan_count + 1
+                 END,
+                 premium_scan_window_start = CASE
+                   WHEN premium_scan_window_start IS NULL OR ? - premium_scan_window_start >= ? THEN ?
+                   ELSE premium_scan_window_start
+                 END
+               WHERE id = ?
+                 AND (
+                   premium_scan_window_start IS NULL
+                   OR ? - premium_scan_window_start >= ?
+                   OR premium_scan_count < ?
+                 )`
+        )
+        .run(
+          nowSec,
+          PREMIUM_WINDOW_SEC,
+          nowSec,
+          PREMIUM_WINDOW_SEC,
+          nowSec,
+          user.id,
+          nowSec,
+          PREMIUM_WINDOW_SEC,
+          PREMIUM_DAILY_LIMIT
+        );
+      if (Number(updated?.changes ?? updated?.rowsAffected ?? 0) !== 1) {
+        return { reserved: false, reservationId: null };
+      }
 
-  const reservationInsert = results[2];
-  const reservationId = Number(reservationInsert && reservationInsert.lastInsertRowid);
-  if (!reservationInsert || Number(reservationInsert.rowsAffected || 0) !== 1 || !Number.isSafeInteger(reservationId)) {
+      const inserted = await tx
+        .prepare(
+          'INSERT INTO scan_reservations (user_id, window_start, created_at) SELECT ?, premium_scan_window_start, ? FROM users WHERE id = ?'
+        )
+        .run(user.id, nowSec, user.id);
+      if (Number(inserted?.changes ?? inserted?.rowsAffected ?? 0) !== 1) {
+        throw new Error('Scan reservation insert did not create exactly one row.');
+      }
+      return { reserved: true, reservationId: Number(inserted.lastInsertRowid) };
+    });
+    reservationId = Number(result?.reserved ? result.reservationId : NaN);
+  } else {
+    // libSQL's batch keeps changes() scoped to the immediately preceding
+    // statement and also supports the file::memory: database used by tests.
+    const results = await db.transaction([
+      {
+        sql: 'DELETE FROM scan_reservations WHERE created_at < ?',
+        args: [nowSec - 3 * 24 * 60 * 60],
+      },
+      {
+        sql: `UPDATE users SET
+               premium_scan_count = CASE
+                 WHEN premium_scan_window_start IS NULL OR ? - premium_scan_window_start >= ? THEN 1
+                 ELSE premium_scan_count + 1
+               END,
+               premium_scan_window_start = CASE
+                 WHEN premium_scan_window_start IS NULL OR ? - premium_scan_window_start >= ? THEN ?
+                 ELSE premium_scan_window_start
+               END
+             WHERE id = ?
+               AND (
+                 premium_scan_window_start IS NULL
+                 OR ? - premium_scan_window_start >= ?
+                 OR premium_scan_count < ?
+               )`,
+        args: [
+          nowSec,
+          PREMIUM_WINDOW_SEC,
+          nowSec,
+          PREMIUM_WINDOW_SEC,
+          nowSec,
+          user.id,
+          nowSec,
+          PREMIUM_WINDOW_SEC,
+          PREMIUM_DAILY_LIMIT,
+        ],
+      },
+      {
+        sql: `INSERT INTO scan_reservations (user_id, window_start, created_at)
+              SELECT ?, premium_scan_window_start, ?
+                FROM users
+               WHERE id = ? AND changes() = 1`,
+        args: [user.id, nowSec, user.id],
+      },
+    ]);
+    const reservationInsert = results[2];
+    reservationId = Number(reservationInsert && reservationInsert.lastInsertRowid);
+    if (!reservationInsert || Number(reservationInsert.rowsAffected || 0) !== 1) reservationId = NaN;
+  }
+
+  if (!Number.isSafeInteger(reservationId)) {
     return { reserved: false, reservation: null };
   }
 
@@ -172,25 +223,53 @@ async function refundScan(user, reservation) {
   if (user.tier === 'elite' || user.tier === 'free' || !reservation || !reservation.id) return false;
 
   const nowSec = Math.floor(Date.now() / 1000);
-  const results = await db.transaction([
-    {
-      sql: `UPDATE scan_reservations
-               SET refunded_at = ?
-             WHERE id = ? AND user_id = ? AND refunded_at IS NULL`,
-      args: [nowSec, reservation.id, user.id],
-    },
-    {
+  let refunded = false;
+  if (db.dialect === 'postgres') {
+    const result = await db.transaction(async (tx) => {
+      const marked = await tx
+        .prepare(
+          `UPDATE scan_reservations
+                   SET refunded_at = ?
+                 WHERE id = ? AND user_id = ? AND refunded_at IS NULL`
+        )
+        .run(nowSec, reservation.id, user.id);
+      if (Number(marked?.changes ?? marked?.rowsAffected ?? 0) !== 1) return { refunded: false };
+
       // A reservation from an expired window must never decrement the new
       // window's count. The row is still marked refunded so a repeated error
       // path cannot consume the same reservation twice.
-      sql: `UPDATE users
-               SET premium_scan_count = MAX(0, premium_scan_count - 1)
-             WHERE id = ? AND premium_scan_window_start = ? AND changes() = 1`,
-      args: [user.id, reservation.windowStart],
-    },
-  ]);
+      await tx
+        .prepare(
+          `UPDATE users
+                   SET premium_scan_count = GREATEST(0, premium_scan_count - 1)
+                 WHERE id = ? AND premium_scan_window_start = ?`
+        )
+        .run(user.id, reservation.windowStart);
+      return { refunded: true };
+    });
+    refunded = Boolean(result?.refunded);
+  } else {
+    const results = await db.transaction([
+      {
+        sql: `UPDATE scan_reservations
+                 SET refunded_at = ?
+               WHERE id = ? AND user_id = ? AND refunded_at IS NULL`,
+        args: [nowSec, reservation.id, user.id],
+      },
+      {
+        // A reservation from an expired window must never decrement the new
+        // window's count. The row is still marked refunded so a repeated error
+        // path cannot consume the same reservation twice.
+        sql: `UPDATE users
+                 SET premium_scan_count = MAX(0, premium_scan_count - 1)
+               WHERE id = ? AND premium_scan_window_start = ? AND changes() = 1`,
+        args: [user.id, reservation.windowStart],
+      },
+    ]);
+    refunded = Number(results[0]?.rowsAffected || 0) === 1;
+  }
 
-  if (!results[0] || Number(results[0].rowsAffected || 0) !== 1) return false;
+  if (!refunded) return false;
   const fresh = await db
     .prepare('SELECT premium_scan_count, premium_scan_window_start FROM users WHERE id = ?')
     .get(user.id);

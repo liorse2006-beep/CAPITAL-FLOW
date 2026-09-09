@@ -8,7 +8,7 @@ Live at [capitalflow.vip](https://capitalflow.vip).
 
 - **Frontend:** React 19 + Vite, plain CSS (no framework), `react-router-dom`
 - **Backend:** Node.js + Express 5
-- **Database:** Turso (libSQL/SQLite) in production, a local SQLite file in dev
+- **Database:** PostgreSQL (Neon Free during the no-cost migration), with a local SQLite file for dev and a legacy Turso fallback during cutover
 - **Auth:** Google OAuth + email/password (JWT), `cookie-session` for the OAuth handshake
 - **Payments:** Whop embedded checkout (cards plus Apple Pay/Google Pay when the buyer's device and wallet are eligible)
 - **Data providers:** Finnhub (quotes/fundamentals), Yahoo Finance (sparklines), and internal provider probes used by the operations status service
@@ -24,7 +24,7 @@ npm run dev             # runs the Express API (3001) + Vite dev server (5173) t
 
 Open `http://localhost:5173`.
 
-For local development, `JWT_SECRET` and `SESSION_SECRET` are the only hard-required secrets (the server refuses to boot without them — generate them with the command in `.env.example`). Optional provider keys simply disable or degrade the feature they power. Production is intentionally stricter: the server also requires the durable `TURSO_DB_URL`/`TURSO_AUTH_TOKEN` pair, `RESEND_API_KEY`, and `STATUS_INTERNAL_TOKEN`; it refuses to start rather than falling back to an empty local database or logging authentication codes. Configure Google OAuth, Whop, market-data, push, and monitoring variables for the features you enable.
+For local development, `JWT_SECRET` and `SESSION_SECRET` are the only hard-required secrets (the server refuses to boot without them — generate them with the command in `.env.example`). Optional provider keys simply disable or degrade the feature they power. Production is intentionally stricter: it requires a durable `DATABASE_URL` (PostgreSQL) or the legacy `TURSO_DB_URL`/`TURSO_AUTH_TOKEN` pair, plus `RESEND_API_KEY` and `STATUS_INTERNAL_TOKEN`; it refuses to start rather than falling back to an empty local database or logging authentication codes. Configure Google OAuth, Whop, market-data, push, and monitoring variables for the features you enable.
 
 ## Environment variables
 
@@ -39,7 +39,7 @@ Full list with setup instructions for each provider lives in [.env.example](.env
 - **Admin panel:** `ADMIN_TOKEN` and/or `ADMIN_EMAIL` (panel is disabled if both are unset)
 - **Status monitoring:** `STATUS_TARGET_URL`, `STATUS_PUBLIC_URL`, `STATUS_FULL_ADMIN_URL`, `STATUS_ALERT_RECIPIENTS`, `STATUS_INTERNAL_TOKEN`, `STATUS_ADMIN_TOKEN`, the `STATUS_*` interval/retry/retention settings, and the independent backup settings
 - **Payments:** `WHOP_API_KEY`, `WHOP_WEBHOOK_SECRET`, `WHOP_PREMIUM_PLAN_ID`, `WHOP_ELITE_PLAN_ID`
-- **Database:** `TURSO_DB_URL`/`TURSO_AUTH_TOKEN`
+- **Database:** `DATABASE_URL` (PostgreSQL/Neon) and its pool/SSL settings; legacy `TURSO_DB_URL`/`TURSO_AUTH_TOKEN` only during migration
 - **Optional monitoring:** `VITE_SENTRY_DSN`/`SENTRY_DSN`, `VITE_POSTHOG_KEY`/`VITE_POSTHOG_HOST`
 - **Optional scaling:** `VITE_SCAN_WORKER_URL`, `CLUSTER_WORKERS`
 
@@ -50,7 +50,7 @@ server/
   routes/       Express route handlers, one file per feature area
   services/     business logic — scanning, news, email, quote caching, etc.
   middleware/   auth + tier/quota gating
-  db/           schema + migrations (libSQL)
+  db/           schema + migrations and the SQLite/PostgreSQL compatibility adapter
 src/
   components/   React components, grouped by feature (Scanner, Watchlist, Chart, MoneyFlow, MAScanner, Auth, shared)
   context/      AuthContext (user/session state)
@@ -76,7 +76,7 @@ Render auto-deploys on every push to `main`, but only after the test, lint, form
 
 The public status page is available at `/status`; its private operations console is at `/status/admin` and links to the existing full user-admin page. The monitor records checks every five minutes, stores raw diagnostics privately, confirms failures and recoveries with consecutive checks, deduplicates outage/recovery emails, and keeps aggregated availability history.
 
-For outage resilience, run `status-service.js` (or `npm run start:status`) with `status-service.Dockerfile` as a separate Render/Docker service. Give it its own `STATUS_TURSO_DB_URL`/`STATUS_TURSO_AUTH_TOKEN`, `STATUS_PUBLIC_URL`, `STATUS_TARGET_URL`, `STATUS_INTERNAL_TOKEN`, admin credentials, and Resend credentials. The separate service serves the same sanitized status page and operations APIs while monitoring the main origin, so a main-app process outage does not take the monitoring worker or public status host offline. The repository's default Render hook still deploys the main application; provisioning the second host/DNS record is a hosting-console action and is intentionally not hidden inside an application deploy.
+For outage resilience, run `status-service.js` (or `npm run start:status`) with `status-service.Dockerfile` as a separate Render/Docker service. Give it its own `STATUS_DATABASE_URL` (or legacy `STATUS_TURSO_DB_URL`/`STATUS_TURSO_AUTH_TOKEN`), `STATUS_PUBLIC_URL`, `STATUS_TARGET_URL`, `STATUS_INTERNAL_TOKEN`, admin credentials, and Resend credentials. The separate service serves the same sanitized status page and operations APIs while monitoring the main origin, so a main-app process outage does not take the monitoring worker or public status host offline. The repository's default Render hook still deploys the main application; provisioning the second host/DNS record is a hosting-console action and is intentionally not hidden inside an application deploy.
 
 The status worker now has a database-backed lease so two replicas cannot run duplicate cycles, a heartbeat watchdog that exposes stale monitoring as a degraded component, and an external GitHub Actions watchdog in `.github/workflows/keepalive.yml` for the case where the status process itself is unreachable. That external path uses a durable GitHub issue marker so repeated scheduler runs do not send repeated outage emails, then sends one recovery email and closes the marker. Configure the repository secrets `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `STATUS_ALERT_RECIPIENTS` for that external email path. The internal market-data probe fails closed in production when `STATUS_INTERNAL_TOKEN` is missing; it is never a public data endpoint.
 

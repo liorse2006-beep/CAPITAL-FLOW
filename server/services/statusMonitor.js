@@ -729,7 +729,11 @@ async function correlateComponents() {
 
 async function getComponentDefinitionsFromDb() {
   const catalog = getComponentDefinitions();
-  const rows = await db.prepare('SELECT * FROM status_components ORDER BY rowid ASC').all();
+  // status_components uses component_key as its primary key and therefore has
+  // no SQLite-only rowid equivalent on PostgreSQL. The catalog is already
+  // ordered by the canonical definitions below, so the database read only
+  // needs a deterministic, portable key order.
+  const rows = await db.prepare('SELECT * FROM status_components ORDER BY component_key ASC').all();
   const byKey = new Map(rows.map((row) => [row.component_key, row]));
   return catalog
     .map((base) => {

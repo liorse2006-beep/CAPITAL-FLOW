@@ -34,33 +34,65 @@ async function addNotification(userId, { symbol, title, body, scanType, results 
 
 /**
  * Atomically consume a one-shot watchlist alert and persist its notification.
- * The conditional INSERT uses SQLite's changes() from the immediately
- * preceding DELETE, so concurrent background workers cannot both consume the
- * same alert. If the notification insert fails, the write transaction rolls
- * the alert deletion back and the next scan can retry it safely.
+ * The delete and insert run on the same transaction connection. We branch in
+ * JavaScript after the delete instead of relying on SQLite's connection-local
+ * changes() function, so the exact same atomic behavior works on PostgreSQL.
+ * If the notification insert fails, the write transaction rolls the alert
+ * deletion back and the next scan can retry it safely.
  */
 async function consumeWatchlistAlert(userId, symbol, { title, body }) {
-  const rows = await db.transaction([
-    {
-      sql: 'DELETE FROM watchlist_alerts WHERE user_id = ? AND symbol = ?',
-      args: [userId, symbol],
-    },
-    {
-      sql: `INSERT INTO notifications (user_id, symbol, title, body, scan_type, results_json)
-            SELECT ?, ?, ?, ?, NULL, NULL
-             WHERE changes() > 0`,
-      args: [userId, symbol, title, body],
-    },
-    {
-      sql: `DELETE FROM notifications WHERE user_id = ? AND id NOT IN (
-              SELECT id FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?
-            )`,
-      args: [userId, userId, MAX_PER_USER],
-    },
-  ]);
-  const deleted = Number(rows[0] && (rows[0].rowsAffected ?? rows[0].changes ?? 0));
-  const notificationId = rows[1] && rows[1].lastInsertRowid != null ? Number(rows[1].lastInsertRowid) : null;
-  return { consumed: deleted > 0 && notificationId != null, notificationId };
+  // libSQL's batch API preserves SQLite's connection-local changes() state
+  // and is also the stable path for file::memory: test databases. PostgreSQL
+  // cannot evaluate changes(), so use the callback transaction there.
+  if (db.dialect !== 'postgres') {
+    const rows = await db.transaction([
+      {
+        sql: 'DELETE FROM watchlist_alerts WHERE user_id = ? AND symbol = ?',
+        args: [userId, symbol],
+      },
+      {
+        sql: `INSERT INTO notifications (user_id, symbol, title, body, scan_type, results_json)
+              SELECT ?, ?, ?, ?, NULL, NULL
+               WHERE changes() > 0`,
+        args: [userId, symbol, title, body],
+      },
+      {
+        sql: `DELETE FROM notifications WHERE user_id = ? AND id NOT IN (
+                SELECT id FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?
+              )`,
+        args: [userId, userId, MAX_PER_USER],
+      },
+    ]);
+    const deleted = Number(rows[0] && (rows[0].rowsAffected ?? rows[0].changes ?? 0));
+    const notificationId = rows[1] && rows[1].lastInsertRowid != null ? Number(rows[1].lastInsertRowid) : null;
+    return { consumed: deleted > 0 && notificationId != null, notificationId };
+  }
+
+  return db.transaction(async (tx) => {
+    const deleted = await tx
+      .prepare('DELETE FROM watchlist_alerts WHERE user_id = ? AND symbol = ?')
+      .run(userId, symbol);
+    if (Number(deleted?.changes ?? deleted?.rowsAffected ?? 0) < 1) {
+      return { consumed: false, notificationId: null };
+    }
+
+    const inserted = await tx
+      .prepare(
+        'INSERT INTO notifications (user_id, symbol, title, body, scan_type, results_json) VALUES (?, ?, ?, ?, ?, ?)'
+      )
+      .run(userId, symbol, title, body, null, null);
+    const notificationId = inserted?.lastInsertRowid == null ? null : Number(inserted.lastInsertRowid);
+    if (notificationId == null) throw new Error('Notification insert did not return an id.');
+
+    await tx
+      .prepare(
+        `DELETE FROM notifications WHERE user_id = ? AND id NOT IN (
+           SELECT id FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?
+         )`
+      )
+      .run(userId, userId, MAX_PER_USER);
+    return { consumed: true, notificationId };
+  });
 }
 
 async function getNotifications(userId, limit) {

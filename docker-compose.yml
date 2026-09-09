@@ -25,8 +25,8 @@ services:
       start_period: 15s
 
   # Run this as a separate deployment/service in production. It has its own
-  # process and should use a separate Turso database via
-  # STATUS_TURSO_DB_URL/STATUS_TURSO_AUTH_TOKEN.
+  # process and should use a separate PostgreSQL database via
+  # STATUS_DATABASE_URL. STATUS_TURSO_* remains a legacy fallback.
   status:
     profiles: ['status']
     build:
@@ -38,6 +38,7 @@ services:
       - .env
     environment:
       - PORT=3001
+      - STATUS_DATABASE_URL=${STATUS_DATABASE_URL}
       - STATUS_TURSO_DB_URL=${STATUS_TURSO_DB_URL}
       - STATUS_TURSO_AUTH_TOKEN=${STATUS_TURSO_AUTH_TOKEN}
       - STATUS_PUBLIC_URL=${STATUS_PUBLIC_URL:-http://localhost:3010/status}
