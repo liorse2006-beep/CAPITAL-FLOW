@@ -13,6 +13,8 @@ const { buildFinancialProvenance, CAPITAL_FLOW_SOURCES } = require('./financialP
 const METRIC_TTL_MS = 24 * 60 * 60 * 1000; // 24 h — Finnhub metric
 const SPARK_TTL_MS = 24 * 60 * 60 * 1000; // 24 h — sparkline closes
 const SECTOR_TTL_MS = 7 * 24 * 60 * 60 * 1000; //  7 d — sector string
+const METRIC_RECOVERY_CONCURRENCY = 4;
+const MAX_METRIC_RECOVERY_SYMBOLS = 25;
 
 const metricCache = new Map(); // symbol → { data, fetchedAt }
 const sparkCache = new Map(); // symbol → { data, fetchedAt }
@@ -116,20 +118,62 @@ async function scanTickers(tickers, options) {
     }
   });
   var quoteDataAsOf = quotesMap.dataAsOf || null;
-  var quoteDataStale = quotesMap.usedStaleFallback === true || Number(quotesMap.staleCount || 0) > 0;
   var staleQuoteSymbols = new Set(
-    (Array.isArray(quotesMap.staleSymbols) ? quotesMap.staleSymbols : []).map(function (symbol) {
+    [
+      ...(Array.isArray(quotesMap.staleSymbols) ? quotesMap.staleSymbols : []),
+      ...(Array.isArray(quotesMap.providerStaleSymbols) ? quotesMap.providerStaleSymbols : []),
+    ].map(function (symbol) {
       return String(symbol || '')
         .trim()
         .toUpperCase();
     })
   );
+  var quoteDataStale =
+    quotesMap.usedStaleFallback === true || Number(quotesMap.staleCount || 0) > 0 || staleQuoteSymbols.size > 0;
+
+  // Yahoo can return a valid live quote while omitting a slow daily field
+  // such as market cap. Recover only those rows through the existing Finnhub
+  // metric pool; a symbol with no live quote remains unavailable and is never
+  // turned into a synthetic scan result.
+  const metricFallbackBySymbol = new Map();
+  const metricRecoveryCandidates = [
+    ...new Set(
+      tickers.filter((symbol) => {
+        const quote = quotesMap.get(
+          String(symbol || '')
+            .trim()
+            .toUpperCase()
+        );
+        if (!quote) return false;
+        const price = Number(quote.regularMarketPrice);
+        const volume = Number(quote.regularMarketVolume);
+        const avgVolume = Number(quote.averageDailyVolume10Day);
+        const marketCap = Number(quote.marketCap);
+        return (
+          Number.isFinite(price) &&
+          price > 0 &&
+          Number.isFinite(volume) &&
+          volume > 0 &&
+          (!Number.isFinite(avgVolume) || avgVolume <= 0 || !Number.isFinite(marketCap) || marketCap <= 0)
+        );
+      })
+    ),
+  ].slice(0, MAX_METRIC_RECOVERY_SYMBOLS);
+  if (metricRecoveryCandidates.length > 0) {
+    await mapWithConcurrency(metricRecoveryCandidates, METRIC_RECOVERY_CONCURRENCY, async (symbol) => {
+      const metric = await fetchFinnhubMetric(symbol);
+      if (metric) metricFallbackBySymbol.set(String(symbol).trim().toUpperCase(), metric);
+    });
+  }
 
   // ── Filter in memory — no more per-ticker HTTP calls ─────────────────────────
   var etMins = getETMinutes();
 
   tickers.forEach(function (symbol) {
-    var quote = quotesMap.get(symbol);
+    var normalizedInputSymbol = String(symbol || '')
+      .trim()
+      .toUpperCase();
+    var quote = quotesMap.get(normalizedInputSymbol);
     if (!quote) {
       addError(symbol);
       return;
@@ -141,8 +185,11 @@ async function scanTickers(tickers, options) {
     // real negative signal and must not re-arm an existing match.
     var quotePrice = Number(quote.regularMarketPrice);
     var quoteVolume = Number(quote.regularMarketVolume);
-    var avgVolume = Number(quote.averageDailyVolume10Day);
-    var quoteMarketCap = Number(quote.marketCap);
+    var metricFallback = metricFallbackBySymbol.get(normalizedInputSymbol) || null;
+    var rawAvgVolume = Number(quote.averageDailyVolume10Day);
+    var rawMarketCap = Number(quote.marketCap);
+    var avgVolume = rawAvgVolume > 0 ? rawAvgVolume : Number(metricFallback?.avgVol10d);
+    var quoteMarketCap = rawMarketCap > 0 ? rawMarketCap : Number(metricFallback?.marketCap);
     if (
       !Number.isFinite(quotePrice) ||
       quotePrice <= 0 ||
@@ -364,6 +411,7 @@ async function scanTickers(tickers, options) {
     quoteDataStatus: quoteDataStale ? 'stale' : quotesMap.providerFailure ? 'unavailable' : 'complete',
     staleCount: Number(quotesMap.staleCount || 0),
     staleSymbols: [...staleQuoteSymbols],
+    metricFallbackSymbols: [...metricFallbackBySymbol.keys()],
     dataAsOf: quoteDataAsOf,
     dataProvenance: buildFinancialProvenance({
       dataAsOf: quoteDataAsOf || null,
@@ -380,7 +428,11 @@ async function scanTickers(tickers, options) {
                 : quotesMap.providerFailure
                   ? 'unavailable'
                   : 'complete'
-              : 'unknown',
+              : source.role === 'metric fallback'
+                ? metricFallbackBySymbol.size > 0
+                  ? 'complete'
+                  : 'unknown'
+                : 'unknown',
         };
       }),
     }),
@@ -394,7 +446,10 @@ async function quickScan(symbols, options) {
   var results = [];
 
   symbols.forEach(function (symbol) {
-    var quote = quotesMap.get(symbol);
+    var normalizedSymbol = String(symbol || '')
+      .trim()
+      .toUpperCase();
+    var quote = quotesMap.get(normalizedSymbol);
     if (!quote || !quote.regularMarketVolume) {
       return;
     }
@@ -404,7 +459,7 @@ async function quickScan(symbols, options) {
 
     results.push({
       symbol: quote.symbol,
-      name: quote.shortName || quote.longName || symbol,
+      name: quote.shortName || quote.longName || normalizedSymbol,
       price: finiteOrNull(quote.regularMarketPrice),
       change: finiteOrNull(quote.regularMarketChangePercent),
       volume: quote.regularMarketVolume,
@@ -424,7 +479,9 @@ async function quickScan(symbols, options) {
   if (!options.withMetadata) return results;
 
   const quoteDataStatus =
-    quotesMap.usedStaleFallback === true || Number(quotesMap.staleCount || 0) > 0
+    quotesMap.usedStaleFallback === true ||
+    Number(quotesMap.staleCount || 0) > 0 ||
+    (Array.isArray(quotesMap.providerStaleSymbols) && quotesMap.providerStaleSymbols.length > 0)
       ? 'stale'
       : quotesMap.providerFailure
         ? 'unavailable'

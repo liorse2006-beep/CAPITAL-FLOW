@@ -1,5 +1,7 @@
-// S&P 500 + NASDAQ 100 tickers (deduplicated)
-// Last updated: 2025
+// Operational large-cap US equity universe assembled from the S&P 500 and
+// Nasdaq-100 seed lists below. The seed lists are intentionally kept in one
+// file so the scan boundary is auditable and deterministic at runtime.
+// Last reviewed: 2026-09-09
 
 const SP500 = [
   'AAPL',
@@ -601,6 +603,41 @@ const NASDAQ100 = [
   'ZS',
 ];
 
+// These symbols are no longer active US-listed equities under the old ticker
+// (acquisition, merger, failure, private conversion, or an official symbol
+// change). Keeping them in a scan universe makes a full scan permanently
+// partial and can poison the snapshot timestamp with a stale provider row.
+// Replacement symbols that remain publicly traded are added below.
+const RETIRED_OR_REPLACED_TICKERS = new Set([
+  'ANSS',
+  'ATVI',
+  'CDAY',
+  'CTLT',
+  'DFS',
+  'DISH',
+  'FBHS',
+  'FLT',
+  'FRC',
+  'HES',
+  'IPG',
+  'JNPR',
+  'K',
+  'MRO',
+  'PEAK',
+  'PKI',
+  'PXD',
+  'RE',
+  'SBNY',
+  'SIVB',
+  'SPLK',
+  'WBA',
+  'WRK',
+]);
+
+const CURRENT_REPLACEMENT_TICKERS = ['CPAY', 'DAY', 'DOC', 'EG', 'FBIN', 'SATS', 'SW'];
+const ACTIVE_SP500 = SP500.filter((symbol) => !RETIRED_OR_REPLACED_TICKERS.has(symbol));
+const ACTIVE_NASDAQ100 = NASDAQ100.filter((symbol) => !RETIRED_OR_REPLACED_TICKERS.has(symbol));
+
 const SECTOR_TICKERS = {
   Technology: ['AAPL', 'MSFT', 'NVDA', 'AVGO', 'ADBE'],
   Financials: ['BRK.B', 'JPM', 'V', 'MA', 'BAC'],
@@ -616,6 +653,25 @@ const SECTOR_TICKERS = {
   Semiconductors: ['NVDA', 'AVGO', 'AMD', 'INTC', 'QCOM'],
 };
 
-const ALL_TICKERS = [...new Set([...SP500, ...NASDAQ100, ...Object.values(SECTOR_TICKERS).flat()])];
+const ACTIVE_SECTOR_TICKERS = Object.fromEntries(
+  Object.entries(SECTOR_TICKERS).map(([sector, symbols]) => [
+    sector,
+    symbols.filter((symbol) => !RETIRED_OR_REPLACED_TICKERS.has(symbol)),
+  ])
+);
 
-module.exports = { SP500, NASDAQ100, ALL_TICKERS, SECTOR_TICKERS };
+const ALL_TICKERS = [
+  ...new Set([
+    ...ACTIVE_SP500,
+    ...ACTIVE_NASDAQ100,
+    ...Object.values(ACTIVE_SECTOR_TICKERS).flat(),
+    ...CURRENT_REPLACEMENT_TICKERS,
+  ]),
+];
+
+module.exports = {
+  SP500: ACTIVE_SP500,
+  NASDAQ100: ACTIVE_NASDAQ100,
+  ALL_TICKERS,
+  SECTOR_TICKERS: ACTIVE_SECTOR_TICKERS,
+};

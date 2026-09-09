@@ -89,6 +89,11 @@ const CAPITAL_FLOW_SOURCES = [
     fields: ['price', 'change', 'day high', 'day low', 'previous close'],
   },
   {
+    provider: 'Finnhub',
+    role: 'metric fallback',
+    fields: ['average volume', 'market cap'],
+  },
+  {
     provider: 'Yahoo Finance',
     role: 'historical enrichment',
     fields: ['sparkline', 'sector'],
