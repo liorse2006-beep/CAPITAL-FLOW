@@ -1,12 +1,16 @@
+// Nasdaq-100 constituents effective after the June 22, 2026 quarterly
+// rebalance. Keep the UI universe aligned with the server-side scan universe.
 export const NASDAQ100 = [
-  'AAPL','ABNB','ADBE','ADI','ADP','ADSK','AEP','AMAT','AMD','AMGN','AMZN','ANSS','ARM','ASML',
-  'AVGO','AZN','BIIB','BKNG','BKR','CDNS','CDW','CEG','CHTR','CMCSA','COST','CPRT','CRWD','CSCO',
-  'CSGP','CTAS','CTSH','DASH','DDOG','DLTR','DXCM','ENPH','EXC','FANG','FAST','FTNT','GEHC',
-  'GFS','GILD','GOOG','GOOGL','HON','IDXX','ILMN','INTC','INTU','ISRG','KDP','KHC','KLAC','LRCX',
-  'LULU','MAR','MCHP','MDB','MDLZ','MELI','META','MNST','MRNA','MRVL','MSFT','MU','NFLX','NVDA',
-  'NXPI','ODFL','ON','ORLY','PANW','PAYX','PCAR','PDD','PEP','PYPL','QCOM','REGN','RIVN','ROST',
-  'SBUX','SMCI','SNPS','SPLK','TEAM','TMUS','TSLA','TTD','TTWO','TXN','VRSK','VRTX','WBA','WBD',
-  'WDAY','XEL','ZS',
+  'ADBE', 'AMD', 'ABNB', 'ALAB', 'ALNY', 'GOOGL', 'GOOG', 'AMZN', 'AEP', 'AMGN',
+  'ADI', 'AAPL', 'AMAT', 'APP', 'ARM', 'ASML', 'ADSK', 'ADP', 'AXON', 'BKR',
+  'BKNG', 'AVGO', 'CDNS', 'CTAS', 'CSCO', 'CCEP', 'CMCSA', 'CEG', 'CPRT', 'CSGP',
+  'COST', 'CRWD', 'CSX', 'DDOG', 'DXCM', 'FANG', 'DASH', 'EA', 'EXC', 'FAST',
+  'FER', 'FTNT', 'GEHC', 'GILD', 'HON', 'IDXX', 'INTC', 'INTU', 'ISRG', 'KDP',
+  'KLAC', 'KHC', 'LRCX', 'LIN', 'MAR', 'MRVL', 'MELI', 'META', 'MCHP', 'MU',
+  'MSFT', 'MDLZ', 'MPWR', 'MNST', 'NFLX', 'NVDA', 'NXPI', 'ORLY', 'ODFL', 'PCAR',
+  'PLTR', 'PANW', 'PAYX', 'PYPL', 'PDD', 'PEP', 'QCOM', 'REGN', 'ROP', 'ROST',
+  'RKLB', 'CRWV', 'NBIS', 'SNDK', 'STX', 'SHOP', 'SBUX', 'MSTR', 'SNPS', 'TMUS',
+  'TTWO', 'TSLA', 'TXN', 'TRI', 'VRTX', 'WMT', 'WDC', 'WDAY', 'WBD', 'XEL', 'TER',
 ];
 
 export const SP500_TOP = [
