@@ -130,6 +130,25 @@ test('quoteCache rejects provider rows whose timestamp is outside the safe fresh
   assert.strictEqual(result.dataAsOf, null);
 });
 
+test('quoteCache rejects stale direct Chart recovery instead of serving it as live data', () => {
+  const symbol = 'AUDIT_STALE_CHART_RECOVERY';
+  const staleSymbols = new Set();
+  const rows = quoteCache.filterFreshProviderRows(
+    [
+      {
+        symbol,
+        regularMarketPrice: 100,
+        regularMarketTime: Math.floor(Date.now() / 1000) - 60 * 24 * 60 * 60,
+        quoteProvider: 'Yahoo Finance Chart API',
+      },
+    ],
+    staleSymbols
+  );
+
+  assert.deepStrictEqual(rows, []);
+  assert.deepStrictEqual([...staleSymbols], [symbol]);
+});
+
 test('quoteCache coalesces identical concurrent provider requests', async (t) => {
   const symbol = 'AUDIT_CONCURRENT_COALESCE';
   let calls = 0;

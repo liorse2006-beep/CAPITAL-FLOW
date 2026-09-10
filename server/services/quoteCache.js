@@ -11,7 +11,7 @@
  */
 
 const yahooFinance = require('./yahoo');
-const { fetchYahooChartQuotes } = require('./yahooChartFallback');
+const yahooChartFallback = require('./yahooChartFallback');
 const { createCircuitBreaker } = require('../utils/circuitBreaker');
 const { redact } = require('../utils/reportError');
 const { isMarketOpen, isPreMarket } = require('./marketCalendar');
@@ -88,6 +88,14 @@ function maxProviderAgeMs(now = new Date()) {
 function isProviderTimestampStale(quote) {
   const timestamp = providerTimestampMs(quote);
   return timestamp !== null && Date.now() - timestamp > maxProviderAgeMs(new Date());
+}
+
+function filterFreshProviderRows(rows, staleSymbols = new Set()) {
+  return rows.filter((quote) => {
+    if (!isProviderTimestampStale(quote)) return true;
+    staleSymbols.add(normalizeSymbol(quote.symbol));
+    return false;
+  });
 }
 
 function normalizeSymbol(symbol) {
@@ -196,7 +204,9 @@ async function mapWithConcurrency(items, limit, worker) {
 
 async function directChartRecovery(symbols) {
   if (!DIRECT_CHART_FALLBACK_ENABLED || !symbols.length) return [];
-  return fetchYahooChartQuotes(symbols.slice(0, MAX_DIRECT_CHART_FALLBACK_SYMBOLS), { concurrency: 2 });
+  return yahooChartFallback.fetchYahooChartQuotes(symbols.slice(0, MAX_DIRECT_CHART_FALLBACK_SYMBOLS), {
+    concurrency: 2,
+  });
 }
 
 function sleep(ms) {
@@ -220,12 +230,7 @@ async function fetchBatch(symbols) {
       let arr = normalizeProviderQuotes(Array.isArray(results) ? results : results ? [results] : [], symbols);
       const providerStaleSymbols = new Set();
 
-      const keepFreshProviderRows = (rows) =>
-        rows.filter((quote) => {
-          if (!isProviderTimestampStale(quote)) return true;
-          providerStaleSymbols.add(normalizeSymbol(quote.symbol));
-          return false;
-        });
+      const keepFreshProviderRows = (rows) => filterFreshProviderRows(rows, providerStaleSymbols);
 
       arr = keepFreshProviderRows(arr);
 
@@ -287,7 +292,10 @@ async function fetchBatch(symbols) {
         .filter((symbol) => !new Set(arr.map((quote) => normalizeSymbol(quote.symbol))).has(normalizeSymbol(symbol)))
         .slice(0, MAX_DIRECT_CHART_FALLBACK_SYMBOLS);
       if (directMissing.length > 0) {
-        arr = arr.concat(await directChartRecovery(directMissing));
+        // Chart recovery is independent, but it is not automatically fresh.
+        // Apply the same provider-timestamp gate as the primary and summary
+        // paths so an old Chart response can never become a live scan row.
+        arr = arr.concat(keepFreshProviderRows(await directChartRecovery(directMissing)));
       }
       const now = Date.now();
       arr.forEach((q) => {
@@ -314,13 +322,15 @@ async function fetchBatch(symbols) {
       // This is the no-cost failover path; it is still rejected when any
       // required field is missing, so it cannot manufacture scan rows.
       const directRows = await directChartRecovery(symbols);
+      const staleDirectSymbols = new Set();
+      const freshDirectRows = filterFreshProviderRows(directRows, staleDirectSymbols);
       if (directRows.length > 0) {
-        const recovered = new Set(directRows.map((quote) => normalizeSymbol(quote.symbol)));
+        const recovered = new Set(freshDirectRows.map((quote) => normalizeSymbol(quote.symbol)));
         const now = Date.now();
-        directRows.forEach((quote) => cache.set(normalizeSymbol(quote.symbol), { data: quote, fetchedAt: now }));
+        freshDirectRows.forEach((quote) => cache.set(normalizeSymbol(quote.symbol), { data: quote, fetchedAt: now }));
         return {
-          quotes: directRows,
-          providerStaleSymbols: [],
+          quotes: freshDirectRows,
+          providerStaleSymbols: [...staleDirectSymbols],
           staleSymbols: [],
           usedStaleFallback: false,
           providerFailure: recovered.size < symbols.length,
@@ -484,4 +494,4 @@ async function getQuotes(symbols, onBatchDone) {
   }
 }
 
-module.exports = { getQuotes };
+module.exports = { getQuotes, filterFreshProviderRows };
