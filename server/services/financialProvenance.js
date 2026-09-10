@@ -94,6 +94,11 @@ const CAPITAL_FLOW_SOURCES = [
     fields: ['average volume', 'market cap'],
   },
   {
+    provider: 'Massive',
+    role: 'secondary metric fallback (delayed daily data)',
+    fields: ['average volume', 'market cap'],
+  },
+  {
     provider: 'Yahoo Finance',
     role: 'historical enrichment',
     fields: ['sparkline', 'sector'],

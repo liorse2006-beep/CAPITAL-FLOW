@@ -18,6 +18,10 @@ process.env.ADMIN_EMAIL = 'admin@test.local';
 // exercise a mocked send can still set its own value before requiring
 // anything (dotenv never overrides a value already present in process.env).
 if (process.env.RESEND_API_KEY === undefined) process.env.RESEND_API_KEY = '';
+// Market-data provider tests must never call the developer's configured
+// Massive key. Tests that explicitly exercise the news provider set their own
+// fake key after this helper loads and mock fetch.
+if (process.env.MASSIVE_API_KEY === undefined) process.env.MASSIVE_API_KEY = '';
 // CAPTCHA runs in "not configured" (bypass) mode by default — otherwise the
 // developer's real .env secret leaks in via dotenv and every signup test
 // fails for lack of a token. A test that wants enforcement ON sets its own

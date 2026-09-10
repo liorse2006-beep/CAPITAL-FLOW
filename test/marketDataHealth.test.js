@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 
 const quoteCache = require('../server/services/quoteCache');
 const finnhub = require('../server/services/finnhub');
+const massive = require('../server/services/massive');
 const { MARKET_DATA_PROBE_SYMBOLS, probeMarketData } = require('../server/services/marketDataHealth');
 
 function quote(symbol) {
@@ -49,6 +50,7 @@ test('market-data probe reports complete only when both providers and full scan 
   assert.equal(result.coverage.verifiedProbeSymbols, MARKET_DATA_PROBE_SYMBOLS.length);
   assert.equal(result.providers.yahoo.status, 'complete');
   assert.equal(result.providers.finnhub.status, 'complete');
+  assert.equal(result.providers.massive.status, 'not_configured');
   assert.equal(result.warning, null);
 });
 
@@ -116,4 +118,28 @@ test('market-data probe fails closed when no required quote is available', async
   assert.equal(result.status, 'unavailable');
   assert.equal(result.sample, null);
   assert.equal(result.coverage.verifiedProbeSymbols, 0);
+});
+
+test('market-data probe records verified Massive slow-field coverage without treating it as live quotes', async (t) => {
+  t.mock.method(quoteCache, 'getQuotes', async () =>
+    quoteMap(MARKET_DATA_PROBE_SYMBOLS.map((symbol) => [symbol, quote(symbol)]))
+  );
+  t.mock.method(finnhub, 'fetchFinnhubQuote', async () => ({ price: 100 }));
+  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => ({ marketCap: 5_000_000_000, avgVol10d: 2_000_000 }));
+  t.mock.method(massive, 'isConfigured', () => true);
+  t.mock.method(massive, 'fetchMassiveMetrics', async () => ({
+    marketCap: 5_000_000_000,
+    avgVol10d: 2_000_000,
+    dataAsOf: '2026-09-09T00:00:00.000Z',
+    referenceAsOf: '2026-09-09T00:00:00.000Z',
+  }));
+
+  const result = await probeMarketData({
+    fullScan: { dataStatus: 'complete', requestedSymbols: 505, verifiedSymbols: 505, missingSymbols: 0 },
+  });
+
+  assert.equal(result.providers.massive.status, 'complete');
+  assert.equal(result.providers.massive.capability, 'delayed daily metrics only');
+  assert.equal(result.providers.massive.coverage.verifiedSymbols, MARKET_DATA_PROBE_SYMBOLS.length);
+  assert.match(result.provider, /Massive/);
 });

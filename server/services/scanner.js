@@ -1,6 +1,7 @@
 const yahooFinance = require('./yahoo');
 const quoteCache = require('./quoteCache');
 const { fetchFinnhubQuote, fetchFinnhubMetric } = require('./finnhub');
+const { fetchMassiveMetrics } = require('./massive');
 const { getETMinutes, calculateRVOL } = require('./rvol');
 const { buildFinancialProvenance, CAPITAL_FLOW_SOURCES } = require('./financialProvenance');
 
@@ -132,9 +133,11 @@ async function scanTickers(tickers, options) {
     quotesMap.usedStaleFallback === true || Number(quotesMap.staleCount || 0) > 0 || staleQuoteSymbols.size > 0;
 
   // Yahoo can return a valid live quote while omitting a slow daily field
-  // such as market cap. Recover only those rows through the existing Finnhub
-  // metric pool; a symbol with no live quote remains unavailable and is never
-  // turned into a synthetic scan result.
+  // such as market cap. Recover only those rows through the Finnhub metric
+  // pool, then use the verified Massive reference/daily aggregate source for
+  // any still-missing slow field. A symbol with no live Yahoo quote remains
+  // unavailable and is never turned into a synthetic scan result: Massive's
+  // current account does not authorize live snapshots.
   const metricFallbackBySymbol = new Map();
   const metricRecoveryCandidates = [
     ...new Set(
@@ -161,8 +164,25 @@ async function scanTickers(tickers, options) {
   ].slice(0, MAX_METRIC_RECOVERY_SYMBOLS);
   if (metricRecoveryCandidates.length > 0) {
     await mapWithConcurrency(metricRecoveryCandidates, METRIC_RECOVERY_CONCURRENCY, async (symbol) => {
-      const metric = await fetchFinnhubMetric(symbol);
-      if (metric) metricFallbackBySymbol.set(String(symbol).trim().toUpperCase(), metric);
+      const finnhubMetric = await fetchFinnhubMetric(symbol);
+      const needsMassive =
+        !finnhubMetric || Number(finnhubMetric.avgVol10d) <= 0 || Number(finnhubMetric.marketCap) <= 0;
+      const massiveMetric = needsMassive ? await fetchMassiveMetrics(symbol) : null;
+      if (finnhubMetric || massiveMetric) {
+        metricFallbackBySymbol.set(String(symbol).trim().toUpperCase(), {
+          ...(finnhubMetric || {}),
+          ...(Number(finnhubMetric?.avgVol10d) > 0 ? {} : { avgVol10d: massiveMetric?.avgVol10d }),
+          ...(Number(finnhubMetric?.marketCap) > 0 ? {} : { marketCap: massiveMetric?.marketCap }),
+          metricSource:
+            finnhubMetric && massiveMetric
+              ? 'Finnhub + Massive'
+              : finnhubMetric
+                ? 'Finnhub'
+                : massiveMetric
+                  ? 'Massive'
+                  : null,
+        });
+      }
     });
   }
 

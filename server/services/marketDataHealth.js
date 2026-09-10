@@ -1,5 +1,6 @@
 const quoteCache = require('./quoteCache');
 const finnhub = require('./finnhub');
+const massive = require('./massive');
 
 // A small, stable probe set keeps the status check cheap while covering the
 // same quote fields the scanners require. AVB is intentionally included as a
@@ -31,6 +32,15 @@ function hasRequiredFinnhubMetric(row) {
   // omits a slow daily field. An object with only null fields is not provider
   // coverage and must not make the health check look complete.
   return Number(row?.marketCap) > 0 && Number(row?.avgVol10d) > 0;
+}
+
+function hasRequiredMassiveMetric(row) {
+  return (
+    Number(row?.marketCap) > 0 &&
+    Number(row?.avgVol10d) > 0 &&
+    typeof row?.dataAsOf === 'string' &&
+    typeof row?.referenceAsOf === 'string'
+  );
 }
 
 function normalizeFullScan(fullScan) {
@@ -112,6 +122,17 @@ async function probeMarketData({ fullScan } = {}) {
   const finnhubMetricSymbols = finnhubProbe.filter((row) => row?.metricOk).length;
   const finnhubVerifiedSymbols = finnhubProbe.filter((row) => row?.quoteOk && row?.metricOk).length;
   const finnhubStatus = coverageStatus(finnhubVerifiedSymbols, MARKET_DATA_PROBE_SYMBOLS.length, false, 0);
+  const massiveConfigured = massive.isConfigured();
+  const massiveProbe = massiveConfigured
+    ? await mapWithConcurrency(MARKET_DATA_PROBE_SYMBOLS, 3, async (symbol) => ({
+        symbol,
+        metric: await massive.fetchMassiveMetrics(symbol),
+      }))
+    : [];
+  const massiveVerifiedSymbols = massiveProbe.filter((row) => hasRequiredMassiveMetric(row?.metric)).length;
+  const massiveStatus = massiveConfigured
+    ? coverageStatus(massiveVerifiedSymbols, MARKET_DATA_PROBE_SYMBOLS.length, false, 0)
+    : 'not_configured';
   const normalizedFullScan = normalizeFullScan(fullScan);
   const warnings = [];
 
@@ -123,6 +144,11 @@ async function probeMarketData({ fullScan } = {}) {
   if (finnhubStatus !== 'complete') {
     warnings.push(
       `Finnhub required-field coverage is ${finnhubStatus}: ${finnhubVerifiedSymbols}/${MARKET_DATA_PROBE_SYMBOLS.length} probe symbols verified (quotes ${finnhubQuoteSymbols}/${MARKET_DATA_PROBE_SYMBOLS.length}, metrics ${finnhubMetricSymbols}/${MARKET_DATA_PROBE_SYMBOLS.length}).`
+    );
+  }
+  if (massiveConfigured && massiveStatus !== 'complete') {
+    warnings.push(
+      `Massive required-field coverage is ${massiveStatus}: ${massiveVerifiedSymbols}/${MARKET_DATA_PROBE_SYMBOLS.length} probe symbols verified.`
     );
   }
   if (!normalizedFullScan) {
@@ -145,7 +171,7 @@ async function probeMarketData({ fullScan } = {}) {
   return {
     ok: overallStatus !== 'unavailable' && sample !== null,
     status: overallStatus,
-    provider: 'Yahoo Finance + Finnhub',
+    provider: 'Yahoo Finance + Finnhub + Massive',
     sample,
     dataAsOf: quotes?.dataAsOf || null,
     coverage: {
@@ -167,6 +193,16 @@ async function probeMarketData({ fullScan } = {}) {
           verifiedMetricSymbols: finnhubMetricSymbols,
         },
       },
+      massive: {
+        configured: massiveConfigured,
+        status: massiveStatus,
+        capability: 'delayed daily metrics only',
+        coverage: {
+          probeSymbols: MARKET_DATA_PROBE_SYMBOLS.length,
+          verifiedSymbols: massiveVerifiedSymbols,
+          missingSymbols: MARKET_DATA_PROBE_SYMBOLS.length - massiveVerifiedSymbols,
+        },
+      },
     },
     fullScan: normalizedFullScan,
     warning: warnings.length > 0 ? warnings.join(' ') : null,
@@ -178,6 +214,7 @@ module.exports = {
   hasRequiredScanQuote,
   hasRequiredFinnhubQuote,
   hasRequiredFinnhubMetric,
+  hasRequiredMassiveMetric,
   normalizeFullScan,
   probeMarketData,
 };

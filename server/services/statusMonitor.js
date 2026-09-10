@@ -190,6 +190,7 @@ async function readHttpCheck(component) {
             warning: json.warning || null,
             status: json.status || null,
             coverage: json.coverage || null,
+            providers: json.providers || null,
             fullScan: json.fullScan || null,
           }
         : null,

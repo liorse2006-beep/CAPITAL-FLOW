@@ -11,7 +11,7 @@ Live at [capitalflow.vip](https://capitalflow.vip).
 - **Database:** Turso (libSQL/SQLite) in production, a local SQLite file in dev
 - **Auth:** Google OAuth + email/password (JWT), `cookie-session` for the OAuth handshake
 - **Payments:** Whop embedded checkout (cards plus Apple Pay/Google Pay when the buyer's device and wallet are eligible)
-- **Data providers:** Finnhub (quotes/fundamentals), Yahoo Finance (sparklines), and internal provider probes used by the operations status service
+- **Data providers:** Yahoo Finance (live quote baseline), Finnhub (live quote/fundamentals), and Massive (verified delayed daily market-cap/volume metrics fallback). The Massive account is not authorized for live snapshots, so it is never used to fabricate an intraday quote or trigger a live alert.
 - **Deployment:** Render (web service), optional Cloudflare Worker edge cache, auto-deploys on push to `main`; the status service can run as a separate process/service
 
 ## Local setup
@@ -31,8 +31,8 @@ For local development, `JWT_SECRET` and `SESSION_SECRET` are the only hard-requi
 Full list with setup instructions for each provider lives in [.env.example](.env.example) (names and comments only — never commit real values). Grouped roughly as:
 
 - **Core:** `PORT`, `JWT_SECRET`, `SESSION_SECRET`
-- **Market data:** `FINNHUB_API_KEY` (+ optional `FINNHUB_API_KEY_POOL_1..4` for rotation)
-- **Operations-only provider probes:** `MASSIVE_API_KEY`, `MARKETAUX_API_KEY`, `NEWSDATA_API_KEY`, `GOOGLE_AI_STUDIO_KEY` (not exposed as a user-facing feature)
+- **Market data:** `FINNHUB_API_KEY` (+ optional `FINNHUB_API_KEY_POOL_1..4` for rotation), `MASSIVE_API_KEY` (optional verified delayed daily metrics fallback)
+- **Operations-only provider probes:** `MARKETAUX_API_KEY`, `NEWSDATA_API_KEY`, `GOOGLE_AI_STUDIO_KEY` (not exposed as a user-facing feature)
 - **Email:** `RESEND_API_KEY`/`RESEND_FROM_EMAIL` (transactional and backup fallback), `GMAIL_USER`/`GMAIL_APP_PASSWORD` (optional preferred weekly app-DB backup sender)
 - **Auth:** `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_CALLBACK_URL`, `TURNSTILE_SECRET`/`VITE_TURNSTILE_SITE_KEY`
 - **Push:** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`
