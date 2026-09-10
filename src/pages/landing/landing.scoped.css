@@ -79,6 +79,8 @@
 }
 .cf-landing-page {
   scroll-behavior: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 @media (prefers-reduced-motion: reduce) {
   .cf-landing-page {
@@ -1273,6 +1275,34 @@
   /* Keep decorative overflow clipped at the page boundary without turning
      the content wrapper into a non-scrollable wheel target. */
   overflow-x: clip;
+}
+.cf-landing-scroll,
+.cf-landing-scroll body {
+  -webkit-overflow-scrolling: touch;
+}
+.cf-landing-scroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+.cf-landing-scroll body {
+  overflow: visible;
+  overflow-x: visible;
+  overflow-y: visible;
+  touch-action: pan-y;
+}
+.cf-landing-scroll #root,
+.cf-landing-scroll .cf-landing-page,
+.cf-landing-scroll .cf-landing-page .cf-root {
+  min-height: 100%;
+  overflow-y: visible;
+  touch-action: pan-y;
+}
+.cf-landing-page .cf-bg,
+.cf-landing-page .cf-bg canvas,
+.cf-landing-page .cf-topography-mount,
+.cf-landing-page .cf-topography-mount canvas {
+  pointer-events: none;
 }
 .cf-landing-page .cf-root {
   overflow: visible;

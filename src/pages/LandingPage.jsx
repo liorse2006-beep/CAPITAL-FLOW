@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import bodyHtml from './landing/landing.body.html?raw';
 import Topography from '../components/Topography';
@@ -55,20 +55,62 @@ function LandingPage({ onGetStarted }) {
     path: '/',
   });
 
-  useEffect(() => {
-    const root = rootRef.current;
-    const cleanupTopography = mountTopography(root);
-    const cleanup = initLandingEffects(root, onGetStarted);
+  // Establish the native document scroll path before mounting any of the
+  // landing-page effects. Some of those effects create WebGL canvases and do
+  // synchronous layout work; if they run first, a phone can receive the first
+  // touch gesture while the document is still using the app shell's second
+  // scroll container.
+  useLayoutEffect(() => {
     const html = document.documentElement;
     const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousHtmlOverflowX = html.style.overflowX;
     const previousHtmlOverflowY = html.style.overflowY;
+    const previousHtmlTouchAction = html.style.touchAction;
+    const previousHtmlOverscrollBehaviorY = html.style.overscrollBehaviorY;
+    const previousBodyOverflow = body.style.overflow;
+    const previousBodyOverflowX = body.style.overflowX;
     const previousBodyOverflowY = body.style.overflowY;
+    const previousBodyTouchAction = body.style.touchAction;
+    const previousBodyOverscrollBehaviorY = body.style.overscrollBehaviorY;
+    const hadLandingScrollClass = html.classList.contains('cf-landing-scroll');
 
-    // Keep one native scroll container for the landing page. The global app
-    // shell reserves a scrollbar by making body scrollable, but on this long
-    // marketing page that leaves body and html competing for wheel input.
+    // Keep the document root as the landing page's only scroll container.
+    // Explicitly resetting the full overflow shorthand matters on mobile:
+    // mixing the app shell's forced body scrollbar with a visible body can
+    // otherwise leave html and body competing for the same touch gesture.
+    html.classList.add('cf-landing-scroll');
+    html.style.overflow = 'auto';
+    html.style.overflowX = 'hidden';
     html.style.overflowY = 'auto';
+    html.style.touchAction = 'pan-y';
+    html.style.overscrollBehaviorY = 'auto';
+    body.style.overflow = 'visible';
+    body.style.overflowX = 'visible';
     body.style.overflowY = 'visible';
+    body.style.touchAction = 'pan-y';
+    body.style.overscrollBehaviorY = 'auto';
+
+    return () => {
+      if (!hadLandingScrollClass) html.classList.remove('cf-landing-scroll');
+      html.style.overflow = previousHtmlOverflow;
+      html.style.overflowX = previousHtmlOverflowX;
+      html.style.overflowY = previousHtmlOverflowY;
+      html.style.touchAction = previousHtmlTouchAction;
+      html.style.overscrollBehaviorY = previousHtmlOverscrollBehaviorY;
+      body.style.overflow = previousBodyOverflow;
+      body.style.overflowX = previousBodyOverflowX;
+      body.style.overflowY = previousBodyOverflowY;
+      body.style.touchAction = previousBodyTouchAction;
+      body.style.overscrollBehaviorY = previousBodyOverscrollBehaviorY;
+    };
+  }, []);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return undefined;
+    const cleanupTopography = mountTopography(root);
+    const cleanup = initLandingEffects(root, onGetStarted);
 
     function onMarketingClick(event) {
       const cta = event.target.closest('[data-cta-location]');
@@ -87,8 +129,6 @@ function LandingPage({ onGetStarted }) {
       root.removeEventListener('click', onMarketingClick);
       cleanup();
       cleanupTopography();
-      html.style.overflowY = previousHtmlOverflowY;
-      body.style.overflowY = previousBodyOverflowY;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
