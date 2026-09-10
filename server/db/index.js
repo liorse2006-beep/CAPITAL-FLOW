@@ -1,4 +1,5 @@
 const { createClient } = require('@libsql/client');
+const { createPostgresDatabase, isPostgresUrl } = require('./postgres');
 const path = require('path');
 const fs = require('fs');
 const { safeErrorSummary } = require('../utils/reportError');
@@ -9,10 +10,12 @@ function isExpectedDuplicateColumnError(error) {
 }
 
 // ── Connection ─────────────────────────────────────────────────────────────
-// If TURSO_DB_URL is set, connect to Turso cloud (production / Render).
-// Otherwise fall back to a local file (dev) or in-memory (tests via
-// TURSO_DB_URL=file::memory:  set by testEnv.js).
+// DATABASE_URL is the PostgreSQL path used by the new no-cost hosted
+// deployment. TURSO_DB_URL remains a deliberate compatibility fallback while
+// the production data migration is being verified. Otherwise fall back to a
+// local file (dev) or in-memory (tests via TURSO_DB_URL=file::memory:).
 function makeUrl() {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
   if (process.env.TURSO_DB_URL) return process.env.TURSO_DB_URL;
   const dataDir = path.join(__dirname, '../../data');
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
@@ -20,13 +23,17 @@ function makeUrl() {
 }
 
 const databaseUrl = makeUrl();
-const client = createClient({
-  url: databaseUrl,
-  // Local/file-backed SQLite does not use a Turso token. Keeping the token
-  // out of this client also prevents a stale production secret from being
-  // treated as a credential for a local status database.
-  authToken: /^file:/i.test(databaseUrl) ? undefined : process.env.TURSO_AUTH_TOKEN || undefined,
-});
+const isPostgresDatabase = isPostgresUrl(databaseUrl);
+const postgresDb = isPostgresDatabase ? createPostgresDatabase(databaseUrl) : null;
+const client = isPostgresDatabase
+  ? null
+  : createClient({
+      url: databaseUrl,
+      // Local/file-backed SQLite does not use a Turso token. Keeping the token
+      // out of this client also prevents a stale production secret from being
+      // treated as a credential for a local status database.
+      authToken: /^file:/i.test(databaseUrl) ? undefined : process.env.TURSO_AUTH_TOKEN || undefined,
+    });
 
 // ── Async wrapper API ──────────────────────────────────────────────────────
 // Mimics better-sqlite3's prepare().get/all/run interface but returns
@@ -37,7 +44,24 @@ const client = createClient({
 // rows[N] supports named-column access (row.colName).
 // lastInsertRowid is BigInt — we convert to Number.
 
+function sqliteResultShape(result) {
+  return {
+    rows: result.rows || [],
+    rowsAffected: Number(result.rowsAffected || 0),
+    lastInsertRowid: result.lastInsertRowid != null ? Number(result.lastInsertRowid) : undefined,
+  };
+}
+
+async function executeSql(sql, args = [], target = client) {
+  if (isPostgresDatabase) {
+    if (args.length) return postgresDb.prepare(sql).run(...args);
+    return postgresDb.exec(sql);
+  }
+  return target.execute(args.length ? { sql, args } : sql);
+}
+
 function prepare(sql) {
+  if (isPostgresDatabase) return postgresDb.prepare(sql);
   return {
     async get(...args) {
       const result = await client.execute({ sql, args });
@@ -72,6 +96,7 @@ function toPlainObject(row) {
 // exec splits on ';', runs each non-empty statement individually (libsql
 // does not support multi-statement strings the way better-sqlite3 does).
 async function exec(sql) {
+  if (isPostgresDatabase) return postgresDb.exec(sql);
   const stmts = sql
     .split(';')
     .map((s) => s.trim())
@@ -85,15 +110,73 @@ async function exec(sql) {
 // a small wrapper around libSQL's write transaction mode so routes that touch
 // multiple user-owned tables cannot leave a partial state after a transient
 // database failure.
-async function transaction(statements) {
-  if (!Array.isArray(statements) || statements.length === 0) return [];
+async function transaction(statementsOrCallback) {
+  if (isPostgresDatabase) return postgresDb.transaction(statementsOrCallback);
+  if (typeof statementsOrCallback === 'function') {
+    const tx = await client.transaction('write');
+    const txDb = {
+      prepare(sql) {
+        return {
+          async get(...args) {
+            const result = await tx.execute({ sql, args });
+            return result.rows.length > 0 ? toPlainObject(result.rows[0]) : undefined;
+          },
+          async all(...args) {
+            const result = await tx.execute({ sql, args });
+            return result.rows.map(toPlainObject);
+          },
+          async run(...args) {
+            return sqliteResultShape(await tx.execute({ sql, args }));
+          },
+        };
+      },
+      async exec(sql) {
+        const results = [];
+        for (const statement of String(sql)
+          .split(';')
+          .map((value) => value.trim())
+          .filter(Boolean)) {
+          results.push(await tx.execute(statement));
+        }
+        return results;
+      },
+    };
+    try {
+      const result = await statementsOrCallback(txDb);
+      await tx.commit();
+      return result;
+    } catch (error) {
+      try {
+        await tx.rollback();
+      } catch (_) {
+        // Preserve the original database error.
+      }
+      throw error;
+    }
+  }
+  if (!Array.isArray(statementsOrCallback) || statementsOrCallback.length === 0) return [];
   return client.batch(
-    statements.map((statement) => ({ sql: statement.sql, args: statement.args || [] })),
+    statementsOrCallback.map((statement) => ({ sql: statement.sql, args: statement.args || [] })),
     'write'
   );
 }
 
-const db = { prepare, exec, transaction };
+async function tableInfo(table) {
+  if (isPostgresDatabase) return postgresDb.tableInfo(table);
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(String(table || ''))) throw new Error('Unsafe table identifier');
+  const result = await client.execute(`PRAGMA table_info("${table}")`);
+  return result.rows.map(toPlainObject);
+}
+
+const db = {
+  prepare,
+  exec,
+  transaction,
+  tableInfo,
+  dialect: isPostgresDatabase ? 'postgres' : 'sqlite',
+  resetSequences: postgresDb ? postgresDb.resetSequences : async () => {},
+  close: postgresDb ? postgresDb.close : async () => {},
+};
 
 // ── Schema migrations (run at startup) ────────────────────────────────────
 async function initDb() {
@@ -723,7 +806,7 @@ async function initDb() {
 
   for (const sql of migrations) {
     try {
-      await client.execute(sql);
+      await executeSql(sql);
     } catch (err) {
       if (!isExpectedDuplicateColumnError(err)) throw err;
     }
@@ -735,12 +818,12 @@ async function initDb() {
   // `WHERE notification_time = ?` against the full users table; without an
   // index that's a full table scan on every single minute, growing worse as
   // the user base grows.
-  await client.execute('CREATE INDEX IF NOT EXISTS idx_users_notification_time ON users(notification_time)');
-  await client.execute('CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON chat_messages(user_id, id)');
-  await client.execute(
+  await executeSql('CREATE INDEX IF NOT EXISTS idx_users_notification_time ON users(notification_time)');
+  await executeSql('CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON chat_messages(user_id, id)');
+  await executeSql(
     'CREATE INDEX IF NOT EXISTS idx_radar_schedule_runs_lease ON radar_schedule_runs(status, lease_until)'
   );
-  await client.execute(
+  await executeSql(
     'CREATE INDEX IF NOT EXISTS idx_capital_flow_radars_data_status ON capital_flow_radars(last_data_status, active)'
   );
 
@@ -750,7 +833,7 @@ async function initDb() {
   // index. This is idempotent and changes no rows when the invariant already
   // holds.
   try {
-    await client.execute(
+    await executeSql(
       `UPDATE capital_flow_radars
           SET active = 0, updated_at = unixepoch()
         WHERE active = 1
@@ -761,7 +844,7 @@ async function initDb() {
              GROUP BY user_id
           )`
     );
-    await client.execute(
+    await executeSql(
       `CREATE UNIQUE INDEX IF NOT EXISTS idx_capital_flow_radars_one_active_user
          ON capital_flow_radars(user_id)
          WHERE active = 1`
@@ -779,10 +862,8 @@ async function initDb() {
   // One-time data migrations. These columns are created above, so an error is
   // a real schema/readiness failure and must stop boot rather than silently
   // serving accounts with stale entitlements or scan quotas.
-  await client.execute(
-    `UPDATE users SET free_scan_count = ma_scan_count WHERE ma_scan_count > 0 AND free_scan_count = 0`
-  );
-  await client.execute(`UPDATE users SET tier = 'premium' WHERE is_premium = 1 AND tier = 'free'`);
+  await executeSql(`UPDATE users SET free_scan_count = ma_scan_count WHERE ma_scan_count > 0 AND free_scan_count = 0`);
+  await executeSql(`UPDATE users SET tier = 'premium' WHERE is_premium = 1 AND tier = 'free'`);
 
   // OTP pruning — once at startup, then daily
   async function pruneExpiredOtps() {

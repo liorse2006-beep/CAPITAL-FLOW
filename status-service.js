@@ -4,23 +4,23 @@
 //
 // This process intentionally boots only the status router, its status store,
 // and the monitoring worker. It never imports the main application server or
-// frontend. In production, STATUS_TURSO_DB_URL is required so a failure or
+// frontend. In production, STATUS_DATABASE_URL is preferred so a failure or
 // redeploy of the main application's database cannot take status storage down
-// with it. A file-backed status database is also supported for the current
-// no-cost Render deployment; libSQL does not need an auth token for a local
-// file, and the database adapter deliberately ignores one in that mode.
+// with it. STATUS_TURSO_* remains a staged compatibility fallback. A
+// file-backed status database is also supported for local development only.
 const path = require('path');
 
 if (process.env.NODE_ENV === 'production') {
-  const statusDbUrl = String(process.env.STATUS_TURSO_DB_URL || '').trim();
+  const statusDbUrl = String(process.env.STATUS_DATABASE_URL || process.env.STATUS_TURSO_DB_URL || '').trim();
   const statusDbAuthToken = String(process.env.STATUS_TURSO_AUTH_TOKEN || '').trim();
+  const isPostgresStatusDb = /^postgres(?:ql)?:/i.test(statusDbUrl);
   const isFileBackedStatusDb = /^file:/i.test(statusDbUrl);
   if (!statusDbUrl) {
-    console.error('[status-service] STATUS_TURSO_DB_URL is required in production.');
+    console.error('[status-service] STATUS_DATABASE_URL or STATUS_TURSO_DB_URL is required in production.');
     process.exit(1);
   }
-  if (!statusDbAuthToken && !isFileBackedStatusDb) {
-    console.error('[status-service] STATUS_TURSO_AUTH_TOKEN is required in production.');
+  if (!isPostgresStatusDb && !statusDbAuthToken && !isFileBackedStatusDb) {
+    console.error('[status-service] STATUS_TURSO_AUTH_TOKEN is required for a non-PostgreSQL status database.');
     process.exit(1);
   }
   if (!process.env.STATUS_INTERNAL_TOKEN || process.env.STATUS_INTERNAL_TOKEN.trim().length < 32) {
@@ -29,8 +29,9 @@ if (process.env.NODE_ENV === 'production') {
     );
     process.exit(1);
   }
-  process.env.TURSO_DB_URL = statusDbUrl;
-  process.env.TURSO_AUTH_TOKEN = statusDbAuthToken;
+  process.env.DATABASE_URL = isPostgresStatusDb ? statusDbUrl : '';
+  process.env.TURSO_DB_URL = isPostgresStatusDb ? '' : statusDbUrl;
+  process.env.TURSO_AUTH_TOKEN = isPostgresStatusDb ? '' : statusDbAuthToken;
   process.env.STATUS_ALLOW_FILE_DB = isFileBackedStatusDb ? 'true' : '';
 }
 

@@ -1,5 +1,5 @@
-# Multi-stage build. @libsql/client is pure JS (no native compilation) so
-# Alpine or any slim image works fine — no build toolchain needed.
+# Multi-stage build. The database clients are pure JS, so a slim Node image is
+# sufficient and no database server is bundled into the application image.
 
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
@@ -61,7 +61,7 @@ COPY server ./server
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
-# In production (Render + Turso) no local SQLite file is used.
+# In production (Render + hosted PostgreSQL) no local SQLite file is used.
 # The data/ dir is still created so local dev (file:./data/users.db) works.
 RUN mkdir -p data logs && chown -R app:app /app
 

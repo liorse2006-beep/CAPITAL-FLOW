@@ -48,7 +48,7 @@ function validateDump(dump) {
 
 async function validateSchema(db, tables, dump) {
   for (const table of tables) {
-    const schemaRows = await db.prepare(`PRAGMA table_info(${quoteIdentifier(table)})`).all();
+    const schemaRows = await db.tableInfo(table);
     const schemaColumns = new Set(schemaRows.map((column) => column.name));
     if (schemaColumns.size === 0) throw new Error(`Target database is missing table: ${table}`);
     for (const row of dump.tables[table]) {
@@ -85,6 +85,10 @@ async function restoreDump(db, dump) {
   await validateSchema(db, tables, dump);
   const statements = buildRestoreStatements(dump, tables);
   await db.transaction(statements);
+  // Explicit ids are restored from the backup. PostgreSQL identity sequences
+  // do not advance when rows are inserted with an explicit id, so advance each
+  // affected sequence before the next live insert can allocate a duplicate.
+  await db.resetSequences(tables);
   return { tables, statementCount: statements.length };
 }
 

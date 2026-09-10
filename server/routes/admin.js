@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const crypto = require('crypto');
 const db = require('../db');
-const { ADMIN_TOKEN, ADMIN_EMAIL, TURSO_DB_URL } = require('../config');
+const { ADMIN_TOKEN, ADMIN_EMAIL, DATABASE_URL, TURSO_DB_URL } = require('../config');
 const { revokeAllSessions } = require('../services/auth');
 const { reportError } = require('../utils/reportError');
 
@@ -17,7 +17,7 @@ function parsePositiveUserId(value) {
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
-const DB_ENV = TURSO_DB_URL ? 'PRODUCTION (Turso)' : 'LOCAL (SQLite)';
+const DB_ENV = DATABASE_URL ? 'PRODUCTION (PostgreSQL)' : TURSO_DB_URL ? 'PRODUCTION (Turso)' : 'LOCAL (SQLite)';
 const { resolveToken, invalidateUserSessions } = require('../middleware/authMiddleware');
 
 // Catches unhandled promise rejections in async route handlers (Express 4 doesn't do this natively)

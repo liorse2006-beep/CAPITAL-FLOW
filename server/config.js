@@ -162,7 +162,15 @@ module.exports = {
   // plan, which is what makes the offer genuinely exclusive rather than a
   // copy-only claim. Leave unset to hide the offer entirely.
   WHOP_ELITE_UPGRADE_PLAN_ID: env('WHOP_ELITE_UPGRADE_PLAN_ID'),
-  // Turso cloud SQLite — set for production (Render). Omit for local dev (file-based).
+  // PostgreSQL connection used by the no-cost hosted deployment. TURSO_* is
+  // retained only as a staged migration fallback until the new database has
+  // passed data, restore and entitlement verification.
+  DATABASE_URL: env('DATABASE_URL'),
+  DATABASE_POOL_MAX: Math.max(1, parseInt(env('DATABASE_POOL_MAX', '5'), 10) || 5),
+  DATABASE_CONNECT_TIMEOUT_MS: Math.max(1000, parseInt(env('DATABASE_CONNECT_TIMEOUT_MS', '10000'), 10) || 10000),
+  DATABASE_IDLE_TIMEOUT_MS: Math.max(1000, parseInt(env('DATABASE_IDLE_TIMEOUT_MS', '30000'), 10) || 30000),
+  DATABASE_SSL_REJECT_UNAUTHORIZED: env('DATABASE_SSL_REJECT_UNAUTHORIZED', 'true').toLowerCase() !== 'false',
+  // Legacy Turso cloud SQLite coordinates. Remove after the verified cutover.
   TURSO_DB_URL: env('TURSO_DB_URL'),
   TURSO_AUTH_TOKEN: env('TURSO_AUTH_TOKEN'),
   // Only these proxy source networks may contribute X-Forwarded-For to
@@ -229,9 +237,10 @@ if (process.env.NODE_ENV === 'production' && !module.exports.STATUS_INTERNAL_TOK
 // Production must never silently fall back to the local SQLite file. That
 // fallback is useful for development, but on a redeploy or a fresh container
 // it would create an apparently healthy main application with a new empty
-// database and no durable user data. Require both Turso coordinates for the
-// main application; the independent status service may explicitly opt into
-// its currently configured file-backed store without weakening the main app.
+// database and no durable user data. Require a durable PostgreSQL URL or the
+// legacy Turso pair for the staged migration; the independent status service
+// may explicitly opt into its currently configured file-backed store without
+// weakening the main app.
 const statusFileDatabaseAllowed =
   process.env.INDEPENDENT_STATUS_SERVICE === 'true' &&
   process.env.STATUS_ALLOW_FILE_DB === 'true' &&
@@ -269,12 +278,16 @@ if (
   process.exit(1);
 }
 
+const configuredDatabaseUrl = module.exports.DATABASE_URL || module.exports.TURSO_DB_URL;
+const postgresDatabaseConfigured = /^postgres(?:ql)?:/i.test(String(module.exports.DATABASE_URL || '').trim());
+
 if (
   process.env.NODE_ENV === 'production' &&
-  (!module.exports.TURSO_DB_URL || (!module.exports.TURSO_AUTH_TOKEN && !statusFileDatabaseAllowed))
+  (!configuredDatabaseUrl ||
+    (!postgresDatabaseConfigured && !module.exports.TURSO_AUTH_TOKEN && !statusFileDatabaseAllowed))
 ) {
   console.error(
-    '\n[FATAL] TURSO_DB_URL and TURSO_AUTH_TOKEN are required in production. ' +
+    '\n[FATAL] DATABASE_URL (PostgreSQL) or TURSO_DB_URL/TURSO_AUTH_TOKEN is required in production. ' +
       'Refusing to start against a local SQLite database; configure the durable production database first.\n'
   );
   process.exit(1);

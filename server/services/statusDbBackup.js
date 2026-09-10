@@ -178,7 +178,7 @@ function quoteIdentifier(identifier) {
 
 async function validateStatusSchema(tables, dump) {
   for (const table of tables) {
-    const schemaRows = await db.prepare('PRAGMA table_info(' + quoteIdentifier(table) + ')').all();
+    const schemaRows = await db.tableInfo(table);
     const schemaColumns = new Set(schemaRows.map((column) => column.name));
     if (schemaColumns.size === 0) throw new Error('Target database is missing status table: ' + table);
     for (const row of dump.tables[table]) {
@@ -225,6 +225,7 @@ async function restoreStatusTables(dump, { confirm = false } = {}) {
   // Restore every selected operational table as one transaction. A malformed
   // or incompatible later row must never leave status history half-deleted.
   await db.transaction(buildStatusRestoreStatements(dump, tables));
+  await db.resetSequences(tables);
   return { dryRun: false, createdAt: dump.createdAt || null, tables: summary };
 }
 
