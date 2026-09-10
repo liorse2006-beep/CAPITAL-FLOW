@@ -170,6 +170,10 @@ async function runScenario(port) {
       PORT: String(port),
       JWT_SECRET,
       SESSION_SECRET,
+      // The cluster integration test must always use its isolated SQLite
+      // file. Do not let a developer/CI DATABASE_URL redirect this test to a
+      // real hosted database.
+      DATABASE_URL: '',
       TURSO_DB_URL: 'file:' + dbFile,
       ADMIN_EMAIL: 'admin@cluster-it.local',
       RESEND_API_KEY: '',

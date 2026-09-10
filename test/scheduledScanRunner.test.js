@@ -199,9 +199,7 @@ test('a partial empty scan does not send a notification without a verified resul
 
   await runScheduledScans();
 
-  const notif = await db
-    .prepare('SELECT id FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
-    .get(userId);
+  const notif = await db.prepare('SELECT id FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1').get(userId);
   assert.strictEqual(notif, undefined);
   assert.strictEqual(pushMock.mock.callCount(), 0);
 });
@@ -225,9 +223,7 @@ test('a partial scan with rows does not alert with data that is not fully verifi
 
   await runScheduledScans();
 
-  const notif = await db
-    .prepare('SELECT id FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
-    .get(userId);
+  const notif = await db.prepare('SELECT id FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1').get(userId);
   assert.strictEqual(notif, undefined);
   assert.strictEqual(pushMock.mock.callCount(), 0);
 });

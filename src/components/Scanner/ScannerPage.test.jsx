@@ -269,7 +269,9 @@ describe('ScannerPage result table integrity', () => {
       />
     );
 
-    expect(screen.getByText(/No verified matches are available because some market data was unavailable/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/No verified matches are available because some market data was unavailable/i)
+    ).toBeInTheDocument();
     expect(screen.queryByText('No stocks matched your filters.')).not.toBeInTheDocument();
   });
 
