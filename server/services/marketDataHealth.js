@@ -1,6 +1,7 @@
 const quoteCache = require('./quoteCache');
 const finnhub = require('./finnhub');
 const massive = require('./massive');
+const { isMarketOpen, isPreMarket } = require('./marketCalendar');
 
 // A small, stable probe set keeps the status check cheap while covering the
 // same quote fields the scanners require. AVB is intentionally included as a
@@ -109,6 +110,7 @@ async function probeMarketData({ fullScan } = {}) {
     quoteProbeError || quotes?.providerFailure === true,
     staleSymbols.length
   );
+  const fallbackProvider = quotes?.fallbackProvider || null;
 
   const finnhubProbe = await mapWithConcurrency(MARKET_DATA_PROBE_SYMBOLS, 3, async (symbol) => {
     const [quote, metric] = await Promise.all([finnhub.fetchFinnhubQuote(symbol), finnhub.fetchFinnhubMetric(symbol)]);
@@ -151,9 +153,14 @@ async function probeMarketData({ fullScan } = {}) {
       `Massive required-field coverage is ${massiveStatus}: ${massiveVerifiedSymbols}/${MARKET_DATA_PROBE_SYMBOLS.length} probe symbols verified.`
     );
   }
-  if (!normalizedFullScan) {
+  // The background worker intentionally does not start while the US market is
+  // closed. Missing full-universe coverage is therefore expected off-hours;
+  // during a market session it remains a real warning until a verified scan
+  // completes.
+  const sessionExpected = isMarketOpen() || isPreMarket();
+  if (!normalizedFullScan && sessionExpected) {
     warnings.push('Full-universe scan coverage has not been recorded yet.');
-  } else if (normalizedFullScan.status !== 'complete') {
+  } else if (normalizedFullScan && normalizedFullScan.status !== 'complete') {
     warnings.push(
       `The last full-universe scan verified ${normalizedFullScan.verifiedSymbols}/${normalizedFullScan.requestedSymbols} symbols.`
     );
@@ -171,8 +178,9 @@ async function probeMarketData({ fullScan } = {}) {
   return {
     ok: overallStatus !== 'unavailable' && sample !== null,
     status: overallStatus,
-    provider: 'Yahoo Finance + Finnhub + Massive',
+    provider: fallbackProvider ? `${fallbackProvider} + Finnhub + Massive` : 'Yahoo Finance + Finnhub + Massive',
     sample,
+    fallbackProvider,
     dataAsOf: quotes?.dataAsOf || null,
     coverage: {
       probeSymbols: MARKET_DATA_PROBE_SYMBOLS.length,
@@ -182,7 +190,11 @@ async function probeMarketData({ fullScan } = {}) {
       status: yahooStatus,
     },
     providers: {
-      yahoo: { status: yahooStatus },
+      yahoo: {
+        status: yahooStatus,
+        mode: fallbackProvider ? 'fallback' : 'primary',
+        provider: fallbackProvider || 'Yahoo Finance',
+      },
       finnhub: {
         status: finnhubStatus,
         coverage: {

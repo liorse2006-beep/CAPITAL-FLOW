@@ -198,27 +198,45 @@ async function readHttpCheck(component) {
 }
 
 async function checkYahoo(component) {
-  const response = await fetchWithTimeout(
-    'https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1d&interval=1d',
-    { headers: { Accept: 'application/json' } },
-    component.timeoutMs
-  );
-  const text = await response.text();
-  const json = parseJson(text);
-  const valid =
-    response.ok &&
-    json &&
-    json.chart &&
-    Array.isArray(json.chart.result) &&
-    json.chart.result.length > 0 &&
-    json.chart.result[0].meta;
+  let lastStatus = null;
+  for (const host of ['query1.finance.yahoo.com', 'query2.finance.yahoo.com']) {
+    try {
+      const response = await fetchWithTimeout(
+        `https://${host}/v8/finance/chart/AAPL?range=1d&interval=1d`,
+        { headers: { Accept: 'application/json' } },
+        component.timeoutMs
+      );
+      const text = await response.text();
+      const json = parseJson(text);
+      const valid =
+        response.ok &&
+        json &&
+        json.chart &&
+        Array.isArray(json.chart.result) &&
+        json.chart.result.length > 0 &&
+        json.chart.result[0].meta;
+      if (valid) {
+        return {
+          success: true,
+          statusCode: response.status,
+          responseMs: null,
+          errorMessage: null,
+          timedOut: false,
+          metadata: { provider: 'Yahoo Finance Chart API', symbol: 'AAPL', host },
+        };
+      }
+      lastStatus = response.status;
+    } catch (_) {
+      // Try the alternate public host before declaring Yahoo unavailable.
+    }
+  }
   return {
-    success: !!valid,
-    statusCode: response.status,
+    success: false,
+    statusCode: lastStatus,
     responseMs: null,
-    errorMessage: valid ? null : response.ok ? 'Yahoo response was not structurally valid.' : `HTTP ${response.status}`,
+    errorMessage: lastStatus ? `HTTP ${lastStatus}` : 'Yahoo chart endpoints were unavailable.',
     timedOut: false,
-    metadata: valid ? { provider: 'Yahoo Finance', symbol: 'AAPL' } : null,
+    metadata: null,
   };
 }
 

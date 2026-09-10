@@ -433,6 +433,7 @@ async function scanTickers(tickers, options) {
     staleSymbols: [...staleQuoteSymbols],
     metricFallbackSymbols: [...metricFallbackBySymbol.keys()],
     dataAsOf: quoteDataAsOf,
+    quoteProvider: quotesMap.fallbackProvider || 'Yahoo Finance',
     dataProvenance: buildFinancialProvenance({
       dataAsOf: quoteDataAsOf || null,
       status: dataStatus,
@@ -440,6 +441,7 @@ async function scanTickers(tickers, options) {
       sources: CAPITAL_FLOW_SOURCES.map(function (source) {
         return {
           ...source,
+          provider: source.role === 'quote baseline' ? quotesMap.fallbackProvider || source.provider : source.provider,
           asOf: source.role === 'quote baseline' ? quoteDataAsOf || null : null,
           status:
             source.role === 'quote baseline'

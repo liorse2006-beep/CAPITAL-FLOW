@@ -11,6 +11,7 @@
  */
 
 const yahooFinance = require('./yahoo');
+const { fetchYahooChartQuotes } = require('./yahooChartFallback');
 const { createCircuitBreaker } = require('../utils/circuitBreaker');
 const { redact } = require('../utils/reportError');
 const { isMarketOpen, isPreMarket } = require('./marketCalendar');
@@ -35,6 +36,12 @@ const MAX_OFF_HOURS_PROVIDER_AGE_MS = 36 * 60 * 60 * 1000;
 const MAX_CLOSED_PROVIDER_AGE_MS = 5 * 24 * 60 * 60 * 1000;
 const SUMMARY_RECOVERY_CONCURRENCY = 3;
 const MAX_SUMMARY_RECOVERY_SYMBOLS = 25;
+// A provider incident must not turn one scan into hundreds of individual
+// fallback requests. Six symbols are enough for the independent health probe;
+// larger scans remain explicitly partial rather than hiding missing coverage.
+const MAX_DIRECT_CHART_FALLBACK_SYMBOLS = 6;
+const DIRECT_CHART_FALLBACK_ENABLED =
+  process.env.NODE_ENV === 'production' || String(process.env.YAHOO_CHART_FALLBACK_ENABLED || '').trim() === 'true';
 // Maximum age for stale fallback entries. Beyond this limit we refuse to serve
 // them — it is better to show no data than silently show volume figures from
 // an hour ago while claiming the scan just ran. 10 min gives enough cushion
@@ -187,6 +194,11 @@ async function mapWithConcurrency(items, limit, worker) {
   return results;
 }
 
+async function directChartRecovery(symbols) {
+  if (!DIRECT_CHART_FALLBACK_ENABLED || !symbols.length) return [];
+  return fetchYahooChartQuotes(symbols.slice(0, MAX_DIRECT_CHART_FALLBACK_SYMBOLS), { concurrency: 2 });
+}
+
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -267,6 +279,16 @@ async function fetchBatch(symbols) {
         });
         arr = arr.concat(keepFreshProviderRows(summaryRows.filter(Boolean)));
       }
+
+      // yahoo-finance2's quote endpoint can be unavailable while Yahoo's
+      // timestamped chart/timeseries endpoints remain healthy. Recover only a
+      // bounded set through that independent public read path.
+      const directMissing = symbols
+        .filter((symbol) => !new Set(arr.map((quote) => normalizeSymbol(quote.symbol))).has(normalizeSymbol(symbol)))
+        .slice(0, MAX_DIRECT_CHART_FALLBACK_SYMBOLS);
+      if (directMissing.length > 0) {
+        arr = arr.concat(await directChartRecovery(directMissing));
+      }
       const now = Date.now();
       arr.forEach((q) => {
         if (q && q.symbol) cache.set(normalizeSymbol(q.symbol), { data: q, fetchedAt: now });
@@ -276,6 +298,7 @@ async function fetchBatch(symbols) {
         providerStaleSymbols: [...providerStaleSymbols],
         usedStaleFallback: false,
         providerFailure: false,
+        fallbackProvider: arr.some((quote) => quote?.quoteProvider) ? 'Yahoo Finance Chart API' : null,
       };
     } catch (err) {
       const msg = (err && err.message) || '';
@@ -287,6 +310,24 @@ async function fetchBatch(symbols) {
         await sleep(delay);
         continue;
       }
+      // Before using stale cache, try a bounded timestamped chart recovery.
+      // This is the no-cost failover path; it is still rejected when any
+      // required field is missing, so it cannot manufacture scan rows.
+      const directRows = await directChartRecovery(symbols);
+      if (directRows.length > 0) {
+        const recovered = new Set(directRows.map((quote) => normalizeSymbol(quote.symbol)));
+        const now = Date.now();
+        directRows.forEach((quote) => cache.set(normalizeSymbol(quote.symbol), { data: quote, fetchedAt: now }));
+        return {
+          quotes: directRows,
+          providerStaleSymbols: [],
+          staleSymbols: [],
+          usedStaleFallback: false,
+          providerFailure: recovered.size < symbols.length,
+          fallbackProvider: 'Yahoo Finance Chart API',
+        };
+      }
+
       // All retries exhausted — serve stale cache entries only if they are
       // recent enough (< MAX_STALE_AGE_MS). Entries older than that are
       // rejected: showing 10-minute-old volume as "just scanned" is
@@ -318,6 +359,7 @@ async function fetchBatch(symbols) {
         staleSymbols,
         usedStaleFallback: stale.length > 0,
         providerFailure: true,
+        fallbackProvider: null,
       };
     }
   }
@@ -334,6 +376,7 @@ async function fetchBatch(symbols) {
     staleSymbols: [],
     usedStaleFallback: false,
     providerFailure: true,
+    fallbackProvider: null,
   };
 }
 
@@ -355,6 +398,7 @@ async function fetchQuotes(symbols, onBatchDone) {
   const providerStaleSymbols = new Set();
   let usedStaleFallback = false;
   let providerFailure = false;
+  const fallbackProviders = new Set();
 
   function recordUsedQuote(symbol, quote) {
     const entry = cache.get(symbol);
@@ -382,6 +426,7 @@ async function fetchQuotes(symbols, onBatchDone) {
     const batchResult = await fetchBatch(batch);
     usedStaleFallback = usedStaleFallback || batchResult.usedStaleFallback === true;
     providerFailure = providerFailure || batchResult.providerFailure === true;
+    if (batchResult.fallbackProvider) fallbackProviders.add(batchResult.fallbackProvider);
     (batchResult.staleSymbols || []).forEach((symbol) => staleSymbols.add(symbol));
     (batchResult.providerStaleSymbols || []).forEach((symbol) => providerStaleSymbols.add(symbol));
     batchResult.quotes.forEach((q) => {
@@ -409,6 +454,10 @@ async function fetchQuotes(symbols, onBatchDone) {
     providerStaleSymbols: { value: [...providerStaleSymbols], enumerable: false },
     usedStaleFallback: { value: usedStaleFallback, enumerable: false },
     providerFailure: { value: providerFailure, enumerable: false },
+    fallbackProvider: {
+      value: fallbackProviders.size ? [...fallbackProviders].join(' + ') : null,
+      enumerable: false,
+    },
   });
   return result;
 }
