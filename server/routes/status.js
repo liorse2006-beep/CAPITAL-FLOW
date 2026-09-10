@@ -48,7 +48,22 @@ const statusProbeLimiter = rateLimit({
   message: { error: 'Too many status probe requests.' },
 });
 
+// Public status pages are intentionally unauthenticated, but summary
+// generation performs a full monitoring aggregation. Keep this budget
+// separate from admin/probe traffic so a public caller cannot repeatedly
+// consume database work without affecting operator controls.
+const statusPublicLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: statusIpKey,
+  message: { error: 'Too many public status requests. Please try again shortly.' },
+});
+
 router.use('/status/api/admin', statusAdminLimiter);
+router.use('/status/api/summary', statusPublicLimiter);
+router.use('/status/api/history', statusPublicLimiter);
 router.use('/status/internal/market-data', statusProbeLimiter);
 router.use('/status/internal/news-data', statusProbeLimiter);
 
@@ -404,6 +419,32 @@ async function publicSnapshot() {
   };
 }
 
+const PUBLIC_SNAPSHOT_CACHE_TTL_MS = 15 * 1000;
+let publicSnapshotCache = null;
+let publicSnapshotCachedAt = 0;
+let publicSnapshotInFlight = null;
+
+// Coalesce concurrent public requests and reuse a short-lived snapshot. The
+// response remains no-store at the HTTP layer, while this process avoids
+// repeating the same database aggregation for every browser refresh.
+function cachedPublicSnapshot() {
+  const now = Date.now();
+  if (publicSnapshotCache && now - publicSnapshotCachedAt < PUBLIC_SNAPSHOT_CACHE_TTL_MS) {
+    return Promise.resolve(publicSnapshotCache);
+  }
+  if (publicSnapshotInFlight) return publicSnapshotInFlight;
+  publicSnapshotInFlight = publicSnapshot()
+    .then((snapshot) => {
+      publicSnapshotCache = snapshot;
+      publicSnapshotCachedAt = Date.now();
+      return snapshot;
+    })
+    .finally(() => {
+      publicSnapshotInFlight = null;
+    });
+  return publicSnapshotInFlight;
+}
+
 async function adminOverview() {
   const snapshot = await publicSnapshot();
   const checks = await db
@@ -595,7 +636,7 @@ router.get(
   asyncRoute(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     try {
-      res.json(await publicSnapshot());
+      res.json(await cachedPublicSnapshot());
     } catch (err) {
       reportError(err, '[status public snapshot]');
       res.json({

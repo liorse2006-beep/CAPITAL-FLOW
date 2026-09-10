@@ -52,11 +52,20 @@ test('runBackgroundScan does not overlap a timed-out scan that is still settling
   backgroundCache.inFlight = null;
   backgroundCache.results = null;
   backgroundCache.scanTime = null;
+  backgroundCache.runStatus = 'idle';
+  backgroundCache.lastAttemptAt = null;
+  backgroundCache.lastSuccessAt = null;
+  backgroundCache.lastError = null;
+  backgroundCache.lastErrorAt = null;
 
   try {
     await runBackgroundScan({ maxDurationMs: 20 });
     assert.strictEqual(calls, 1);
     assert.strictEqual(backgroundCache.running, false);
+    assert.strictEqual(backgroundCache.runStatus, 'failed');
+    assert.match(backgroundCache.lastError, /temporarily unavailable/);
+    assert.ok(backgroundCache.lastAttemptAt);
+    assert.ok(backgroundCache.lastErrorAt);
     assert.ok(backgroundCache.inFlight);
 
     await runBackgroundScan({ maxDurationMs: 20 });
@@ -72,6 +81,11 @@ test('runBackgroundScan does not overlap a timed-out scan that is still settling
     backgroundCache.inFlight = null;
     backgroundCache.results = null;
     backgroundCache.scanTime = null;
+    backgroundCache.runStatus = 'idle';
+    backgroundCache.lastAttemptAt = null;
+    backgroundCache.lastSuccessAt = null;
+    backgroundCache.lastError = null;
+    backgroundCache.lastErrorAt = null;
   }
 });
 
@@ -87,9 +101,22 @@ test('runBackgroundScan preserves the unavailable error in its final status even
 
   backgroundCache.running = false;
   backgroundCache.inFlight = null;
+  backgroundCache.runStatus = 'idle';
+  backgroundCache.lastAttemptAt = null;
+  backgroundCache.lastSuccessAt = null;
+  backgroundCache.lastError = null;
+  backgroundCache.lastErrorAt = null;
 
   try {
     await runBackgroundScan({ maxDurationMs: 100 });
+    assert.strictEqual(backgroundCache.runStatus, 'failed');
+    assert.ok(backgroundCache.lastAttemptAt);
+    assert.ok(backgroundCache.lastErrorAt);
+    assert.strictEqual(backgroundCache.lastSuccessAt, null);
+    assert.strictEqual(
+      backgroundCache.lastError,
+      'Market data is temporarily unavailable. Try again in a few minutes.'
+    );
     assert.deepStrictEqual(statuses, [
       { event: 'scan-status', data: { running: true } },
       {
@@ -101,5 +128,10 @@ test('runBackgroundScan preserves the unavailable error in its final status even
     scanner.scanTickers = originalScanTickers;
     backgroundCache.running = false;
     backgroundCache.inFlight = null;
+    backgroundCache.runStatus = 'idle';
+    backgroundCache.lastAttemptAt = null;
+    backgroundCache.lastSuccessAt = null;
+    backgroundCache.lastError = null;
+    backgroundCache.lastErrorAt = null;
   }
 });

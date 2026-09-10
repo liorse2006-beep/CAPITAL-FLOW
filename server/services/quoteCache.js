@@ -43,6 +43,10 @@ const MAX_STALE_AGE_MS = 10 * 60 * 1000;
 
 // symbol → { data: QuoteResult, fetchedAt: number }
 const cache = new Map();
+// Exact concurrent requests share one provider operation. This protects the
+// free Yahoo endpoint when several users open the same scanner at once and
+// avoids turning a traffic spike into duplicate upstream calls.
+const inFlightRequests = new Map();
 
 function parseProviderTimestamp(value) {
   if (value == null || value === '') return null;
@@ -342,7 +346,7 @@ async function fetchBatch(symbols) {
  * @param {(fetched: number, total: number) => void} [onBatchDone]  progress hook
  * @returns {Promise<Map<string, object>>}  symbol → QuoteResult
  */
-async function getQuotes(symbols, onBatchDone) {
+async function fetchQuotes(symbols, onBatchDone) {
   const result = new Map();
   const toFetch = [];
   let oldestProviderTimestamp = null;
@@ -407,6 +411,28 @@ async function getQuotes(symbols, onBatchDone) {
     providerFailure: { value: providerFailure, enumerable: false },
   });
   return result;
+}
+
+function quoteRequestKey(symbols) {
+  return [...new Set(symbols.map(normalizeSymbol).filter(Boolean))].sort().join('\u0000');
+}
+
+async function getQuotes(symbols, onBatchDone) {
+  const key = quoteRequestKey(symbols);
+  const existing = inFlightRequests.get(key);
+  if (existing) {
+    const result = await existing;
+    if (onBatchDone) onBatchDone(symbols.length, symbols.length);
+    return result;
+  }
+
+  const request = fetchQuotes(symbols, onBatchDone);
+  inFlightRequests.set(key, request);
+  try {
+    return await request;
+  } finally {
+    if (inFlightRequests.get(key) === request) inFlightRequests.delete(key);
+  }
 }
 
 module.exports = { getQuotes };

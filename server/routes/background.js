@@ -27,6 +27,11 @@ router.get('/background-status', function (req, res) {
     resultsCount: hasCache ? backgroundCache.results.length : 0,
     nextScanIn: nextScanIn,
     running: backgroundCache.running,
+    runStatus: backgroundCache.runStatus,
+    lastAttemptAt: backgroundCache.lastAttemptAt,
+    lastSuccessAt: backgroundCache.lastSuccessAt,
+    lastError: backgroundCache.lastError,
+    lastErrorAt: backgroundCache.lastErrorAt,
   });
 });
 

@@ -16,6 +16,14 @@ var backgroundCache = {
   // provider call. Keep tracking that Promise so a later scheduler tick does
   // not start a second full-market scan while the first one is still settling.
   inFlight: null,
+  // Keep refresh health separate from the last usable snapshot. A failed
+  // refresh must not erase a previous snapshot or make it look fresh, but it
+  // must also never be invisible to the status UI or operators.
+  runStatus: 'idle',
+  lastAttemptAt: null,
+  lastSuccessAt: null,
+  lastError: null,
+  lastErrorAt: null,
 };
 
 // Lazy-require broadcast to avoid circular deps at startup
@@ -208,6 +216,10 @@ function withHardTimeout(promise, ms, label) {
 async function runBackgroundScan(options = {}) {
   if (backgroundCache.running || backgroundCache.inFlight) return;
   backgroundCache.running = true;
+  backgroundCache.runStatus = 'running';
+  backgroundCache.lastAttemptAt = new Date().toISOString();
+  backgroundCache.lastError = null;
+  backgroundCache.lastErrorAt = null;
   var broadcast = getBroadcast();
   var scanError = null;
 
@@ -237,6 +249,7 @@ async function runBackgroundScan(options = {}) {
 
     backgroundCache.results = res.results;
     backgroundCache.scanTime = new Date().toISOString();
+    backgroundCache.lastSuccessAt = backgroundCache.scanTime;
     backgroundCache.dataStatus = res.dataStatus || (res.errors && res.errors.length ? 'partial' : 'complete');
     backgroundCache.dataAsOf = res.dataAsOf || null;
     if (Array.isArray(res.checkedSymbols)) {
@@ -284,11 +297,15 @@ async function runBackgroundScan(options = {}) {
     // details. They belong in redacted operator logs, never in a global SSE
     // payload delivered to every signed-in browser.
     scanError = 'Market data is temporarily unavailable. Try again in a few minutes.';
+    backgroundCache.runStatus = 'failed';
+    backgroundCache.lastError = scanError;
+    backgroundCache.lastErrorAt = new Date().toISOString();
   } finally {
     // Guaranteed to run even if the hard timeout above fired, or anything
     // else in the try block threw something unexpected — the scheduler must
     // never be permanently stuck believing a scan is still in progress.
     backgroundCache.running = false;
+    if (!scanError) backgroundCache.runStatus = 'complete';
   }
 
   broadcast('scan-status', { running: false, ...(scanError ? { error: scanError } : {}) });

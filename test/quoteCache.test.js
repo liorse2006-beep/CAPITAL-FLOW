@@ -129,3 +129,35 @@ test('quoteCache rejects provider rows whose timestamp is outside the safe fresh
   assert.deepStrictEqual(result.providerStaleSymbols, [symbol]);
   assert.strictEqual(result.dataAsOf, null);
 });
+
+test('quoteCache coalesces identical concurrent provider requests', async (t) => {
+  const symbol = 'AUDIT_CONCURRENT_COALESCE';
+  let calls = 0;
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  t.mock.method(yahoo, 'quote', async () => {
+    calls += 1;
+    await gate;
+    return [
+      {
+        symbol,
+        regularMarketPrice: 100,
+        regularMarketVolume: 1000,
+        averageDailyVolume10Day: 1000,
+        marketCap: 1000000,
+        regularMarketTime: Math.floor(Date.now() / 1000),
+      },
+    ];
+  });
+
+  const first = quoteCache.getQuotes([symbol]);
+  const second = quoteCache.getQuotes([symbol]);
+  release();
+  const [firstResult, secondResult] = await Promise.all([first, second]);
+
+  assert.strictEqual(calls, 1);
+  assert.strictEqual(firstResult.get(symbol).regularMarketPrice, 100);
+  assert.strictEqual(secondResult.get(symbol).regularMarketPrice, 100);
+});

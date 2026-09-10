@@ -58,3 +58,24 @@ test('status limiters accept the Render proxy chain without emitting a trust-pro
     server.close();
   }
 });
+
+test('public status APIs reject the request after the dedicated per-IP budget', async () => {
+  const app = express();
+  app.set('trust proxy', RENDER_PROXY_HOPS);
+  app.use('/', statusRouter);
+  const server = await new Promise((resolve) => {
+    const instance = app.listen(0, () => resolve(instance));
+  });
+  try {
+    const port = server.address().port;
+    const headers = { 'X-Forwarded-For': '203.0.113.250, 198.51.100.20' };
+    let response;
+    for (let attempt = 0; attempt < 61; attempt += 1) {
+      response = await fetch(`http://127.0.0.1:${port}/status/api/summary`, { headers });
+      if (attempt < 60) assert.notEqual(response.status, 429);
+    }
+    assert.equal(response.status, 429);
+  } finally {
+    server.close();
+  }
+});
