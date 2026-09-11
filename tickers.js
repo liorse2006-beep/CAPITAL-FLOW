@@ -1,7 +1,7 @@
 // Operational large-cap US equity universe assembled from the S&P 500 and
 // Nasdaq-100 seed lists below. The seed lists are intentionally kept in one
 // file so the scan boundary is auditable and deterministic at runtime.
-// Last reviewed: 2026-09-09
+// Last reviewed: 2026-09-11
 
 const SP500 = [
   'AAPL',
@@ -303,7 +303,7 @@ const SP500 = [
   'MKC',
   'MKTX',
   'MLM',
-  'MMC',
+  'MRSH',
   'MMM',
   'MNST',
   'MO',
@@ -610,37 +610,49 @@ const NASDAQ100 = [
 ];
 
 // These symbols are no longer active US-listed equities under the old ticker
-// (acquisition, merger, failure, private conversion, or an official symbol
-// change). Keeping them in a scan universe makes a full scan permanently
-// partial and can poison the snapshot timestamp with a stale provider row.
-// Replacement symbols that remain publicly traded are added below.
+// (acquisition, merger, private conversion, or an official symbol change).
+// Keeping them in a scan universe makes a full scan permanently partial and
+// can poison the snapshot timestamp with a stale provider row. The list is
+// reviewed whenever the maintained constituent snapshot is refreshed.
 const RETIRED_OR_REPLACED_TICKERS = new Set([
   'ANSS',
   'ATVI',
+  'BK',
+  'CMA',
   'CDAY',
+  'CTRA',
   'CTLT',
+  'DAY',
   'DFS',
   'DISH',
+  'EA',
   'FBHS',
   'FLT',
   'FRC',
   'HES',
+  'HOLX',
   'IPG',
   'JNPR',
   'K',
   'MRO',
+  'MMC',
   'PEAK',
   'PKI',
   'PXD',
   'RE',
   'SBNY',
+  'SATS',
+  'SEE',
   'SIVB',
   'SPLK',
   'WBA',
   'WRK',
 ]);
 
-const CURRENT_REPLACEMENT_TICKERS = ['CPAY', 'DAY', 'DOC', 'EG', 'FBIN', 'SATS', 'SW'];
+// Current listed successors for names that changed ticker while remaining
+// public. Delisted/private companies are intentionally not replaced with
+// historical prices: they must disappear from live scans.
+const CURRENT_REPLACEMENT_TICKERS = ['BNY', 'CPAY', 'DOC', 'EG', 'ECHO', 'FBIN', 'MRSH', 'SW'];
 const ACTIVE_SP500 = SP500.filter((symbol) => !RETIRED_OR_REPLACED_TICKERS.has(symbol));
 const ACTIVE_NASDAQ100 = NASDAQ100.filter((symbol) => !RETIRED_OR_REPLACED_TICKERS.has(symbol));
 
