@@ -1,7 +1,29 @@
 const { Resend } = require('resend');
-const { RESEND_API_KEY, RESEND_FROM_EMAIL, ADMIN_EMAIL, FRONTEND_URL, STATUS_PUBLIC_URL } = require('../config');
+const nodemailer = require('nodemailer');
+const {
+  RESEND_API_KEY,
+  RESEND_FROM_EMAIL,
+  GMAIL_USER,
+  GMAIL_APP_PASSWORD,
+  ADMIN_EMAIL,
+  FRONTEND_URL,
+  STATUS_PUBLIC_URL,
+} = require('../config');
 
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+// Gmail is already configured for the application's scheduled backup mail.
+// Prefer that authenticated transport for transactional mail so the existing
+// deployment can send OTPs without adding another provider or another bill.
+// Resend remains available as a fallback when Gmail is not configured. Do not
+// fail over after a provider error because an ambiguous provider response may
+// still have accepted the message and create duplicate OTP emails.
+const gmail =
+  GMAIL_USER && GMAIL_APP_PASSWORD
+    ? nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
+      })
+    : null;
 
 // A plain hosted URL, not a cid attachment — Resend (like most providers)
 // still exposes cid-embedded images as a downloadable attachment chip in
@@ -33,15 +55,21 @@ function requireDevEmailFallback(label, email, detail) {
 // impossible: any send() result with a non-null error becomes a real
 // rejection, so every existing .catch() at the call sites actually fires.
 async function send(payload) {
-  const result = await resend.emails.send(payload);
-  if (result && result.error) {
-    throw new Error('[Resend] ' + (result.error.message || JSON.stringify(result.error)));
+  if (gmail) {
+    return gmail.sendMail({ ...payload, from: `"Capital Flow" <${GMAIL_USER}>` });
   }
-  return result;
+  if (resend) {
+    const result = await resend.emails.send(payload);
+    if (result && result.error) {
+      throw new Error('[Resend] ' + (result.error.message || JSON.stringify(result.error)));
+    }
+    return result;
+  }
+  throw new Error('Transactional email is not configured');
 }
 
 async function sendOTPEmail(email, code) {
-  if (!resend) {
+  if (!resend && !gmail) {
     requireDevEmailFallback('OTP', email, code);
     return;
   }
@@ -64,7 +92,7 @@ async function sendOTPEmail(email, code) {
 }
 
 async function sendPasswordResetEmail(email, code) {
-  if (!resend) {
+  if (!resend && !gmail) {
     requireDevEmailFallback('Reset OTP', email, code);
     return;
   }
@@ -87,7 +115,7 @@ async function sendPasswordResetEmail(email, code) {
 }
 
 async function sendWelcomeEmail(email) {
-  if (!resend) {
+  if (!resend && !gmail) {
     requireDevEmailFallback('Welcome email', email);
     return;
   }
@@ -126,7 +154,7 @@ async function sendWelcomeEmail(email) {
 // Fires once per genuinely new account (not on every login) so the admin
 // finds out about signups in real time instead of only via the /admin panel.
 async function sendNewSignupAdminAlert(email, method) {
-  if (!resend || !ADMIN_EMAIL) {
+  if ((!resend && !gmail) || !ADMIN_EMAIL) {
     requireDevEmailFallback('New signup alert', email, method);
     return;
   }
@@ -143,7 +171,7 @@ async function sendNewSignupAdminAlert(email, method) {
 // sendNewSignupAdminAlert does for new signups — this is the only place a
 // tier change made outside the admin panel itself gets surfaced by email.
 async function sendAdminUpgradeAlert(email, tier) {
-  if (!resend || !ADMIN_EMAIL) {
+  if ((!resend && !gmail) || !ADMIN_EMAIL) {
     requireDevEmailFallback('Upgrade alert', email, tier);
     return;
   }
@@ -222,7 +250,7 @@ async function sendStatusIncidentAlert(payload) {
   const { recipient, incident, component, checks, relatedComponents } = payload;
   const subject = `[Capital Flow] INCIDENT / OUTAGE — ${incident.title} (${incident.severity})`;
   const text = statusIncidentText({ incident, component, checks, relatedComponents, recovery: false });
-  if (!resend) {
+  if (!resend && !gmail) {
     requireDevEmailFallback('Status outage alert', recipient, incident.public_id);
     return;
   }
@@ -233,7 +261,7 @@ async function sendStatusRecoveryAlert(payload) {
   const { recipient, incident, component, checks } = payload;
   const subject = `[Capital Flow] RESOLVED — ${incident.title}`;
   const text = statusIncidentText({ incident, component, checks, recovery: true });
-  if (!resend) {
+  if (!resend && !gmail) {
     requireDevEmailFallback('Status recovery alert', recipient, incident.public_id);
     return;
   }
@@ -241,7 +269,7 @@ async function sendStatusRecoveryAlert(payload) {
 }
 
 async function sendStatusBackupEmail({ recipient, filename, content, tableCount, createdAt }) {
-  if (!resend) {
+  if (!resend && !gmail) {
     requireDevEmailFallback('Status database backup', recipient, filename);
     return;
   }
@@ -263,7 +291,7 @@ async function sendStatusBackupEmail({ recipient, filename, content, tableCount,
 }
 
 async function sendApplicationBackupEmail({ recipient, filename, content, tableCount, createdAt }) {
-  if (!resend) {
+  if (!resend && !gmail) {
     requireDevEmailFallback('Application database backup', recipient, filename);
     return;
   }
@@ -285,7 +313,7 @@ async function sendApplicationBackupEmail({ recipient, filename, content, tableC
 }
 
 async function sendApplicationBackupFailureEmail({ recipient, date, bytes, maxBytes }) {
-  if (!resend) {
+  if (!resend && !gmail) {
     requireDevEmailFallback('Application database backup failure', recipient, `${bytes} bytes`);
     return;
   }

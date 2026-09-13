@@ -119,7 +119,7 @@ test('does not enforce GOOGLE_CALLBACK_URL outside production (dev may fall back
   assert.strictEqual(exitCode, 0);
 });
 
-// Regression: without RESEND_API_KEY, services/email.js silently falls back
+// Regression: without a transactional provider, services/email.js silently falls back
 // to console.log-ing OTP and password-reset codes in plaintext instead of
 // emailing them — fine in dev, but in production that means every signup
 // and password-reset code lands in plaintext server logs. This must now
@@ -129,16 +129,18 @@ test('does not enforce GOOGLE_CALLBACK_URL outside production (dev may fall back
 // .env would leak into this subprocess's env (tryBootWith merges
 // ...process.env) and trip the unrelated GOOGLE_CALLBACK_URL check instead
 // of isolating RESEND_API_KEY as the one thing under test.
-test('refuses to boot in production without RESEND_API_KEY', () => {
+test('refuses to boot in production without a transactional email provider', () => {
   const { exitCode, stderr } = tryBootWith({
     ...STRONG_SECRETS,
     NODE_ENV: 'production',
     RESEND_API_KEY: '',
+    GMAIL_USER: '',
+    GMAIL_APP_PASSWORD: '',
     GOOGLE_CLIENT_ID: '',
     GOOGLE_CLIENT_SECRET: '',
   });
-  assert.strictEqual(exitCode, 1, 'process should exit(1) when RESEND_API_KEY is unset in production');
-  assert.match(stderr, /RESEND_API_KEY/);
+  assert.strictEqual(exitCode, 1, 'process should exit(1) when no transactional provider is configured');
+  assert.match(stderr, /RESEND_API_KEY|GMAIL_USER/);
 });
 
 test('boots normally in production when RESEND_API_KEY is set', () => {
@@ -146,6 +148,19 @@ test('boots normally in production when RESEND_API_KEY is set', () => {
     ...STRONG_SECRETS,
     NODE_ENV: 'production',
     RESEND_API_KEY: 'test-resend-key',
+    GOOGLE_CLIENT_ID: '',
+    GOOGLE_CLIENT_SECRET: '',
+  });
+  assert.strictEqual(exitCode, 0);
+});
+
+test('boots normally in production with Gmail SMTP as the transactional provider', () => {
+  const { exitCode } = tryBootWith({
+    ...STRONG_SECRETS,
+    NODE_ENV: 'production',
+    RESEND_API_KEY: '',
+    GMAIL_USER: 'mailer@example.test',
+    GMAIL_APP_PASSWORD: 'test-app-password',
     GOOGLE_CLIENT_ID: '',
     GOOGLE_CLIENT_SECRET: '',
   });

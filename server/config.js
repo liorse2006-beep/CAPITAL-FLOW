@@ -208,17 +208,21 @@ if (
   process.exit(1);
 }
 
-// Without RESEND_API_KEY, services/email.js silently falls back to
+// Without either transactional provider, services/email.js falls back to
 // console.log-ing OTP/password-reset codes in plaintext instead of emailing
 // them — correct for local dev, but in production that means every signup
 // and password-reset code ends up sitting in plaintext server logs (visible
 // to anyone with log access, retained indefinitely, potentially forwarded to
 // a third-party log aggregator) instead of reaching only the account owner's
 // inbox. Fail loudly at boot rather than discovering this from a leaked log.
-if (process.env.NODE_ENV === 'production' && !module.exports.RESEND_API_KEY) {
+// Gmail is an intentional no-new-provider alternative because the deployment
+// already uses its app-password SMTP transport for scheduled backups.
+const hasTransactionalEmailProvider =
+  Boolean(module.exports.RESEND_API_KEY) || Boolean(module.exports.GMAIL_USER && module.exports.GMAIL_APP_PASSWORD);
+if (process.env.NODE_ENV === 'production' && !hasTransactionalEmailProvider) {
   console.error(
-    '\n[FATAL] RESEND_API_KEY is not set — in production this would silently print OTP and password-reset ' +
-      'codes in plaintext to server logs instead of emailing them. Set RESEND_API_KEY before starting.\n'
+    '\n[FATAL] No transactional email provider is configured — in production this would silently print OTP and password-reset ' +
+      'codes in plaintext to server logs instead of emailing them. Set RESEND_API_KEY or both GMAIL_USER and GMAIL_APP_PASSWORD before starting.\n'
   );
   process.exit(1);
 }
