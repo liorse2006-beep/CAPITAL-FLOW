@@ -423,6 +423,7 @@ export default function CapitalFlowRadar({
     setScheduleTime2('');
     setExpiresOn(todayIsrael());
     setDraftRecipe(null);
+    setError('');
   }
 
   function openSetupForRadar(radar) {

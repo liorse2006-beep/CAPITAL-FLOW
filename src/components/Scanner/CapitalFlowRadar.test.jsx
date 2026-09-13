@@ -54,6 +54,24 @@ describe('CapitalFlowRadar schedule picker', () => {
     expect(document.querySelector('input[type="time"]')).not.toBeInTheDocument();
   });
 
+  it('clears validation feedback when the schedule picker is canceled', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: true, json: async () => ({ radars: [] }) }))
+    );
+    const user = userEvent.setup();
+    render(<CapitalFlowRadar {...baseProps()} />);
+
+    await user.click(await screen.findByRole('button', { name: /activate this scan as radar/i }));
+    await user.click(screen.getByRole('button', { name: /activate radar/i }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose at least one scan time.');
+
+    await user.click(screen.getByRole('button', { name: 'Cancel', exact: true }));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /activate radar/i })).not.toBeInTheDocument();
+  });
+
   it('makes the one-or-both condition rule explicit before the scan filters', async () => {
     vi.stubGlobal(
       'fetch',
