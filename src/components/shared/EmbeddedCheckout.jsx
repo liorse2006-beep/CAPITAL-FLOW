@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { WhopCheckoutEmbed, WhopExpressCheckoutButton } from '@whop/checkout/react';
+import React from 'react';
+import { WhopCheckoutEmbed } from '@whop/checkout/react';
 
 // Renders Whop's real payment form inline, in an iframe scoped to just the
 // checkout fields — never a full-page redirect or a new tab/window. Whop's
@@ -12,26 +12,9 @@ export default function EmbeddedCheckout({ sessionId, promoCode, onComplete, onE
   // origin so App.jsx can consume ?status=success|error and finish the normal
   // webhook/tier refresh flow after the customer comes back.
   const returnUrl = typeof window === 'undefined' ? '/' : `${window.location.origin}/`;
-  const [expressMethod, setExpressMethod] = useState(null);
-  const expressAvailable = expressMethod && expressMethod !== 'none';
 
   return (
     <div className="embedded-checkout">
-      <div className={'embedded-express' + (expressMethod === 'none' ? ' embedded-express-hidden' : '')}>
-        <WhopExpressCheckoutButton
-          checkoutConfigurationId={sessionId}
-          methods={['apple-pay', 'google-pay', 'whop-pay']}
-          returnUrl={returnUrl}
-          promoCode={promoCode || undefined}
-          theme="dark"
-          themeOptions={{ accentColor: '#f59e0b' }}
-          onExpressMethodResolved={(info) => setExpressMethod((info && info.rendered) || 'none')}
-          onComplete={onComplete}
-          onPaymentError={onError}
-          fallback={<div className="embedded-express-loading">Checking wallet options…</div>}
-        />
-        {expressAvailable && <div className="embedded-express-divider">or pay with card</div>}
-      </div>
       <WhopCheckoutEmbed
         sessionId={sessionId}
         returnUrl={returnUrl}

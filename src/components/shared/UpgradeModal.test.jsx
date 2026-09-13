@@ -10,14 +10,6 @@ import { AuthProvider } from '../../context/AuthContext';
 // so these tests verify OUR wiring (session creation, prop pass-through,
 // onComplete handling) without depending on Whop's actual embed internals.
 vi.mock('@whop/checkout/react', () => ({
-  WhopExpressCheckoutButton: (props) => (
-    <div
-      data-testid="whop-express-button"
-      data-checkout-configuration-id={props.checkoutConfigurationId}
-      data-methods={props.methods.join(',')}
-      data-promo-code={props.promoCode || ''}
-    />
-  ),
   WhopCheckoutEmbed: (props) => (
     <div
       data-testid="whop-checkout-embed"
@@ -114,7 +106,7 @@ describe('UpgradeModal', () => {
     expect(window.location.href).not.toContain('whop.com');
   });
 
-  it('uses the same session-bound checkout configuration for wallets and card payments', async () => {
+  it('renders one session-bound checkout for wallets and card payments', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       'fetch',
@@ -128,9 +120,8 @@ describe('UpgradeModal', () => {
     await user.click(screen.getByRole('button', { name: /get premium/i }));
 
     expect(await screen.findByTestId('whop-checkout-embed')).toBeInTheDocument();
-    const express = screen.getByTestId('whop-express-button');
-    expect(express).toHaveAttribute('data-checkout-configuration-id', 'ch_test123');
-    expect(express).toHaveAttribute('data-methods', 'apple-pay,google-pay,whop-pay');
+    expect(screen.queryByTestId('whop-express-button')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('whop-checkout-embed')).toHaveLength(1);
   });
 
   it('passes a promo code to the server session without calculating a local price', async () => {
@@ -158,7 +149,6 @@ describe('UpgradeModal', () => {
     );
     expect(await screen.findByTestId('whop-checkout-embed')).toBeInTheDocument();
     expect(screen.getByTestId('whop-checkout-embed')).toHaveAttribute('data-promo-code', 'SAVE10');
-    expect(screen.getByTestId('whop-express-button')).toHaveAttribute('data-promo-code', 'SAVE10');
     expect(screen.queryByText(/discounted price/i)).not.toBeInTheDocument();
   });
 

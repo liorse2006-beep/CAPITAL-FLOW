@@ -6285,43 +6285,6 @@ html.a11y-highlight-links a {
   display: flex;
   flex-direction: column;
 }
-/* Whop resolves wallet availability asynchronously. Keep the wrapper mounted
-   to avoid a layout jump, but collapse it completely when this browser/device
-   cannot offer Apple Pay, Google Pay, or Whop Pay. The button receives the
-   server-created checkout configuration id, so wallet payments carry the same
-   account metadata and promo code as the card form. */
-.embedded-express {
-  margin-bottom: 16px;
-}
-.embedded-express-hidden {
-  display: none;
-}
-.embedded-express-loading {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-2);
-  font-size: 12px;
-  font-family: var(--mono);
-}
-.embedded-express-divider {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 16px;
-  color: var(--text-3);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.embedded-express-divider::before,
-.embedded-express-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
 .checkout-embed-promo-hint {
   margin: -6px 0 14px;
   color: var(--text-2);
