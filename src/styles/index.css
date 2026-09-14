@@ -184,7 +184,9 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-y: scroll;
+  /* Use the browser's native scroll root. A forced body scrollbar can create
+     a competing scroll container on mobile when fixed overlays are present. */
+  overflow-y: auto;
 }
 
 /* ── App Shell ── */
@@ -5503,8 +5505,8 @@ td {
   }
 }
 .welcome-tier-modal {
-  width: 420px;
-  padding: 26px 24px 22px;
+  width: 400px;
+  padding: 32px 28px 26px;
   z-index: 0;
   animation: welcomeTierIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -5656,6 +5658,15 @@ td {
   gap: 8px;
   margin-bottom: 12px;
 }
+.welcome-tier-eyebrow {
+  margin-bottom: 10px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
 .welcome-tier-badge {
   display: inline-flex;
   align-items: center;
@@ -5787,8 +5798,17 @@ td {
 .welcome-tier-cta {
   position: relative;
   overflow: hidden;
-  margin-top: 4px;
+  min-height: 46px;
+  margin-top: 14px;
   border: none;
+  letter-spacing: 0.1em;
+}
+.welcome-tier-close-note {
+  margin: 11px 0 0;
+  color: var(--text-3);
+  font-family: var(--font);
+  font-size: 10.5px;
+  line-height: 1.4;
 }
 .welcome-tier-modal.tier-elite .welcome-tier-cta {
   background: linear-gradient(135deg, var(--accent-vivid) 0%, var(--accent-vivid-2) 100%);

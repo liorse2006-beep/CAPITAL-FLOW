@@ -1449,7 +1449,6 @@ function App() {
           <WelcomeTierModal
             tier={welcomeTier}
             confirmed={userTier === welcomeTier}
-            eliteUpgradeAvailable={user ? user.elite_upgrade_available : false}
             onClose={() => setWelcomeTier(null)}
           />
         </Suspense>

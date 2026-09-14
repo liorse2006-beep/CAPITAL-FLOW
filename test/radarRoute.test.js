@@ -12,10 +12,20 @@ before(async () => {
 });
 
 async function makeEliteUser(email) {
+  return makeTierUser(email, 'elite');
+}
+
+async function makeTierUser(email, tier, { createdAt } = {}) {
   const result = await db
-    .prepare("INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, 'elite', 1)")
-    .run(email);
+    .prepare('INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, ?, ?)')
+    .run(email, tier, tier === 'free' ? 0 : 1);
+  if (createdAt)
+    await db.prepare('UPDATE users SET created_at = ? WHERE id = ?').run(createdAt, result.lastInsertRowid);
   return result.lastInsertRowid;
+}
+
+function isoDaysAgo(days) {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
 }
 
 async function authHeaders(userId) {
@@ -92,6 +102,69 @@ test('Radar API rejects a second saved scan and a second active scan', async () 
     assert.match(reactivateBody.error, /only one radar scan can be active/i);
 
     assert.ok(firstBody.radar.id);
+  } finally {
+    server.close();
+  }
+});
+
+test('Radar API applies the Elite-or-trial gate instead of trusting the client tier', async () => {
+  const premiumId = await makeTierUser('radar-gate-premium@test.local', 'premium');
+  const expiredTrialId = await makeTierUser('radar-gate-expired@test.local', 'free', {
+    createdAt: isoDaysAgo(8),
+  });
+  const activeTrialId = await makeTierUser('radar-gate-active-trial@test.local', 'free');
+  const server = await startTestApp();
+  const port = server.address().port;
+
+  try {
+    const premium = await fetch(`http://127.0.0.1:${port}/api/radars`, {
+      headers: await authHeaders(premiumId),
+    });
+    assert.equal(premium.status, 403);
+    assert.equal((await premium.json()).code, 'NOT_ELITE');
+
+    const expiredTrial = await fetch(`http://127.0.0.1:${port}/api/radars`, {
+      headers: await authHeaders(expiredTrialId),
+    });
+    assert.equal(expiredTrial.status, 403);
+    assert.equal((await expiredTrial.json()).code, 'NOT_ELITE');
+
+    const activeTrial = await fetch(`http://127.0.0.1:${port}/api/radars`, {
+      headers: await authHeaders(activeTrialId),
+    });
+    assert.equal(activeTrial.status, 200);
+    assert.deepEqual((await activeTrial.json()).radars, []);
+  } finally {
+    server.close();
+  }
+});
+
+test('Radar API keeps the one-active invariant under concurrent HTTP creation', async () => {
+  const userId = await makeEliteUser('radar-route-race@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  const headers = await authHeaders(userId);
+
+  try {
+    const responses = await Promise.all(
+      [1, 2].map(() =>
+        fetch(`http://127.0.0.1:${port}/api/radars`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(radarPayload()),
+        })
+      )
+    );
+    const statuses = responses.map((response) => response.status).sort((a, b) => a - b);
+    assert.deepEqual(statuses, [201, 409]);
+
+    const count = await db
+      .prepare(
+        'SELECT COUNT(*) AS count, SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) AS active FROM capital_flow_radars WHERE user_id = ?'
+      )
+      .get(userId);
+    assert.equal(Number(count.count), 1);
+    assert.equal(Number(count.active), 1);
   } finally {
     server.close();
   }

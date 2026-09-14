@@ -106,6 +106,25 @@ describe('UpgradeModal', () => {
     expect(window.location.href).not.toContain('whop.com');
   });
 
+  it('closes the checkout when payment completes so the post-purchase handoff is unobstructed', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ sessionId: 'ch_test123', planId: 'plan_test' }),
+      })
+    );
+    const onClose = vi.fn();
+    renderWithProviders(<UpgradeModal userTier="free" onClose={onClose} />);
+
+    await user.click(screen.getByRole('button', { name: /get premium/i }));
+    await screen.findByTestId('whop-checkout-embed');
+    await user.click(screen.getByRole('button', { name: 'Simulate payment complete' }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('renders one session-bound checkout for wallets and card payments', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(

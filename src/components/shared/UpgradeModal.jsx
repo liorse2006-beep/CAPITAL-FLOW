@@ -68,6 +68,9 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
     // for the old hosted-redirect flow (shows the welcome modal, refreshes
     // the real tier from the server) — same outcome, just never left the page.
     navigate(location.pathname + '?status=success', { replace: false });
+    // Remove the checkout surface immediately so the customer sees only the
+    // post-purchase handoff while the webhook-backed tier refresh completes.
+    onClose();
   }
 
   function handlePaymentError(error) {
