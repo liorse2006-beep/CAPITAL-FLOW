@@ -19,6 +19,9 @@ const {
   verifyOTP,
   verifyToken,
   MAX_PASSWORD_BYTES,
+  getLoginThrottleState,
+  recordLoginFailure,
+  clearLoginFailures,
 } = require('../services/auth');
 const {
   sendOTPEmail,
@@ -26,7 +29,7 @@ const {
   sendWelcomeEmail,
   sendNewSignupAdminAlert,
 } = require('../services/email');
-const { requireAuth, invalidateUserSessions } = require('../middleware/authMiddleware');
+const { requireAuth, invalidateUserSessions, invalidateUserEntitlement } = require('../middleware/authMiddleware');
 const { eliteAccess } = require('../services/scanQuota');
 const { authLimiter, otpLimiter, sessionLimiter } = require('../middleware/rateLimiters');
 const crypto = require('crypto');
@@ -331,13 +334,17 @@ router.post('/signup', authLimiter, async (req, res) => {
       return res.status(409).json({ error: 'An account with this email already exists' });
 
     const isPilotByInvite = PILOT_INVITE_CODE && inviteCode === PILOT_INVITE_CODE ? 1 : 0;
-    const hash = await hashPassword(password);
     if (existing) {
-      await db.prepare('UPDATE users SET password_hash = ? WHERE email = ?').run(hash, email);
+      // An unverified account already has a credential established by the
+      // first signup. Email knowledge is not proof of control, so an
+      // unauthenticated retry must never replace that password before the
+      // verification challenge succeeds. The retry may still re-issue the
+      // challenge, and the private pilot invite may still update entitlements.
       if (isPilotByInvite) {
         await db.prepare("UPDATE users SET is_pilot = 1, tier = 'elite' WHERE email = ?").run(email);
       }
     } else {
+      const hash = await hashPassword(password);
       const isPilotByAllowlist = (await pilotAllowlist.isAllowed(email)) ? 1 : 0;
       const isPilot = isPilotByInvite || isPilotByAllowlist;
       const tier = isPilot ? 'elite' : 'free';
@@ -435,11 +442,19 @@ router.post('/login', authLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
 
     let user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    const loginThrottle = user ? await getLoginThrottleState(user.id) : { locked: false };
     // Always run bcrypt.compare, even for an unknown email or a Google-only
     // account with no password_hash — against DUMMY_PASSWORD_HASH in that
     // case — so this branch takes the same time either way.
     const ok = await verifyPassword(password, (user && user.password_hash) || DUMMY_PASSWORD_HASH);
-    if (!user || !user.password_hash || !ok) return res.status(401).json({ error: 'Invalid email or password' });
+    if (!user || !user.password_hash || !ok || loginThrottle.locked) {
+      if (user && user.password_hash && !loginThrottle.locked && !ok) await recordLoginFailure(user.id);
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // A correct credential proves control of the account; clear only this
+    // account's failure window before continuing with verification/session flow.
+    await clearLoginFailures(user.id);
 
     if (!user.is_verified) {
       const code = generateOTP();
@@ -512,6 +527,7 @@ router.post('/reset-password', otpLimiter, async (req, res) => {
     // a stolen refresh token an attacker is holding) must end here, not just
     // continue quietly alongside the new one issueToken is about to create.
     await revokeAllSessions(user.id);
+    await clearLoginFailures(user.id);
     const { accessToken, refreshToken } = await issueToken(user);
     setRefreshCookie(res, refreshToken);
     res.json({
@@ -652,6 +668,7 @@ router.post('/apply-invite', authLimiter, requireAuth, async (req, res) => {
       !!PILOT_INVITE_CODE && supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
     if (!matches) return res.status(400).json({ error: 'Invalid invite code' });
     await db.prepare("UPDATE users SET is_pilot = 1, tier = 'elite' WHERE id = ?").run(req.user.id);
+    invalidateUserEntitlement(req.user.id);
     res.json({ ok: true });
   } catch (err) {
     reportError(err, '[apply-invite]');

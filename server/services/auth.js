@@ -52,6 +52,16 @@ const ACCESS_TOKEN_TTL = '1h';
 // waste CPU in bcrypt before being discarded.
 const MAX_PASSWORD_BYTES = 72;
 
+// Credential throttling is identity-aware in addition to the existing
+// transport/IP limiters. The counters live on the user/OTP rows so they work
+// across processes and database-backed deployments rather than resetting when
+// a worker restarts. The IP limiters remain useful defense in depth.
+const LOGIN_FAILURE_LIMIT = 10;
+const LOGIN_FAILURE_WINDOW_SEC = 15 * 60;
+const LOGIN_LOCKOUT_SEC = 15 * 60;
+const OTP_FAILURE_LIMIT = 5;
+const OTP_LOCKOUT_SEC = 15 * 60;
+
 // Caps how many devices can be logged into one account at once. Logging in
 // on a (MAX_ACTIVE_SESSIONS + 1)th device evicts only the least-recently-used
 // existing session — the account's other devices stay signed in, unlike the
@@ -184,6 +194,52 @@ async function revokeAllSessions(userId) {
   require('../middleware/authMiddleware').invalidateUserSessions(userId);
 }
 
+async function getLoginThrottleState(userId) {
+  const row = await db
+    .prepare('SELECT login_failed_count, login_last_failed_at, login_locked_until FROM users WHERE id = ?')
+    .get(userId);
+  const lockedUntil = Number(row?.login_locked_until || 0);
+  return {
+    locked: lockedUntil > Math.floor(Date.now() / 1000),
+    lockedUntil,
+    failedCount: Number(row?.login_failed_count || 0),
+  };
+}
+
+/** Record one bad password atomically for a known account. */
+async function recordLoginFailure(userId) {
+  const now = Math.floor(Date.now() / 1000);
+  const windowStart = now - LOGIN_FAILURE_WINDOW_SEC;
+  await db
+    .prepare(
+      `UPDATE users
+          SET login_failed_count = CASE
+                WHEN COALESCE(login_locked_until, 0) > ? THEN COALESCE(login_failed_count, 0)
+                WHEN COALESCE(login_last_failed_at, 0) <= ? THEN 1
+                ELSE COALESCE(login_failed_count, 0) + 1
+              END,
+              login_last_failed_at = CASE
+                WHEN COALESCE(login_locked_until, 0) > ? THEN COALESCE(login_last_failed_at, 0)
+                ELSE ?
+              END,
+              login_locked_until = CASE
+                WHEN COALESCE(login_locked_until, 0) > ? THEN login_locked_until
+                WHEN COALESCE(login_last_failed_at, 0) <= ? THEN 0
+                WHEN COALESCE(login_failed_count, 0) + 1 >= ? THEN ?
+                ELSE 0
+              END
+        WHERE id = ?`
+    )
+    .run(now, windowStart, now, now, now, windowStart, LOGIN_FAILURE_LIMIT, now + LOGIN_LOCKOUT_SEC, userId);
+  return getLoginThrottleState(userId);
+}
+
+async function clearLoginFailures(userId) {
+  await db
+    .prepare('UPDATE users SET login_failed_count = 0, login_last_failed_at = 0, login_locked_until = 0 WHERE id = ?')
+    .run(userId);
+}
+
 function verifyToken(token) {
   return jwt.verify(token, JWT_SECRET);
 }
@@ -212,18 +268,52 @@ async function verifyOTP(email, code, type) {
   if (!row) return { valid: false, reason: 'No code found' };
   const now = Math.floor(Date.now() / 1000);
   if (now >= row.expires_at) return { valid: false, reason: 'Code expired' };
+  if (Number(row.locked_until || 0) > now) {
+    return { valid: false, reason: 'Too many code attempts. Request a new code and try again later.', locked: true };
+  }
   const stored = Buffer.from(String(row.code));
   const supplied = Buffer.from(String(code || ''));
   const codeMatches = stored.length === supplied.length && crypto.timingSafeEqual(stored, supplied);
-  if (!codeMatches) return { valid: false, reason: 'Invalid code' };
+  if (!codeMatches) {
+    // This update is the challenge-scoped gate. It is atomic, so concurrent
+    // wrong guesses cannot race past the threshold once one request locks the
+    // row. No code or email is stored in logs or returned to the client.
+    await db
+      .prepare(
+        `UPDATE otp_codes
+            SET failed_attempts = COALESCE(failed_attempts, 0) + 1,
+                locked_until = CASE
+                  WHEN COALESCE(failed_attempts, 0) + 1 >= ? THEN ?
+                  ELSE COALESCE(locked_until, 0)
+                END
+          WHERE id = ?
+            AND used = 0
+            AND expires_at >= ?
+            AND COALESCE(locked_until, 0) <= ?`
+      )
+      .run(OTP_FAILURE_LIMIT, now + OTP_LOCKOUT_SEC, row.id, now, now);
+    const current = await db.prepare('SELECT locked_until FROM otp_codes WHERE id = ?').get(row.id);
+    if (Number(current?.locked_until || 0) > now) {
+      return { valid: false, reason: 'Too many code attempts. Request a new code and try again later.', locked: true };
+    }
+    return { valid: false, reason: 'Invalid code' };
+  }
 
   // The SELECT + compare happens before this write, so the write itself must
   // be the one-time gate. Without `used = 0` in the WHERE clause, two correct
   // requests arriving concurrently could both pass the SELECT and both issue
   // a verified session from the same OTP.
   const consumed = await db
-    .prepare(`UPDATE otp_codes SET used = 1 WHERE id = ? AND used = 0 AND expires_at >= ?`)
-    .run(row.id, now);
+    .prepare(
+      `UPDATE otp_codes
+          SET used = 1
+        WHERE id = ?
+          AND used = 0
+          AND expires_at >= ?
+          AND COALESCE(locked_until, 0) <= ?
+          AND COALESCE(failed_attempts, 0) < ?`
+    )
+    .run(row.id, now, now, OTP_FAILURE_LIMIT);
   if (!consumed || consumed.changes !== 1) return { valid: false, reason: 'Code already used' };
   return { valid: true };
 }
@@ -239,6 +329,9 @@ module.exports = {
   revokeSession,
   revokeRefreshToken,
   revokeAllSessions,
+  getLoginThrottleState,
+  recordLoginFailure,
+  clearLoginFailures,
   withEffectivePremium,
   verifyToken,
   generateOTP,
@@ -246,4 +339,6 @@ module.exports = {
   verifyOTP,
   MAX_ACTIVE_SESSIONS,
   MAX_PASSWORD_BYTES,
+  LOGIN_FAILURE_LIMIT,
+  OTP_FAILURE_LIMIT,
 };

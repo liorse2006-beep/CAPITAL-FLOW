@@ -5,6 +5,7 @@ const whop = require('../services/whop');
 const { normalizeCode, redeemCoupon } = require('../services/coupons');
 const email = require('../services/email');
 const { reportError } = require('../utils/reportError');
+const { invalidateUserEntitlement } = require('../middleware/authMiddleware');
 const { WHOP_ELITE_PLAN_ID, WHOP_ELITE_UPGRADE_PLAN_ID, WHOP_PREMIUM_PLAN_ID } = require('../config');
 
 // A webhook handler should finish well inside this lease. If the process is
@@ -182,6 +183,7 @@ async function handleWhopEvent(event) {
           .catch(() => {});
       } else if (tier === 'premium' || tier === 'elite') {
         await db.prepare(`UPDATE users SET tier = ?, is_premium = 1 WHERE id = ?`).run(tier, metadata.userId);
+        invalidateUserEntitlement(metadata.userId);
 
         // Self-service purchases don't go through the admin panel, so this
         // is the only place a tier change like this gets flagged — both an
@@ -239,6 +241,7 @@ async function handleWhopEvent(event) {
       // Premium payment keeps the Elite they still paid for.
       if (user && user.tier === metadata.tier) {
         await db.prepare(`UPDATE users SET tier = 'free', is_premium = 0 WHERE id = ?`).run(user.id);
+        invalidateUserEntitlement(user.id);
         console.log(`[webhooks/whop] ${event.type}: tier downgraded to free`, { tier: metadata.tier });
         // Best-effort audit trail — visible in the admin panel's activity log.
         db.prepare('INSERT INTO admin_audit_log (actor, action, target_user_id, detail) VALUES (?, ?, ?, ?)')

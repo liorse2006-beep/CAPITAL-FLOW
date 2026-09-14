@@ -132,6 +132,14 @@ function applyLocalInvalidateUserSessions(userId) {
   }
 }
 
+function applyLocalInvalidateUserEntitlement(userId) {
+  const prefix = `${userId}:`;
+  for (const key of sessionIndex.keys()) {
+    if (!key.startsWith(prefix)) continue;
+    for (const token of sessionIndex.get(key)) dropCachedToken(token);
+  }
+}
+
 // publish() always delivers to THIS process first (bus.emit, synchronous)
 // before forwarding to any other worker — so subscribing to the same
 // channel this module publishes on is enough to cover both the local and
@@ -147,6 +155,7 @@ function applyLocalInvalidateUserSessions(userId) {
 // already do.
 subscribe('auth:session-revoked', ({ userId, sessionId }) => applyLocalInvalidateSession(userId, sessionId));
 subscribe('auth:user-sessions-revoked', ({ userId }) => applyLocalInvalidateUserSessions(userId));
+subscribe('auth:user-entitlement-changed', ({ userId }) => applyLocalInvalidateUserEntitlement(userId));
 
 /** Called from auth.js the instant one session (device) is revoked. */
 function invalidateSession(userId, sessionId) {
@@ -158,13 +167,30 @@ function invalidateUserSessions(userId) {
   publish('auth:user-sessions-revoked', { userId });
 }
 
+/** Drop cached entitlement state immediately after a paid-tier mutation. */
+function invalidateUserEntitlement(userId) {
+  publish('auth:user-entitlement-changed', { userId });
+}
+
 /** Resolve a JWT string → verified DB user, or null on failure */
 async function resolveToken(token) {
   if (!token) return null;
 
   const cached = resolveCache.get(token);
-  if (cached && Date.now() - cached.cachedAt < RESOLVE_CACHE_TTL_MS) {
-    return cached.user;
+  // Never serve a cached paid entitlement: a refund/downgrade can happen on a
+  // different process or instance, where the in-memory invalidation event is
+  // not shared. Free users may still use the short cache for page-load speed;
+  // a stale free result can only delay a newly granted upgrade, never preserve
+  // paid access after revocation. Recheck the JWT so expiry is never bypassed
+  // by a cache hit.
+  if (cached && cached.user.tier === 'free' && Date.now() - cached.cachedAt < RESOLVE_CACHE_TTL_MS) {
+    try {
+      verifyToken(token);
+      return cached.user;
+    } catch {
+      dropCachedToken(token);
+      return null;
+    }
   }
 
   try {
@@ -424,6 +450,7 @@ module.exports = {
   resolveToken,
   invalidateSession,
   invalidateUserSessions,
+  invalidateUserEntitlement,
   issueSseTicket,
   resolveSseTicket,
 };

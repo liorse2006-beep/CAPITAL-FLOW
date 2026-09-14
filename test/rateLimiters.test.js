@@ -6,7 +6,14 @@ require('./helpers/testEnv');
 const { test } = require('node:test');
 const assert = require('node:assert');
 const express = require('express');
-const { authLimiter, otpLimiter, realIp, scanLimiter, sseStreamLimiter } = require('../server/middleware/rateLimiters');
+const {
+  authLimiter,
+  otpLimiter,
+  realIp,
+  scanLimiter,
+  sseStreamLimiter,
+  webhookLimiter,
+} = require('../server/middleware/rateLimiters');
 const { generateToken } = require('../server/services/auth');
 const { issueSseTicket } = require('../server/middleware/authMiddleware');
 
@@ -61,6 +68,22 @@ test('otpLimiter is stricter than authLimiter (max 5)', async () => {
     const codes = await hit(port, 8);
     const ok = codes.filter((c) => c === 200).length;
     assert.strictEqual(ok, 5, 'otpLimiter should allow exactly 5 requests before blocking');
+  } finally {
+    server.close();
+  }
+});
+
+test('webhookLimiter bounds raw webhook ingress before signature verification', async () => {
+  const server = await startTestApp(webhookLimiter);
+  const port = server.address().port;
+  try {
+    const codes = await hit(port, 65);
+    const blocked = codes.filter((c) => c === 429).length;
+    assert.ok(blocked > 0, 'webhook ingress must reject requests after its bounded per-IP budget');
+    assert.ok(
+      codes.slice(0, 60).every((c) => c === 200),
+      'the configured webhook burst budget should remain available'
+    );
   } finally {
     server.close();
   }

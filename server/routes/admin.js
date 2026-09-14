@@ -18,7 +18,7 @@ function parsePositiveUserId(value) {
 }
 
 const DB_ENV = DATABASE_URL ? 'PRODUCTION (PostgreSQL)' : TURSO_DB_URL ? 'PRODUCTION (Turso)' : 'LOCAL (SQLite)';
-const { resolveToken, invalidateUserSessions } = require('../middleware/authMiddleware');
+const { resolveToken, invalidateUserSessions, invalidateUserEntitlement } = require('../middleware/authMiddleware');
 
 // Catches unhandled promise rejections in async route handlers (Express 4 doesn't do this natively)
 function asyncRoute(fn) {
@@ -128,7 +128,7 @@ router.post(
     await db
       .prepare('UPDATE users SET tier = ?, is_premium = ? WHERE id = ?')
       .run(tier, tier !== 'free' ? 1 : 0, userId);
-    invalidateUserSessions(userId);
+    invalidateUserEntitlement(userId);
     logAction(actor, 'set_tier', userId, tier);
     res.json({ ok: true, tier });
   })

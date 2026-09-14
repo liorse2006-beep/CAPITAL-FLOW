@@ -16,6 +16,7 @@ const express = require('express');
 
 const db = require('../server/db');
 const { issueToken } = require('../server/services/auth');
+const { resolveToken, invalidateUserEntitlement } = require('../server/middleware/authMiddleware');
 const whop = require('../server/services/whop');
 const email = require('../server/services/email');
 const webhooksRouter = require('../server/routes/webhooks');
@@ -65,6 +66,25 @@ async function makeUser(email, tier = 'free') {
   const result = await db.prepare('INSERT INTO users (email, is_verified, tier) VALUES (?, 1, ?)').run(email, tier);
   return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
 }
+
+test('entitlement invalidation refreshes every cached session without revoking sessions', async () => {
+  const user = await makeUser('entitlement-cache@test.local', 'free');
+  const session = await issueToken(user);
+  const cachedFree = await resolveToken(session.accessToken);
+  assert.strictEqual(cachedFree.tier, 'free');
+
+  await db.prepare("UPDATE users SET tier = 'premium', is_premium = 1 WHERE id = ?").run(user.id);
+  invalidateUserEntitlement(user.id);
+  const upgraded = await resolveToken(session.accessToken);
+  assert.strictEqual(upgraded.tier, 'premium');
+
+  await db.prepare("UPDATE users SET tier = 'free', is_premium = 0 WHERE id = ?").run(user.id);
+  invalidateUserEntitlement(user.id);
+  const downgraded = await resolveToken(session.accessToken);
+  assert.strictEqual(downgraded.tier, 'free');
+  const sessions = await db.prepare('SELECT id FROM user_sessions WHERE user_id = ?').all(user.id);
+  assert.strictEqual(sessions.length, 1, 'entitlement invalidation must not revoke the device session');
+});
 
 // ── whop.verifyWebhookSignature ────────────────────────────────────────────
 

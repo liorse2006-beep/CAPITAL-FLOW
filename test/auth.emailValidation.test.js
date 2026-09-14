@@ -102,3 +102,29 @@ test('signup + login resolve to the same account regardless of email casing', as
     server.close();
   }
 });
+
+test('retrying an unverified signup never replaces the pending account password', async () => {
+  const db = require('../server/db');
+  const { hashPassword, verifyPassword } = require('../server/services/auth');
+  const server = await startTestApp();
+  const port = server.address().port;
+  const email = 'pending-password@test.local';
+  const originalPassword = 'original-password-123';
+  const replacementPassword = 'attacker-choice-456';
+  try {
+    await db
+      .prepare('INSERT INTO users (email, password_hash, is_verified) VALUES (?, ?, 0)')
+      .run(email, await hashPassword(originalPassword));
+    const res = await fetch(`http://127.0.0.1:${port}/api/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: replacementPassword }),
+    });
+    assert.strictEqual(res.status, 200);
+    const user = await db.prepare('SELECT password_hash FROM users WHERE email = ?').get(email);
+    assert.strictEqual(await verifyPassword(originalPassword, user.password_hash), true);
+    assert.strictEqual(await verifyPassword(replacementPassword, user.password_hash), false);
+  } finally {
+    server.close();
+  }
+});

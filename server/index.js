@@ -16,7 +16,7 @@ const { startScheduledDigest } = require('./services/scheduledDigest');
 const { startScheduledScanRunner } = require('./services/scheduledScanRunner');
 const { startScheduledBackup } = require('./services/dbBackup');
 const { startStatusMonitor } = require('./services/statusMonitor');
-const { scanLimiter, apiLimiter, adminLimiter } = require('./middleware/rateLimiters');
+const { scanLimiter, apiLimiter, adminLimiter, webhookLimiter } = require('./middleware/rateLimiters');
 const { isSingletonWorker } = require('./services/clusterBus');
 const { safeErrorSummary } = require('./utils/reportError');
 const { servePublicApp } = require('./publicMetadata');
@@ -200,7 +200,7 @@ app.use(cookieParser());
 // Mounted BEFORE express.json() — Whop webhook signature verification
 // must run over the exact raw bytes of the request body, which parsing
 // (and re-serializing) as JSON would not reproduce.
-app.use('/api/webhooks/whop', express.raw({ type: 'application/json', limit: '256kb' }));
+app.use('/api/webhooks/whop', webhookLimiter, express.raw({ type: 'application/json', limit: '256kb' }));
 app.use('/api', require('./routes/webhooks'));
 
 app.use(express.json({ limit: '256kb' }));

@@ -196,6 +196,9 @@ async function initDb() {
       google_email    TEXT,
       is_verified     INTEGER NOT NULL DEFAULT 0,
       is_premium      INTEGER NOT NULL DEFAULT 0,
+      login_failed_count INTEGER NOT NULL DEFAULT 0,
+      login_last_failed_at INTEGER NOT NULL DEFAULT 0,
+      login_locked_until INTEGER NOT NULL DEFAULT 0,
       created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -206,6 +209,8 @@ async function initDb() {
       type        TEXT    NOT NULL CHECK(type IN ('verify_email','reset_password')),
       expires_at  INTEGER NOT NULL,
       used        INTEGER NOT NULL DEFAULT 0,
+      failed_attempts INTEGER NOT NULL DEFAULT 0,
+      locked_until INTEGER NOT NULL DEFAULT 0,
       created_at  INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
@@ -738,6 +743,9 @@ async function initDb() {
     `ALTER TABLE users ADD COLUMN premium_scan_count INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE users ADD COLUMN premium_scan_window_start INTEGER`,
     `ALTER TABLE users ADD COLUMN last_login_at INTEGER`,
+    `ALTER TABLE users ADD COLUMN login_failed_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN login_last_failed_at INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN login_locked_until INTEGER NOT NULL DEFAULT 0`,
     // Legacy compatibility column retained in existing Production databases.
     // CAPI no longer has a user-facing surface, but restore must still carry
     // historical values forward instead of rejecting or silently dropping
@@ -802,6 +810,8 @@ async function initDb() {
     `ALTER TABLE radar_schedule_runs ADD COLUMN capital_flow_count INTEGER`,
     `ALTER TABLE radar_schedule_runs ADD COLUMN ma_count INTEGER`,
     `ALTER TABLE ai_usage ADD COLUMN reservation_token TEXT`,
+    `ALTER TABLE otp_codes ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE otp_codes ADD COLUMN locked_until INTEGER NOT NULL DEFAULT 0`,
   ];
 
   for (const sql of migrations) {

@@ -15,9 +15,9 @@ function realIp(req) {
 }
 
 // Default express-rate-limit keys by IP alone — fine for pre-login
-// endpoints (see authLimiter/otpLimiter below, which must stay IP-keyed:
-// that's exactly the brute-force surface, and there's no authenticated
-// identity yet to key by instead). But for limiters that gate a signed-in
+// endpoints (authLimiter/otpLimiter below retain IP keys as defense in depth;
+// the auth service adds durable account/challenge counters because there is no
+// authenticated identity yet to key by instead). For limiters that gate a signed-in
 // account's own usage (scans and the API floor), IP-keying means every
 // customer behind the same shared IP — an office, a campus, a mobile
 // carrier's CGNAT (common in Israel) — draws from ONE shared budget and can
@@ -60,8 +60,9 @@ function ticketOrIpKey(req, _res) {
   return ipKeyGenerator(realIp(req));
 }
 
-// Tight limiter for credential endpoints — stops brute-force on login,
-// signup, OTP verification, and password reset. Keyed by IP.
+// Tight transport limiter for credential endpoints — stops bursts from one
+// source. The auth service additionally enforces durable account/challenge
+// thresholds so rotating IPs cannot bypass the security boundary.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // 10 attempts per IP per window
@@ -80,6 +81,18 @@ const otpLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => ipKeyGenerator(realIp(req)),
   message: { error: 'Too many code attempts. Request a new code and try again later.' },
+});
+
+// Whop webhooks use a raw-body parser before express.json(), so this limiter
+// must be mounted before that parser. The cap is intentionally generous for a
+// provider retry burst but bounds unauthenticated parsing/HMAC work per source.
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(realIp(req)),
+  message: { error: 'Too many webhook requests. Please retry later.' },
 });
 
 // Looser limiter for expensive scan/data endpoints — guards against DoS
@@ -195,6 +208,7 @@ const checkoutLimiter = rateLimit({
 module.exports = {
   authLimiter,
   otpLimiter,
+  webhookLimiter,
   scanLimiter,
   apiLimiter,
   adminLimiter,
