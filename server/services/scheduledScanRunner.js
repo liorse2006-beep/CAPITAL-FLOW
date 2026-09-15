@@ -632,58 +632,31 @@ function hasDisplayableScheduledData(row) {
 
 function availableScheduledResults(normalized) {
   const results = Array.isArray(normalized?.results) ? normalized.results : [];
+  if (normalized?.dataStatus === 'unavailable') return [];
   if (normalized?.dataStatus !== 'partial') return results;
   return results.filter(hasDisplayableScheduledData);
 }
 
 function payloadForType(scanType, scan) {
-  const results = Array.isArray(scan) ? scan : scan?.results || [];
+  const results = Array.isArray(scan) ? scan : Array.isArray(scan?.results) ? scan.results : [];
+  const rawResults = Array.isArray(scan) ? scan : Array.isArray(scan?.rawResults) ? scan.rawResults : results;
   const dataStatus = Array.isArray(scan) ? 'complete' : scan?.dataStatus || 'complete';
-  if (dataStatus === 'unavailable') {
-    const label =
-      scanType === 'maScanner' ? 'MA Scanner' : scanType === 'sectorMoving' ? 'Hot Sectors' : 'Capital Flow';
+  if (results.length > 0) {
     return {
-      title: `${label} — Data unavailable`,
-      body: 'Market data is temporarily unavailable. No result was generated. Try again in a few minutes.',
+      title: MARKET_SIGNAL_TITLE,
+      body: 'New market signal detected. Open Capital Flow to view it.',
     };
   }
-  if (dataStatus === 'partial' && results.length === 0) {
-    const label =
-      scanType === 'maScanner' ? 'MA Scanner' : scanType === 'sectorMoving' ? 'Hot Sectors' : 'Capital Flow';
+  if (dataStatus === 'complete' && rawResults.length === 0) {
     return {
-      title: `${label} — Partial data`,
-      body: 'Some market data could not be verified. No complete result set was generated. Try again later.',
+      title: 'Capital Flow',
+      body: 'No market signals found in this scan. Open Capital Flow to review.',
     };
   }
-  const partialNote =
-    dataStatus === 'partial'
-      ? ' Some market data was unavailable or delayed. This notification contains available results only; they may not be fully verified. Confirm them independently before relying on them.'
-      : '';
-  const partialTitle = dataStatus === 'partial' ? 'Partial data — ' : '';
-  if (scanType === 'maScanner') {
-    return results.length > 0
-      ? {
-          title: `${partialTitle}${MARKET_SIGNAL_TITLE}`,
-          body: `${results.length} stocks near their moving average — ${results[0].symbol}.${partialNote} Tap to see the full scan.`,
-        }
-      : { title: 'MA Scanner — Daily Scan', body: 'No MA signals right now. Check back later.' };
-  }
-  if (scanType === 'sectorMoving') {
-    return results.length > 0
-      ? {
-          title: `${partialTitle}${MARKET_SIGNAL_TITLE}`,
-          body: `${results.length} sector movers right now — ${results[0].symbol}.${partialNote} Tap to see the full scan.`,
-        }
-      : { title: 'Hot Sectors — Daily Scan', body: 'No sector flow right now. Markets look quiet.' };
-  }
-  const leadingRatio = Number(results[0]?.volumeRatio);
-  const leadingRatioLabel = Number.isFinite(leadingRatio) && leadingRatio > 0 ? ` ${leadingRatio.toFixed(1)}×` : '';
-  return results.length > 0
-    ? {
-        title: `${partialTitle}${MARKET_SIGNAL_TITLE}`,
-        body: `${results.length} stocks moving right now — ${results[0].symbol}${leadingRatioLabel}.${partialNote} Tap to see the full scan.`,
-      }
-    : { title: 'Capital Flow — Daily Scan', body: 'No unusual volume right now. Markets look quiet.' };
+  return {
+    title: 'Capital Flow',
+    body: "We couldn't verify a market signal this time. Open Capital Flow to try again.",
+  };
 }
 
 const SCAN_URL = { capitalFlow: '/scanner', maScanner: '/ma', sectorMoving: '/flow' };
@@ -691,6 +664,7 @@ const MARKET_SIGNAL_TITLE = 'Market Signal Detected';
 
 async function notifyScheduledUser(sched, scan) {
   const normalized = normalizeScheduledScanResult(scan);
+  const rawResults = Array.isArray(normalized.results) ? normalized.results : [];
   const results = availableScheduledResults(normalized);
 
   // A one-time schedule (scan_date set) has done its one job — deactivate it
@@ -704,21 +678,10 @@ async function notifyScheduledUser(sched, scan) {
     )
     .run(Math.floor(Date.now() / 1000), results.length, sched.id);
 
-  // A completed scan with zero matches is still a verified result: the user
-  // needs to know the schedule ran and the market was quiet. Suppress an
-  // unavailable run, and suppress a partial run only when it has no verified
-  // rows to show. A partial run with verified rows is useful, but its payload
-  // is explicitly labelled as partial so it cannot be mistaken for a complete
-  // market-wide result.
-  if (normalized.dataStatus === 'unavailable' || (normalized.dataStatus === 'partial' && results.length === 0)) {
-    console.log(
-      `[ScheduledScans] scan_id=${sched.id} notification suppressed status=${normalized.dataStatus} ` +
-        `available=${results.length}`
-    );
-    return;
-  }
-
-  const { title, body } = payloadForType(sched.scan_type, { ...normalized, results });
+  // Every fired schedule gets one short status notification. A complete empty
+  // scan says no signals were found; provider/partial failures use a neutral
+  // retry message and never pretend that no-match is a verified result.
+  const { title, body } = payloadForType(sched.scan_type, { ...normalized, rawResults, results });
 
   // Persist to the in-app bell FIRST, so the user has proof the scheduled
   // scan actually ran even if they never granted push permission (or the

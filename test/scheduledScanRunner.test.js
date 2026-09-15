@@ -136,7 +136,7 @@ test('a scheduled scan persists an in-app notification, so it is visible even wi
   // many results the run found, not an alert about one specific ticker.
   assert.strictEqual(notif.symbol, null);
   assert.strictEqual(notif.title, 'Market Signal Detected');
-  assert.match(notif.body, /NVDA/);
+   assert.strictEqual(notif.body, 'New market signal detected. Open Capital Flow to view it.');
 
   // The notification must carry the scan's own results and type, so tapping
   // it can show exactly what that run found — not just "something happened".
@@ -180,12 +180,12 @@ test('a completed scheduled scan with no matches still notifies the user', async
   assert.strictEqual(notif.scan_type, 'capitalFlow');
   assert.strictEqual(notif.results_json, null);
   assert.match(notif.title, /Capital Flow/);
-  assert.match(notif.body, /No unusual volume/);
+  assert.strictEqual(notif.body, 'No market signals found in this scan. Open Capital Flow to review.');
   assert.strictEqual(pushMock.mock.callCount(), 1, 'the completed empty scan must also send push');
   assert.strictEqual(pushMock.mock.calls[0].arguments[1].data.resultCount, 0);
 });
 
-test('a provider failure does not send a customer notification without verified results', async (t) => {
+test('a provider failure sends a concise unverified-data notification', async (t) => {
   const u = await db
     .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
     .run('sched-unavailable@test.local');
@@ -204,8 +204,12 @@ test('a provider failure does not send a customer notification without verified 
   const notif = await db
     .prepare('SELECT title, body, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
     .get(userId);
-  assert.strictEqual(notif, undefined, 'provider failures must not create an empty customer alert');
-  assert.strictEqual(pushMock.mock.callCount(), 0, 'provider failures must not send a push without stock data');
+  assert.ok(notif, 'provider failures still need a clear customer status notification');
+  assert.strictEqual(notif.results_json, null);
+  assert.strictEqual(notif.title, 'Capital Flow');
+  assert.strictEqual(notif.body, "We couldn't verify a market signal this time. Open Capital Flow to try again.");
+  assert.strictEqual(pushMock.mock.callCount(), 1);
+  assert.strictEqual(pushMock.mock.calls[0].arguments[1].body, notif.body);
 
   const schedule = await db
     .prepare('SELECT active, last_run_at, last_result_count FROM scheduled_scans WHERE user_id = ?')
@@ -215,7 +219,7 @@ test('a provider failure does not send a customer notification without verified 
   assert.strictEqual(schedule.last_result_count, 0);
 });
 
-test('a partial empty scan does not send a notification without a verified result set', async (t) => {
+test('a partial empty scan sends a concise unverified-data notification', async (t) => {
   const u = await db
     .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
     .run('sched-partial-empty@test.local');
@@ -234,12 +238,17 @@ test('a partial empty scan does not send a notification without a verified resul
 
   await runScheduledScans();
 
-  const notif = await db.prepare('SELECT id FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1').get(userId);
-  assert.strictEqual(notif, undefined);
-  assert.strictEqual(pushMock.mock.callCount(), 0);
+  const notif = await db
+    .prepare('SELECT title, body, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+    .get(userId);
+  assert.ok(notif);
+  assert.strictEqual(notif.results_json, null);
+  assert.strictEqual(notif.title, 'Capital Flow');
+  assert.strictEqual(notif.body, "We couldn't verify a market signal this time. Open Capital Flow to try again.");
+  assert.strictEqual(pushMock.mock.callCount(), 1);
 });
 
-test('a partial scan with a verified row sends the available result with a warning', async (t) => {
+test('a partial scan with a verified row sends the concise signal notification', async (t) => {
   const u = await db
     .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
     .run('sched-partial-rows@test.local');
@@ -265,14 +274,15 @@ test('a partial scan with a verified row sends the available result with a warni
   assert.ok(notif, 'available verified rows must create a notification');
   assert.strictEqual(pushMock.mock.callCount(), 1);
   const stored = await db.prepare('SELECT title, body, results_json FROM notifications WHERE id = ?').get(notif.id);
-  assert.match(stored.title, /Partial data/i);
-  assert.match(stored.body, /may not be fully verified/i);
+  assert.strictEqual(stored.title, 'Market Signal Detected');
+  assert.strictEqual(stored.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.doesNotMatch(stored.title, /Partial data/i);
   assert.deepStrictEqual(JSON.parse(stored.results_json), [
     { symbol: 'AAPL', volumeRatio: 3.2, quoteDataStatus: 'complete' },
   ]);
 });
 
-test('a partial scan with only stale rows does not alert', async (t) => {
+test('a partial scan with only stale rows sends an unverified-data notification', async (t) => {
   const u = await db
     .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
     .run('sched-partial-stale@test.local');
@@ -291,9 +301,14 @@ test('a partial scan with only stale rows does not alert', async (t) => {
 
   await runScheduledScans();
 
-  const notif = await db.prepare('SELECT id FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1').get(userId);
-  assert.strictEqual(notif, undefined);
-  assert.strictEqual(pushMock.mock.callCount(), 0);
+  const notif = await db
+    .prepare('SELECT title, body, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+    .get(userId);
+  assert.ok(notif);
+  assert.strictEqual(notif.results_json, null);
+  assert.strictEqual(notif.title, 'Capital Flow');
+  assert.strictEqual(notif.body, "We couldn't verify a market signal this time. Open Capital Flow to try again.");
+  assert.strictEqual(pushMock.mock.callCount(), 1);
 });
 
 // ── one-time (scan_date) schedules ──────────────────────────────────────────

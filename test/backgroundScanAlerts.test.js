@@ -160,7 +160,7 @@ test('checkWatchlistAlerts absorbs a rejected push delivery without crashing the
   }
 });
 
-test('checkWatchlistAlerts keeps an alert honest when the quote has no change percent', async () => {
+test('checkWatchlistAlerts uses the concise alert copy when the quote has no change percent', async () => {
   const userId = await makeUser('bg-alert-missing-change@test.local');
   await setAlert(userId, 'AMD', { type: 'volume', minRatio: 2.0 });
 
@@ -172,7 +172,8 @@ test('checkWatchlistAlerts keeps an alert honest when the quote has no change pe
     );
     assert.strictEqual((await getWatchlistAlerts(userId)).AMD, undefined, 'the alert is consumed once it is persisted');
     const notifications = await getNotifications(userId, 10);
-    assert.match(notifications[0].body, /change unavailable/);
+    assert.strictEqual(notifications[0].title, 'Market Signal Detected');
+    assert.strictEqual(notifications[0].body, 'New market signal detected. Open Capital Flow to view it.');
   } finally {
     webPush.sendPushToUser = originalSend;
   }
@@ -334,7 +335,7 @@ test('checkWatchlistAlerts does not consume an alert from a partial result row',
   }
 });
 
-test('checkWatchlistAlerts sends a labelled alert for a verified row in a partial scan', async () => {
+test('checkWatchlistAlerts sends the same concise alert copy for a verified row in a partial scan', async () => {
   const userId = await makeUser('bg-alert-partial-scan-verified@test.local');
   await setAlert(userId, 'AAPL', { type: 'volume', minRatio: 2.0 });
 
@@ -350,8 +351,9 @@ test('checkWatchlistAlerts sends a labelled alert for a verified row in a partia
       { scanDataStatus: 'partial' }
     );
     assert.strictEqual(pushCalls.length, 1);
-    assert.match(pushCalls[0].payload.title, /Partial data/i);
-    assert.match(pushCalls[0].payload.body, /available data/i);
+    assert.strictEqual(pushCalls[0].payload.title, 'Market Signal Detected');
+    assert.strictEqual(pushCalls[0].payload.body, 'New market signal detected. Open Capital Flow to view it.');
+    assert.doesNotMatch(pushCalls[0].payload.title, /Partial data/i);
     assert.strictEqual((await getWatchlistAlerts(userId)).AAPL, undefined);
   } finally {
     webPush.sendPushToUser = originalSend;
