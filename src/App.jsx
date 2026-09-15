@@ -1429,10 +1429,6 @@ function App() {
       />
       <InstallPrompt />
 
-      <div className="beta-release-fixed" aria-label="Beta version 0.1.0">
-        BETA · v0.1.0
-      </div>
-
       {showUpgradeModal && (
         <UpgradeModal
           userTier={userTier}
