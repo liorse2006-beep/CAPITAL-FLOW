@@ -1459,11 +1459,17 @@ function App() {
           onSave={async (alertData) => {
             const saved = await setAlertLevel(alertModalSymbol, alertData);
             if (saved) setAlertModalSymbol(null);
+            return saved;
           }}
           onRemove={async () => {
             const removed = await removeAlertLevel(alertModalSymbol);
             if (removed) setAlertModalSymbol(null);
           }}
+          pushSupported={pushSupported}
+          pushEnabled={pushEnabled}
+          pushBusy={pushBusy}
+          pushError={pushError}
+          onEnablePush={enablePush}
         />
       )}
 

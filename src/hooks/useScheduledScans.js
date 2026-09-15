@@ -49,8 +49,10 @@ export default function useScheduledScans(scanType) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to create schedule');
       setSchedules((prev) => [data, ...prev]);
+      return true;
     } catch (err) {
       setError(err.message);
+      return false;
     } finally {
       setLoading(false);
     }

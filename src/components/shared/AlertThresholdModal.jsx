@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import useModalA11y from '../../hooks/useModalA11y';
 import { formatPrice } from '../../utils/format';
+import NotificationChoice from './NotificationChoice';
 
 const PRESETS = [2, 3, 5];
 
@@ -50,10 +51,23 @@ function initValueFor(type, current) {
   return String(type === 'volume' ? current.minRatio : current.targetPrice);
 }
 
-export default function AlertThresholdModal({ symbol, current, currentPrice, onSave, onRemove, onClose }) {
+export default function AlertThresholdModal({
+  symbol,
+  current,
+  currentPrice,
+  onSave,
+  onRemove,
+  onClose,
+  pushSupported,
+  pushEnabled,
+  pushBusy,
+  pushError,
+  onEnablePush,
+}) {
   const [step, setStep] = useState(current ? current.type : 'type'); // 'type' | 'volume' | 'price'
   const [value, setValue] = useState(initValueFor(current ? current.type : 'volume', current));
   const [submitting, setSubmitting] = useState(false);
+  const [pendingAlert, setPendingAlert] = useState(null);
   const panelRef = useModalA11y(onClose);
 
   function chooseType(type) {
@@ -63,6 +77,18 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
 
   const trimmed = value.trim();
   const editingSameType = !!current && current.type === step;
+
+  async function persistAlert(alertData) {
+    if (!alertData || submitting) return false;
+    setSubmitting(true);
+    try {
+      const saved = await onSave(alertData);
+      if (saved !== false) setPendingAlert(null);
+      return saved !== false;
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -81,21 +107,31 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
     const num = parseFloat(trimmed);
     if (!(num > 0)) return;
     if (step === 'price' && !(currentPrice > 0)) return;
-    setSubmitting(true);
-    try {
-      if (step === 'volume') {
-        await onSave({ type: 'volume', minRatio: num });
-      } else {
-        await onSave({
-          type: 'price',
-          targetPrice: num,
-          referencePrice: currentPrice,
-          startingSide: currentPrice >= num ? 'above' : 'below',
-        });
-      }
-    } finally {
-      setSubmitting(false);
+    const alertData =
+      step === 'volume'
+        ? { type: 'volume', minRatio: num }
+        : {
+            type: 'price',
+            targetPrice: num,
+            referencePrice: currentPrice,
+            startingSide: currentPrice >= num ? 'above' : 'below',
+          };
+    if (!pushEnabled) {
+      setPendingAlert(alertData);
+      return;
     }
+    await persistAlert(alertData);
+  }
+
+  async function enablePushAndSaveAlert() {
+    if (!pendingAlert || typeof onEnablePush !== 'function') return;
+    await onEnablePush();
+    await persistAlert(pendingAlert);
+  }
+
+  async function saveWithoutPush() {
+    if (!pendingAlert) return;
+    await persistAlert(pendingAlert);
   }
 
   function pickPreset(v) {
@@ -274,6 +310,25 @@ export default function AlertThresholdModal({ symbol, current, currentPrice, onS
               {buttonLabel}
             </button>
           </form>
+        )}
+
+        {pendingAlert && (
+          <NotificationChoice
+            pushSupported={pushSupported}
+            pushBusy={pushBusy}
+            pushError={pushError}
+            actionBusy={submitting}
+            onEnable={enablePushAndSaveAlert}
+            onContinue={saveWithoutPush}
+            onCancel={() => setPendingAlert(null)}
+            title="ההתראות אינן מופעלות"
+            supportedDescription="כדי לקבל את ההתראה גם כשהאפליקציה סגורה, האם להפעיל עכשיו התראות Push? אם לא, ההתראה תישמר ותופיע בתוך האפליקציה."
+            unsupportedDescription="התראות Push אינן זמינות בדפדפן הזה. ההתראה תישמר ותופיע בתוך האפליקציה. באייפון: הוסיפו את האתר למסך הבית, פתחו אותו מהאייקון ואשרו התראות."
+            enableLabel="כן, הפעילו התראות"
+            continueLabel="המשך בלי Push"
+            cancelLabel="חזרה"
+            dir="rtl"
+          />
         )}
       </div>
     </div>

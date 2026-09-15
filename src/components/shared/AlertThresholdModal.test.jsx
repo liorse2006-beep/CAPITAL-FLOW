@@ -45,6 +45,8 @@ describe('AlertThresholdModal', () => {
         onSave={onSave}
         onRemove={vi.fn()}
         onClose={vi.fn()}
+        pushSupported={true}
+        pushEnabled={true}
       />
     );
     await user.click(screen.getByText('נפח'));
@@ -64,6 +66,8 @@ describe('AlertThresholdModal', () => {
         onSave={onSave}
         onRemove={vi.fn()}
         onClose={vi.fn()}
+        pushSupported={true}
+        pushEnabled={true}
       />
     );
     await user.click(screen.getByText('מחיר'));
@@ -112,6 +116,8 @@ describe('AlertThresholdModal', () => {
         onSave={onSave}
         onRemove={vi.fn()}
         onClose={vi.fn()}
+        pushSupported={true}
+        pushEnabled={true}
       />
     );
     await user.click(screen.getByText('נפח'));
@@ -124,6 +130,61 @@ describe('AlertThresholdModal', () => {
     expect(onSave).toHaveBeenCalledTimes(1);
     release();
     await waitFor(() => expect(saveButton).not.toBeDisabled());
+  });
+
+  it('asks before saving when push is unavailable and saves in-app when declined', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <AlertThresholdModal
+        symbol="AAPL"
+        current={null}
+        currentPrice={190}
+        onSave={onSave}
+        onRemove={vi.fn()}
+        onClose={vi.fn()}
+        pushSupported={false}
+        pushEnabled={false}
+      />
+    );
+
+    await user.click(screen.getByText('נפח'));
+    await user.type(screen.getByRole('spinbutton'), '4');
+    await user.click(screen.getByRole('button', { name: 'קבע התראה' }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'ההתראות אינן מופעלות' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'המשך בלי Push' }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ type: 'volume', minRatio: 4 }));
+  });
+
+  it('enables push before saving when the customer chooses notifications', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    const onEnablePush = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AlertThresholdModal
+        symbol="AAPL"
+        current={null}
+        currentPrice={190}
+        onSave={onSave}
+        onRemove={vi.fn()}
+        onClose={vi.fn()}
+        pushSupported={true}
+        pushEnabled={false}
+        pushBusy={false}
+        onEnablePush={onEnablePush}
+      />
+    );
+
+    await user.click(screen.getByText('נפח'));
+    await user.type(screen.getByRole('spinbutton'), '4');
+    await user.click(screen.getByRole('button', { name: 'קבע התראה' }));
+    await user.click(screen.getByRole('button', { name: 'כן, הפעילו התראות' }));
+
+    await waitFor(() => expect(onEnablePush).toHaveBeenCalledTimes(1));
+    expect(onSave).toHaveBeenCalledWith({ type: 'volume', minRatio: 4 });
   });
 
   it('lets you switch alert type via the back link without losing the existing alert', async () => {

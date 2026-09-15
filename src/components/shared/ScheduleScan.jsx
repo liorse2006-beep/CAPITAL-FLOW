@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import useScheduledScans from '../../hooks/useScheduledScans';
+import NotificationChoice from './NotificationChoice';
 
 const SCAN_LABELS = {
   capitalFlow: 'Capital Flow',
@@ -50,6 +51,7 @@ export default function ScheduleScan({
   const [repeatMode, setRepeatMode] = useState('once');
   const [dateInput, setDateInput] = useState(todayLocalDate());
   const [adding, setAdding] = useState(false);
+  const [pendingSchedule, setPendingSchedule] = useState(null);
 
   // Push is an optional delivery channel. The server stores the schedule and
   // the resulting in-app notification independently, so unsupported browsers
@@ -73,11 +75,40 @@ export default function ScheduleScan({
     return () => window.removeEventListener('capital-flow:open-schedule', openFromProfile);
   }, [scanType, user]);
 
+  function closeSchedule() {
+    setOpen(false);
+    setPendingSchedule(null);
+  }
+
+  async function persistSchedule(schedule) {
+    if (!schedule || adding) return false;
+    setAdding(true);
+    try {
+      const saved = await addSchedule(schedule.scanTime, schedule.scanDate);
+      if (saved !== false) setPendingSchedule(null);
+      return saved !== false;
+    } finally {
+      setAdding(false);
+    }
+  }
+
   async function handleAdd(e) {
     e.preventDefault();
-    setAdding(true);
-    await addSchedule(timeInput, repeatMode === 'once' ? dateInput : null);
-    setAdding(false);
+    const schedule = {
+      scanTime: timeInput,
+      scanDate: repeatMode === 'once' ? dateInput : null,
+    };
+    if (!pushEnabled) {
+      setPendingSchedule(schedule);
+      return;
+    }
+    await persistSchedule(schedule);
+  }
+
+  async function enablePushAndSaveSchedule() {
+    if (!pendingSchedule || typeof onEnablePush !== 'function') return;
+    await onEnablePush();
+    await persistSchedule(pendingSchedule);
   }
 
   return (
@@ -109,7 +140,7 @@ export default function ScheduleScan({
       </button>
 
       {open && (
-        <div className="upgrade-overlay" onClick={() => setOpen(false)}>
+        <div className="upgrade-overlay" onClick={closeSchedule}>
           <div
             className="schedule-scan-panel"
             onClick={(e) => e.stopPropagation()}
@@ -135,7 +166,7 @@ export default function ScheduleScan({
                 </svg>
                 <span>Schedule {SCAN_LABELS[scanType]}</span>
               </div>
-              <button className="schedule-scan-close" onClick={() => setOpen(false)} aria-label="Close">
+              <button className="schedule-scan-close" onClick={closeSchedule} aria-label="Close">
                 ✕
               </button>
             </div>
@@ -161,6 +192,17 @@ export default function ScheduleScan({
               </div>
             ) : (
               <>
+                {pendingSchedule && (
+                  <NotificationChoice
+                    pushSupported={pushSupported}
+                    pushBusy={pushBusy}
+                    pushError={pushError}
+                    actionBusy={adding}
+                    onEnable={enablePushAndSaveSchedule}
+                    onContinue={() => persistSchedule(pendingSchedule)}
+                    onCancel={() => setPendingSchedule(null)}
+                  />
+                )}
                 <form className="schedule-scan-form" onSubmit={handleAdd}>
                   <div className="schedule-scan-repeat-toggle" role="radiogroup" aria-label="Repeat">
                     <button

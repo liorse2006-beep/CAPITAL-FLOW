@@ -57,6 +57,8 @@ describe('ScheduleScan', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/schedule will still run/i);
 
     await user.click(screen.getByRole('button', { name: '+ Add' }));
+    expect(screen.getByRole('dialog', { name: "Notifications aren't enabled" })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Continue without push' }));
 
     await waitFor(() =>
       expect(mocks.addSchedule).toHaveBeenCalledWith('09:30', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/))
@@ -65,13 +67,15 @@ describe('ScheduleScan', () => {
 
   it('keeps scheduling available when push is supported but not enabled', async () => {
     const user = userEvent.setup();
-    renderScheduler({ pushSupported: true });
+    const onEnablePush = vi.fn().mockResolvedValue(undefined);
+    renderScheduler({ pushSupported: true, onEnablePush });
 
     await user.click(screen.getByRole('button', { name: 'Schedule automatic scan' }));
     expect(screen.getByRole('status')).toHaveTextContent(/push alerts are currently off/i);
     await user.click(screen.getByRole('button', { name: '+ Add' }));
+    await user.click(screen.getByRole('button', { name: 'Enable notifications' }));
 
     await waitFor(() => expect(mocks.addSchedule).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole('button', { name: 'Enable push notifications' })).toBeInTheDocument();
+    expect(onEnablePush).toHaveBeenCalledTimes(1);
   });
 });
