@@ -704,10 +704,12 @@ async function notifyScheduledUser(sched, scan) {
     .run(Math.floor(Date.now() / 1000), results.length, sched.id);
 
   // A completed scan with zero matches is still a verified result: the user
-  // needs to know the schedule ran and the market was quiet. Only suppress
-  // partial/unavailable provider outcomes, because they must never be dressed
-  // up as a normal "no matches" notification.
-  if (normalized.dataStatus !== 'complete') {
+  // needs to know the schedule ran and the market was quiet. Suppress an
+  // unavailable run, and suppress a partial run only when it has no verified
+  // rows to show. A partial run with verified rows is useful, but its payload
+  // is explicitly labelled as partial so it cannot be mistaken for a complete
+  // market-wide result.
+  if (normalized.dataStatus === 'unavailable' || (normalized.dataStatus === 'partial' && results.length === 0)) {
     console.log(
       `[ScheduledScans] scan_id=${sched.id} notification suppressed status=${normalized.dataStatus} ` +
         `available=${results.length}`
