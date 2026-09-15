@@ -81,6 +81,27 @@ function isoDate(date) {
   return date.toISOString().slice(0, 10);
 }
 
+function dateKeyFromParts(parts) {
+  return `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+}
+
+function isTradingDateKey(dateKey) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return false;
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return false;
+  const year = date.getUTCFullYear();
+  const weekday = date.getUTCDay();
+  return weekday !== 0 && weekday !== 6 && !holidayDates(year).has(dateKey) && !configuredClosedDates().has(dateKey);
+}
+
+function previousTradingDateKey(dateKey) {
+  const cursor = new Date(`${dateKey}T00:00:00.000Z`);
+  do {
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  } while (!isTradingDateKey(isoDate(cursor)));
+  return isoDate(cursor);
+}
+
 function configuredClosedDates() {
   return new Set(
     String(process.env.MARKET_CLOSED_DATES || '')
@@ -148,6 +169,24 @@ function isPreMarket(now = new Date()) {
   return parts.minutes >= 240 && parts.minutes < 570;
 }
 
+// The most recent session that should be complete at `now`. This is stricter
+// than a calendar-age window: on Tuesday before the open, Friday's quote is
+// not a complete current-session baseline when Monday was a trading day.
+function latestCompletedSessionDate(now = new Date()) {
+  const parts = newYorkParts(now);
+  const currentDate = dateKeyFromParts(parts);
+  if (!isTradingDateKey(currentDate)) return previousTradingDateKey(currentDate);
+
+  const closeMinutes = configuredEarlyCloseMinutes().get(currentDate) || 960;
+  return parts.minutes >= closeMinutes ? currentDate : previousTradingDateKey(currentDate);
+}
+
+function sessionDateForTimestamp(timestamp) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return null;
+  return dateKeyFromParts(newYorkParts(date));
+}
+
 module.exports = {
   NEW_YORK,
   newYorkParts,
@@ -157,4 +196,6 @@ module.exports = {
   isFullDayHoliday,
   isMarketOpen,
   isPreMarket,
+  latestCompletedSessionDate,
+  sessionDateForTimestamp,
 };

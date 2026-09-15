@@ -14,7 +14,7 @@ const yahooFinance = require('./yahoo');
 const yahooChartFallback = require('./yahooChartFallback');
 const { createCircuitBreaker } = require('../utils/circuitBreaker');
 const { redact } = require('../utils/reportError');
-const { isMarketOpen, isPreMarket } = require('./marketCalendar');
+const { isMarketOpen, isPreMarket, latestCompletedSessionDate, sessionDateForTimestamp } = require('./marketCalendar');
 
 // Opens after 5 consecutive batch failures (real network/5xx failures —
 // the 429 branch below already retries those without going through the
@@ -34,6 +34,7 @@ const MISSING_SYMBOL_RETRY_BATCH_SIZE = BATCH_SIZE;
 const MAX_LIVE_PROVIDER_AGE_MS = 45 * 60 * 1000;
 const MAX_OFF_HOURS_PROVIDER_AGE_MS = 36 * 60 * 60 * 1000;
 const MAX_CLOSED_PROVIDER_AGE_MS = 5 * 24 * 60 * 60 * 1000;
+const MAX_FUTURE_PROVIDER_SKEW_MS = 5 * 60 * 1000;
 const SUMMARY_RECOVERY_CONCURRENCY = 3;
 const MAX_SUMMARY_RECOVERY_SYMBOLS = 25;
 // A provider incident must not turn one scan into hundreds of individual
@@ -85,9 +86,21 @@ function maxProviderAgeMs(now = new Date()) {
   return MAX_CLOSED_PROVIDER_AGE_MS;
 }
 
-function isProviderTimestampStale(quote) {
+function isProviderTimestampStale(quote, now = new Date()) {
   const timestamp = providerTimestampMs(quote);
-  return timestamp !== null && Date.now() - timestamp > maxProviderAgeMs(new Date());
+  if (timestamp === null) return false;
+
+  const ageMs = now.getTime() - timestamp;
+  if (ageMs < -MAX_FUTURE_PROVIDER_SKEW_MS) return true;
+  if (ageMs > maxProviderAgeMs(now)) return true;
+
+  // A broad closed-hours age window is useful over weekends, but it must not
+  // allow Friday's data to be labelled complete on Tuesday when Monday was a
+  // trading session. Compare session dates in New York time so the freshness
+  // decision follows the exchange calendar rather than elapsed milliseconds.
+  const providerSessionDate = sessionDateForTimestamp(timestamp);
+  const latestCompletedSession = latestCompletedSessionDate(now);
+  return Boolean(providerSessionDate && providerSessionDate < latestCompletedSession);
 }
 
 function filterFreshProviderRows(rows, staleSymbols = new Set()) {
@@ -494,4 +507,4 @@ async function getQuotes(symbols, onBatchDone) {
   }
 }
 
-module.exports = { getQuotes, filterFreshProviderRows };
+module.exports = { getQuotes, filterFreshProviderRows, isProviderTimestampStale };

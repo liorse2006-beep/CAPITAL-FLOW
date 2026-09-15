@@ -149,6 +149,21 @@ test('quoteCache rejects stale direct Chart recovery instead of serving it as li
   assert.deepStrictEqual([...staleSymbols], [symbol]);
 });
 
+test('quoteCache rejects an older trading session even inside the closed-hours age window', () => {
+  const now = new Date('2026-09-15T07:30:00.000Z'); // Tuesday, 03:30 New York
+  const fridayQuote = {
+    symbol: 'AUDIT_OLDER_SESSION',
+    regularMarketTime: Math.floor(Date.parse('2026-09-11T23:00:00.000Z') / 1000),
+  };
+  const mondayQuote = {
+    symbol: 'AUDIT_LAST_SESSION',
+    regularMarketTime: Math.floor(Date.parse('2026-09-14T20:00:00.000Z') / 1000),
+  };
+
+  assert.equal(quoteCache.isProviderTimestampStale(fridayQuote, now), true);
+  assert.equal(quoteCache.isProviderTimestampStale(mondayQuote, now), false);
+});
+
 test('quoteCache coalesces identical concurrent provider requests', async (t) => {
   const symbol = 'AUDIT_CONCURRENT_COALESCE';
   let calls = 0;
