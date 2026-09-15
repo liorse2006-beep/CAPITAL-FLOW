@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
-import usePushSubscription from '../../hooks/usePushSubscription';
 
-export default function PushPermissionPrompt({ user, canNotify }) {
-  const { pushSupported, pushBusy, enablePush } = usePushSubscription();
+export default function PushPermissionPrompt({ user, canNotify, pushSupported, pushBusy, pushError, enablePush }) {
   const [dismissed, setDismissed] = useState(false);
 
   // Everyone with Elite feature access gets asked — that includes every
@@ -36,8 +34,8 @@ export default function PushPermissionPrompt({ user, canNotify }) {
 
   function handleEnable() {
     enablePush()
-      .catch(() => {})
-      .finally(markPrompted);
+      .then(markPrompted)
+      .catch(() => {});
   }
 
   return (
@@ -68,6 +66,8 @@ export default function PushPermissionPrompt({ user, canNotify }) {
         <button className="push-prompt-enable-btn" onClick={handleEnable} disabled={pushBusy}>
           {pushBusy ? 'Enabling…' : '🔔  Enable Notifications'}
         </button>
+
+        {pushError && <div className="notif-settings-error">{pushError}</div>}
 
         <button className="push-prompt-dismiss" onClick={markPrompted}>
           Not now — I&apos;ll enable later

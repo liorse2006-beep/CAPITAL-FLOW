@@ -1424,7 +1424,14 @@ function App() {
         </Suspense>
       )}
 
-      <PushPermissionPrompt user={user} canNotify={eliteAccess} />
+      <PushPermissionPrompt
+        user={user}
+        canNotify={eliteAccess}
+        pushSupported={pushSupported}
+        pushBusy={pushBusy}
+        pushError={pushError}
+        enablePush={enablePush}
+      />
       <InstallPrompt />
 
       <div className="beta-release-fixed" aria-label="Beta version 0.1.0">
@@ -1546,6 +1553,11 @@ function App() {
                     toggleWatchlistTicker={toggleWatchlistTicker}
                     alertLevels={alertLevels}
                     promptCreateAlert={promptCreateAlert}
+                    pushSupported={pushSupported}
+                    pushEnabled={pushEnabled}
+                    pushBusy={pushBusy}
+                    pushError={pushError}
+                    onEnablePush={enablePush}
                   />
                 </Suspense>
               }
@@ -1562,6 +1574,11 @@ function App() {
                     onTrialEnded={onTrialEnded}
                     alertLevels={alertLevels}
                     promptCreateAlert={promptCreateAlert}
+                    pushSupported={pushSupported}
+                    pushEnabled={pushEnabled}
+                    pushBusy={pushBusy}
+                    pushError={pushError}
+                    onEnablePush={enablePush}
                   />
                 </Suspense>
               }
@@ -1671,6 +1688,11 @@ function App() {
                   onSignIn={() => setShowAuthModal(true)}
                   onCreateAccount={() => openAuthModal('signup')}
                   radarEvent={radarEvent}
+                  pushSupported={pushSupported}
+                  pushEnabled={pushEnabled}
+                  pushBusy={pushBusy}
+                  pushError={pushError}
+                  onEnablePush={enablePush}
                 />
               }
             />

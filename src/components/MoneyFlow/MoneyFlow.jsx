@@ -18,6 +18,11 @@ export default function MoneyFlow({
   onTrialEnded,
   alertLevels,
   promptCreateAlert,
+  pushSupported,
+  pushEnabled,
+  pushBusy,
+  pushError,
+  onEnablePush,
 }) {
   useSeo({
     title: 'מעקב תזרים הון לפי סקטורים בזמן אמת | Capital Flow',
@@ -150,6 +155,11 @@ export default function MoneyFlow({
             user={user}
             onUpgrade={() => setShowUpgradeModal(true)}
             onSignIn={onSignIn}
+            pushSupported={pushSupported}
+            pushEnabled={pushEnabled}
+            pushBusy={pushBusy}
+            pushError={pushError}
+            onEnablePush={onEnablePush}
           />
         </div>
       </div>

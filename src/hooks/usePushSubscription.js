@@ -50,6 +50,11 @@ export default function usePushSubscription() {
 
   const enablePush = useCallback(
     function () {
+      if (!pushSupported) {
+        const error = new Error('Push notifications are not supported in this browser');
+        setPushError(error.message);
+        return Promise.reject(error);
+      }
       if (!notificationApiSupported) {
         const error = new Error('Notifications are not supported in this browser');
         setPushError(error.message);
@@ -64,10 +69,13 @@ export default function usePushSubscription() {
           return fetch('/api/push/vapid-public-key');
         })
         .then(function (r) {
-          if (!r.ok) throw new Error('Could not load notification settings');
+          if (!r.ok) throw new Error('Push notifications are temporarily unavailable');
           return r.json();
         })
         .then(function (d) {
+          if (!d || typeof d.key !== 'string' || !d.key.trim()) {
+            throw new Error('Push notifications are temporarily unavailable');
+          }
           return navigator.serviceWorker.ready.then(function (reg) {
             return reg.pushManager.subscribe({
               userVisibleOnly: true,
@@ -96,7 +104,7 @@ export default function usePushSubscription() {
           setPushBusy(false);
         });
     },
-    [getToken, notificationApiSupported]
+    [getToken, notificationApiSupported, pushSupported]
   );
 
   const disablePush = useCallback(

@@ -20,7 +20,8 @@ const { setAlert, getWatchlistAlerts } = require('../server/services/watchlistAl
 const { getNotifications } = require('../server/services/notifications');
 const webPush = require('../server/services/webPush');
 const quoteCache = require('../server/services/quoteCache');
-const { checkWatchlistAlerts } = require('../server/services/backgroundScan');
+const scanner = require('../server/services/scanner');
+const { checkWatchlistAlerts, checkWatchlistAlertsWithQuoteFallback } = require('../server/services/backgroundScan');
 
 async function makeUser(email) {
   const result = await db
@@ -222,6 +223,32 @@ test('checkWatchlistAlerts fires a price alert once the price crosses to the oth
   }
 });
 
+test('full background alert checks hydrate symbols filtered out of the market-wide result set', async (t) => {
+  const userId = await makeUser('bg-alert-fallback-price@test.local');
+  await setAlert(userId, 'GME', { type: 'price', targetPrice: 30, startingSide: 'below' });
+
+  const pushCalls = [];
+  t.mock.method(webPush, 'sendPushToUser', (uid, payload) => {
+    pushCalls.push({ uid, payload });
+  });
+  const quickScanMock = t.mock.method(scanner, 'quickScan', async (symbols, options) => {
+    assert.ok(symbols.includes('GME'), 'the newly armed symbol must be included in the fallback refresh');
+    assert.deepStrictEqual(options, { withMetadata: true });
+    return {
+      results: [{ symbol: 'GME', name: 'GameStop', price: 31.5, change: 8, volumeRatio: 1 }],
+      dataStatus: 'complete',
+      quoteDataStatus: 'complete',
+    };
+  });
+
+  await checkWatchlistAlertsWithQuoteFallback([]);
+
+  assert.strictEqual(quickScanMock.mock.callCount(), 1, 'the omitted alert symbol must be refreshed');
+  assert.strictEqual(pushCalls.length, 1, 'the refreshed quote must trigger the crossed price alert');
+  assert.strictEqual(pushCalls[0].uid, userId);
+  assert.strictEqual(pushCalls[0].payload.symbol, 'GME');
+});
+
 test('checkWatchlistAlerts does not fire a price alert when the quote has no price', async () => {
   const userId = await makeUser('bg-alert-missing-price@test.local');
   await setAlert(userId, 'NFLX', { type: 'price', targetPrice: 100, startingSide: 'above' });
@@ -275,6 +302,7 @@ test('checkWatchlistAlerts rejects stale or unavailable status from any data-qua
     for (const row of [
       { symbol: 'ORCL', volumeRatio: 4.0, price: 100, quoteDataStatus: 'complete', dataQuality: 'stale' },
       { symbol: 'ORCL', volumeRatio: 4.0, price: 100, quoteDataStatus: 'complete', dataStatus: 'unavailable' },
+      { symbol: 'ORCL', volumeRatio: 4.0, price: 100, quoteDataStatus: 'partial' },
     ]) {
       await checkWatchlistAlerts([row]);
       assert.strictEqual(pushCalls.length, 0);

@@ -43,6 +43,11 @@ export default function MAScannerPage({
   toggleWatchlistTicker,
   alertLevels,
   promptCreateAlert,
+  pushSupported,
+  pushEnabled,
+  pushBusy,
+  pushError,
+  onEnablePush,
 }) {
   useSeo({
     title: 'סורק ממוצעים נעים (Moving Average) למניות | Capital Flow',
@@ -430,7 +435,17 @@ export default function MAScannerPage({
                 ? 'Re-scan'
                 : 'Run MA Scan'
           ),
-        React.createElement(ScheduleScan, { scanType: 'maScanner', user, onUpgrade, onSignIn })
+        React.createElement(ScheduleScan, {
+          scanType: 'maScanner',
+          user,
+          onUpgrade,
+          onSignIn,
+          pushSupported,
+          pushEnabled,
+          pushBusy,
+          pushError,
+          onEnablePush,
+        })
       )
     ),
 

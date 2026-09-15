@@ -150,6 +150,41 @@ test('a scheduled scan persists an in-app notification, so it is visible even wi
   assert.strictEqual(pushPayload.data.url, '/scanner?notif=' + notif.id);
 });
 
+test('a completed scheduled scan with no matches still notifies the user', async (t) => {
+  const u = await db.prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)').run('sched-no-matches@test.local');
+  const userId = u.lastInsertRowid;
+  await db
+    .prepare("INSERT INTO scheduled_scans (user_id, scan_type, scan_time, active) VALUES (?, 'capitalFlow', ?, 1)")
+    .run(userId, nowHHMM());
+
+  t.mock.method(scanner, 'scanTickers', async () => ({
+    results: [],
+    errors: [],
+    processed: 500,
+    dataStatus: 'complete',
+  }));
+  const pushMock = t.mock.method(webPush, 'sendPushToUser', async () => ({
+    configured: true,
+    devices: 1,
+    delivered: 1,
+  }));
+
+  await runScheduledScans();
+
+  const notif = await db
+    .prepare(
+      'SELECT id, title, body, scan_type, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1'
+    )
+    .get(userId);
+  assert.ok(notif, 'a verified empty scan still needs a durable in-app notification');
+  assert.strictEqual(notif.scan_type, 'capitalFlow');
+  assert.strictEqual(notif.results_json, null);
+  assert.match(notif.title, /Capital Flow/);
+  assert.match(notif.body, /No unusual volume/);
+  assert.strictEqual(pushMock.mock.callCount(), 1, 'the completed empty scan must also send push');
+  assert.strictEqual(pushMock.mock.calls[0].arguments[1].data.resultCount, 0);
+});
+
 test('a provider failure does not send a customer notification without verified results', async (t) => {
   const u = await db
     .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')

@@ -26,7 +26,17 @@ function todayLocalDate() {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
-export default function ScheduleScan({ scanType, user, onUpgrade, onSignIn }) {
+export default function ScheduleScan({
+  scanType,
+  user,
+  onUpgrade,
+  onSignIn,
+  pushSupported,
+  pushEnabled,
+  pushBusy,
+  pushError,
+  onEnablePush,
+}) {
   // Scheduled scans are a full Elite feature, included in the 7-day free
   // trial — user.elite_access is true for Elite AND in-trial free accounts.
   const hasAccess = !!(user && (user.tier === 'elite' || user.elite_access));
@@ -40,6 +50,7 @@ export default function ScheduleScan({ scanType, user, onUpgrade, onSignIn }) {
   const [repeatMode, setRepeatMode] = useState('once');
   const [dateInput, setDateInput] = useState(todayLocalDate());
   const [adding, setAdding] = useState(false);
+  const [pushSetupError, setPushSetupError] = useState(null);
 
   // The profile's single "Scan Scheduling" action opens the scheduler that
   // already belongs to the active scanner. A DOM event keeps this component
@@ -56,6 +67,15 @@ export default function ScheduleScan({ scanType, user, onUpgrade, onSignIn }) {
 
   async function handleAdd(e) {
     e.preventDefault();
+    if (!pushEnabled) {
+      setPushSetupError(
+        pushSupported
+          ? 'Enable push notifications before scheduling so you receive the result even when the app is closed.'
+          : 'Push notifications are not available in this browser. Open the app in a supported browser and enable notifications first.'
+      );
+      return;
+    }
+    setPushSetupError(null);
     setAdding(true);
     await addSchedule(timeInput, repeatMode === 'once' ? dateInput : null);
     setAdding(false);
@@ -193,6 +213,22 @@ export default function ScheduleScan({ scanType, user, onUpgrade, onSignIn }) {
                     </button>
                   </div>
                   {error && <p className="schedule-scan-error">{error}</p>}
+                  {pushSetupError && (
+                    <div className="schedule-scan-push-warning" role="alert">
+                      <p>{pushSetupError}</p>
+                      {pushSupported && !pushEnabled && (
+                        <button
+                          type="button"
+                          className="schedule-scan-push-enable"
+                          onClick={onEnablePush}
+                          disabled={pushBusy}
+                        >
+                          {pushBusy ? 'Enabling…' : 'Enable push notifications'}
+                        </button>
+                      )}
+                      {pushError && <p className="schedule-scan-error">{pushError}</p>}
+                    </div>
+                  )}
                 </form>
 
                 <div className="schedule-scan-list">

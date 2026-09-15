@@ -118,7 +118,11 @@ function hasVerifiedAlertData(r) {
   // A stale fallback is useful for an explicitly labelled scan result, but it
   // must never consume a live alert: the user asked to be notified about a
   // real threshold crossing, not about an old quote replayed during an outage.
-  return !statuses.some((status) => ['stale', 'unavailable', 'partial'].includes(status));
+  // A partial row is not a verified quote either. The full scan may still be
+  // useful for the results page, but it must never consume a one-shot alert or
+  // send a customer notification when the provider only verified part of the
+  // requested universe.
+  return !statuses.some((status) => ['stale', 'partial', 'unavailable'].includes(status));
 }
 
 function normalizeAlertSymbol(symbol) {
@@ -278,6 +282,68 @@ async function checkWatchlistAlerts(results, { resolveMissingQuotes = false, sca
   }
 }
 
+/**
+ * The full background scan intentionally returns only rows that pass its
+ * market-wide filters. That is correct for the public scanner, but it used to
+ * mean a user's price alert (or a lower volume threshold) was never evaluated
+ * unless that symbol also happened to be a market-wide match. Refresh the
+ * still-armed alert symbols from the shared quote cache/provider after the
+ * full scan. The fallback carries the provider's quality status, so stale,
+ * partial, or unavailable quotes remain fail-closed.
+ */
+async function checkWatchlistAlertsWithQuoteFallback(results) {
+  const initialResults = Array.isArray(results) ? results : [];
+  await checkWatchlistAlerts(initialResults);
+
+  let byUser;
+  try {
+    const { getAllAlertsGrouped } = require('./watchlistAlerts');
+    byUser = await getAllAlertsGrouped();
+  } catch (err) {
+    reportError(err, '[checkWatchlistAlerts fallback lookup]');
+    return;
+  }
+
+  const alreadyScanned = new Set(
+    initialResults
+      .map((row) =>
+        String(row?.symbol || '')
+          .trim()
+          .toUpperCase()
+      )
+      .filter(Boolean)
+  );
+  const symbols = [];
+  const seen = new Set();
+  Object.values(byUser || {}).forEach((alerts) => {
+    Object.keys(alerts || {}).forEach((symbol) => {
+      const normalized = String(symbol || '')
+        .trim()
+        .toUpperCase();
+      if (normalized && !alreadyScanned.has(normalized) && !seen.has(normalized)) {
+        seen.add(normalized);
+        symbols.push(normalized);
+      }
+    });
+  });
+  if (symbols.length === 0) return;
+
+  let quoteScan;
+  try {
+    quoteScan = await scanner.quickScan(symbols, { withMetadata: true });
+  } catch (err) {
+    reportError(err, '[checkWatchlistAlerts fallback quote scan]');
+    return;
+  }
+
+  const quoteStatus = String(quoteScan?.quoteDataStatus || quoteScan?.dataStatus || 'unavailable').toLowerCase();
+  const hydratedResults = (Array.isArray(quoteScan?.results) ? quoteScan.results : []).map((row) => ({
+    ...row,
+    quoteDataStatus: quoteStatus,
+  }));
+  if (hydratedResults.length > 0) await checkWatchlistAlerts(hydratedResults);
+}
+
 // Every individual outbound HTTP call the scan makes now carries its own
 // timeout (see server/utils/fetchWithTimeout.js and services/yahoo.js), so a
 // single stalled connection can't hang this forever — but this is a second,
@@ -373,7 +439,10 @@ async function runBackgroundScan(options = {}) {
       coverage: backgroundCache.coverage,
     });
 
-    // Check watchlist thresholds
+    // Check thresholds against market-wide matches and hydrate any still-armed
+    // alert symbols filtered out of the public scan. The quote-cache fallback
+    // preserves the provider-quality status, so unverified data remains
+    // fail-closed.
     await checkWatchlistAlerts(res.results, { resolveMissingQuotes: true, scanDataStatus: res.dataStatus || null });
   } catch (e) {
     reportError(e, '[Background] Scan failed');
@@ -420,5 +489,6 @@ module.exports = {
   runBackgroundScan,
   startBackgroundScheduler,
   checkWatchlistAlerts,
+  checkWatchlistAlertsWithQuoteFallback,
   withHardTimeout, // exported for the watchdog regression test
 };

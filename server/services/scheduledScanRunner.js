@@ -703,11 +703,11 @@ async function notifyScheduledUser(sched, scan) {
     )
     .run(Math.floor(Date.now() / 1000), results.length, sched.id);
 
-  // A total provider outage, or a partial run with no usable rows, is not a
-  // customer result. A partial run with individually usable rows is different:
-  // those rows are useful and are persisted in the notification, while the
-  // payload explicitly says that the snapshot is incomplete.
-  if (normalized.dataStatus === 'unavailable' || results.length === 0) {
+  // A completed scan with zero matches is still a verified result: the user
+  // needs to know the schedule ran and the market was quiet. Only suppress
+  // partial/unavailable provider outcomes, because they must never be dressed
+  // up as a normal "no matches" notification.
+  if (normalized.dataStatus !== 'complete') {
     console.log(
       `[ScheduledScans] scan_id=${sched.id} notification suppressed status=${normalized.dataStatus} ` +
         `available=${results.length}`
@@ -836,6 +836,11 @@ async function runScheduledScans() {
 }
 
 function startScheduledScanRunner() {
+  // Do not wait for the first 60-second interval after a deploy/restart. A
+  // server can come back inside a schedule's delivery window, and the first
+  // tick should reconcile it immediately while the database and provider state
+  // are already available.
+  runScheduledScans().catch((err) => reportError(err, '[ScheduledScans] startup cycle failed'));
   setInterval(runScheduledScans, 60 * 1000).unref();
 }
 

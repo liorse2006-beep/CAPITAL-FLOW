@@ -6,16 +6,25 @@ const {
   removeSubscription,
   isValidSubscription,
   isValidPushEndpoint,
+  isPushConfigured,
 } = require('../services/webPush');
 const db = require('../db');
 const { reportError } = require('../utils/reportError');
 
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-router.get('/push/vapid-public-key', (req, res) => res.json({ key: VAPID_PUBLIC_KEY }));
+router.get('/push/vapid-public-key', (req, res) => {
+  if (!isPushConfigured() || !VAPID_PUBLIC_KEY) {
+    return res.status(503).json({ error: 'Push notifications are temporarily unavailable' });
+  }
+  return res.json({ key: VAPID_PUBLIC_KEY });
+});
 
 router.post('/push/subscribe', requireEliteOrTrial, async (req, res) => {
   try {
+    if (!isPushConfigured()) {
+      return res.status(503).json({ error: 'Push notifications are temporarily unavailable' });
+    }
     const sub = req.body;
     if (!isValidSubscription(sub)) {
       return res.status(400).json({ error: 'Invalid subscription object' });

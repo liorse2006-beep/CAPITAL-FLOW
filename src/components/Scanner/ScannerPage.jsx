@@ -197,6 +197,11 @@ export default function ScannerPage({
   openChart,
   onCreateAccount,
   radarEvent,
+  pushSupported,
+  pushEnabled,
+  pushBusy,
+  pushError,
+  onEnablePush,
 }) {
   useSeo({
     title: 'Capital Flow — סורק נפח מסחר בזמן אמת ל-S&P 500 ו-NASDAQ 100',
@@ -479,7 +484,17 @@ export default function ScannerPage({
                   </svg>
                   <span className="scan-mode-go-label">Start Market Scan</span>
                 </button>
-                <ScheduleScan scanType="capitalFlow" user={user} onUpgrade={onUpgrade} onSignIn={onSignIn} />
+                <ScheduleScan
+                  scanType="capitalFlow"
+                  user={user}
+                  onUpgrade={onUpgrade}
+                  onSignIn={onSignIn}
+                  pushSupported={pushSupported}
+                  pushEnabled={pushEnabled}
+                  pushBusy={pushBusy}
+                  pushError={pushError}
+                  onEnablePush={onEnablePush}
+                />
                 {!isPremium && scanMeta && scanMeta.tier === 'premium' && (
                   <span className="scan-limit-topbar">
                     {(scanMeta.premium ? scanMeta.premium.left : 5) + '/5 scans left today'}

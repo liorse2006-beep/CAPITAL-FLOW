@@ -148,8 +148,13 @@ async function sendPushToUser(userId, payload) {
   return { configured: true, devices: validRows.length, delivered, removed: removed + invalidRows.length, results };
 }
 
+function isPushConfigured() {
+  return configured;
+}
+
 module.exports = {
   configured,
+  isPushConfigured,
   saveSubscription,
   removeSubscription,
   sendPushToUser,
