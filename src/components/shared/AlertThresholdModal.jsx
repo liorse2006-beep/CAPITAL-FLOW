@@ -323,7 +323,7 @@ export default function AlertThresholdModal({
             onCancel={() => setPendingAlert(null)}
             title="ההתראות אינן מופעלות"
             supportedDescription="כדי לקבל את ההתראה גם כשהאפליקציה סגורה, האם להפעיל עכשיו התראות Push? אם לא, ההתראה תישמר ותופיע בתוך האפליקציה."
-            unsupportedDescription="התראות Push אינן זמינות בדפדפן הזה. ההתראה תישמר ותופיע בתוך האפליקציה. באייפון: הוסיפו את האתר למסך הבית, פתחו אותו מהאייקון ואשרו התראות."
+            unsupportedDescription="התראות Push אינן זמינות בדפדפן הזה. באייפון: הוסיפו את Capital Flow למסך הבית, פתחו מהאייקון ואשרו התראות."
             enableLabel="כן, הפעילו התראות"
             continueLabel="המשך בלי Push"
             cancelLabel="חזרה"

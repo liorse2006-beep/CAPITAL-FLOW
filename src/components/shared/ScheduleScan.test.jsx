@@ -58,6 +58,7 @@ describe('ScheduleScan', () => {
 
     await user.click(screen.getByRole('button', { name: '+ Add' }));
     expect(screen.getByRole('dialog', { name: "Notifications aren't enabled" })).toBeInTheDocument();
+    expect(screen.getByText(/add Capital Flow to your Home Screen/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Continue without push' }));
 
     await waitFor(() =>

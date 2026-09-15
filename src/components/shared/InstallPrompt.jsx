@@ -33,7 +33,8 @@ export default function InstallPrompt() {
       <div className="install-prompt-body">
         {isIOS ? (
           <>
-            <p className="install-prompt-title">Add to your home screen for faster access</p>
+            <p className="install-prompt-title">Add Capital Flow to your Home Screen for notifications</p>
+            <p className="install-prompt-sub">Open it from the new icon, then allow notifications.</p>
             <div className="install-prompt-steps">
               <span className="install-prompt-step install-prompt-step-icon-only" aria-label="More">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
