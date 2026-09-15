@@ -1,6 +1,6 @@
 {
   "name": "Capital Flow",
-  "short_name": "CapFlow",
+  "short_name": "Capital Flow",
   "description": "Real-time stock volume scanner for S&P 500 and NASDAQ 100. Find unusual volume spikes and track sector money flow.",
   "start_url": "/",
   "display": "standalone",

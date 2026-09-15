@@ -1035,8 +1035,10 @@ function App() {
                     return r.symbol === sym;
                   });
                   if (!stock) return;
-                  var title = 'Volume Alert: ' + sym;
+                  var title = 'Market Signal Detected';
                   var body =
+                    sym +
+                    ' · ' +
                     formatPrice(stock.price) +
                     '  ·  ' +
                     (Number.isFinite(Number(stock.volumeRatio)) && Number(stock.volumeRatio) > 0
@@ -1066,13 +1068,13 @@ function App() {
               if (alertData.type === 'price') {
                 var side = livePrice >= alertData.targetPrice ? 'above' : 'below';
                 if (side === alertData.startingSide) return;
-                title = 'Alert: ' + stock.symbol + ' crossed $' + alertData.targetPrice;
-                body = 'Now ' + formatPrice(livePrice);
+                title = 'Market Signal Detected';
+                body = stock.symbol + ' crossed $' + alertData.targetPrice + ' — now ' + formatPrice(livePrice);
               } else {
                 var liveRatio = Number(stock.volumeRatio);
                 if (!Number.isFinite(liveRatio) || liveRatio <= 0 || liveRatio < alertData.minRatio) return;
-                title = 'Alert: ' + stock.symbol + ' hit ' + liveRatio + 'x';
-                body = 'Crossed your ' + alertData.minRatio + 'x threshold · ' + formatPrice(livePrice);
+                title = 'Market Signal Detected';
+                body = stock.symbol + ' crossed your ' + alertData.minRatio + 'x threshold · ' + formatPrice(livePrice);
               }
 
               alertFired.current[stock.symbol] = true;

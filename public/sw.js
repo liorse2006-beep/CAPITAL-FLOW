@@ -61,12 +61,15 @@ self.addEventListener('push', function (event) {
   try {
     data = event.data.json();
   } catch (e) {
-    data = { title: 'Capital Flow', body: event.data ? event.data.text() : 'New alert' };
+    data = {
+      title: 'Market Signal Detected',
+      body: event.data ? event.data.text() : 'Open the app to review the signal.',
+    };
   }
 
-  var title = data.title || 'Capital Flow';
+  var title = data.title || 'Market Signal Detected';
   var options = {
-    body: data.body || 'New stock alert',
+    body: data.body || 'Open the app to review the signal.',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     tag: data.tag || 'volume-alert',

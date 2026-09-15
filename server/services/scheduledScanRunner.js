@@ -663,16 +663,16 @@ function payloadForType(scanType, scan) {
   if (scanType === 'maScanner') {
     return results.length > 0
       ? {
-          title: `${partialTitle}MA signal detected — ${results[0].symbol}`,
-          body: `${results.length} stocks near their moving average.${partialNote} Tap to see the full scan.`,
+          title: `${partialTitle}${MARKET_SIGNAL_TITLE}`,
+          body: `${results.length} stocks near their moving average — ${results[0].symbol}.${partialNote} Tap to see the full scan.`,
         }
       : { title: 'MA Scanner — Daily Scan', body: 'No MA signals right now. Check back later.' };
   }
   if (scanType === 'sectorMoving') {
     return results.length > 0
       ? {
-          title: `${partialTitle}Sector flow detected — ${results[0].symbol}`,
-          body: `${results.length} sector movers right now.${partialNote} Tap to see the full scan.`,
+          title: `${partialTitle}${MARKET_SIGNAL_TITLE}`,
+          body: `${results.length} sector movers right now — ${results[0].symbol}.${partialNote} Tap to see the full scan.`,
         }
       : { title: 'Hot Sectors — Daily Scan', body: 'No sector flow right now. Markets look quiet.' };
   }
@@ -680,13 +680,14 @@ function payloadForType(scanType, scan) {
   const leadingRatioLabel = Number.isFinite(leadingRatio) && leadingRatio > 0 ? ` ${leadingRatio.toFixed(1)}×` : '';
   return results.length > 0
     ? {
-        title: `${partialTitle}Volume spike detected — ${results[0].symbol}${leadingRatioLabel}`,
-        body: `${results.length} stocks moving right now.${partialNote} Tap to see the full scan.`,
+        title: `${partialTitle}${MARKET_SIGNAL_TITLE}`,
+        body: `${results.length} stocks moving right now — ${results[0].symbol}${leadingRatioLabel}.${partialNote} Tap to see the full scan.`,
       }
     : { title: 'Capital Flow — Daily Scan', body: 'No unusual volume right now. Markets look quiet.' };
 }
 
 const SCAN_URL = { capitalFlow: '/scanner', maScanner: '/ma', sectorMoving: '/flow' };
+const MARKET_SIGNAL_TITLE = 'Market Signal Detected';
 
 async function notifyScheduledUser(sched, scan) {
   const normalized = normalizeScheduledScanResult(scan);

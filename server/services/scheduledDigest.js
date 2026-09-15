@@ -4,6 +4,8 @@ const { sendPushToUser } = require('./webPush');
 const { addNotification } = require('./notifications');
 const { reportError } = require('../utils/reportError');
 
+const MARKET_SIGNAL_TITLE = 'Market Signal Detected';
+
 // How many users' push sends run concurrently per batch. A plain
 // sequential for-loop here would mean 10,000 users sharing a
 // notification_time turns into 10,000 serially-awaited DB queries and
@@ -89,12 +91,7 @@ function buildDigestPayload(thresholds, results, asOf, dataStatus = 'complete') 
       ? ' Some market data was unavailable or delayed; this digest contains available results only and may not be fully verified. Confirm independently.'
       : '';
   return {
-    title:
-      (dataStatus === 'partial' ? 'Partial data — ' : '') +
-      matches.length +
-      ' stock' +
-      (matches.length > 1 ? 's' : '') +
-      ' crossed your threshold',
+    title: (dataStatus === 'partial' ? 'Partial data — ' : '') + MARKET_SIGNAL_TITLE,
     body: summary + (matches.length > 5 ? ', +' + (matches.length - 5) + ' more' : '') + '.' + partialNote,
     ts: Date.now(),
     matched: true,

@@ -1,4 +1,6 @@
 const scanner = require('./scanner');
+
+const MARKET_SIGNAL_TITLE = 'Market Signal Detected';
 const { SP500, NASDAQ100, ALL_TICKERS } = require('../../tickers');
 const { reportError } = require('../utils/reportError');
 const { isMarketOpen, isPreMarket } = require('./marketCalendar');
@@ -210,8 +212,8 @@ function alertNotificationPayload(alert, r, scanDataStatus) {
     return {
       symbol: r.symbol,
       name: r.name,
-      title: `${partialPrefix}${r.symbol} Price Alert`,
-      body: `Crossed $${alert.targetPrice} — now ${price} (${change}).${partialNote}`,
+      title: `${partialPrefix}${MARKET_SIGNAL_TITLE}`,
+      body: `${r.symbol}: Crossed $${alert.targetPrice} — now ${price} (${change}).${partialNote}`,
       targetPrice: alert.targetPrice,
       change: r.change,
       price: r.price,
@@ -221,8 +223,8 @@ function alertNotificationPayload(alert, r, scanDataStatus) {
   return {
     symbol: r.symbol,
     name: r.name,
-    title: `${partialPrefix}${r.symbol} Volume Spike`,
-    body: `${r.volumeRatio}x avg volume — ${change} @ ${price}.${partialNote}`,
+    title: `${partialPrefix}${MARKET_SIGNAL_TITLE}`,
+    body: `${r.symbol}: ${r.volumeRatio}x avg volume — ${change} @ ${price}.${partialNote}`,
     volumeRatio: r.volumeRatio,
     change: r.change,
     price: r.price,

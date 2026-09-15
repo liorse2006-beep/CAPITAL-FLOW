@@ -35,6 +35,7 @@ const MAX_ACTIVE_RADARS_PER_USER = 1;
 const MAX_EVENTS_PER_RADAR = 50;
 const DATA_UNAVAILABLE_MESSAGE = 'Data is not available right now. Try again in a few minutes.';
 const PARTIAL_DATA_MESSAGE = 'Some market data is unavailable right now. Try again in a few minutes.';
+const MARKET_SIGNAL_TITLE = 'Market Signal Detected';
 const RADAR_DATA_SOURCES = [
   {
     provider: 'Yahoo Finance',
@@ -641,7 +642,7 @@ function eventBody(payload, reentry) {
 
 async function dispatchRadarEvent(radar, event) {
   const payload = eventPayload(event.row, event.scanTime, event.meta);
-  const title = `Capital Flow Radar · ${payload.symbol}`;
+  const title = `${payload.dataStatus === 'partial' ? 'Partial data — ' : ''}${MARKET_SIGNAL_TITLE}`;
   const body = eventBody(payload, event.reentry);
   const eventRow = await db
     .prepare('SELECT id, notified_at FROM radar_events WHERE radar_id = ? AND symbol = ? AND scan_time = ?')

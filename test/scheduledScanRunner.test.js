@@ -41,7 +41,7 @@ test('scheduled volume notification stays safe when the leading ratio is unavail
     dataStatus: 'complete',
   });
 
-  assert.strictEqual(payload.title, 'Volume spike detected — AAPL');
+  assert.strictEqual(payload.title, 'Market Signal Detected');
   assert.doesNotMatch(payload.title, /NaN|undefined/);
 });
 
@@ -133,10 +133,10 @@ test('a scheduled scan persists an in-app notification, so it is visible even wi
     .get(userId);
   assert.ok(notif, 'a scheduled scan must leave a notification in the in-app bell');
   // No single symbol on the notification itself — it's a digest of however
-  // many results the run found, not an alert about one specific ticker
-  // (the ticker still appears in the title, used for the native push).
+  // many results the run found, not an alert about one specific ticker.
   assert.strictEqual(notif.symbol, null);
-  assert.match(notif.title, /NVDA/);
+  assert.strictEqual(notif.title, 'Market Signal Detected');
+  assert.match(notif.body, /NVDA/);
 
   // The notification must carry the scan's own results and type, so tapping
   // it can show exactly what that run found — not just "something happened".
