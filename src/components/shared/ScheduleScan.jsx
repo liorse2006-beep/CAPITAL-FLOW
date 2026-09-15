@@ -53,15 +53,6 @@ export default function ScheduleScan({
   const [adding, setAdding] = useState(false);
   const [pendingSchedule, setPendingSchedule] = useState(null);
 
-  // Push is an optional delivery channel. The server stores the schedule and
-  // the resulting in-app notification independently, so unsupported browsers
-  // (notably an iPhone browser tab) must not block scheduling altogether.
-  const pushNotice = !pushSupported
-    ? 'Push alerts are not available in this browser. The schedule will still run, and the result will appear in Notifications when you return. On iPhone, add the site to your Home Screen, open it there, and enable notifications.'
-    : !pushEnabled
-      ? 'Push alerts are currently off. The schedule will still run, and the result will also appear in Notifications. Enable push to be alerted while the app is closed.'
-      : null;
-
   // The profile's single "Scan Scheduling" action opens the scheduler that
   // already belongs to the active scanner. A DOM event keeps this component
   // reusable across the three scanner pages without duplicating its API/UI.
@@ -254,22 +245,6 @@ export default function ScheduleScan({
                     </button>
                   </div>
                   {error && <p className="schedule-scan-error">{error}</p>}
-                  {pushNotice && (
-                    <div className="schedule-scan-push-warning" role={pushError ? 'alert' : 'status'}>
-                      <p>{pushNotice}</p>
-                      {pushSupported && !pushEnabled && (
-                        <button
-                          type="button"
-                          className="schedule-scan-push-enable"
-                          onClick={onEnablePush}
-                          disabled={pushBusy}
-                        >
-                          {pushBusy ? 'Enabling…' : 'Enable push notifications'}
-                        </button>
-                      )}
-                      {pushError && <p className="schedule-scan-error">{pushError}</p>}
-                    </div>
-                  )}
                 </form>
 
                 <div className="schedule-scan-list">

@@ -54,7 +54,7 @@ describe('ScheduleScan', () => {
     renderScheduler();
 
     await user.click(screen.getByRole('button', { name: 'Schedule automatic scan' }));
-    expect(screen.getByRole('status')).toHaveTextContent(/schedule will still run/i);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '+ Add' }));
     expect(screen.getByRole('dialog', { name: "Notifications aren't enabled" })).toBeInTheDocument();
@@ -71,8 +71,9 @@ describe('ScheduleScan', () => {
     renderScheduler({ pushSupported: true, onEnablePush });
 
     await user.click(screen.getByRole('button', { name: 'Schedule automatic scan' }));
-    expect(screen.getByRole('status')).toHaveTextContent(/push alerts are currently off/i);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '+ Add' }));
+    expect(screen.getByRole('dialog', { name: "Notifications aren't enabled" })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Enable notifications' }));
 
     await waitFor(() => expect(mocks.addSchedule).toHaveBeenCalledTimes(1));
