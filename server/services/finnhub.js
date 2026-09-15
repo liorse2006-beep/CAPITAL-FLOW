@@ -15,6 +15,77 @@ function finiteOrNull(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function providerTimeOrNull(value) {
+  const timestamp = finiteOrNull(value);
+  if (timestamp === null || timestamp <= 0) return null;
+  const date = new Date(timestamp * 1000);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+function hasPositiveFinite(value) {
+  const number = finiteOrNull(value);
+  return number !== null && number > 0;
+}
+
+function parseFinnhubQuote(data, nowMs = Date.now()) {
+  if (!data || typeof data !== 'object' || data.error) return null;
+
+  const price = finiteOrNull(data.c);
+  const timestamp = finiteOrNull(data.t);
+  const dataAsOf = providerTimeOrNull(data.t);
+  if (price === null || price <= 0 || timestamp === null || !dataAsOf) return null;
+
+  const ageMs = nowMs - timestamp * 1000;
+  // Finnhub's quote timestamp is the provider's last quote update. Do not
+  // accept a future value or a quote older than one day as a current quote.
+  if (ageMs < -5 * 60 * 1000 || ageMs > 24 * 60 * 60 * 1000) return null;
+
+  const missingFields = ['d', 'dp', 'h', 'l', 'o', 'pc'].filter((field) => {
+    if (field === 'd' || field === 'dp') return finiteOrNull(data[field]) === null;
+    return !hasPositiveFinite(data[field]);
+  });
+
+  return {
+    price,
+    change: finiteOrNull(data.dp),
+    changeAbs: finiteOrNull(data.d),
+    dayHigh: finiteOrNull(data.h),
+    dayLow: finiteOrNull(data.l),
+    open: finiteOrNull(data.o),
+    prevClose: finiteOrNull(data.pc),
+    dataAsOf,
+    dataStatus: missingFields.length === 0 ? 'complete' : 'partial',
+    missingFields,
+  };
+}
+
+function parseFinnhubMetric(data) {
+  if (!data || typeof data !== 'object' || !data.metric || typeof data.metric !== 'object') return null;
+  const metric = data.metric;
+  const marketCapRaw = finiteOrNull(metric.marketCapitalization);
+  const avgVolRaw = finiteOrNull(metric['10DayAverageTradingVolume']);
+  const result = {
+    weekHigh52: finiteOrNull(metric['52WeekHigh']),
+    weekLow52: finiteOrNull(metric['52WeekLow']),
+    marketCap: marketCapRaw === null ? null : marketCapRaw * 1e6,
+    avgVol10d: avgVolRaw === null ? null : avgVolRaw * 1e6,
+    // These fields are optional for the Capital Flow scanner, but are kept
+    // explicit so Fundamentals can distinguish a missing value from a failed
+    // provider response.
+    peRatio: finiteOrNull(metric.peExclExtraTTM) ?? finiteOrNull(metric.peTTM),
+    debtToEquity: finiteOrNull(metric['totalDebt/totalEquityQuarterly']),
+    revenueGrowth5Y: finiteOrNull(metric.revenueGrowth5Y),
+  };
+  const missingFields = [];
+  if (result.marketCap === null || result.marketCap <= 0) missingFields.push('marketCap');
+  if (result.avgVol10d === null || result.avgVol10d <= 0) missingFields.push('avgVol10d');
+  return {
+    ...result,
+    dataStatus: missingFields.length === 0 ? 'complete' : 'partial',
+    missingFields,
+  };
+}
+
 /**
  * Fetch a Finnhub URL (without &token=) using the key pool, retrying once
  * on the next account if the first key is rate-limited.
@@ -29,7 +100,8 @@ async function finnhubFetch(urlWithoutToken) {
       for (let attempt = 0; attempt < attempts; attempt++) {
         const key = pool.getKey();
         if (!key) return null;
-        const res = await fetchWithTimeout(urlWithoutToken + '&token=' + key);
+        const separator = urlWithoutToken.includes('?') ? '&' : '?';
+        const res = await fetchWithTimeout(urlWithoutToken + separator + 'token=' + encodeURIComponent(key));
         if (res.status === 429) {
           pool.reportRateLimited(key);
           continue; // try the next account
@@ -44,63 +116,28 @@ async function finnhubFetch(urlWithoutToken) {
   }
 }
 
-async function fetchFinnhubQuote(symbol, apiKey) {
+async function fetchFinnhubQuote(symbol) {
   try {
     var url = 'https://finnhub.io/api/v1/quote?symbol=' + encodeURIComponent(symbol);
-    var res = apiKey ? await fetchWithTimeout(url + '&token=' + apiKey) : await finnhubFetch(url);
+    var res = await finnhubFetch(url);
     if (!res) return null;
     var data = await res.json();
-    if (!data || data.error) return null;
-    const price = finiteOrNull(data.c);
-    if (price === null || price <= 0) return null;
-    const timestamp = finiteOrNull(data.t);
-    if (timestamp !== null && timestamp > 0) {
-      var age = Date.now() / 1000 - timestamp;
-      if (age > 86400) return null;
-    }
-    return {
-      price,
-      change: finiteOrNull(data.dp),
-      changeAbs: finiteOrNull(data.d),
-      dayHigh: finiteOrNull(data.h),
-      dayLow: finiteOrNull(data.l),
-      open: finiteOrNull(data.o),
-      prevClose: finiteOrNull(data.pc),
-    };
+    return parseFinnhubQuote(data);
   } catch (e) {
     return null;
   }
 }
 
-async function fetchFinnhubMetric(symbol, apiKey) {
+async function fetchFinnhubMetric(symbol) {
   try {
     var url = 'https://finnhub.io/api/v1/stock/metric?symbol=' + encodeURIComponent(symbol) + '&metric=all';
-    var res = apiKey ? await fetchWithTimeout(url + '&token=' + apiKey) : await finnhubFetch(url);
+    var res = await finnhubFetch(url);
     if (!res) return null;
     var data = await res.json();
-    if (!data || !data.metric) return null;
-    return {
-      weekHigh52: finiteOrNull(data.metric['52WeekHigh']),
-      weekLow52: finiteOrNull(data.metric['52WeekLow']),
-      marketCap:
-        finiteOrNull(data.metric.marketCapitalization) === null
-          ? null
-          : finiteOrNull(data.metric.marketCapitalization) * 1e6,
-      avgVol10d:
-        finiteOrNull(data.metric['10DayAverageTradingVolume']) === null
-          ? null
-          : finiteOrNull(data.metric['10DayAverageTradingVolume']) * 1e6,
-      // Swing-trading fundamentals (Premium/Elite) — all come from this same
-      // already-cached 24h metric payload, so no extra API call is needed.
-      // 0/undefined from Finnhub means "not reported for this company" (e.g.
-      // early-stage names with no P/E) — passed through as-is, never guessed.
-      peRatio: finiteOrNull(data.metric.peExclExtraTTM) ?? finiteOrNull(data.metric.peTTM),
-      debtToEquity: finiteOrNull(data.metric['totalDebt/totalEquityQuarterly']),
-      revenueGrowth5Y: finiteOrNull(data.metric.revenueGrowth5Y),
-    };
+    return parseFinnhubMetric(data);
   } catch (e) {
     return null;
   }
 }
 
-module.exports = { fetchFinnhubQuote, fetchFinnhubMetric, finnhubFetch };
+module.exports = { fetchFinnhubQuote, fetchFinnhubMetric, finnhubFetch, parseFinnhubQuote, parseFinnhubMetric };

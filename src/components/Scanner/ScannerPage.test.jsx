@@ -288,7 +288,7 @@ describe('ScannerPage result table integrity', () => {
     );
 
     expect(screen.getByRole('status')).toHaveTextContent(
-      'The results below show matches found from currently available data and may not be fully verified.'
+      'Market data may be delayed or incomplete; verify independently.'
     );
 
     const table = screen.getByRole('table');

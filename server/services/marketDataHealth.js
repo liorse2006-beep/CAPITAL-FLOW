@@ -25,14 +25,19 @@ function hasRequiredScanQuote(row) {
 }
 
 function hasRequiredFinnhubQuote(row) {
-  return Number(row?.price) > 0;
+  return (
+    Number(row?.price) > 0 &&
+    row?.dataStatus === 'complete' &&
+    typeof row?.dataAsOf === 'string' &&
+    Number.isFinite(Date.parse(row.dataAsOf))
+  );
 }
 
 function hasRequiredFinnhubMetric(row) {
   // These are the two metric fields the scanner can actually use when Yahoo
   // omits a slow daily field. An object with only null fields is not provider
   // coverage and must not make the health check look complete.
-  return Number(row?.marketCap) > 0 && Number(row?.avgVol10d) > 0;
+  return row?.dataStatus === 'complete' && Number(row?.marketCap) > 0 && Number(row?.avgVol10d) > 0;
 }
 
 function hasRequiredMassiveMetric(row) {

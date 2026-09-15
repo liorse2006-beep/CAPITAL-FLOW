@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import useModalA11y from '../../hooks/useModalA11y';
-import FinancialDataProvenance from '../shared/FinancialDataProvenance';
 
 const DATA_UNAVAILABLE = 'Data is not available right now. Try again in a few minutes.';
 const RADAR_SINGLE_LIMIT_MESSAGE =
@@ -699,14 +698,6 @@ export default function CapitalFlowRadar({
                     <span aria-hidden="true">!</span> {unavailableMessage}
                   </div>
                 )}
-
-                <FinancialDataProvenance
-                  provenance={radar.dataProvenance}
-                  dataStatus={radar.lastDataStatus || radar.dataStatus}
-                  dataAsOf={radar.lastDataAsOf}
-                  capturedAt={radar.lastCheckAt}
-                  fallbackSources={['Yahoo Finance', 'Finnhub']}
-                />
 
                 {radar.events && radar.events.length > 0 && (
                   <div className="cfr-radar-events">

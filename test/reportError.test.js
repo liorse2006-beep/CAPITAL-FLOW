@@ -34,12 +34,16 @@ test('reportError redacts credential-shaped values from the log summary', (t) =>
   const consoleSpy = t.mock.method(console, 'error', () => {});
   t.mock.method(Sentry, 'captureException', () => {});
 
-  reportError(new Error('Authorization: Bearer super-secret-token api_key=live-key'), '[sensitive-route]');
+  reportError(
+    new Error('Authorization: Bearer super-secret-token api_key=live-key https://finnhub.io/?token=live-query-key'),
+    '[sensitive-route]'
+  );
 
   const summary = consoleSpy.mock.calls[0].arguments[1];
   assert.strictEqual(summary.name, 'Error');
   assert.match(summary.message, /Authorization=\[redacted\]/);
   assert.match(summary.message, /api_key=\[redacted\]/);
-  assert.doesNotMatch(summary.message, /super-secret-token|live-key/);
+  assert.match(summary.message, /token=\[redacted\]/);
+  assert.doesNotMatch(summary.message, /super-secret-token|live-key|live-query-key/);
   assert.deepStrictEqual(safeErrorSummary(null), '');
 });

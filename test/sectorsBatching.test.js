@@ -13,6 +13,7 @@ process.env.FINNHUB_API_KEY_POOL_1 = '';
 process.env.FINNHUB_API_KEY_POOL_2 = '';
 process.env.FINNHUB_API_KEY_POOL_3 = '';
 process.env.FINNHUB_API_KEY_POOL_4 = '';
+process.env.FINNHUB_API_KEY_POOL_5 = '';
 
 require('./helpers/testEnv');
 const { test, before } = require('node:test');

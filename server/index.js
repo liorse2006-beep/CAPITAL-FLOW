@@ -20,8 +20,14 @@ const { scanLimiter, apiLimiter, adminLimiter, webhookLimiter } = require('./mid
 const { isSingletonWorker } = require('./services/clusterBus');
 const { safeErrorSummary } = require('./utils/reportError');
 const { servePublicApp } = require('./publicMetadata');
+const { publicResponseSanitizer } = require('./middleware/publicResponseSanitizer');
 
 const app = express();
+
+// Source/provider diagnostics are operational metadata, not customer-facing
+// content. Keep the internal objects available to monitoring and validation,
+// while guaranteeing that no JSON API response exposes them to the browser.
+app.use(publicResponseSanitizer);
 
 // Never trust X-Forwarded-For merely because the app happens to be behind a
 // proxy in one deployment. Non-Render deployments must explicitly provide

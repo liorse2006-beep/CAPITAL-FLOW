@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const { requirePremiumOrTrial } = require('../middleware/authMiddleware');
 const yahooFinance = require('../services/yahoo');
-const { finnhubFetch } = require('../services/finnhub');
+const { fetchFinnhubQuote } = require('../services/finnhub');
 const { reportError } = require('../utils/reportError');
 const { createTTLCache } = require('../utils/ttlCache');
 const { buildFinancialProvenance } = require('../services/financialProvenance');
@@ -125,17 +125,16 @@ router.get('/chart/:symbol', requirePremiumOrTrial, async (req, res) => {
     let currentPrice = null;
     let currentPriceSource = null;
     try {
-      const fRes = await finnhubFetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}`);
-      const fData = fRes ? await fRes.json() : null;
-      const price = finiteOrNull(fData?.c);
-      if (price !== null && price > 0 && !fData.error) {
+      const fQuote = await fetchFinnhubQuote(symbol);
+      if (fQuote && fQuote.price > 0) {
         currentPrice = {
-          price,
-          change: finiteOrNull(fData.dp),
-          high: finiteOrNull(fData.h),
-          low: finiteOrNull(fData.l),
-          prevClose: finiteOrNull(fData.pc),
-          dataAsOf: providerTimeOrNull(fData.t),
+          price: fQuote.price,
+          change: fQuote.change,
+          high: fQuote.dayHigh,
+          low: fQuote.dayLow,
+          prevClose: fQuote.prevClose,
+          dataAsOf: fQuote.dataAsOf,
+          dataStatus: fQuote.dataStatus,
         };
         currentPriceSource = 'Finnhub';
       }

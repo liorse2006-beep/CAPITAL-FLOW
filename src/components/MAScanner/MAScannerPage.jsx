@@ -4,7 +4,6 @@ import useScanQuota from '../../hooks/useScanQuota';
 import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
 import MobileResultSort from '../shared/MobileResultSort';
-import FinancialDataProvenance from '../shared/FinancialDataProvenance';
 import { categoryQuota } from '../../utils/quota';
 import useSeo from '../../hooks/useSeo';
 import { friendlyError, alertLevelLabel, formatPrice, formatSignedPercent } from '../../utils/format';
@@ -69,10 +68,7 @@ export default function MAScannerPage({
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
-  const [scanTime, setScanTime] = useState(null);
   const [dataStatus, setDataStatus] = useState(null);
-  const [dataAsOf, setDataAsOf] = useState(null);
-  const [dataProvenance, setDataProvenance] = useState(null);
 
   const [sortField, setSort] = useState('maDistance');
   const [sortDir, setSortDir] = useState('asc');
@@ -113,7 +109,6 @@ export default function MAScannerPage({
     setLoading(true);
     setError(null);
     setResults(null);
-    setDataProvenance(null);
     setProgress({ processed: 0, total: 0, found: 0, phase: 1 });
 
     let activeScanId = null;
@@ -148,10 +143,7 @@ export default function MAScannerPage({
       if (!d || !Array.isArray(d.results))
         throw new Error('The scan returned no complete result set. Please try again.');
       setResults(d.results);
-      setScanTime(d.scanTime);
       setDataStatus(d.dataStatus || null);
-      setDataAsOf(d.dataAsOf || null);
-      setDataProvenance(d.dataProvenance || null);
       setScanMeta({ tier: d.tier, isPremium: d.isPremium, premium: d.premium, free: d.free });
     };
 
@@ -410,12 +402,6 @@ export default function MAScannerPage({
       React.createElement(
         'div',
         { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
-        scanTime &&
-          React.createElement(
-            'span',
-            { className: 'table-footer', style: { margin: 0 } },
-            dataAsOf ? 'Source data as of: ' + new Date(dataAsOf).toLocaleTimeString() : 'Source timestamp unavailable'
-          ),
         !isLocked &&
           React.createElement(
             'button',
@@ -784,16 +770,8 @@ export default function MAScannerPage({
               { className: 'data-status-banner ' + dataStatus, role: 'status' },
               dataStatus === 'unavailable'
                 ? 'Market data is temporarily unavailable. Please try again in a few minutes.'
-                : 'Some market data is unavailable, delayed, or incomplete. The results below show matches found from currently available data and may not be fully verified. Confirm all information independently before relying on it.'
+                : 'Market data may be delayed or incomplete; verify independently.'
             ),
-
-          React.createElement(FinancialDataProvenance, {
-            provenance: dataProvenance,
-            dataStatus: dataStatus,
-            dataAsOf: dataAsOf,
-            capturedAt: scanTime,
-            fallbackSources: ['Yahoo Finance'],
-          }),
 
           React.createElement(MobileResultSort, {
             options: [

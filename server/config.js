@@ -10,6 +10,20 @@ function env(name, fallback = '') {
   return val === undefined ? fallback : val.trim();
 }
 
+// Read a bounded, numbered secret pool without ever putting secret values in
+// source control. A new provider account is activated by adding the matching
+// server-only environment variable (for example FINNHUB_API_KEY_POOL_5) in
+// the deployment secret store. The bound prevents a malformed environment
+// from creating an unbounded upstream request fan-out during failover.
+function indexedEnv(prefix, max = 20) {
+  const values = [];
+  for (let index = 1; index <= max; index++) {
+    const value = env(`${prefix}${index}`);
+    if (value) values.push(value);
+  }
+  return values;
+}
+
 // ── Fail-closed on missing auth secrets ────────────────────────────────────
 // A weak/guessable JWT secret lets anyone forge an admin token. Rather than
 // silently fall back to a public default, refuse to boot. This guarantees the
@@ -77,8 +91,9 @@ if (rawStatusInternalToken && (INSECURE.has(rawStatusInternalToken) || rawStatus
 module.exports = {
   PORT: parseInt(process.env.PORT, 10) || 3001,
   FINNHUB_API_KEY: env('FINNHUB_API_KEY'),
-  // Extra Finnhub accounts for automatic rotation/failover — see services/finnhubKeyPool.js
-  FINNHUB_API_KEY_POOL: [1, 2, 3, 4].map((i) => env('FINNHUB_API_KEY_POOL_' + i)).filter(Boolean),
+  // Extra Finnhub accounts for automatic rotation/failover — see services/finnhubKeyPool.js.
+  // The values remain server-only and are never returned by an API route.
+  FINNHUB_API_KEY_POOL: indexedEnv('FINNHUB_API_KEY_POOL_'),
   // Per-symbol news fallback chain — see services/newsService.js
   MASSIVE_API_KEY: env('MASSIVE_API_KEY'),
   MARKETAUX_API_KEY: env('MARKETAUX_API_KEY'),

@@ -6,7 +6,6 @@ import SectorPickerModal from './SectorPickerModal';
 import CapitalFlowRadar from './CapitalFlowRadar';
 import useSmoothProgress from '../../hooks/useSmoothProgress';
 import MobileResultSort from '../shared/MobileResultSort';
-import FinancialDataProvenance from '../shared/FinancialDataProvenance';
 import { fmt, friendlyError, alertLevelLabel, formatSignedPercent, formatPrice, formatRatio } from '../../utils/format';
 import useSeo from '../../hooks/useSeo';
 
@@ -173,7 +172,6 @@ export default function ScannerPage({
   scanTime,
   scanDataStatus,
   scanDataAsOf,
-  scanDataProvenance,
   fromCache,
   cacheAge,
   restoredFromLastScan,
@@ -788,17 +786,9 @@ export default function ScannerPage({
               <div className={'data-status-banner ' + scanDataStatus} role="status">
                 {scanDataStatus === 'unavailable'
                   ? 'Market data is temporarily unavailable. Please try again in a few minutes.'
-                  : 'Some market data is unavailable, delayed, or incomplete. The results below show matches found from currently available data and may not be fully verified. Confirm all information independently before relying on it.'}
+                  : 'Market data may be delayed or incomplete; verify independently.'}
               </div>
             )}
-
-            <FinancialDataProvenance
-              provenance={scanDataProvenance}
-              dataStatus={scanDataStatus}
-              dataAsOf={scanDataAsOf}
-              capturedAt={scanTime}
-              fallbackSources={['Yahoo Finance', 'Finnhub']}
-            />
 
             {sorted.length === 0 ? (
               <div className="no-match">

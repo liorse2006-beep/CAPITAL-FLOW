@@ -27,12 +27,20 @@ function quoteMap(entries, metadata = {}) {
   return map;
 }
 
+function finnhubQuote() {
+  return { price: 100, dataAsOf: '2026-09-09T18:00:00.000Z', dataStatus: 'complete' };
+}
+
+function finnhubMetric() {
+  return { marketCap: 5_000_000_000, avgVol10d: 2_000_000, dataStatus: 'complete' };
+}
+
 test('market-data probe reports complete only when both providers and full scan coverage are complete', async (t) => {
   t.mock.method(quoteCache, 'getQuotes', async () =>
     quoteMap(MARKET_DATA_PROBE_SYMBOLS.map((symbol) => [symbol, quote(symbol)]))
   );
-  t.mock.method(finnhub, 'fetchFinnhubQuote', async () => ({ price: 100 }));
-  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => ({ marketCap: 5_000_000_000, avgVol10d: 2_000_000 }));
+  t.mock.method(finnhub, 'fetchFinnhubQuote', async () => finnhubQuote());
+  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => finnhubMetric());
 
   const result = await probeMarketData({
     fullScan: {
@@ -84,7 +92,7 @@ test('market-data probe does not treat an incomplete Finnhub metric payload as c
     quoteMap(MARKET_DATA_PROBE_SYMBOLS.map((symbol) => [symbol, quote(symbol)]))
   );
   t.mock.method(finnhub, 'fetchFinnhubQuote', async (symbol) =>
-    symbol === MARKET_DATA_PROBE_SYMBOLS[0] ? { price: 100 } : null
+    symbol === MARKET_DATA_PROBE_SYMBOLS[0] ? finnhubQuote() : null
   );
   t.mock.method(finnhub, 'fetchFinnhubMetric', async (symbol) =>
     symbol === MARKET_DATA_PROBE_SYMBOLS[0] ? { marketCap: 5_000_000_000 } : { marketCap: null, avgVol10d: null }
@@ -124,8 +132,8 @@ test('market-data probe records verified Massive slow-field coverage without tre
   t.mock.method(quoteCache, 'getQuotes', async () =>
     quoteMap(MARKET_DATA_PROBE_SYMBOLS.map((symbol) => [symbol, quote(symbol)]))
   );
-  t.mock.method(finnhub, 'fetchFinnhubQuote', async () => ({ price: 100 }));
-  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => ({ marketCap: 5_000_000_000, avgVol10d: 2_000_000 }));
+  t.mock.method(finnhub, 'fetchFinnhubQuote', async () => finnhubQuote());
+  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => finnhubMetric());
   t.mock.method(massive, 'isConfigured', () => true);
   t.mock.method(massive, 'fetchMassiveMetrics', async () => ({
     marketCap: 5_000_000_000,

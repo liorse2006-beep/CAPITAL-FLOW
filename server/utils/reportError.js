@@ -7,8 +7,9 @@ const { Sentry } = require('../sentry');
 function redact(value) {
   return String(value || '')
     .replace(/Bearer\s+[A-Za-z0-9._~-]+/gi, 'Bearer [redacted]')
+    .replace(/([?&](?:token|api[_-]?key|access[_-]?token|refresh[_-]?token)=)[^&\s]+/gi, '$1[redacted]')
     .replace(
-      /((?:api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|cookie|password|secret|otp|code))\s*[:=]\s*["']?[^\s,"'}]+/gi,
+      /((?:token|api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|cookie|password|secret|otp|code))\s*[:=]\s*["']?[^\s,"'}]+/gi,
       '$1=[redacted]'
     )
     .slice(0, 1200);

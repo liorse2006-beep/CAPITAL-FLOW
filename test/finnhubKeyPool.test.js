@@ -19,19 +19,20 @@ process.env.FINNHUB_API_KEY_POOL_1 = 'key-b';
 process.env.FINNHUB_API_KEY_POOL_2 = 'key-c';
 process.env.FINNHUB_API_KEY_POOL_3 = 'key-a'; // duplicate of the base key — must be deduped
 process.env.FINNHUB_API_KEY_POOL_4 = 'key-a'; // also a duplicate — must be deduped
+process.env.FINNHUB_API_KEY_POOL_5 = 'key-d';
 
 delete require.cache[require.resolve('../server/config')];
 delete require.cache[require.resolve('../server/services/finnhubKeyPool')];
 const pool = require('../server/services/finnhubKeyPool');
 
 test('the pool deduplicates keys shared between FINNHUB_API_KEY and the pool slots', () => {
-  assert.strictEqual(pool.poolSize(), 3, 'key-a should only be counted once despite appearing twice');
+  assert.strictEqual(pool.poolSize(), 4, 'duplicate keys should only be counted once');
 });
 
 test('getKey round-robins across every configured account', () => {
   const seen = new Set();
   for (let i = 0; i < 6; i++) seen.add(pool.getKey());
-  assert.strictEqual(seen.size, 3, 'all three distinct accounts should be used in rotation');
+  assert.strictEqual(seen.size, 4, 'all four distinct accounts should be used in rotation');
 });
 
 test('reportRateLimited takes a key out of rotation until it cools down', () => {

@@ -3,7 +3,6 @@ import SectorHeatmap from './SectorHeatmap';
 import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
 import MobileResultSort from '../shared/MobileResultSort';
-import FinancialDataProvenance from '../shared/FinancialDataProvenance';
 import { fmt, friendlyError, formatPrice, formatRatio, formatSignedPercent } from '../../utils/format';
 import { categoryQuota } from '../../utils/quota';
 import { SECTOR_ETFS } from '../../constants';
@@ -38,9 +37,7 @@ export default function MoneyFlow({
 
   const [flowData, setFlowData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [fetchTime, setFetchTime] = useState(null);
   const [flowDataStatus, setFlowDataStatus] = useState(null);
-  const [flowDataProvenance, setFlowDataProvenance] = useState(null);
   const [error, setError] = useState(null);
   const [expandedETF, setExpandedETF] = useState(null);
   const [flowSort, setFlowSort] = useState('volRatio');
@@ -85,9 +82,7 @@ export default function MoneyFlow({
         })
         .then(function (d) {
           setFlowData(d.results);
-          setFetchTime(d.fetchTime);
           setFlowDataStatus(d.dataStatus || 'complete');
-          setFlowDataProvenance(d.dataProvenance || null);
           setScanMeta({ tier: d.tier, isPremium: d.isPremium, premium: d.premium, free: d.free });
         })
         .catch(function (e) {
@@ -270,15 +265,6 @@ export default function MoneyFlow({
           ]}
         />
       )}
-
-      {flowData &&
-        React.createElement(FinancialDataProvenance, {
-          provenance: flowDataProvenance,
-          dataStatus: flowDataStatus,
-          dataAsOf: flowDataProvenance?.asOf || null,
-          capturedAt: fetchTime,
-          fallbackSources: ['Yahoo Finance', 'Finnhub'],
-        })}
 
       {flowData &&
         React.createElement(
@@ -660,7 +646,6 @@ export default function MoneyFlow({
                   );
                 })}
               </div>
-              {fetchTime && <div className="table-footer">Last updated: {new Date(fetchTime).toLocaleString()}</div>}
             </div>
           );
         })()}
