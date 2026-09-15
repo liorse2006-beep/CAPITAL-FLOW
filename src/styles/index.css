@@ -6104,57 +6104,6 @@ html.a11y-highlight-links a {
   display: flex;
   flex-direction: column;
 }
-.checkout-embed-promo-hint {
-  margin: -6px 0 14px;
-  color: var(--text-2);
-  font-size: 0.82rem;
-  text-align: center;
-}
-.coupon-input-row {
-  display: grid;
-  grid-template-columns: auto minmax(160px, 220px);
-  align-items: center;
-  justify-content: center;
-  gap: 8px 12px;
-  margin-top: 18px;
-  padding: 14px 16px 0;
-  border-top: 1px solid var(--border);
-}
-.coupon-input-label {
-  color: var(--text-2);
-  font-size: 12px;
-}
-.coupon-input {
-  width: 100%;
-  min-width: 0;
-  padding: 9px 10px;
-  border: 1px solid var(--border-strong);
-  border-radius: 7px;
-  outline: none;
-  background: var(--bg-0);
-  color: var(--text-0);
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
-}
-.coupon-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
-}
-.coupon-input::placeholder {
-  color: var(--text-3);
-  letter-spacing: 0.02em;
-}
-.coupon-input-help {
-  grid-column: 1 / -1;
-  color: var(--text-3);
-  font-size: 10px;
-  text-align: center;
-}
 .embedded-checkout-loading {
   min-height: 420px;
   display: flex;
@@ -15753,19 +15702,6 @@ html.a11y-highlight-links a {
     min-height: 25px;
     padding: 4px 3px;
     font-size: 7px;
-  }
-  .coupon-input-row {
-    grid-template-columns: 1fr;
-    gap: 7px;
-    padding-inline: 8px;
-  }
-  .coupon-input-label,
-  .coupon-input,
-  .coupon-input-help {
-    grid-column: 1;
-  }
-  .coupon-input {
-    width: 100%;
   }
 }
 

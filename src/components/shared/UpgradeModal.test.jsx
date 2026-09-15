@@ -11,12 +11,7 @@ import { AuthProvider } from '../../context/AuthContext';
 // onComplete handling) without depending on Whop's actual embed internals.
 vi.mock('@whop/checkout/react', () => ({
   WhopCheckoutEmbed: (props) => (
-    <div
-      data-testid="whop-checkout-embed"
-      data-session-id={props.sessionId}
-      data-return-url={props.returnUrl}
-      data-promo-code={props.promoCode || ''}
-    >
+    <div data-testid="whop-checkout-embed" data-session-id={props.sessionId} data-return-url={props.returnUrl}>
       <button onClick={() => props.onComplete('plan_x', 'receipt_x', {})}>Simulate payment complete</button>
     </div>
   ),
@@ -48,8 +43,8 @@ describe('UpgradeModal', () => {
     expect(screen.getByText('$14.90')).toBeInTheDocument();
     expect(screen.getByText('$29.90')).toBeInTheDocument();
     expect(screen.queryByText('Free', { exact: true })).not.toBeInTheDocument();
-    expect(screen.getByText('Have a promo code?', { exact: true })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('PROMO CODE')).toBeInTheDocument();
+    expect(screen.queryByText(/promo code/i)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('PROMO CODE')).not.toBeInTheDocument();
     expect(screen.getAllByText('One-time purchase · Lifetime access')).toHaveLength(2);
     expect(container.querySelector('.tier-matrix')).toBeInTheDocument();
     expect(container.querySelector('.upgrade-plan-options')).toBeNull();
@@ -143,18 +138,17 @@ describe('UpgradeModal', () => {
     expect(screen.getAllByTestId('whop-checkout-embed')).toHaveLength(1);
   });
 
-  it('passes a promo code to the server session without calculating a local price', async () => {
+  it('starts checkout without exposing a legacy promo-code field', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ sessionId: 'ch_test123', planId: 'plan_test', couponCode: 'SAVE10' }),
+        json: async () => ({ sessionId: 'ch_test123', planId: 'plan_test' }),
       })
     );
     renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
 
-    await user.type(screen.getByPlaceholderText('PROMO CODE'), 'save10');
     await user.click(screen.getByRole('button', { name: /get premium/i }));
 
     await waitFor(() =>
@@ -162,13 +156,12 @@ describe('UpgradeModal', () => {
         '/api/checkout/transaction',
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ tier: 'premium', couponCode: 'save10' }),
+          body: JSON.stringify({ tier: 'premium' }),
         })
       )
     );
     expect(await screen.findByTestId('whop-checkout-embed')).toBeInTheDocument();
-    expect(screen.getByTestId('whop-checkout-embed')).toHaveAttribute('data-promo-code', 'SAVE10');
-    expect(screen.queryByText(/discounted price/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/promo code/i)).not.toBeInTheDocument();
   });
 
   it('stashes the requested tier before mounting the embed, so the welcome screen knows what was bought', async () => {

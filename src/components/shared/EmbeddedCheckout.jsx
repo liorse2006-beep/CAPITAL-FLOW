@@ -6,7 +6,7 @@ import { WhopCheckoutEmbed } from '@whop/checkout/react';
 // own embed terms require the processor to stay visibly attributed even
 // when it's this invisible, so "Powered by Whop" stays on screen; everything
 // else (the page around it, the theme, what happens on completion) is ours.
-export default function EmbeddedCheckout({ sessionId, promoCode, onComplete, onError, onPromoCodeChanged }) {
+export default function EmbeddedCheckout({ sessionId, onComplete, onError }) {
   // External wallet flows can leave the page for authorization (for example,
   // 3-D Secure or a native wallet sheet). Keep the return target on the same
   // origin so App.jsx can consume ?status=success|error and finish the normal
@@ -18,7 +18,6 @@ export default function EmbeddedCheckout({ sessionId, promoCode, onComplete, onE
       <WhopCheckoutEmbed
         sessionId={sessionId}
         returnUrl={returnUrl}
-        promoCode={promoCode || undefined}
         theme="dark"
         skipRedirect
         themeOptions={{
@@ -28,7 +27,6 @@ export default function EmbeddedCheckout({ sessionId, promoCode, onComplete, onE
         }}
         onComplete={onComplete}
         onPaymentError={onError}
-        onPromoCodeChanged={onPromoCodeChanged}
         fallback={
           <div className="embedded-checkout-loading">
             <div className="spinner" />

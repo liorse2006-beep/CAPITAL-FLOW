@@ -18,9 +18,7 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
   const location = useLocation();
   const [payingTier, setPayingTier] = useState(null);
   const [payError, setPayError] = useState('');
-  const [couponCode, setCouponCode] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState(null);
-  const [checkoutSession, setCheckoutSession] = useState(null); // { sessionId, tierKey, promoCode } | null
+  const [checkoutSession, setCheckoutSession] = useState(null); // { sessionId, tierKey } | null
   const checkoutSessionRef = useRef(false);
   React.useEffect(() => {
     checkoutSessionRef.current = Boolean(checkoutSession);
@@ -35,14 +33,12 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
 
   async function goToCheckout(tierKey) {
     setPayError('');
-    setAppliedPromo(null);
     setPayingTier(tierKey);
     try {
-      const trimmedCoupon = couponCode.trim();
       const res = await fetch('/api/checkout/transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
-        body: JSON.stringify({ tier: tierKey, ...(trimmedCoupon ? { couponCode: trimmedCoupon } : {}) }),
+        body: JSON.stringify({ tier: tierKey }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not start checkout');
@@ -54,7 +50,6 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
       setCheckoutSession({
         sessionId: data.sessionId,
         tierKey,
-        promoCode: data.couponCode,
       });
     } catch (err) {
       setPayError(err.message || 'Something went wrong — please try again.');
@@ -76,7 +71,6 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
   function handlePaymentError(error) {
     setPayError((error && error.message) || 'Payment failed — please try again.');
     setCheckoutSession(null);
-    setAppliedPromo(null);
     localStorage.removeItem('vs_pending_tier');
   }
 
@@ -99,7 +93,6 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
             className="checkout-embed-back"
             onClick={() => {
               setCheckoutSession(null);
-              setAppliedPromo(null);
               localStorage.removeItem('vs_pending_tier');
             }}
           >
@@ -108,19 +101,10 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
           <h2 className="upgrade-title" style={{ textAlign: 'center', marginBottom: 16 }}>
             {TIER_LABEL[checkoutSession.tierKey]} checkout
           </h2>
-          <p className="checkout-embed-promo-hint">
-            {appliedPromo
-              ? `Promo code "${appliedPromo.code}" is active. The final amount shown in the secure checkout is the amount charged.`
-              : checkoutSession.promoCode
-                ? `Promo code "${checkoutSession.promoCode}" was sent to the secure checkout. The final amount shown there is authoritative.`
-                : 'Have a promo code? Enter it inside the secure checkout. The final amount shown there is the amount charged.'}
-          </p>
           <EmbeddedCheckout
             sessionId={checkoutSession.sessionId}
-            promoCode={checkoutSession.promoCode}
             onComplete={handleComplete}
             onError={handlePaymentError}
-            onPromoCodeChanged={setAppliedPromo}
           />
         </div>
       </div>
@@ -185,26 +169,6 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
           payingTier={payingTier}
           onCheckout={goToCheckout}
         />
-        <div className="coupon-input-row">
-          <label htmlFor="upgrade-coupon-input" className="coupon-input-label">
-            Have a promo code?
-          </label>
-          <input
-            id="upgrade-coupon-input"
-            className="coupon-input"
-            type="text"
-            placeholder="PROMO CODE"
-            value={couponCode}
-            onChange={(e) => setCouponCode(e.target.value)}
-            autoCapitalize="characters"
-            autoComplete="off"
-            spellCheck="false"
-            aria-describedby="upgrade-coupon-help"
-          />
-          <span id="upgrade-coupon-help" className="coupon-input-help">
-            The secure checkout confirms the final price.
-          </span>
-        </div>
         <div className="upgrade-trust-row">
           <span>Secure checkout</span>
           <span className="upgrade-trust-separator" />
