@@ -371,7 +371,9 @@ export default function MAScannerPage({
   const noResultsText =
     dataStatus === 'unavailable'
       ? 'No verified market data is available right now. Please try again in a few minutes.'
-      : 'No results match your filters';
+      : dataStatus === 'partial'
+        ? 'No matching rows are available from the data returned for this scan. Some symbols could not be evaluated. Please try again in a few minutes.'
+        : 'No results match your filters';
 
   // Guests can see every filter at full strength — touching any of them
   // (instead of hitting a persistent "sign in" banner up front) is what
@@ -767,7 +769,7 @@ export default function MAScannerPage({
               { className: 'data-status-banner ' + dataStatus, role: 'status' },
               dataStatus === 'unavailable'
                 ? 'Market data is temporarily unavailable. Please try again in a few minutes.'
-                : 'Market data may be delayed or estimated. Confirm all information before making any decision.'
+                : 'Some market data is unavailable, delayed, or incomplete. The results below show matches found from currently available data and may not be fully verified. Confirm all information independently before relying on it.'
             ),
 
           React.createElement(FinancialDataProvenance, {

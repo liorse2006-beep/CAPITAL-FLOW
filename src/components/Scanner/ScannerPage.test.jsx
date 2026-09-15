@@ -270,7 +270,7 @@ describe('ScannerPage result table integrity', () => {
     );
 
     expect(
-      screen.getByText(/No verified matches are available because some market data was unavailable/i)
+      screen.getByText(/No matching rows are available from the market data returned for this scan/i)
     ).toBeInTheDocument();
     expect(screen.queryByText('No stocks matched your filters.')).not.toBeInTheDocument();
   });
@@ -288,7 +288,7 @@ describe('ScannerPage result table integrity', () => {
     );
 
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Market data may be delayed or estimated. Confirm all information before making any decision.'
+      'The results below show matches found from currently available data and may not be fully verified.'
     );
 
     const table = screen.getByRole('table');

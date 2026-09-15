@@ -248,10 +248,46 @@ body {
 .logo-text h1 strong {
   font-weight: 700;
 }
-.logo-text span {
-  display: none;
-  display: block;
-  margin-top: 2px;
+.product-release-badge {
+  display: inline-flex !important;
+  align-items: center;
+  width: fit-content;
+  margin-top: 4px !important;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent-vivid) 58%, transparent);
+  border-radius: 999px;
+  color: var(--accent-vivid);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+/* The release marker is intentionally independent from the scrollable app
+   content. The brand badge stays next to the product name, while this small
+   fixed marker keeps the beta disclosure visible on long scanner/Radar pages
+   and on mobile browsers where sticky headers can be recycled by the browser. */
+.beta-release-fixed {
+  position: fixed;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  left: 50%;
+  z-index: 180;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent-vivid) 58%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-0) 88%, transparent);
+  color: var(--accent-vivid);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.25;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
 }
 
 .topbar-right {
@@ -8437,8 +8473,13 @@ html.a11y-highlight-links a {
   .topbar-left .logo-text h1 {
     font-size: 14px;
   }
-  .topbar-left .logo-text span {
+  .topbar-left .product-release-badge {
     font-size: 8px;
+  }
+  .beta-release-fixed {
+    bottom: max(8px, env(safe-area-inset-bottom));
+    padding: 2px 6px;
+    font-size: 7px;
   }
   .mobile-card-name {
     display: none;

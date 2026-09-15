@@ -118,10 +118,75 @@ function hasVerifiedAlertData(r) {
   // A stale fallback is useful for an explicitly labelled scan result, but it
   // must never consume a live alert: the user asked to be notified about a
   // real threshold crossing, not about an old quote replayed during an outage.
-  return !statuses.includes('stale') && !statuses.includes('unavailable');
+  return !statuses.some((status) => ['stale', 'unavailable', 'partial'].includes(status));
 }
 
-function alertNotificationPayload(alert, r) {
+function normalizeAlertSymbol(symbol) {
+  return String(symbol || '')
+    .trim()
+    .toUpperCase();
+}
+
+// Watchlist alerts are user-defined thresholds, not Capital Flow scan hits.
+// A symbol can therefore be absent from the scan result because it is below
+// the shared scan floor while still being a perfectly valid price/volume alert
+// target. Resolve those missing targets from the shared quote cache so an
+// unrelated scan filter cannot silently suppress a customer's alert.
+async function addMissingAlertQuotes(bySymbol, alertsByUser) {
+  const requested = [
+    ...new Set(
+      Object.values(alertsByUser)
+        .flatMap((alerts) => Object.keys(alerts || {}))
+        .map(normalizeAlertSymbol)
+        .filter((symbol) => symbol && !bySymbol.has(symbol))
+    ),
+  ];
+  if (requested.length === 0) return;
+
+  try {
+    const quoteCache = require('./quoteCache');
+    const quotes = await quoteCache.getQuotes(requested);
+    const staleSymbols = new Set(
+      [
+        ...(Array.isArray(quotes.staleSymbols) ? quotes.staleSymbols : []),
+        ...(Array.isArray(quotes.providerStaleSymbols) ? quotes.providerStaleSymbols : []),
+      ].map(normalizeAlertSymbol)
+    );
+
+    requested.forEach((symbol) => {
+      const quote = quotes.get(symbol);
+      if (!quote) return;
+      const price = Number(quote.regularMarketPrice);
+      const volume = Number(quote.regularMarketVolume);
+      const avgVolume = Number(quote.averageDailyVolume10Day);
+      const volumeRatio =
+        Number.isFinite(volume) && volume > 0 && Number.isFinite(avgVolume) && avgVolume > 0
+          ? Math.round((volume / avgVolume) * 100) / 100
+          : null;
+      const status = staleSymbols.has(symbol) ? 'stale' : 'complete';
+      bySymbol.set(symbol, {
+        symbol: normalizeAlertSymbol(quote.symbol || symbol),
+        name: quote.shortName || quote.longName || symbol,
+        price: Number.isFinite(price) && price > 0 ? price : null,
+        change: Number.isFinite(Number(quote.regularMarketChangePercent))
+          ? Number(quote.regularMarketChangePercent)
+          : null,
+        volume: Number.isFinite(volume) && volume > 0 ? volume : null,
+        avgVolume: Number.isFinite(avgVolume) && avgVolume > 0 ? avgVolume : null,
+        volumeRatio,
+        quoteDataStatus: status,
+        dataStatus: status,
+        dataAsOf: quotes.dataAsOf || null,
+      });
+    });
+  } catch (err) {
+    // A provider failure must leave the alert armed. The next scheduled cycle
+    // can retry it, and no unverified value is ever turned into a notification.
+    reportError(err, '[checkWatchlistAlerts quote recovery]');
+  }
+}
+
+function alertNotificationPayload(alert, r, scanDataStatus) {
   const numericChange =
     typeof r?.change === 'number' || (typeof r?.change === 'string' && r.change.trim() !== '')
       ? Number(r.change)
@@ -132,12 +197,17 @@ function alertNotificationPayload(alert, r) {
   const numericPrice =
     typeof r?.price === 'number' || (typeof r?.price === 'string' && r.price.trim() !== '') ? Number(r.price) : null;
   const price = Number.isFinite(numericPrice) && numericPrice > 0 ? `$${numericPrice.toFixed(2)}` : 'price unavailable';
+  const partialPrefix = scanDataStatus === 'partial' ? 'Partial data — ' : '';
+  const partialNote =
+    scanDataStatus === 'partial'
+      ? ' Some market data was unavailable or delayed; this alert uses the available data for this symbol only. Confirm independently.'
+      : '';
   if (alert.type === 'price') {
     return {
       symbol: r.symbol,
       name: r.name,
-      title: `${r.symbol} Price Alert`,
-      body: `Crossed $${alert.targetPrice} — now ${price} (${change})`,
+      title: `${partialPrefix}${r.symbol} Price Alert`,
+      body: `Crossed $${alert.targetPrice} — now ${price} (${change}).${partialNote}`,
       targetPrice: alert.targetPrice,
       change: r.change,
       price: r.price,
@@ -147,8 +217,8 @@ function alertNotificationPayload(alert, r) {
   return {
     symbol: r.symbol,
     name: r.name,
-    title: `${r.symbol} Volume Spike`,
-    body: `${r.volumeRatio}x avg volume — ${change} @ ${price}`,
+    title: `${partialPrefix}${r.symbol} Volume Spike`,
+    body: `${r.volumeRatio}x avg volume — ${change} @ ${price}.${partialNote}`,
     volumeRatio: r.volumeRatio,
     change: r.change,
     price: r.price,
@@ -156,19 +226,33 @@ function alertNotificationPayload(alert, r) {
   };
 }
 
-async function checkWatchlistAlerts(results) {
+async function checkWatchlistAlerts(results, { resolveMissingQuotes = false, scanDataStatus = null } = {}) {
   var broadcastToUser = getBroadcastToUser();
   try {
     const { getAllAlertsGrouped } = require('./watchlistAlerts');
     const notifications = require('./notifications');
     const byUser = await getAllAlertsGrouped(); // { userId: { AAPL: {type,...}, ... }, ... }
-    const bySymbol = new Map(results.map((r) => [r.symbol, r]));
+    const bySymbol = new Map(
+      (Array.isArray(results) ? results : [])
+        .map((r) => [normalizeAlertSymbol(r?.symbol), r])
+        .filter(([symbol]) => symbol)
+    );
+    if (resolveMissingQuotes) await addMissingAlertQuotes(bySymbol, byUser);
 
     for (const [userId, alerts] of Object.entries(byUser)) {
       for (const [symbol, alert] of Object.entries(alerts)) {
-        const r = bySymbol.get(symbol);
-        if (!r || !hasVerifiedAlertData(r) || !alertTriggered(alert, r)) continue;
-        const alertPayload = alertNotificationPayload(alert, r);
+        const r = bySymbol.get(normalizeAlertSymbol(symbol));
+        if (!r || !hasVerifiedAlertData(r)) continue;
+        // A partial scan may still contain a fully verified row. If the row
+        // has no per-row quality marker, fail closed instead of guessing that
+        // an unlabelled value is safe to alert on.
+        if (
+          scanDataStatus === 'partial' &&
+          ![r.quoteDataStatus, r.dataQuality, r.dataStatus].some((value) => value != null)
+        )
+          continue;
+        if (!alertTriggered(alert, r)) continue;
+        const alertPayload = alertNotificationPayload(alert, r, scanDataStatus);
         // Consume and persist atomically. If the database cannot record the
         // notification, the alert remains armed for a later retry instead of
         // being lost between a delete and a failed notification write.
@@ -290,7 +374,7 @@ async function runBackgroundScan(options = {}) {
     });
 
     // Check watchlist thresholds
-    await checkWatchlistAlerts(res.results);
+    await checkWatchlistAlerts(res.results, { resolveMissingQuotes: true, scanDataStatus: res.dataStatus || null });
   } catch (e) {
     reportError(e, '[Background] Scan failed');
     // Provider/library errors can contain request URLs or other diagnostic

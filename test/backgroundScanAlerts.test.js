@@ -19,6 +19,7 @@ before(async () => {
 const { setAlert, getWatchlistAlerts } = require('../server/services/watchlistAlerts');
 const { getNotifications } = require('../server/services/notifications');
 const webPush = require('../server/services/webPush');
+const quoteCache = require('../server/services/quoteCache');
 const { checkWatchlistAlerts } = require('../server/services/backgroundScan');
 
 async function makeUser(email) {
@@ -91,6 +92,52 @@ test('checkWatchlistAlerts does not fire when the ratio is below threshold', asy
     assert.strictEqual(pushCalls.length, 0, 'a ratio below threshold must not fire an alert');
   } finally {
     webPush.sendPushToUser = originalSend;
+  }
+});
+
+test('background alert recovery checks armed symbols outside the scanner floor', async () => {
+  const userId = await makeUser('bg-alert-independent-quote@test.local');
+  await setAlert(userId, 'CRM', { type: 'volume', minRatio: 1.2 });
+
+  const pushCalls = [];
+  const originalSend = webPush.sendPushToUser;
+  const originalGetQuotes = quoteCache.getQuotes;
+  webPush.sendPushToUser = (uid, payload) => {
+    pushCalls.push({ uid, payload });
+  };
+  quoteCache.getQuotes = async (symbols) => {
+    assert.ok(symbols.includes('CRM'));
+    const quotes = new Map([
+      [
+        'CRM',
+        {
+          symbol: 'CRM',
+          shortName: 'Salesforce',
+          regularMarketPrice: 300,
+          regularMarketVolume: 1200,
+          averageDailyVolume10Day: 1000,
+          regularMarketChangePercent: 1.4,
+        },
+      ],
+    ]);
+    Object.defineProperties(quotes, {
+      dataAsOf: { value: new Date().toISOString(), enumerable: false },
+      staleSymbols: { value: [], enumerable: false },
+      providerStaleSymbols: { value: [], enumerable: false },
+    });
+    return quotes;
+  };
+
+  try {
+    // CRM is intentionally absent from the scanner result. The alert still
+    // has to evaluate against its own verified quote.
+    await checkWatchlistAlerts([], { resolveMissingQuotes: true });
+    assert.strictEqual(pushCalls.length, 1);
+    assert.strictEqual(pushCalls[0].uid, userId);
+    assert.strictEqual(pushCalls[0].payload.symbol, 'CRM');
+  } finally {
+    webPush.sendPushToUser = originalSend;
+    quoteCache.getQuotes = originalGetQuotes;
   }
 });
 
@@ -233,6 +280,51 @@ test('checkWatchlistAlerts rejects stale or unavailable status from any data-qua
       assert.strictEqual(pushCalls.length, 0);
       assert.ok((await getWatchlistAlerts(userId)).ORCL);
     }
+  } finally {
+    webPush.sendPushToUser = originalSend;
+  }
+});
+
+test('checkWatchlistAlerts does not consume an alert from a partial result row', async () => {
+  const userId = await makeUser('bg-alert-partial-row@test.local');
+  await setAlert(userId, 'ORCL', { type: 'volume', minRatio: 2.0 });
+
+  const pushCalls = [];
+  const originalSend = webPush.sendPushToUser;
+  webPush.sendPushToUser = (uid, payload) => {
+    pushCalls.push({ uid, payload });
+  };
+
+  try {
+    await checkWatchlistAlerts([
+      { symbol: 'ORCL', name: 'Oracle', volumeRatio: 4.0, change: 1.1, price: 180, dataStatus: 'partial' },
+    ]);
+    assert.strictEqual(pushCalls.length, 0);
+    assert.ok((await getWatchlistAlerts(userId)).ORCL, 'partial data must leave the alert armed');
+  } finally {
+    webPush.sendPushToUser = originalSend;
+  }
+});
+
+test('checkWatchlistAlerts sends a labelled alert for a verified row in a partial scan', async () => {
+  const userId = await makeUser('bg-alert-partial-scan-verified@test.local');
+  await setAlert(userId, 'AAPL', { type: 'volume', minRatio: 2.0 });
+
+  const pushCalls = [];
+  const originalSend = webPush.sendPushToUser;
+  webPush.sendPushToUser = (uid, payload) => {
+    pushCalls.push({ uid, payload });
+  };
+
+  try {
+    await checkWatchlistAlerts(
+      [{ symbol: 'AAPL', name: 'Apple', volumeRatio: 3.5, change: 1.2, price: 150, quoteDataStatus: 'complete' }],
+      { scanDataStatus: 'partial' }
+    );
+    assert.strictEqual(pushCalls.length, 1);
+    assert.match(pushCalls[0].payload.title, /Partial data/i);
+    assert.match(pushCalls[0].payload.body, /available data/i);
+    assert.strictEqual((await getWatchlistAlerts(userId)).AAPL, undefined);
   } finally {
     webPush.sendPushToUser = originalSend;
   }

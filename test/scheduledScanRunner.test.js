@@ -204,7 +204,7 @@ test('a partial empty scan does not send a notification without a verified resul
   assert.strictEqual(pushMock.mock.callCount(), 0);
 });
 
-test('a partial scan with rows does not alert with data that is not fully verified', async (t) => {
+test('a partial scan with a verified row sends the available result with a warning', async (t) => {
   const u = await db
     .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
     .run('sched-partial-rows@test.local');
@@ -214,7 +214,40 @@ test('a partial scan with rows does not alert with data that is not fully verifi
     .run(userId, nowHHMM());
 
   t.mock.method(scanner, 'scanTickers', async () => ({
-    results: [{ symbol: 'AAPL', volumeRatio: 3.2 }],
+    results: [
+      { symbol: 'AAPL', volumeRatio: 3.2, quoteDataStatus: 'complete' },
+      { symbol: 'MSFT', volumeRatio: 4.4, quoteDataStatus: 'stale' },
+    ],
+    errors: ['MSFT'],
+    processed: 500,
+    dataStatus: 'partial',
+  }));
+  const pushMock = t.mock.method(webPush, 'sendPushToUser', async () => {});
+
+  await runScheduledScans();
+
+  const notif = await db.prepare('SELECT id FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1').get(userId);
+  assert.ok(notif, 'available verified rows must create a notification');
+  assert.strictEqual(pushMock.mock.callCount(), 1);
+  const stored = await db.prepare('SELECT title, body, results_json FROM notifications WHERE id = ?').get(notif.id);
+  assert.match(stored.title, /Partial data/i);
+  assert.match(stored.body, /may not be fully verified/i);
+  assert.deepStrictEqual(JSON.parse(stored.results_json), [
+    { symbol: 'AAPL', volumeRatio: 3.2, quoteDataStatus: 'complete' },
+  ]);
+});
+
+test('a partial scan with only stale rows does not alert', async (t) => {
+  const u = await db
+    .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
+    .run('sched-partial-stale@test.local');
+  const userId = u.lastInsertRowid;
+  await db
+    .prepare("INSERT INTO scheduled_scans (user_id, scan_type, scan_time, active) VALUES (?, 'capitalFlow', ?, 1)")
+    .run(userId, nowHHMM());
+
+  t.mock.method(scanner, 'scanTickers', async () => ({
+    results: [{ symbol: 'AAPL', volumeRatio: 3.2, quoteDataStatus: 'stale' }],
     errors: ['MSFT'],
     processed: 500,
     dataStatus: 'partial',

@@ -622,6 +622,20 @@ function normalizeScheduledScanResult(scan) {
   };
 }
 
+function hasDisplayableScheduledData(row) {
+  if (!row || !String(row.symbol || '').trim()) return false;
+  const statuses = [row.quoteDataStatus, row.dataQuality, row.dataStatus]
+    .filter((value) => value != null)
+    .map((value) => String(value).toLowerCase());
+  return !statuses.some((status) => ['stale', 'unavailable', 'partial'].includes(status));
+}
+
+function availableScheduledResults(normalized) {
+  const results = Array.isArray(normalized?.results) ? normalized.results : [];
+  if (normalized?.dataStatus !== 'partial') return results;
+  return results.filter(hasDisplayableScheduledData);
+}
+
 function payloadForType(scanType, scan) {
   const results = Array.isArray(scan) ? scan : scan?.results || [];
   const dataStatus = Array.isArray(scan) ? 'complete' : scan?.dataStatus || 'complete';
@@ -642,11 +656,14 @@ function payloadForType(scanType, scan) {
     };
   }
   const partialNote =
-    dataStatus === 'partial' ? ' Some market data could not be verified; review the results with caution.' : '';
+    dataStatus === 'partial'
+      ? ' Some market data was unavailable or delayed. This notification contains available results only; they may not be fully verified. Confirm them independently before relying on them.'
+      : '';
+  const partialTitle = dataStatus === 'partial' ? 'Partial data — ' : '';
   if (scanType === 'maScanner') {
     return results.length > 0
       ? {
-          title: `MA signal detected — ${results[0].symbol}`,
+          title: `${partialTitle}MA signal detected — ${results[0].symbol}`,
           body: `${results.length} stocks near their moving average.${partialNote} Tap to see the full scan.`,
         }
       : { title: 'MA Scanner — Daily Scan', body: 'No MA signals right now. Check back later.' };
@@ -654,7 +671,7 @@ function payloadForType(scanType, scan) {
   if (scanType === 'sectorMoving') {
     return results.length > 0
       ? {
-          title: `Sector flow detected — ${results[0].symbol}`,
+          title: `${partialTitle}Sector flow detected — ${results[0].symbol}`,
           body: `${results.length} sector movers right now.${partialNote} Tap to see the full scan.`,
         }
       : { title: 'Hot Sectors — Daily Scan', body: 'No sector flow right now. Markets look quiet.' };
@@ -663,7 +680,7 @@ function payloadForType(scanType, scan) {
   const leadingRatioLabel = Number.isFinite(leadingRatio) && leadingRatio > 0 ? ` ${leadingRatio.toFixed(1)}×` : '';
   return results.length > 0
     ? {
-        title: `Volume spike detected — ${results[0].symbol}${leadingRatioLabel}`,
+        title: `${partialTitle}Volume spike detected — ${results[0].symbol}${leadingRatioLabel}`,
         body: `${results.length} stocks moving right now.${partialNote} Tap to see the full scan.`,
       }
     : { title: 'Capital Flow — Daily Scan', body: 'No unusual volume right now. Markets look quiet.' };
@@ -673,7 +690,7 @@ const SCAN_URL = { capitalFlow: '/scanner', maScanner: '/ma', sectorMoving: '/fl
 
 async function notifyScheduledUser(sched, scan) {
   const normalized = normalizeScheduledScanResult(scan);
-  const { results } = normalized;
+  const results = availableScheduledResults(normalized);
 
   // A one-time schedule (scan_date set) has done its one job — deactivate it
   // the moment it fires so it can't run again. A recurring one (scan_date
@@ -686,20 +703,19 @@ async function notifyScheduledUser(sched, scan) {
     )
     .run(Math.floor(Date.now() / 1000), results.length, sched.id);
 
-  // A scheduled notification is an actionable signal, not a provider-health
-  // report. Never send a customer an alert when the scan is partial/unavailable
-  // or when it has no matching rows: in those cases there is no verified stock
-  // snapshot for the notification to open. The old behavior sent a
-  // "Partial data" push with an empty results_json, which is exactly the
-  // notification that appeared without any data in the app.
-  if (normalized.dataStatus !== 'complete' || results.length === 0) {
+  // A total provider outage, or a partial run with no usable rows, is not a
+  // customer result. A partial run with individually usable rows is different:
+  // those rows are useful and are persisted in the notification, while the
+  // payload explicitly says that the snapshot is incomplete.
+  if (normalized.dataStatus === 'unavailable' || results.length === 0) {
     console.log(
-      `[ScheduledScans] scan_id=${sched.id} notification suppressed status=${normalized.dataStatus} results=${results.length}`
+      `[ScheduledScans] scan_id=${sched.id} notification suppressed status=${normalized.dataStatus} ` +
+        `available=${results.length}`
     );
     return;
   }
 
-  const { title, body } = payloadForType(sched.scan_type, normalized);
+  const { title, body } = payloadForType(sched.scan_type, { ...normalized, results });
 
   // Persist to the in-app bell FIRST, so the user has proof the scheduled
   // scan actually ran even if they never granted push permission (or the

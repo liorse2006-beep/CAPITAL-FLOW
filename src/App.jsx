@@ -402,6 +402,23 @@ function App() {
     [refreshServerNotifications, user]
   );
 
+  // SSE and Web Push are the fast paths, but neither should be the only way
+  // an active browser learns about an alert. Poll the durable notification
+  // history while the tab is visible so a reconnect, sleeping mobile browser,
+  // or blocked push permission cannot make a delivered alert appear lost.
+  useEffect(
+    function () {
+      if (!user) return;
+      const timer = window.setInterval(function () {
+        if (document.visibilityState === 'visible') refreshServerNotifications();
+      }, 30_000);
+      return function () {
+        window.clearInterval(timer);
+      };
+    },
+    [refreshServerNotifications, user]
+  );
+
   /* New filter state */
   const [minChange] = useState('');
   const [maxChange] = useState('');
@@ -1409,6 +1426,10 @@ function App() {
 
       <PushPermissionPrompt user={user} canNotify={eliteAccess} />
       <InstallPrompt />
+
+      <div className="beta-release-fixed" aria-label="Beta version 0.1.0">
+        BETA · v0.1.0
+      </div>
 
       {showUpgradeModal && (
         <UpgradeModal

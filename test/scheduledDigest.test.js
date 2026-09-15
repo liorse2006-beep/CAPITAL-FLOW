@@ -58,6 +58,18 @@ test('buildDigestPayload never formats a malformed volume ratio as invented nume
   assert.match(payload.body, /No stocks crossed/);
 });
 
+test('buildDigestPayload labels a partial digest and keeps verified available matches', () => {
+  const payload = buildDigestPayload(
+    { AAA: 2 },
+    [{ symbol: 'AAA', volumeRatio: 3, quoteDataStatus: 'complete' }],
+    '10:00',
+    'partial'
+  );
+  assert.strictEqual(payload.matched, true);
+  assert.match(payload.title, /Partial data/i);
+  assert.match(payload.body, /may not be fully verified/i);
+});
+
 test('runDigestTick sends exactly one push per user per day, even if the tick fires twice', async () => {
   const u = await makeUser('digest-a@test.local');
   const now = israelNow();
@@ -67,6 +79,7 @@ test('runDigestTick sends exactly one push per user per day, even if the tick fi
 
   backgroundCache.results = [{ symbol: 'AAA', volumeRatio: 3 }];
   backgroundCache.scanTime = new Date().toISOString();
+  backgroundCache.dataStatus = 'complete';
 
   let calls = 0;
   const original = webpushLib.sendNotification;
@@ -91,6 +104,7 @@ test('runDigestTick skips users with no watchlist thresholds set', async () => {
 
   backgroundCache.results = [{ symbol: 'AAA', volumeRatio: 3 }];
   backgroundCache.scanTime = new Date().toISOString();
+  backgroundCache.dataStatus = 'complete';
 
   let calls = 0;
   const original = webpushLib.sendNotification;

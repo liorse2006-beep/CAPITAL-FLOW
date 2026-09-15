@@ -773,7 +773,7 @@ export default function ScannerPage({
               <div className={'data-status-banner ' + scanDataStatus} role="status">
                 {scanDataStatus === 'unavailable'
                   ? 'Market data is temporarily unavailable. Please try again in a few minutes.'
-                  : 'Market data may be delayed or estimated. Confirm all information before making any decision.'}
+                  : 'Some market data is unavailable, delayed, or incomplete. The results below show matches found from currently available data and may not be fully verified. Confirm all information independently before relying on it.'}
               </div>
             )}
 
@@ -790,7 +790,7 @@ export default function ScannerPage({
                 {scanDataStatus === 'unavailable'
                   ? 'No verified market data is available right now. Please try again in a few minutes.'
                   : scanDataStatus === 'partial'
-                    ? 'No verified matches are available because some market data was unavailable. Please try again in a few minutes.'
+                    ? 'No matching rows are available from the market data returned for this scan. Some symbols could not be evaluated. Please try again in a few minutes.'
                     : 'No stocks matched your filters.'}
               </div>
             ) : (

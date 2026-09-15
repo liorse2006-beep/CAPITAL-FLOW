@@ -169,6 +169,9 @@ export default function Topbar({
             <h1>
               <strong>Capital</strong> Flow
             </h1>
+            <span className="product-release-badge" aria-label="Beta version 0.1.0">
+              BETA · v0.1.0
+            </span>
           </div>
         </div>
         <div className="topbar-right">

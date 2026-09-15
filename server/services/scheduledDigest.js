@@ -18,6 +18,14 @@ function formatDigestRatio(value) {
   return formatted + 'x';
 }
 
+function isUsableDigestRow(row) {
+  if (!row || !String(row.symbol || '').trim()) return false;
+  const statuses = [row.quoteDataStatus, row.dataQuality, row.dataStatus]
+    .filter((value) => value != null)
+    .map((value) => String(value).toLowerCase());
+  return !statuses.some((status) => ['stale', 'unavailable', 'partial'].includes(status));
+}
+
 /** Current Israel local time as "HH:MM" and "YYYY-MM-DD", for matching against users.notification_time */
 function israelNow() {
   var parts = new Intl.DateTimeFormat('en-CA', {
@@ -41,9 +49,10 @@ function israelNow() {
 var sentToday = new Set();
 var sentDate = null;
 
-function buildDigestPayload(thresholds, results, asOf) {
+function buildDigestPayload(thresholds, results, asOf, dataStatus = 'complete') {
+  const availableResults = (Array.isArray(results) ? results : []).filter(isUsableDigestRow);
   var bySymbol = new Map(
-    results.map(function (r) {
+    availableResults.map(function (r) {
       return [r.symbol, r];
     })
   );
@@ -58,9 +67,13 @@ function buildDigestPayload(thresholds, results, asOf) {
   });
 
   if (matches.length === 0) {
+    const partialNoMatch =
+      dataStatus === 'partial'
+        ? ' No verified threshold crossings were found in the available data; some market data could not be verified.'
+        : '';
     return {
       title: 'Capital Flow — Daily Scan',
-      body: 'No stocks crossed your thresholds today (as of ' + asOf + ').',
+      body: 'No stocks crossed your thresholds today (as of ' + asOf + ').' + partialNoMatch,
       ts: Date.now(),
       matched: false,
     };
@@ -71,9 +84,18 @@ function buildDigestPayload(thresholds, results, asOf) {
       return r.symbol + ' ' + formatDigestRatio(r.volumeRatio);
     })
     .join(', ');
+  const partialNote =
+    dataStatus === 'partial'
+      ? ' Some market data was unavailable or delayed; this digest contains available results only and may not be fully verified. Confirm independently.'
+      : '';
   return {
-    title: matches.length + ' stock' + (matches.length > 1 ? 's' : '') + ' crossed your threshold',
-    body: summary + (matches.length > 5 ? ', +' + (matches.length - 5) + ' more' : ''),
+    title:
+      (dataStatus === 'partial' ? 'Partial data — ' : '') +
+      matches.length +
+      ' stock' +
+      (matches.length > 1 ? 's' : '') +
+      ' crossed your threshold',
+    body: summary + (matches.length > 5 ? ', +' + (matches.length - 5) + ' more' : '') + '.' + partialNote,
     ts: Date.now(),
     matched: true,
   };
@@ -91,6 +113,7 @@ async function runDigestTick() {
 
   var backgroundCache = require('./backgroundScan').backgroundCache;
   var results = backgroundCache.results || [];
+  var dataStatus = backgroundCache.dataStatus || 'unavailable';
   var asOf = backgroundCache.scanTime
     ? new Date(backgroundCache.scanTime).toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' })
     : 'unknown';
@@ -110,7 +133,8 @@ async function runDigestTick() {
       batch.map(function (u) {
         var thresholds = allAlerts[u.id] || {};
         if (Object.keys(thresholds).length === 0) return; // nothing to check against
-        var payload = buildDigestPayload(thresholds, results, asOf);
+        if (dataStatus === 'unavailable' || results.length === 0) return;
+        var payload = buildDigestPayload(thresholds, results, asOf, dataStatus);
         var notificationPromise = payload.matched
           ? addNotification(u.id, { title: payload.title, body: payload.body }).catch(function (err) {
               reportError(err, '[scheduled digest notification]');
