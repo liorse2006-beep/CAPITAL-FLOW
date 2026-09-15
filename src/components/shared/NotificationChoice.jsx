@@ -15,7 +15,7 @@ export default function NotificationChoice({
   actionBusy = false,
   title = "Notifications aren't enabled",
   supportedDescription = 'Would you like to enable push notifications so you receive this result even when the app is closed? If not, it will still be saved in Notifications.',
-  unsupportedDescription = 'Push notifications are not available in this browser. The item will still be saved and will appear in Notifications when you return. On iPhone, add the site to your Home Screen, open it there, and enable notifications.',
+  unsupportedDescription = 'Push notifications are not available in this browser. On iPhone: add Capital Flow to your Home Screen, open it from the new icon, and allow notifications.',
   enableLabel = 'Enable notifications',
   continueLabel = 'Continue without push',
   cancelLabel = 'Back',
