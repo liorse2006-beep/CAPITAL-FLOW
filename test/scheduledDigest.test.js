@@ -37,28 +37,30 @@ test('israelNow returns HH:MM and YYYY-MM-DD shaped strings', () => {
   assert.match(now.date, /^\d{4}-\d{2}-\d{2}$/);
 });
 
-test('buildDigestPayload summarizes only the symbols that crossed their threshold, capped at 5', () => {
+test('buildDigestPayload uses the concise signal copy when a threshold is crossed', () => {
   const results = [
     { symbol: 'AAA', volumeRatio: 3 },
     { symbol: 'BBB', volumeRatio: 1 }, // below its threshold — must not appear
   ];
   const payload = buildDigestPayload({ AAA: 2, BBB: 2 }, results, 'now');
-  assert.match(payload.body, /AAA 3x/);
-  assert.doesNotMatch(payload.body, /BBB/);
+  assert.strictEqual(payload.title, 'Capital Flow Alert');
+  assert.strictEqual(payload.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.strictEqual(payload.matched, true);
 });
 
 test('buildDigestPayload reports clearly when nothing crossed the threshold', () => {
   const payload = buildDigestPayload({ AAA: 5 }, [{ symbol: 'AAA', volumeRatio: 1 }], '10:00');
-  assert.match(payload.body, /No stocks crossed/);
+  assert.strictEqual(payload.title, 'Capital Flow');
+  assert.strictEqual(payload.body, 'No market signals found in this scan. Open Capital Flow to review.');
 });
 
 test('buildDigestPayload never formats a malformed volume ratio as invented numeric data', () => {
   const payload = buildDigestPayload({ AAA: 1 }, [{ symbol: 'AAA', volumeRatio: 'not-a-number' }], '10:00');
   assert.strictEqual(payload.matched, false);
-  assert.match(payload.body, /No stocks crossed/);
+  assert.strictEqual(payload.body, 'No market signals found in this scan. Open Capital Flow to review.');
 });
 
-test('buildDigestPayload labels a partial digest and keeps verified available matches', () => {
+test('buildDigestPayload uses the concise signal copy for a verified match in a partial digest', () => {
   const payload = buildDigestPayload(
     { AAA: 2 },
     [{ symbol: 'AAA', volumeRatio: 3, quoteDataStatus: 'complete' }],
@@ -66,8 +68,9 @@ test('buildDigestPayload labels a partial digest and keeps verified available ma
     'partial'
   );
   assert.strictEqual(payload.matched, true);
-  assert.match(payload.title, /Partial data/i);
-  assert.match(payload.body, /may not be fully verified/i);
+  assert.strictEqual(payload.title, 'Capital Flow Alert');
+  assert.strictEqual(payload.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.doesNotMatch(payload.title, /Partial data/i);
 });
 
 test('runDigestTick sends exactly one push per user per day, even if the tick fires twice', async () => {

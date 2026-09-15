@@ -190,44 +190,20 @@ async function addMissingAlertQuotes(bySymbol, alertsByUser) {
   }
 }
 
-function alertNotificationPayload(alert, r, scanDataStatus) {
-  const numericChange =
-    typeof r?.change === 'number' || (typeof r?.change === 'string' && r.change.trim() !== '')
-      ? Number(r.change)
-      : null;
-  const change = Number.isFinite(numericChange)
-    ? `${numericChange >= 0 ? '+' : ''}${numericChange.toFixed(2)}%`
-    : 'change unavailable';
-  const numericPrice =
-    typeof r?.price === 'number' || (typeof r?.price === 'string' && r.price.trim() !== '') ? Number(r.price) : null;
-  const price = Number.isFinite(numericPrice) && numericPrice > 0 ? `$${numericPrice.toFixed(2)}` : 'price unavailable';
-  const partialPrefix = scanDataStatus === 'partial' ? 'Partial data — ' : '';
-  const partialNote =
-    scanDataStatus === 'partial'
-      ? ' Some market data was unavailable or delayed; this alert uses the available data for this symbol only. Confirm independently.'
-      : '';
-  if (alert.type === 'price') {
-    return {
-      symbol: r.symbol,
-      name: r.name,
-      title: `${partialPrefix}${r.symbol} Price Alert`,
-      body: `Crossed $${alert.targetPrice} — now ${price} (${change}).${partialNote}`,
-      targetPrice: alert.targetPrice,
-      change: r.change,
-      price: r.price,
-      ts: Date.now(),
-    };
-  }
-  return {
+function alertNotificationPayload(alert, r) {
+  const payload = {
     symbol: r.symbol,
     name: r.name,
-    title: `${partialPrefix}${r.symbol} Volume Spike`,
-    body: `${r.volumeRatio}x avg volume — ${change} @ ${price}.${partialNote}`,
-    volumeRatio: r.volumeRatio,
+    title: 'Capital Flow Alert',
+    body: 'New market signal detected. Open Capital Flow to view it.',
     change: r.change,
     price: r.price,
     ts: Date.now(),
   };
+  if (alert.type === 'price') {
+    return { ...payload, targetPrice: alert.targetPrice };
+  }
+  return { ...payload, volumeRatio: r.volumeRatio };
 }
 
 async function checkWatchlistAlerts(results, { resolveMissingQuotes = false, scanDataStatus = null } = {}) {
@@ -256,7 +232,7 @@ async function checkWatchlistAlerts(results, { resolveMissingQuotes = false, sca
         )
           continue;
         if (!alertTriggered(alert, r)) continue;
-        const alertPayload = alertNotificationPayload(alert, r, scanDataStatus);
+        const alertPayload = alertNotificationPayload(alert, r);
         // Consume and persist atomically. If the database cannot record the
         // notification, the alert remains armed for a later retry instead of
         // being lost between a delete and a failed notification write.

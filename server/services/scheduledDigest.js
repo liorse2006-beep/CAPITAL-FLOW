@@ -11,13 +11,6 @@ const { reportError } = require('../utils/reportError');
 // so one slow push endpoint can't stall everyone behind it.
 const DIGEST_CONCURRENCY = 20;
 
-function formatDigestRatio(value) {
-  var ratio = Number(value);
-  if (!Number.isFinite(ratio) || ratio <= 0) return 'unavailable';
-  var formatted = Number.isInteger(ratio) ? String(ratio) : ratio.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
-  return formatted + 'x';
-}
-
 function isUsableDigestRow(row) {
   if (!row || !String(row.symbol || '').trim()) return false;
   const statuses = [row.quoteDataStatus, row.dataQuality, row.dataStatus]
@@ -66,38 +59,27 @@ function buildDigestPayload(thresholds, results, asOf, dataStatus = 'complete') 
     }
   });
 
-  if (matches.length === 0) {
-    const partialNoMatch =
-      dataStatus === 'partial'
-        ? ' No verified threshold crossings were found in the available data; some market data could not be verified.'
-        : '';
+  if (matches.length > 0) {
     return {
-      title: 'Capital Flow — Daily Scan',
-      body: 'No stocks crossed your thresholds today (as of ' + asOf + ').' + partialNoMatch,
+      title: 'Capital Flow Alert',
+      body: 'New market signal detected. Open Capital Flow to view it.',
+      ts: Date.now(),
+      matched: true,
+    };
+  }
+  if (dataStatus === 'complete') {
+    return {
+      title: 'Capital Flow',
+      body: 'No market signals found in this scan. Open Capital Flow to review.',
       ts: Date.now(),
       matched: false,
     };
   }
-  var summary = matches
-    .slice(0, 5)
-    .map(function (r) {
-      return r.symbol + ' ' + formatDigestRatio(r.volumeRatio);
-    })
-    .join(', ');
-  const partialNote =
-    dataStatus === 'partial'
-      ? ' Some market data was unavailable or delayed; this digest contains available results only and may not be fully verified. Confirm independently.'
-      : '';
   return {
-    title:
-      (dataStatus === 'partial' ? 'Partial data — ' : '') +
-      matches.length +
-      ' stock' +
-      (matches.length > 1 ? 's' : '') +
-      ' crossed your threshold',
-    body: summary + (matches.length > 5 ? ', +' + (matches.length - 5) + ' more' : '') + '.' + partialNote,
+    title: 'Capital Flow',
+    body: "We couldn't verify a market signal this time. Open Capital Flow to try again.",
     ts: Date.now(),
-    matched: true,
+    matched: false,
   };
 }
 
@@ -133,13 +115,12 @@ async function runDigestTick() {
       batch.map(function (u) {
         var thresholds = allAlerts[u.id] || {};
         if (Object.keys(thresholds).length === 0) return; // nothing to check against
-        if (dataStatus === 'unavailable' || results.length === 0) return;
         var payload = buildDigestPayload(thresholds, results, asOf, dataStatus);
-        var notificationPromise = payload.matched
-          ? addNotification(u.id, { title: payload.title, body: payload.body }).catch(function (err) {
-              reportError(err, '[scheduled digest notification]');
-            })
-          : Promise.resolve();
+        var notificationPromise = addNotification(u.id, { title: payload.title, body: payload.body }).catch(
+          function (err) {
+            reportError(err, '[scheduled digest notification]');
+          }
+        );
         var pushPromise = sendPushToUser(u.id, payload).catch(function (err) {
           reportError(err, '[scheduled digest push]');
         });
