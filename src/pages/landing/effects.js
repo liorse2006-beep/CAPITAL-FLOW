@@ -1729,15 +1729,16 @@ function mountTrustMarquee(el, assets, cleanupFns) {
         logo.dataset.src = '/landing-logo/' + encodeURIComponent(asset.symbol);
         logo.alt = '';
         logo.decoding = 'async';
-        // The marquee has two copies of the maintained logo set. Lazy loading
-        // keeps the browser from firing hundreds of cross-origin requests at
-        // once, which can trigger CDN throttling on slower devices.
-        logo.loading = 'lazy';
+        // The source is same-origin and bounded by the server-side proxy. Do
+        // not combine native lazy-loading with a transformed marquee: on
+        // mobile, browsers can keep translated items out of the lazy-load
+        // viewport even while they are about to enter the visible strip.
+        logo.loading = 'eager';
 
         const fallback = document.createElement('span');
         fallback.className = 'cf-marq-logo-fallback';
         fallback.setAttribute('aria-hidden', 'true');
-        fallback.innerHTML = '<i></i><i></i><i></i>';
+        fallback.textContent = asset.symbol;
 
         logo.addEventListener(
           'load',
@@ -1777,42 +1778,31 @@ function mountTrustMarquee(el, assets, cleanupFns) {
 
   const logoQueue = [];
   let logoTimer = 0;
+  const LOGO_BATCH_SIZE = 8;
+  const LOGO_BATCH_DELAY_MS = 90;
   const enqueueLogo = (logo) => {
     if (!logo.dataset.src || logo.getAttribute('src') || logoQueue.includes(logo)) return;
     logoQueue.push(logo);
     if (logoTimer) return;
-    const loadNext = () => {
+    const loadNextBatch = () => {
       logoTimer = 0;
-      const next = logoQueue.shift();
-      if (!next) return;
-      loadLogo(next);
-      logoTimer = window.setTimeout(loadNext, 180);
+      for (let i = 0; i < LOGO_BATCH_SIZE; i += 1) {
+        const next = logoQueue.shift();
+        if (!next) break;
+        loadLogo(next);
+      }
+      if (logoQueue.length) logoTimer = window.setTimeout(loadNextBatch, LOGO_BATCH_DELAY_MS);
     };
-    logoTimer = window.setTimeout(loadNext, 0);
+    logoTimer = window.setTimeout(loadNextBatch, 0);
   };
 
-  let logoObserver = null;
-  if (typeof IntersectionObserver === 'function') {
-    logoObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          enqueueLogo(entry.target);
-          logoObserver.unobserve(entry.target);
-        });
-      },
-      { root: null, rootMargin: '120px 260px', threshold: 0.01 }
-    );
-    pendingLogos.forEach((logo) => logoObserver.observe(logo));
-  } else {
-    // Older browsers still avoid a request burst by feeding the same paced
-    // queue instead of assigning all 600 cross-origin URLs immediately.
-    pendingLogos.forEach(enqueueLogo);
-  }
+  // A small paced batch keeps the first viewport responsive while ensuring
+  // both copies of the marquee are populated independently of CSS transforms
+  // and IntersectionObserver quirks on mobile browsers.
+  pendingLogos.forEach(enqueueLogo);
 
   el.style.setProperty('--cf-marq-duration', Math.max(26, assets.length * 0.48) + 's');
   cleanupFns.push(() => {
-    logoObserver?.disconnect();
     if (logoTimer) window.clearTimeout(logoTimer);
     logoQueue.length = 0;
     el.textContent = '';

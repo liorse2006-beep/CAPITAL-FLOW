@@ -1145,27 +1145,21 @@
   display: none;
 }
 .cf-landing-page .cf-marq-logo-fallback {
-  display: grid;
-  place-items: center;
-  gap: 2px;
-  width: 14px;
-  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 2px;
+  color: var(--accent);
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 .cf-landing-page .cf-marq-logo-fallback[hidden] {
   display: none;
-}
-.cf-landing-page .cf-marq-logo-fallback i {
-  display: block;
-  width: 14px;
-  height: 3px;
-  border-radius: 999px;
-  background: var(--accent);
-}
-.cf-landing-page .cf-marq-logo-fallback i:nth-child(2) {
-  width: 11px;
-}
-.cf-landing-page .cf-marq-logo-fallback i:nth-child(3) {
-  width: 8px;
 }
 @media (prefers-reduced-motion: reduce) {
   .cf-landing-page .cf-marq {

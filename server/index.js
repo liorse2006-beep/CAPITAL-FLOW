@@ -259,12 +259,12 @@ app.get('/landing-logo/:symbol', async (req, res) => {
       .then(async (upstream) => {
         if (!upstream.ok) return { status: upstream.status, body: null };
         const contentType = upstream.headers.get('content-type') || '';
-        if (!/^image\/svg\+xml(?:;|$)/i.test(contentType)) {
+        if (!/^image\/(?:svg\+xml|png|jpeg|webp)(?:;|$)/i.test(contentType)) {
           return { status: 502, body: null };
         }
         const body = Buffer.from(await upstream.arrayBuffer());
         if (!body.length || body.length > 100_000) return { status: 502, body: null };
-        return { status: 200, body };
+        return { status: 200, body, contentType: contentType.split(';', 1)[0] };
       })
       .catch(() => ({ status: 502, body: null }))
       .finally(() => clearTimeout(timeout));
@@ -279,13 +279,22 @@ app.get('/landing-logo/:symbol', async (req, res) => {
 
   const logo = await logoPromise;
   if (logo.status !== 200 || !logo.body) {
+    // Do not pin a transient upstream timeout/5xx in the process cache for
+    // the lifetime of the worker. Keep genuine 404s cached so retired
+    // symbols do not cause a retry storm, but allow a later marquee load to
+    // recover after a temporary CDN failure.
+    if (logo.status >= 500 && landingLogoCache.get(symbol) === logoPromise) {
+      setTimeout(() => {
+        if (landingLogoCache.get(symbol) === logoPromise) landingLogoCache.delete(symbol);
+      }, 15_000).unref?.();
+    }
     return res
       .status(logo.status === 404 ? 404 : 502)
       .type('text/plain')
       .send('Logo unavailable');
   }
 
-  res.setHeader('Content-Type', 'image/svg+xml');
+  res.setHeader('Content-Type', logo.contentType || 'image/svg+xml');
   res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   return res.send(logo.body);
