@@ -15218,28 +15218,39 @@ html.a11y-highlight-links a {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   FINAL MOBILE SURFACE GUARDRAILS
+   FINAL NOTIFICATION SURFACE GUARDRAILS
 
-   The application document is RTL for the Hebrew public surface, while the
-   authenticated product controls are English. These rules keep the controls
-   in their existing visual order, but make anchored menus use the full
-   topbar as their containing block. Previously the bell/profile wrappers
-   were the containing blocks; in RTL the bell sits at the inline-start edge,
-   so a right-aligned 360px panel was rendered mostly outside the viewport.
+   The authenticated app is an English/LTR surface. The bell sits at the
+   visual right edge of the topbar, so the desktop panel must anchor to the
+   wrapper's right edge; anchoring it with left: 0 makes the panel grow out of
+   the viewport. On mobile the action row becomes the containing block and the
+   panel uses the row's full available width instead.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .alert-bell-wrap {
   position: relative;
 }
 
-/* The bell is at the visual start of the RTL action row. Opening toward the
-   visual end keeps the panel inside the app on both desktop and narrow
-   screens; the mobile override below expands it to the available width. */
+/* Keep the panel's far edge aligned with the bell's far edge. */
 .alert-panel {
-  left: 0;
-  right: auto;
+  left: auto;
+  right: 0;
   direction: ltr;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  max-height: min(520px, calc(100dvh - 96px));
+}
+
+.alert-panel-header,
+.alert-panel-footer {
+  flex: 0 0 auto;
+}
+
+.alert-panel-list {
+  min-height: 0;
+  flex: 1 1 auto;
+  max-height: none;
 }
 
 .topbar-profile-menu {
@@ -15310,7 +15321,7 @@ html.a11y-highlight-links a {
   .alert-panel {
     top: calc(100% + 8px);
     left: 0;
-    right: auto;
+    right: 0;
     width: 100%;
     max-width: none;
     max-height: min(520px, calc(100dvh - 124px));

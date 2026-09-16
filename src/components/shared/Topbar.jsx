@@ -185,13 +185,7 @@ export default function Topbar({
           />
           {isAdmin && (
             <>
-              <a
-                className="topbar-admin-btn"
-                href="/admin"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Admin panel"
-              >
+              <a className="topbar-admin-btn" href="/admin" title="Admin panel">
                 Admin
               </a>
               <a

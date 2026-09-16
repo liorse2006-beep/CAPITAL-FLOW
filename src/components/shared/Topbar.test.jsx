@@ -69,7 +69,9 @@ describe('Topbar tier badge', () => {
 
   it('shows Admin and Status links only for the configured admin user', () => {
     render(<Topbar {...baseProps({ user: { id: 1, email: 'admin@example.com', is_admin: true } })} />);
-    expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin');
+    const adminLink = screen.getByRole('link', { name: 'Admin' });
+    expect(adminLink).toHaveAttribute('href', '/admin');
+    expect(adminLink).not.toHaveAttribute('target', '_blank');
     expect(screen.getByRole('link', { name: 'Status' })).toHaveAttribute(
       'href',
       'https://status.capitalflow.vip/status'
