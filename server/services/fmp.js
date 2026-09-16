@@ -23,6 +23,7 @@ const quoteCache = new Map();
 const inFlightRequests = new Map();
 let batchRestrictedUntil = 0;
 let singleQuoteRequestTimes = [];
+let batchProbePromise = null;
 
 function normalizeSymbol(value) {
   return String(value || '')
@@ -96,9 +97,9 @@ function normalizeFmpQuote(raw, requestedSymbol) {
   };
 }
 
-async function requestJson(path) {
+async function requestJson(path, { useBreaker = true } = {}) {
   if (!FMP_API_KEY) return null;
-  return breaker.execute(async () => {
+  const request = async () => {
     const response = await fetchWithTimeout(
       `${BASE_URL}${path}`,
       {
@@ -118,7 +119,8 @@ async function requestJson(path) {
     }
     const body = await response.json();
     return body && typeof body === 'object' ? body : null;
-  });
+  };
+  return useBreaker ? breaker.execute(request) : request();
 }
 
 async function mapWithConcurrency(items, limit, worker) {
@@ -158,6 +160,27 @@ function reserveSingleQuoteSymbols(symbols) {
   return selected;
 }
 
+async function requestBatchQuotes(symbols) {
+  if (Date.now() < batchRestrictedUntil) return null;
+  if (!batchProbePromise) {
+    batchProbePromise = requestJson(`/batch-quote?symbols=${encodeURIComponent(symbols.join(','))}`, {
+      // A 402/403 here means the account lacks batch entitlement. It is not a
+      // provider outage and must not open the FMP circuit breaker.
+      useBreaker: false,
+    })
+      .catch((error) => {
+        if ([402, 403].includes(Number(error?.status))) {
+          batchRestrictedUntil = Date.now() + BATCH_CAPABILITY_TTL_MS;
+        }
+        return null;
+      })
+      .finally(() => {
+        batchProbePromise = null;
+      });
+  }
+  return batchProbePromise;
+}
+
 async function loadQuotes(symbols) {
   const result = new Map();
   const missing = [];
@@ -173,15 +196,8 @@ async function loadQuotes(symbols) {
     let body = null;
     let batchRestricted = Date.now() < batchRestrictedUntil;
     if (!batchRestricted) {
-      try {
-        body = await requestJson(`/batch-quote?symbols=${encodeURIComponent(missing.join(','))}`);
-      } catch (error) {
-        // FMP accounts can expose the single quote endpoint while restricting
-        // batch delivery. Remember that capability for a short period so a
-        // wide scan does not repeatedly spend calls on the same 402 response.
-        batchRestricted = [402, 403].includes(Number(error?.status));
-        if (batchRestricted) batchRestrictedUntil = Date.now() + BATCH_CAPABILITY_TTL_MS;
-      }
+      body = await requestBatchQuotes(missing);
+      batchRestricted = Date.now() < batchRestrictedUntil;
     }
     const requestedByComparable = new Map(missing.map((symbol) => [comparableSymbol(symbol), symbol]));
     extractQuoteRows(body).forEach((raw) => {
@@ -234,6 +250,7 @@ function clearCache() {
   inFlightRequests.clear();
   batchRestrictedUntil = 0;
   singleQuoteRequestTimes = [];
+  batchProbePromise = null;
 }
 
 module.exports = {
