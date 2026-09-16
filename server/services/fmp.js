@@ -11,9 +11,18 @@ const REQUEST_TIMEOUT_MS = 8000;
 const QUOTE_CACHE_TTL_MS = 60 * 1000;
 const MAX_BATCH_SYMBOLS = 100;
 const SINGLE_QUOTE_CONCURRENCY = 4;
+// Starter exposes the single-symbol quote endpoint but not batch delivery.
+// Keep a conservative in-process budget so a wide scan cannot consume the
+// entire provider minute and turn every other user into a 429 response.
+const BATCH_CAPABILITY_TTL_MS = 5 * 60 * 1000;
+const MAX_SINGLE_QUOTE_FALLBACK_SYMBOLS = 25;
+const SINGLE_QUOTE_WINDOW_MS = 60 * 1000;
+const SINGLE_QUOTE_BUDGET_PER_WINDOW = 240;
 const breaker = createCircuitBreaker('fmp-market-data', { failureThreshold: 5, cooldownMs: 20_000 });
 const quoteCache = new Map();
 const inFlightRequests = new Map();
+let batchRestrictedUntil = 0;
+let singleQuoteRequestTimes = [];
 
 function normalizeSymbol(value) {
   return String(value || '')
@@ -128,14 +137,25 @@ async function mapWithConcurrency(items, limit, worker) {
 async function loadSingleQuote(symbol) {
   try {
     const body = await requestJson(`/quote?symbol=${encodeURIComponent(symbol)}`);
-    return extractQuoteRows(body)
-      .map((raw) => normalizeFmpQuote(raw, symbol))
-      .find(Boolean) || null;
+    return (
+      extractQuoteRows(body)
+        .map((raw) => normalizeFmpQuote(raw, symbol))
+        .find(Boolean) || null
+    );
   } catch (_) {
     // Keep provider details and the key server-side. Missing rows remain
     // missing so the caller can report partial/unavailable data truthfully.
     return null;
   }
+}
+
+function reserveSingleQuoteSymbols(symbols) {
+  const now = Date.now();
+  singleQuoteRequestTimes = singleQuoteRequestTimes.filter((timestamp) => now - timestamp < SINGLE_QUOTE_WINDOW_MS);
+  const available = Math.max(0, SINGLE_QUOTE_BUDGET_PER_WINDOW - singleQuoteRequestTimes.length);
+  const selected = symbols.slice(0, Math.min(MAX_SINGLE_QUOTE_FALLBACK_SYMBOLS, available));
+  singleQuoteRequestTimes.push(...selected.map(() => now));
+  return selected;
 }
 
 async function loadQuotes(symbols) {
@@ -151,14 +171,17 @@ async function loadQuotes(symbols) {
 
   if (missing.length > 0) {
     let body = null;
-    let batchRestricted = false;
-    try {
-      body = await requestJson(`/batch-quote?symbols=${encodeURIComponent(missing.join(','))}`);
-    } catch (error) {
-      // FMP accounts can expose the single quote endpoint while restricting
-      // batch delivery. This is a subscription capability, not a reason to
-      // demote FMP behind another provider.
-      batchRestricted = [402, 403].includes(Number(error?.status));
+    let batchRestricted = Date.now() < batchRestrictedUntil;
+    if (!batchRestricted) {
+      try {
+        body = await requestJson(`/batch-quote?symbols=${encodeURIComponent(missing.join(','))}`);
+      } catch (error) {
+        // FMP accounts can expose the single quote endpoint while restricting
+        // batch delivery. Remember that capability for a short period so a
+        // wide scan does not repeatedly spend calls on the same 402 response.
+        batchRestricted = [402, 403].includes(Number(error?.status));
+        if (batchRestricted) batchRestrictedUntil = Date.now() + BATCH_CAPABILITY_TTL_MS;
+      }
     }
     const requestedByComparable = new Map(missing.map((symbol) => [comparableSymbol(symbol), symbol]));
     extractQuoteRows(body).forEach((raw) => {
@@ -172,7 +195,11 @@ async function loadQuotes(symbols) {
     });
 
     if (batchRestricted) {
-      const singleRows = await mapWithConcurrency(missing, SINGLE_QUOTE_CONCURRENCY, loadSingleQuote);
+      const singleRows = await mapWithConcurrency(
+        reserveSingleQuoteSymbols(missing),
+        SINGLE_QUOTE_CONCURRENCY,
+        loadSingleQuote
+      );
       singleRows.filter(Boolean).forEach((normalized) => {
         quoteCache.set(normalized.symbol, { data: normalized, fetchedAt: Date.now() });
         result.set(normalized.symbol, normalized);
@@ -205,6 +232,8 @@ function isConfigured() {
 function clearCache() {
   quoteCache.clear();
   inFlightRequests.clear();
+  batchRestrictedUntil = 0;
+  singleQuoteRequestTimes = [];
 }
 
 module.exports = {

@@ -75,6 +75,27 @@ test('FMP falls back to server-side single quotes when batch delivery is restric
   assert.ok(requestedUrls.every((url) => !url.includes(process.env.FMP_API_KEY)));
 });
 
+test('FMP caps single-quote fallback calls instead of exhausting a Starter-minute budget', async (t) => {
+  const symbols = Array.from({ length: 30 }, (_, index) => `AUDIT_FMP_BUDGET_${index}`);
+  let singleCalls = 0;
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(String(options?.headers?.apikey || ''), process.env.FMP_API_KEY);
+    if (String(url).includes('/batch-quote?')) return { ok: false, status: 402, json: async () => ({}) };
+    singleCalls += 1;
+    const symbol = new URL(String(url)).searchParams.get('symbol');
+    return {
+      ok: true,
+      status: 200,
+      json: async () => [{ symbol, price: 10, volume: 1000, timestamp: Math.floor(Date.now() / 1000) }],
+    };
+  });
+
+  const rows = await fmp.fetchFmpQuotes(symbols);
+
+  assert.equal(singleCalls, 25);
+  assert.equal(rows.length, 25);
+});
+
 test('FMP rejects a quote without a provider timestamp', () => {
   assert.equal(
     fmp.normalizeFmpQuote(
