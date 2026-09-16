@@ -2,13 +2,15 @@ const { FMP_API_KEY } = require('../config');
 const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
 const { createCircuitBreaker } = require('../utils/circuitBreaker');
 
-// FMP is deliberately a bounded recovery provider, not a second request for
-// every symbol on every scan. The normal Yahoo batch/cache path remains the
-// fast path; FMP is called only for symbols Yahoo could not verify.
+// FMP is the primary quote provider. Prefer one bounded batch request when the
+// subscription permits it; if that endpoint is restricted, use the permitted
+// single-quote endpoint with bounded concurrency. Yahoo remains a complementary
+// path only for symbols FMP could not verify.
 const BASE_URL = 'https://financialmodelingprep.com/stable';
 const REQUEST_TIMEOUT_MS = 8000;
 const QUOTE_CACHE_TTL_MS = 60 * 1000;
 const MAX_BATCH_SYMBOLS = 100;
+const SINGLE_QUOTE_CONCURRENCY = 4;
 const breaker = createCircuitBreaker('fmp-market-data', { failureThreshold: 5, cooldownMs: 20_000 });
 const quoteCache = new Map();
 const inFlightRequests = new Map();
@@ -85,31 +87,53 @@ function normalizeFmpQuote(raw, requestedSymbol) {
   };
 }
 
-async function fetchJson(path) {
+async function requestJson(path) {
   if (!FMP_API_KEY) return null;
-  try {
-    return await breaker.execute(async () => {
-      const response = await fetchWithTimeout(
-        `${BASE_URL}${path}`,
-        {
-          headers: {
-            accept: 'application/json',
-            // Header auth keeps the secret out of URLs, proxy logs, and
-            // browser-visible request history.
-            apikey: FMP_API_KEY,
-          },
+  return breaker.execute(async () => {
+    const response = await fetchWithTimeout(
+      `${BASE_URL}${path}`,
+      {
+        headers: {
+          accept: 'application/json',
+          // Header auth keeps the secret out of URLs, proxy logs, and
+          // browser-visible request history.
+          apikey: FMP_API_KEY,
         },
-        REQUEST_TIMEOUT_MS
-      );
-      if (!response || !response.ok) {
-        throw new Error(`FMP HTTP ${response?.status || 'unknown'}`);
-      }
-      const body = await response.json();
-      return body && typeof body === 'object' ? body : null;
-    });
+      },
+      REQUEST_TIMEOUT_MS
+    );
+    if (!response || !response.ok) {
+      const error = new Error(`FMP HTTP ${response?.status || 'unknown'}`);
+      error.status = Number(response?.status) || 0;
+      throw error;
+    }
+    const body = await response.json();
+    return body && typeof body === 'object' ? body : null;
+  });
+}
+
+async function mapWithConcurrency(items, limit, worker) {
+  const output = new Array(items.length);
+  let cursor = 0;
+  async function run() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      output[index] = await worker(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
+  return output;
+}
+
+async function loadSingleQuote(symbol) {
+  try {
+    const body = await requestJson(`/quote?symbol=${encodeURIComponent(symbol)}`);
+    return extractQuoteRows(body)
+      .map((raw) => normalizeFmpQuote(raw, symbol))
+      .find(Boolean) || null;
   } catch (_) {
-    // Provider details and the key never leave the server. Callers receive an
-    // empty recovery result and preserve the normal partial/unavailable path.
+    // Keep provider details and the key server-side. Missing rows remain
+    // missing so the caller can report partial/unavailable data truthfully.
     return null;
   }
 }
@@ -126,7 +150,16 @@ async function loadQuotes(symbols) {
   });
 
   if (missing.length > 0) {
-    const body = await fetchJson(`/batch-quote?symbols=${encodeURIComponent(missing.join(','))}`);
+    let body = null;
+    let batchRestricted = false;
+    try {
+      body = await requestJson(`/batch-quote?symbols=${encodeURIComponent(missing.join(','))}`);
+    } catch (error) {
+      // FMP accounts can expose the single quote endpoint while restricting
+      // batch delivery. This is a subscription capability, not a reason to
+      // demote FMP behind another provider.
+      batchRestricted = [402, 403].includes(Number(error?.status));
+    }
     const requestedByComparable = new Map(missing.map((symbol) => [comparableSymbol(symbol), symbol]));
     extractQuoteRows(body).forEach((raw) => {
       const rawSymbol = raw && (raw.symbol || raw.ticker);
@@ -137,6 +170,14 @@ async function loadQuotes(symbols) {
         result.set(normalized.symbol, normalized);
       }
     });
+
+    if (batchRestricted) {
+      const singleRows = await mapWithConcurrency(missing, SINGLE_QUOTE_CONCURRENCY, loadSingleQuote);
+      singleRows.filter(Boolean).forEach((normalized) => {
+        quoteCache.set(normalized.symbol, { data: normalized, fetchedAt: Date.now() });
+        result.set(normalized.symbol, normalized);
+      });
+    }
   }
 
   return symbols.map((symbol) => result.get(symbol)).filter(Boolean);
