@@ -110,16 +110,30 @@ test('quoteCache recovers a missing quote from a complete timestamped Yahoo summ
   assert.match(result.dataAsOf, /^\d{4}-\d{2}-\d{2}T/);
 });
 
-test('quoteCache uses FMP only for a symbol still missing after Yahoo recovery', async (t) => {
-  const symbol = 'AUDIT_FMP_RECOVERY';
-  t.mock.method(yahoo, 'quote', async () => []);
+test('quoteCache asks FMP first and uses Yahoo only for symbols FMP did not verify', async (t) => {
+  const fmpSymbol = 'AUDIT_FMP_PRIMARY';
+  const yahooSymbol = 'AUDIT_YAHOO_COMPLEMENT';
+  const yahooCalls = [];
+  t.mock.method(yahoo, 'quote', async (symbols) => {
+    yahooCalls.push(symbols);
+    return [
+      {
+        symbol: yahooSymbol,
+        regularMarketPrice: 101,
+        regularMarketVolume: 5000,
+        averageDailyVolume10Day: 2500,
+        marketCap: 5000000,
+        regularMarketTime: Math.floor(Date.now() / 1000),
+      },
+    ];
+  });
   t.mock.method(yahoo, 'quoteSummary', async () => null);
   t.mock.method(fmp, 'isConfigured', () => true);
   t.mock.method(fmp, 'fetchFmpQuotes', async (symbols) => {
-    assert.deepStrictEqual(symbols, [symbol]);
+    assert.deepStrictEqual(symbols, [fmpSymbol, yahooSymbol]);
     return [
       {
-        symbol,
+        symbol: fmpSymbol,
         shortName: 'FMP Recovery',
         regularMarketPrice: 100,
         regularMarketVolume: 5000,
@@ -131,13 +145,42 @@ test('quoteCache uses FMP only for a symbol still missing after Yahoo recovery',
     ];
   });
 
-  const result = await quoteCache.getQuotes([symbol]);
+  const result = await quoteCache.getQuotes([fmpSymbol, yahooSymbol]);
 
-  assert.equal(result.size, 1);
-  assert.equal(result.get(symbol).quoteProvider, 'FMP');
+  assert.equal(result.size, 2);
+  assert.equal(result.get(fmpSymbol).quoteProvider, 'FMP');
+  assert.equal(result.get(yahooSymbol).quoteProvider, undefined);
+  assert.deepStrictEqual(yahooCalls, [[yahooSymbol]]);
+  assert.equal(result.providerFailure, false);
+  assert.equal(result.fallbackProvider, 'FMP + Yahoo Finance');
+  assert.match(result.dataAsOf, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test('quoteCache skips Yahoo when FMP verifies the complete batch', async (t) => {
+  const symbols = ['AUDIT_FMP_COMPLETE_A', 'AUDIT_FMP_COMPLETE_B'];
+  t.mock.method(yahoo, 'quote', async () => {
+    throw new Error('Yahoo must not be called after a complete FMP response');
+  });
+  t.mock.method(fmp, 'isConfigured', () => true);
+  t.mock.method(fmp, 'fetchFmpQuotes', async (requested) => {
+    assert.deepStrictEqual(requested, symbols);
+    return symbols.map((symbol, index) => ({
+      symbol,
+      shortName: symbol,
+      regularMarketPrice: 100 + index,
+      regularMarketVolume: 5000,
+      averageDailyVolume10Day: 2500,
+      marketCap: 5000000,
+      regularMarketTime: Math.floor(Date.now() / 1000),
+      quoteProvider: 'FMP',
+    }));
+  });
+
+  const result = await quoteCache.getQuotes(symbols);
+
+  assert.equal(result.size, symbols.length);
   assert.equal(result.providerFailure, false);
   assert.equal(result.fallbackProvider, 'FMP');
-  assert.match(result.dataAsOf, /^\d{4}-\d{2}-\d{2}T/);
 });
 
 test('quoteCache rejects provider rows whose timestamp is outside the safe freshness window', async (t) => {

@@ -244,16 +244,46 @@ async function fmpRecovery(symbols, staleSymbols) {
 
 async function fetchBatch(symbols) {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    let fmpPrimaryRows = [];
+    let fmpPrimaryStaleSymbols = new Set();
     try {
+      // FMP is the configured primary quote provider. It is queried first in
+      // one bounded batch; Yahoo is only asked for symbols FMP did not
+      // verify. This keeps the provider order explicit without ever turning
+      // incomplete FMP data into a synthetic result.
+      fmpPrimaryStaleSymbols = new Set();
+      fmpPrimaryRows = await fmpRecovery(symbols, fmpPrimaryStaleSymbols);
+      const fmpReturned = new Set(fmpPrimaryRows.map((quote) => normalizeSymbol(quote.symbol)));
+      const yahooSymbols = symbols.filter((symbol) => !fmpReturned.has(normalizeSymbol(symbol)));
+      let arr = fmpPrimaryRows.slice();
+      const providerStaleSymbols = new Set(fmpPrimaryStaleSymbols);
+
+      // A complete FMP response is the fastest successful path: do not call
+      // Yahoo at all when every requested row was already verified.
+      if (yahooSymbols.length === 0) {
+        const now = Date.now();
+        arr.forEach((q) => {
+          if (q && q.symbol) cache.set(normalizeSymbol(q.symbol), { data: q, fetchedAt: now });
+        });
+        return {
+          quotes: arr,
+          providerStaleSymbols: [...providerStaleSymbols],
+          usedStaleFallback: false,
+          providerFailure: fmpReturned.size < new Set(symbols.map(normalizeSymbol)).size,
+          fallbackProvider: arr.length ? 'FMP' : null,
+        };
+      }
+
       // validateResult:false — if any symbol has an unexpected field Yahoo returns,
       // the library normally throws and we'd lose the entire batch of 100. With
       // this option it skips schema validation and returns whatever data Yahoo sent.
-      const providerSymbols = symbols.map(toYahooSymbol);
+      const providerSymbols = yahooSymbols.map(toYahooSymbol);
       const results = await yahooBreaker.execute(() =>
         yahooFinance.quote(providerSymbols, {}, { validateResult: false })
       );
-      let arr = normalizeProviderQuotes(Array.isArray(results) ? results : results ? [results] : [], symbols);
-      const providerStaleSymbols = new Set();
+      arr = arr.concat(
+        normalizeProviderQuotes(Array.isArray(results) ? results : results ? [results] : [], yahooSymbols)
+      );
 
       const keepFreshProviderRows = (rows) => filterFreshProviderRows(rows, providerStaleSymbols);
 
@@ -323,18 +353,6 @@ async function fetchBatch(symbols) {
         arr = arr.concat(keepFreshProviderRows(await directChartRecovery(directMissing)));
       }
 
-      // FMP is a bounded server-side recovery path for symbols still missing
-      // after Yahoo's batch, summary, and chart paths. It is intentionally not
-      // called for symbols that Yahoo already verified, keeping the common
-      // scan fast and avoiding duplicate upstream traffic.
-      const fmpMissing = symbols
-        .filter((symbol) => !new Set(arr.map((quote) => normalizeSymbol(quote.symbol))).has(normalizeSymbol(symbol)))
-        .slice(0, MAX_FMP_FALLBACK_SYMBOLS);
-      const fmpStaleSymbols = new Set();
-      const fmpRows = await fmpRecovery(fmpMissing, fmpStaleSymbols);
-      if (fmpRows.length > 0) arr = arr.concat(fmpRows);
-      fmpStaleSymbols.forEach((symbol) => providerStaleSymbols.add(symbol));
-
       const returnedSymbols = new Set(arr.map((quote) => normalizeSymbol(quote.symbol)));
       const taggedProviders = new Set(
         arr
@@ -343,8 +361,13 @@ async function fetchBatch(symbols) {
           .filter(Boolean)
       );
       const providerNames = [];
+      // Preserve the actual request order in internal diagnostics: FMP is
+      // primary, Yahoo is complementary, and any future provider follows.
+      if (taggedProviders.has('FMP')) providerNames.push('FMP');
       if (arr.some((quote) => !quote?.quoteProvider)) providerNames.push('Yahoo Finance');
-      taggedProviders.forEach((provider) => providerNames.push(provider));
+      taggedProviders.forEach((provider) => {
+        if (!providerNames.includes(provider)) providerNames.push(provider);
+      });
       const now = Date.now();
       arr.forEach((q) => {
         if (q && q.symbol) cache.set(normalizeSymbol(q.symbol), { data: q, fetchedAt: now });
@@ -365,6 +388,22 @@ async function fetchBatch(symbols) {
         console.warn(`[QuoteCache] Yahoo rate limited — retry ${attempt + 1}/${MAX_RETRIES} in ${delay}ms`);
         await sleep(delay);
         continue;
+      }
+      // If Yahoo fails after a partial FMP primary response, keep the
+      // verified FMP rows and report the batch as partial instead of making a
+      // duplicate FMP request or falling through to an unbounded path.
+      if (fmpPrimaryRows.length > 0) {
+        const recovered = new Set(fmpPrimaryRows.map((quote) => normalizeSymbol(quote.symbol)));
+        const now = Date.now();
+        fmpPrimaryRows.forEach((quote) => cache.set(normalizeSymbol(quote.symbol), { data: quote, fetchedAt: now }));
+        return {
+          quotes: fmpPrimaryRows,
+          providerStaleSymbols: [...fmpPrimaryStaleSymbols],
+          staleSymbols: [],
+          usedStaleFallback: false,
+          providerFailure: recovered.size < new Set(symbols.map(normalizeSymbol)).size,
+          fallbackProvider: 'FMP',
+        };
       }
       // Before using stale cache, try a bounded timestamped chart recovery.
       // This is the no-cost failover path; it is still rejected when any
