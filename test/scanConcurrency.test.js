@@ -14,6 +14,7 @@ before(async () => {
 
 const { issueToken } = require('../server/services/auth');
 const scanner = require('../server/services/scanner');
+const fmp = require('../server/services/fmp');
 const scanRouter = require('../server/routes/scan');
 const { backgroundCache } = require('../server/services/backgroundScan');
 const { NASDAQ100 } = require('../tickers');
@@ -207,6 +208,7 @@ test('a cache-served scan does not spend the premium 5/day quota', async (t) => 
   backgroundCache.results = [ROW];
   backgroundCache.scanTime = new Date().toISOString();
   backgroundCache.dataStatus = 'complete';
+  backgroundCache.quoteProvider = 'FMP + Yahoo Finance';
 
   const result = await db
     .prepare("INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, 'premium', 1)")
@@ -233,6 +235,45 @@ test('a cache-served scan does not spend the premium 5/day quota', async (t) => 
     backgroundCache.scanTime = null;
     backgroundCache.dataStatus = null;
     backgroundCache.dataAsOf = null;
+    backgroundCache.quoteProvider = null;
+  }
+});
+
+test('a background snapshot without FMP verification triggers a provider check', async (t) => {
+  t.mock.method(fmp, 'isConfigured', () => true);
+  const mocked = t.mock.method(scanner, 'scanTickers', async () => ({
+    results: [{ ...ROW, quoteProvider: 'FMP' }],
+    errors: [],
+    processed: 500,
+    dataStatus: 'complete',
+    dataAsOf: new Date().toISOString(),
+    quoteProvider: 'FMP',
+  }));
+
+  backgroundCache.results = [ROW];
+  backgroundCache.scanTime = new Date().toISOString();
+  backgroundCache.dataStatus = 'complete';
+  backgroundCache.dataAsOf = new Date().toISOString();
+  backgroundCache.quoteProvider = 'Yahoo Finance';
+
+  const user = await makeEliteUser('conc-fmp-cache@test.local');
+  const server = await startTestApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://localhost:${port}/api/scan?minVolumeRatio=1.5&minMarketCap=1000000000`, {
+      headers: { Authorization: 'Bearer ' + user.token },
+    });
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.strictEqual(data.fromCache, undefined, 'a non-FMP snapshot must not bypass provider selection');
+    assert.strictEqual(mocked.mock.callCount(), 1);
+  } finally {
+    server.close();
+    backgroundCache.results = null;
+    backgroundCache.scanTime = null;
+    backgroundCache.dataStatus = null;
+    backgroundCache.dataAsOf = null;
+    backgroundCache.quoteProvider = null;
   }
 });
 

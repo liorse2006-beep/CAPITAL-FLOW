@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const crypto = require('crypto');
 const scanner = require('../services/scanner');
+const fmp = require('../services/fmp');
 const { backgroundCache, filterCachedResults, isMarketOpen } = require('../services/backgroundScan');
 const { getUserScanState } = require('../state');
 const { SP500, NASDAQ100, ALL_TICKERS, SECTOR_TICKERS } = require('../../tickers');
@@ -155,10 +156,19 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
     (backgroundCache.dataStatus === 'partial' &&
       Array.isArray(backgroundCache.results) &&
       backgroundCache.results.length > 0);
+  // A snapshot created before FMP was verified is not evidence that FMP was
+  // used for this scan. When FMP is configured, bypass legacy/unknown
+  // snapshots once so the request reaches the provider-selection path and
+  // records the actual primary source. Mixed FMP + Yahoo snapshots remain
+  // valid: FMP was still attempted first and Yahoo only filled missing rows.
+  const backgroundProvider = String(backgroundCache.quoteProvider || '');
+  const backgroundWasFmpVerified =
+    !fmp.isConfigured() || backgroundProvider.split(' + ').some((provider) => provider.trim() === 'FMP');
   if (
     Array.isArray(backgroundCache.results) &&
     backgroundCache.scanTime &&
     reusableBackgroundSnapshot &&
+    backgroundWasFmpVerified &&
     // The background snapshot is the full-market universe. Never reuse it
     // for a named list, otherwise a NASDAQ 100 or S&P 500 request can show
     // symbols from the wrong universe (for example, CMCSA in NASDAQ 100).
@@ -277,6 +287,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
           backgroundCache.scanTime = new Date().toISOString();
           backgroundCache.dataStatus = dataStatus;
           backgroundCache.dataAsOf = dataAsOf || null;
+          backgroundCache.quoteProvider = raw.quoteProvider || null;
         }
       } else {
         const raw = await scanner.scanTickers(tickersToScan, {

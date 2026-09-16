@@ -10,6 +10,7 @@ var backgroundCache = {
   scanTime: null,
   dataStatus: null,
   dataAsOf: null,
+  quoteProvider: null,
   // Last full-universe verification counts. Counts only — never expose a
   // potentially large missing-symbol list through the public status route.
   coverage: null,
@@ -380,6 +381,7 @@ async function runBackgroundScan(options = {}) {
     backgroundCache.lastSuccessAt = backgroundCache.scanTime;
     backgroundCache.dataStatus = res.dataStatus || (res.errors && res.errors.length ? 'partial' : 'complete');
     backgroundCache.dataAsOf = res.dataAsOf || null;
+    backgroundCache.quoteProvider = res.quoteProvider || null;
     if (Array.isArray(res.checkedSymbols)) {
       const requestedSymbols = Number(res.processed) > 0 ? Number(res.processed) : ALL_TICKERS.length;
       const verifiedSymbols = new Set(
