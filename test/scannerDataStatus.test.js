@@ -6,6 +6,8 @@ const assert = require('node:assert');
 
 const db = require('../server/db');
 const quoteCache = require('../server/services/quoteCache');
+const finnhub = require('../server/services/finnhub');
+const yahoo = require('../server/services/yahoo');
 const { scanTickers, mapWithConcurrency } = require('../server/services/scanner');
 const { scanMA } = require('../server/services/maScanner');
 
@@ -52,6 +54,51 @@ test('Capital Flow keeps a partial quote outage distinct from a total outage', a
 
   assert.strictEqual(result.dataStatus, 'partial');
   assert.deepStrictEqual(result.errors, ['MISSING']);
+});
+
+test('Capital Flow keeps an FMP quote authoritative during enrichment', async (t) => {
+  const symbol = 'AUDIT_FMP_SCAN_PRIMARY';
+  t.mock.method(quoteCache, 'getQuotes', async () =>
+    quoteMapWithMetadata(
+      [
+        [
+          symbol,
+          {
+            ...quote(symbol),
+            quoteProvider: 'FMP',
+            regularMarketChangePercent: 1.25,
+            regularMarketDayHigh: 101,
+            regularMarketDayLow: 99,
+            regularMarketPreviousClose: 98.75,
+          },
+        ],
+      ],
+      { dataAsOf: '2026-09-16T10:00:00.000Z' }
+    )
+  );
+
+  let finnhubQuoteCalls = 0;
+  t.mock.method(finnhub, 'fetchFinnhubQuote', async () => {
+    finnhubQuoteCalls++;
+    return {
+      price: 999,
+      change: 99,
+      dayHigh: 1000,
+      dayLow: 998,
+      prevClose: 997,
+    };
+  });
+  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => null);
+  t.mock.method(yahoo, 'chart', async () => ({ quotes: [] }));
+  t.mock.method(yahoo, 'quoteSummary', async () => ({ assetProfile: { sector: 'Technology' } }));
+
+  const result = await scanTickers([symbol], { minVolumeRatio: 1.5, minMarketCap: 1 });
+
+  assert.strictEqual(result.results.length, 1);
+  assert.strictEqual(result.results[0].quoteProvider, 'FMP');
+  assert.strictEqual(result.results[0].price, 100);
+  assert.strictEqual(result.results[0].change, 1.25);
+  assert.strictEqual(finnhubQuoteCalls, 0);
 });
 
 test('Moving Average marks a total quote outage as unavailable', async (t) => {

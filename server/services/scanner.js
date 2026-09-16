@@ -1,6 +1,6 @@
 const yahooFinance = require('./yahoo');
 const quoteCache = require('./quoteCache');
-const { fetchFinnhubQuote, fetchFinnhubMetric } = require('./finnhub');
+const finnhub = require('./finnhub');
 const { fetchMassiveMetrics } = require('./massive');
 const { getETMinutes, calculateRVOL } = require('./rvol');
 const { buildFinancialProvenance, CAPITAL_FLOW_SOURCES } = require('./financialProvenance');
@@ -9,8 +9,9 @@ const { buildFinancialProvenance, CAPITAL_FLOW_SOURCES } = require('./financialP
 // Finnhub metric (52wk range, 10d avg vol, market cap) and the 7-day sparkline
 // are both daily-update data — they cannot change minute-to-minute. Sector
 // never changes. Caching these cuts Phase-2 API calls by ~75% on repeated
-// scans without sacrificing accuracy: the only live call per match is the
-// Finnhub quote (price, change%) which stays on a 60-second TTL.
+// scans without sacrificing accuracy. FMP is authoritative for a verified
+// FMP quote row; Finnhub is only eligible to fill live quote fields when the
+// baseline row came from a fallback provider.
 const METRIC_TTL_MS = 24 * 60 * 60 * 1000; // 24 h — Finnhub metric
 const SPARK_TTL_MS = 24 * 60 * 60 * 1000; // 24 h — sparkline closes
 const SECTOR_TTL_MS = 7 * 24 * 60 * 60 * 1000; //  7 d — sector string
@@ -164,7 +165,7 @@ async function scanTickers(tickers, options) {
   ].slice(0, MAX_METRIC_RECOVERY_SYMBOLS);
   if (metricRecoveryCandidates.length > 0) {
     await mapWithConcurrency(metricRecoveryCandidates, METRIC_RECOVERY_CONCURRENCY, async (symbol) => {
-      const finnhubMetric = await fetchFinnhubMetric(symbol);
+      const finnhubMetric = await finnhub.fetchFinnhubMetric(symbol);
       const needsMassive =
         !finnhubMetric || Number(finnhubMetric.avgVol10d) <= 0 || Number(finnhubMetric.marketCap) <= 0;
       const massiveMetric = needsMassive ? await fetchMassiveMetrics(symbol) : null;
@@ -253,6 +254,7 @@ async function scanTickers(tickers, options) {
       marketCap: quoteMarketCap,
       sector: 'Pending',
       exchange: quote.exchange || 'N/A',
+      quoteProvider: quote.quoteProvider || 'Yahoo Finance',
       dayHigh: finiteOrNull(quote.regularMarketDayHigh),
       dayLow: finiteOrNull(quote.regularMarketDayLow),
       prevClose: finiteOrNull(quote.regularMarketPreviousClose),
@@ -276,8 +278,11 @@ async function scanTickers(tickers, options) {
 
   if (onProgress) onProgress({ processed: tickers.length, total: tickers.length, found: results.length });
 
-  // ── Phase 2: enrich matches with Finnhub + sparkline + sector ────────────────
-  // Only fetchFinnhubQuote is called every scan (price/change% must be live).
+  // ── Phase 2: enrich matches with optional Finnhub + sparkline + sector ──────
+  // FMP is the authoritative quote source whenever Phase 1 verified the row.
+  // Do not overwrite an FMP price/change with a second provider. Finnhub quote
+  // data is only a fallback for rows that entered through Yahoo or another
+  // non-FMP baseline provider.
   // Metric, sparkline, and sector are served from slow caches (24h / 7d) and
   // only fetched from the network when the cache entry is missing or expired.
   // This is the slow half of a scan (real per-match network calls, one at a
@@ -288,15 +293,14 @@ async function scanTickers(tickers, options) {
   var enrichTotal = results.length || 1;
   await mapWithConcurrency(results, ENRICH_CONCURRENCY, async function (r) {
     try {
-      // Always fresh — price and change% are real-time data
-      var fQuotePromise = fetchFinnhubQuote(r.symbol);
+      var fQuotePromise = r.quoteProvider === 'FMP' ? Promise.resolve(null) : finnhub.fetchFinnhubQuote(r.symbol);
 
       // Slow data — resolve from cache or fetch once per day
       var cachedMetric = slowGet(metricCache, r.symbol, METRIC_TTL_MS);
       var metricPromise =
         cachedMetric !== null
           ? Promise.resolve(cachedMetric)
-          : fetchFinnhubMetric(r.symbol).then(function (m) {
+          : finnhub.fetchFinnhubMetric(r.symbol).then(function (m) {
               if (m) slowSet(metricCache, r.symbol, m);
               return m;
             });
