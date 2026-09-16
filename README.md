@@ -31,7 +31,7 @@ For local development, `JWT_SECRET` and `SESSION_SECRET` are the only hard-requi
 Full list with setup instructions for each provider lives in [.env.example](.env.example) (names and comments only — never commit real values). Grouped roughly as:
 
 - **Core:** `PORT`, `JWT_SECRET`, `SESSION_SECRET`
-- **Market data:** `FINNHUB_API_KEY` (+ optional server-only `FINNHUB_API_KEY_POOL_1..20` for rotation), `MASSIVE_API_KEY` (optional verified delayed daily metrics fallback). Never put these keys in `VITE_*`, source code, the browser, or API responses.
+- **Market data:** `FINNHUB_API_KEY` (+ optional server-only `FINNHUB_API_KEY_POOL_1..20` for rotation), `FMP_API_KEY` (optional server-only batch-quote recovery for symbols missing from Yahoo), and `MASSIVE_API_KEY` (optional verified delayed daily metrics fallback). Never put these keys in `VITE_*`, source code, the browser, or API responses.
 - **Operations-only provider probes:** `MARKETAUX_API_KEY`, `NEWSDATA_API_KEY`, `GOOGLE_AI_STUDIO_KEY` (not exposed as a user-facing feature)
 - **Email:** `RESEND_API_KEY`/`RESEND_FROM_EMAIL` (transactional and backup fallback), `GMAIL_USER`/`GMAIL_APP_PASSWORD` (optional preferred weekly app-DB backup sender)
 - **Auth:** `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_CALLBACK_URL`, `TURNSTILE_SECRET`/`VITE_TURNSTILE_SITE_KEY`

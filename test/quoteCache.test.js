@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 
 const quoteCache = require('../server/services/quoteCache');
 const yahoo = require('../server/services/yahoo');
+const fmp = require('../server/services/fmp');
 
 test('quoteCache marks a provider failure separately when no stale quote exists', async (t) => {
   t.mock.method(yahoo, 'quote', async () => {
@@ -106,6 +107,36 @@ test('quoteCache recovers a missing quote from a complete timestamped Yahoo summ
   assert.equal(result.get(symbol).symbol, symbol);
   assert.equal(result.providerFailure, false);
   assert.deepEqual(result.providerStaleSymbols, []);
+  assert.match(result.dataAsOf, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test('quoteCache uses FMP only for a symbol still missing after Yahoo recovery', async (t) => {
+  const symbol = 'AUDIT_FMP_RECOVERY';
+  t.mock.method(yahoo, 'quote', async () => []);
+  t.mock.method(yahoo, 'quoteSummary', async () => null);
+  t.mock.method(fmp, 'isConfigured', () => true);
+  t.mock.method(fmp, 'fetchFmpQuotes', async (symbols) => {
+    assert.deepStrictEqual(symbols, [symbol]);
+    return [
+      {
+        symbol,
+        shortName: 'FMP Recovery',
+        regularMarketPrice: 100,
+        regularMarketVolume: 5000,
+        averageDailyVolume10Day: 2500,
+        marketCap: 5000000,
+        regularMarketTime: Math.floor(Date.now() / 1000),
+        quoteProvider: 'FMP',
+      },
+    ];
+  });
+
+  const result = await quoteCache.getQuotes([symbol]);
+
+  assert.equal(result.size, 1);
+  assert.equal(result.get(symbol).quoteProvider, 'FMP');
+  assert.equal(result.providerFailure, false);
+  assert.equal(result.fallbackProvider, 'FMP');
   assert.match(result.dataAsOf, /^\d{4}-\d{2}-\d{2}T/);
 });
 

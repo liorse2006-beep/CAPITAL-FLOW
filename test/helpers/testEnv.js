@@ -22,6 +22,9 @@ if (process.env.RESEND_API_KEY === undefined) process.env.RESEND_API_KEY = '';
 // Massive key. Tests that explicitly exercise the news provider set their own
 // fake key after this helper loads and mock fetch.
 if (process.env.MASSIVE_API_KEY === undefined) process.env.MASSIVE_API_KEY = '';
+// FMP is optional in production, but tests must never inherit a real provider
+// key from the developer's .env and make an outbound request accidentally.
+if (process.env.FMP_API_KEY === undefined) process.env.FMP_API_KEY = '';
 // CAPTCHA runs in "not configured" (bypass) mode by default — otherwise the
 // developer's real .env secret leaks in via dotenv and every signup test
 // fails for lack of a token. A test that wants enforcement ON sets its own

@@ -94,6 +94,9 @@ module.exports = {
   // Extra Finnhub accounts for automatic rotation/failover — see services/finnhubKeyPool.js.
   // The values remain server-only and are never returned by an API route.
   FINNHUB_API_KEY_POOL: indexedEnv('FINNHUB_API_KEY_POOL_'),
+  // Optional server-only FMP quote fallback. Never expose this through Vite,
+  // browser storage, logs, or API responses.
+  FMP_API_KEY: env('FMP_API_KEY'),
   // Per-symbol news fallback chain — see services/newsService.js
   MASSIVE_API_KEY: env('MASSIVE_API_KEY'),
   MARKETAUX_API_KEY: env('MARKETAUX_API_KEY'),

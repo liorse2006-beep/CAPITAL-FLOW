@@ -12,6 +12,7 @@
 
 const yahooFinance = require('./yahoo');
 const yahooChartFallback = require('./yahooChartFallback');
+const fmp = require('./fmp');
 const { createCircuitBreaker } = require('../utils/circuitBreaker');
 const { redact } = require('../utils/reportError');
 const { isMarketOpen, isPreMarket, latestCompletedSessionDate, sessionDateForTimestamp } = require('./marketCalendar');
@@ -41,6 +42,7 @@ const MAX_SUMMARY_RECOVERY_SYMBOLS = 25;
 // fallback requests. Six symbols are enough for the independent health probe;
 // larger scans remain explicitly partial rather than hiding missing coverage.
 const MAX_DIRECT_CHART_FALLBACK_SYMBOLS = 6;
+const MAX_FMP_FALLBACK_SYMBOLS = 100;
 const DIRECT_CHART_FALLBACK_ENABLED =
   process.env.NODE_ENV === 'production' || String(process.env.YAHOO_CHART_FALLBACK_ENABLED || '').trim() === 'true';
 // Maximum age for stale fallback entries. Beyond this limit we refuse to serve
@@ -230,6 +232,16 @@ function isFresh(entry) {
   return entry && Date.now() - entry.fetchedAt < CACHE_TTL_MS;
 }
 
+async function fmpRecovery(symbols, staleSymbols) {
+  if (!fmp.isConfigured() || !symbols.length) return [];
+  try {
+    const rows = await fmp.fetchFmpQuotes(symbols.slice(0, MAX_FMP_FALLBACK_SYMBOLS));
+    return filterFreshProviderRows(rows, staleSymbols);
+  } catch (_) {
+    return [];
+  }
+}
+
 async function fetchBatch(symbols) {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -310,6 +322,29 @@ async function fetchBatch(symbols) {
         // paths so an old Chart response can never become a live scan row.
         arr = arr.concat(keepFreshProviderRows(await directChartRecovery(directMissing)));
       }
+
+      // FMP is a bounded server-side recovery path for symbols still missing
+      // after Yahoo's batch, summary, and chart paths. It is intentionally not
+      // called for symbols that Yahoo already verified, keeping the common
+      // scan fast and avoiding duplicate upstream traffic.
+      const fmpMissing = symbols
+        .filter((symbol) => !new Set(arr.map((quote) => normalizeSymbol(quote.symbol))).has(normalizeSymbol(symbol)))
+        .slice(0, MAX_FMP_FALLBACK_SYMBOLS);
+      const fmpStaleSymbols = new Set();
+      const fmpRows = await fmpRecovery(fmpMissing, fmpStaleSymbols);
+      if (fmpRows.length > 0) arr = arr.concat(fmpRows);
+      fmpStaleSymbols.forEach((symbol) => providerStaleSymbols.add(symbol));
+
+      const returnedSymbols = new Set(arr.map((quote) => normalizeSymbol(quote.symbol)));
+      const taggedProviders = new Set(
+        arr
+          .filter((quote) => quote?.quoteProvider)
+          .map((quote) => String(quote.quoteProvider).trim())
+          .filter(Boolean)
+      );
+      const providerNames = [];
+      if (arr.some((quote) => !quote?.quoteProvider)) providerNames.push('Yahoo Finance');
+      taggedProviders.forEach((provider) => providerNames.push(provider));
       const now = Date.now();
       arr.forEach((q) => {
         if (q && q.symbol) cache.set(normalizeSymbol(q.symbol), { data: q, fetchedAt: now });
@@ -318,8 +353,8 @@ async function fetchBatch(symbols) {
         quotes: arr,
         providerStaleSymbols: [...providerStaleSymbols],
         usedStaleFallback: false,
-        providerFailure: false,
-        fallbackProvider: arr.some((quote) => quote?.quoteProvider) ? 'Yahoo Finance Chart API' : null,
+        providerFailure: returnedSymbols.size < new Set(symbols.map(normalizeSymbol)).size,
+        fallbackProvider: providerNames.length ? providerNames.join(' + ') : null,
       };
     } catch (err) {
       const msg = (err && err.message) || '';
@@ -334,6 +369,22 @@ async function fetchBatch(symbols) {
       // Before using stale cache, try a bounded timestamped chart recovery.
       // This is the no-cost failover path; it is still rejected when any
       // required field is missing, so it cannot manufacture scan rows.
+      const fmpStaleSymbols = new Set();
+      const fmpRows = await fmpRecovery(symbols, fmpStaleSymbols);
+      if (fmpRows.length > 0) {
+        const recovered = new Set(fmpRows.map((quote) => normalizeSymbol(quote.symbol)));
+        const now = Date.now();
+        fmpRows.forEach((quote) => cache.set(normalizeSymbol(quote.symbol), { data: quote, fetchedAt: now }));
+        return {
+          quotes: fmpRows,
+          providerStaleSymbols: [...fmpStaleSymbols],
+          staleSymbols: [],
+          usedStaleFallback: false,
+          providerFailure: recovered.size < new Set(symbols.map(normalizeSymbol)).size,
+          fallbackProvider: 'FMP',
+        };
+      }
+
       const directRows = await directChartRecovery(symbols);
       const staleDirectSymbols = new Set();
       const freshDirectRows = filterFreshProviderRows(directRows, staleDirectSymbols);
