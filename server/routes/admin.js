@@ -558,22 +558,12 @@ router.get(
   .refresh-btn:hover { background: rgba(255,255,255,0.05); color: #E4E4E7; }
   .admin-token-form { display:flex; gap:6px; align-items:center; }
   .admin-token-form input { width:180px; background:#1C1C1C; border:1px solid rgba(255,255,255,0.1); color:#E4E4E7; border-radius:6px; padding:5px 8px; font:11px monospace; }
-  .coupon-form { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:14px 20px; border-bottom:1px solid rgba(255,255,255,0.06); }
-  .coupon-form input, .coupon-form select { background:#1C1C1C; border:1px solid rgba(255,255,255,0.1); color:#E4E4E7; border-radius:6px; padding:6px 10px; font-size:12px; }
-  .coupon-form input[name="code"] { width:130px; font-family:monospace; text-transform:uppercase; }
-  .coupon-form input[name="discountPercent"] { width:60px; }
-  .coupon-form input[name="maxUses"] { width:70px; }
-  .coupon-form input[name="expiresAt"] { width:150px; }
-  .coupon-provider-note { margin:0; padding:10px 20px 0; color:#9b9aa3; font-size:11px; line-height:1.45; }
-  .coupon-code { font-family:monospace; font-weight:700; letter-spacing:0.03em; }
   .back-link:hover { color: #E4E4E7 !important; }
   .feedback-row { padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.04); }
   .feedback-row:last-child { border-bottom: none; }
   .feedback-row-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
   .feedback-who { font-size: 12px; font-weight: 600; color: #E4E4E7; }
   .feedback-date { font-size: 11px; color: #71717A; font-family: monospace; margin-left: auto; }
-  .feedback-message { color: #D4D4D8; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .feedback-meta { color: #71717A; font-size: 11px; margin-top: 5px; }
   .toast { position: fixed; bottom: 24px; right: 24px; background: #1C1C1C;
            border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
            padding: 12px 18px; font-size: 13px; color: #E4E4E7;
@@ -618,7 +608,7 @@ router.get(
       <h2 id="admin-updates-title">The admin workspace is easier to operate</h2>
       <p>These are the visible changes in this release:</p>
       <div class="admin-update-list">
-        <span>Customer feedback inbox</span>
+        <span>Clearer admin controls</span>
         <span>Hide or restore Activity Log</span>
         <span>Keyboard and screen-reader support</span>
       </div>
@@ -663,40 +653,6 @@ router.get(
     <div id="audit-wrap"><div class="loader" role="status" aria-live="polite">Loading…</div></div>
   </section>
 
-  <section class="card" style="margin-bottom:20px" aria-labelledby="feedback-title">
-    <div class="card-hdr">
-      <h2 id="feedback-title">Customer feedback</h2>
-      <button class="refresh-btn" id="btn-refresh-feedback" type="button" aria-label="Refresh customer feedback">↻ Refresh</button>
-    </div>
-    <div id="feedback-wrap"><div class="loader" role="status" aria-live="polite">Loading…</div></div>
-  </section>
-
-  <section class="card" style="margin-bottom:20px" aria-labelledby="coupons-title">
-    <div class="card-hdr">
-      <h2 id="coupons-title">Coupons</h2>
-      <button class="refresh-btn" id="btn-refresh-coupons" type="button" aria-label="Refresh coupons">↻ Refresh</button>
-    </div>
-    <form class="coupon-form" id="coupon-form">
-      <label class="sr-only" for="coupon-code">Coupon code</label>
-      <input id="coupon-code" name="code" placeholder="CODE" aria-label="Coupon code" required maxlength="40" />
-      <label class="sr-only" for="coupon-discount">Discount percentage</label>
-      <input id="coupon-discount" name="discountPercent" type="number" min="1" max="100" placeholder="% off" aria-label="Discount percentage" required />
-      <label class="sr-only" for="coupon-applies-to">Coupon applies to</label>
-      <select id="coupon-applies-to" name="appliesTo" aria-label="Coupon applies to">
-        <option value="both">Both tiers</option>
-        <option value="premium">Premium only</option>
-        <option value="elite">Elite only</option>
-      </select>
-      <label class="sr-only" for="coupon-max-uses">Maximum uses</label>
-      <input id="coupon-max-uses" name="maxUses" type="number" min="1" placeholder="Max uses (blank = ∞)" aria-label="Maximum uses" />
-      <label class="sr-only" for="coupon-expires">Coupon expiry date</label>
-      <input id="coupon-expires" name="expiresAt" type="date" placeholder="Expires" aria-label="Coupon expiry date" />
-      <button type="submit" class="btn btn-tier-elite">+ Create coupon</button>
-    </form>
-    <p class="coupon-provider-note">Whop controls the amount charged. Create the same promo code in Whop; this table only tracks local usage after Whop confirms the discount.</p>
-    <div id="coupons-wrap"><div class="loader" role="status" aria-live="polite">Loading…</div></div>
-  </section>
-
   <section class="card" aria-labelledby="users-title">
     <div class="card-hdr">
       <h2 id="users-title">Users</h2>
@@ -719,7 +675,7 @@ router.get(
 // and worse, since every button's addEventListener call below runs in the
 // same top-level script body, one throwing partway through this file left
 // every listener registered AFTER it never attached, so unrelated buttons
-// (backup, coupons, etc.) looked "dead" with zero indication why. This
+// (backup, refresh, etc.) looked "dead" with zero indication why. This
 // surfaces exactly that as a toast instead of failing invisibly.
 window.addEventListener('error', function (e) {
   if (typeof toast === 'function') toast('Script error: ' + (e.message || 'see console'), true);
@@ -758,7 +714,7 @@ async function refreshAuthHeaders(force) {
 // One element missing/renamed used to throw and silently abort every
 // addEventListener call still queued after it in this script — so a typo
 // in one button's id could leave every button wired further down (backup,
-// coupons, refresh, ...) completely dead with no error visible anywhere.
+// refresh controls completely dead with no error visible anywhere.
 // Each wiring call is independent: a missing element logs a console
 // warning but never stops the rest from attaching.
 function safeOn(id, event, handler) {
@@ -780,7 +736,6 @@ safeOn('admin-token-save', 'click', function () {
     loadAuditLog();
     loadVisits();
     loadBackupStatus();
-    loadCoupons();
   });
 });
 
@@ -893,55 +848,6 @@ async function loadAuditLog() {
   } catch(e) { return false; }
 }
 
-async function loadFeedback() {
-  try {
-    const r = await fetch('/admin/api/feedback', { headers: AUTH_HEADERS });
-    if (!r.ok) {
-      document.getElementById('feedback-wrap').innerHTML = '<div class="loader" role="status">Error loading feedback.</div>';
-      return false;
-    }
-    const rows = await r.json();
-    renderFeedback(rows);
-    return true;
-  } catch (e) {
-    document.getElementById('feedback-wrap').innerHTML = '<div class="loader" role="status">Failed to fetch feedback.</div>';
-    return false;
-  }
-}
-
-function renderFeedback(rows) {
-  const el = document.getElementById('feedback-wrap');
-  if (!rows.length) {
-    el.innerHTML = '<div class="loader" role="status">No customer feedback yet.</div>';
-    return;
-  }
-  el.innerHTML = rows.map(function (row) {
-    const who = row.account_email || row.email || 'Anonymous visitor';
-    const date = new Date(row.created_at * 1000).toLocaleString('en-US', {
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-    });
-    const page = row.page ? ' · ' + escapeHtml(row.page) : '';
-    return '<article class="feedback-row">' +
-      '<div class="feedback-row-hdr">' +
-        '<span class="feedback-who">' + escapeHtml(who) + '</span>' +
-        '<span class="feedback-date">' + date + '</span>' +
-      '</div>' +
-      '<p class="feedback-message">' + escapeHtml(row.message) + '</p>' +
-      '<div class="feedback-meta">' + page.replace(/^ · /, '') +
-        ' <button class="btn btn-del" data-act="feedback-del" data-id="' + escapeHtml(row.id) +
-        '" aria-label="Delete feedback ' + escapeHtml(row.id) + '" title="Delete feedback">✕</button>' +
-      '</div>' +
-    '</article>';
-  }).join('');
-}
-
-async function deleteFeedback(id) {
-  if (!confirm('Delete this feedback? This cannot be undone.')) return;
-  const r = await fetch('/admin/api/feedback/' + encodeURIComponent(id), { method: 'DELETE', headers: AUTH_HEADERS });
-  if (r.ok) { toast('Feedback deleted'); loadFeedback(); }
-  else toast('Error deleting feedback', true);
-}
-
 const BACKUP_STALE_HOURS = 48;
 
 async function loadBackupStatus() {
@@ -980,91 +886,6 @@ async function runBackupNow() {
   } finally {
     link.textContent = 'Run now';
   }
-}
-
-let allCoupons = [];
-
-async function loadCoupons() {
-  try {
-    const r = await fetch('/admin/api/coupons', { headers: AUTH_HEADERS });
-    if (!r.ok) { document.getElementById('coupons-wrap').innerHTML = '<div class="loader">Error loading coupons.</div>'; return false; }
-    allCoupons = await r.json();
-    renderCoupons(allCoupons);
-    return true;
-  } catch (e) {
-    document.getElementById('coupons-wrap').innerHTML = '<div class="loader">Failed to fetch.</div>';
-    return false;
-  }
-}
-
-function renderCoupons(coupons) {
-  const el = document.getElementById('coupons-wrap');
-  if (!coupons.length) { el.innerHTML = '<div class="loader">No coupons yet — create one above.</div>'; return; }
-  const now = Date.now() / 1000;
-  const rows = coupons.map(function (c) {
-    const expired = c.expires_at && c.expires_at < now;
-    const maxedOut = c.max_uses != null && c.uses_count >= c.max_uses;
-    const statusBadge = !c.active
-      ? '<span class="badge badge-no">Disabled</span>'
-      : expired
-        ? '<span class="badge badge-no">Expired</span>'
-        : maxedOut
-          ? '<span class="badge badge-no">Limit reached</span>'
-          : '<span class="badge badge-ok">Active</span>';
-    const usage = c.max_uses != null ? c.uses_count + ' / ' + c.max_uses : c.uses_count + ' / ∞';
-    const expiresLabel = c.expires_at ? new Date(c.expires_at * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
-    const appliesLabel = c.applies_to === 'both' ? 'Premium + Elite' : c.applies_to === 'premium' ? 'Premium only' : 'Elite only';
-    const toggleBtn = c.active
-      ? '<button class="btn btn-block" data-act="coupon-toggle" data-id="' + c.id + '" data-val="0">Disable</button>'
-      : '<button class="btn btn-unblock" data-act="coupon-toggle" data-id="' + c.id + '" data-val="1">Enable</button>';
-    const delBtn = '<button class="btn btn-del" data-act="coupon-del" data-id="' + c.id + '" data-code="' + escapeHtml(c.code) + '" aria-label="Delete coupon ' + escapeHtml(c.code) + '" title="Delete coupon">✕</button>';
-    return '<tr>' +
-      '<td class="coupon-code">' + escapeHtml(c.code) + '</td>' +
-      '<td>' + c.discount_percent + '%</td>' +
-      '<td>' + appliesLabel + '</td>' +
-      '<td class="center" style="font-family:monospace;font-size:12px">' + usage + '</td>' +
-      '<td class="date">' + expiresLabel + '</td>' +
-      '<td>' + statusBadge + '</td>' +
-      '<td><div class="actions">' + toggleBtn + delBtn + '</div></td>' +
-      '</tr>';
-  }).join('');
-  el.innerHTML = '<table><caption class="sr-only">Coupon management</caption><thead><tr><th scope="col">Code</th><th scope="col">Discount</th><th scope="col">Applies to</th><th scope="col" class="center">Uses</th><th scope="col">Expires</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody>' + rows + '</tbody></table>';
-}
-
-async function createCoupon(e) {
-  e.preventDefault();
-  const form = e.target;
-  const fd = new FormData(form);
-  const body = {
-    code: fd.get('code'),
-    discountPercent: Number(fd.get('discountPercent')),
-    appliesTo: fd.get('appliesTo'),
-    maxUses: fd.get('maxUses') || null,
-    expiresAt: fd.get('expiresAt') || null,
-  };
-  const r = await fetch('/admin/api/coupons', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
-    body: JSON.stringify(body),
-  });
-  const d = await r.json().catch(() => ({}));
-  if (r.ok) { toast('✓ Coupon created'); form.reset(); loadCoupons(); }
-  else toast(d.error || 'Error creating coupon', true);
-}
-
-async function toggleCoupon(id, value) {
-  const r = await fetch('/admin/api/coupons/' + id + '/active', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
-    body: JSON.stringify({ value }),
-  });
-  if (r.ok) { toast(value ? 'Coupon enabled' : 'Coupon disabled'); loadCoupons(); }
-  else toast('Error', true);
-}
-
-async function deleteCoupon(id, code) {
-  if (!confirm('Delete coupon ' + code + '? This cannot be undone.')) return;
-  const r = await fetch('/admin/api/coupons/' + id, { method: 'DELETE', headers: AUTH_HEADERS });
-  if (r.ok) { toast('Coupon deleted'); loadCoupons(); }
-  else toast('Error', true);
 }
 
 async function loadVisits() {
@@ -1285,15 +1106,7 @@ document.addEventListener('click', function (e) {
     case 'force-logout':  return forceLogout(d.id);
     case 'push-test':     return sendTestPush(d.id);
     case 'del-user':      return deleteUser(d.id, d.email);
-    case 'feedback-del':  return deleteFeedback(d.id);
-    case 'coupon-toggle': return toggleCoupon(d.id, Number(d.val));
-    case 'coupon-del':    return deleteCoupon(d.id, d.code);
   }
-});
-safeOn('coupon-form', 'submit', createCoupon);
-safeOn('btn-refresh-coupons', 'click', async function () {
-  const ok = await loadCoupons();
-  toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
 });
 
 // Static controls (present in the initial HTML, not regenerated)
@@ -1310,10 +1123,6 @@ safeOn('btn-toggle-audit', 'click', function () {
   setActivityLogHidden(!activityLogHidden, true);
   if (!activityLogHidden) loadAuditLog();
 });
-safeOn('btn-refresh-feedback', 'click', async function () {
-  const ok = await loadFeedback();
-  toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
-});
 safeOn('btn-refresh-users', 'click', async function () {
   const ok = await load();
   toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
@@ -1328,14 +1137,12 @@ safeOn('backup-run-now', 'click', function () {
 // in this page's memory.
 (async function bootstrapAdmin() {
   await refreshAuthHeaders(true);
-  await Promise.all([load(), loadAuditLog(), loadFeedback(), loadBackupStatus(), loadVisits(), loadCoupons()]);
+  await Promise.all([load(), loadAuditLog(), loadBackupStatus(), loadVisits()]);
 })();
 setInterval(load, 60000);
 setInterval(loadAuditLog, 60000);
-setInterval(loadFeedback, 60000);
 setInterval(loadBackupStatus, 60000);
 setInterval(loadVisits, 60000);
-setInterval(loadCoupons, 60000);
 </script>
 </body>
 </html>`);
