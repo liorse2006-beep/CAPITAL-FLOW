@@ -474,6 +474,15 @@ router.get(
             background: #111; position: sticky; top: 0; z-index: 10; flex-wrap: wrap; gap: 10px; }
   .topbar h1 { font-size: 16px; font-weight: 700; color: #F59E0B; letter-spacing: -0.01em; }
   .topbar span { font-size: 12px; color: #71717A; font-family: monospace; }
+  .skip-link { position: fixed; top: 8px; left: 8px; z-index: 1000; transform: translateY(-180%);
+               background: #F59E0B; color: #111; padding: 8px 12px; border-radius: 6px;
+               font-size: 12px; font-weight: 700; text-decoration: none; transition: transform .15s; }
+  .skip-link:focus { transform: translateY(0); }
+  :where(a, button, input, select):focus-visible { outline: 2px solid #F59E0B; outline-offset: 2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+             overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .backup-link { display: inline-block; margin-top: 6px; background: none; border: 0; padding: 0;
+                 color: #71717A; font: 11px inherit; text-decoration: underline; cursor: pointer; }
   .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 24px 60px; }
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
            gap: 12px; margin-bottom: 28px; }
@@ -547,6 +556,8 @@ router.get(
   .feedback-row-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
   .feedback-who { font-size: 12px; font-weight: 600; color: #E4E4E7; }
   .feedback-date { font-size: 11px; color: #71717A; font-family: monospace; margin-left: auto; }
+  .feedback-message { color: #D4D4D8; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .feedback-meta { color: #71717A; font-size: 11px; margin-top: 5px; }
   .toast { position: fixed; bottom: 24px; right: 24px; background: #1C1C1C;
            border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
            padding: 12px 18px; font-size: 13px; color: #E4E4E7;
@@ -569,20 +580,22 @@ router.get(
 </style>
 </head>
 <body>
-<div class="topbar">
-  <h1>⚡ Capital Flow — Admin</h1>
-  <div style="display:flex;align-items:center;gap:16px">
+<a class="skip-link" href="#main-content">Skip to content</a>
+<header class="topbar">
+  <h1 id="admin-page-title">⚡ Capital Flow — Admin</h1>
+  <nav aria-label="Admin navigation" style="display:flex;align-items:center;gap:16px">
     <div class="admin-token-form">
       <input id="admin-token-input" type="password" autocomplete="off" placeholder="Static admin token" aria-label="Static admin token" />
       <button class="refresh-btn" id="admin-token-save" type="button">Use token</button>
     </div>
     <span style="font-size:11px;font-family:monospace;padding:3px 10px;border-radius:4px;font-weight:700;${TURSO_DB_URL ? 'background:rgba(34,197,94,0.12);color:#22C55E;border:1px solid rgba(34,197,94,0.25)' : 'background:rgba(239,68,68,0.12);color:#EF4444;border:1px solid rgba(239,68,68,0.25)'}">${DB_ENV}</span>
-    <span id="last-refresh">Loading…</span>
+    <span id="last-refresh" role="status" aria-live="polite">Loading…</span>
     <a href="/" class="back-link" style="font-size:12px;color:#71717A;text-decoration:none;border:1px solid rgba(255,255,255,0.1);padding:5px 12px;border-radius:6px;transition:color .15s">← Back to site</a>
-  </div>
-</div>
-<div class="wrap">
-  <div class="stats" id="stats">
+  </nav>
+</header>
+<main id="main-content" class="wrap" aria-labelledby="admin-page-title">
+  <section class="stats" id="stats" aria-labelledby="stats-title">
+    <h2 id="stats-title" class="sr-only">Launch and account overview</h2>
     <div class="stat"><div class="stat-val" id="s-visits-today">—</div><div class="stat-lbl">Visits Today</div></div>
     <div class="stat"><div class="stat-val" id="s-visits-week">—</div><div class="stat-lbl">Visits (7d)</div></div>
     <div class="stat"><div class="stat-val" id="s-visits-total">—</div><div class="stat-lbl">Visits (all time)</div></div>
@@ -601,53 +614,67 @@ router.get(
     <div class="stat">
       <div class="stat-val" id="s-backup">—</div>
       <div class="stat-lbl">Last DB Backup</div>
-      <a href="#" id="backup-run-now" style="display:inline-block;margin-top:6px;font-size:11px;color:#71717A;text-decoration:underline;cursor:pointer">Run now</a>
+      <button type="button" class="backup-link" id="backup-run-now">Run now</button>
     </div>
-  </div>
+  </section>
 
-  <div class="card" style="margin-bottom:20px">
+  <section class="card" style="margin-bottom:20px" aria-labelledby="activity-title">
     <div class="card-hdr">
-      <h2>Activity Log</h2>
-      <button class="refresh-btn" id="btn-refresh-audit">↻ Refresh</button>
+      <h2 id="activity-title">Activity Log</h2>
+      <button class="refresh-btn" id="btn-refresh-audit" type="button" aria-label="Refresh activity log">↻ Refresh</button>
     </div>
-    <div id="audit-wrap"><div class="loader">Loading…</div></div>
-  </div>
+    <div id="audit-wrap"><div class="loader" role="status" aria-live="polite">Loading…</div></div>
+  </section>
 
-  <div class="card" style="margin-bottom:20px">
+  <section class="card" style="margin-bottom:20px" aria-labelledby="feedback-title">
     <div class="card-hdr">
-      <h2>Coupons</h2>
-      <button class="refresh-btn" id="btn-refresh-coupons">↻ Refresh</button>
+      <h2 id="feedback-title">Customer feedback</h2>
+      <button class="refresh-btn" id="btn-refresh-feedback" type="button" aria-label="Refresh customer feedback">↻ Refresh</button>
+    </div>
+    <div id="feedback-wrap"><div class="loader" role="status" aria-live="polite">Loading…</div></div>
+  </section>
+
+  <section class="card" style="margin-bottom:20px" aria-labelledby="coupons-title">
+    <div class="card-hdr">
+      <h2 id="coupons-title">Coupons</h2>
+      <button class="refresh-btn" id="btn-refresh-coupons" type="button" aria-label="Refresh coupons">↻ Refresh</button>
     </div>
     <form class="coupon-form" id="coupon-form">
-      <input name="code" placeholder="CODE" required maxlength="40" />
-      <input name="discountPercent" type="number" min="1" max="100" placeholder="% off" required />
-      <select name="appliesTo">
+      <label class="sr-only" for="coupon-code">Coupon code</label>
+      <input id="coupon-code" name="code" placeholder="CODE" aria-label="Coupon code" required maxlength="40" />
+      <label class="sr-only" for="coupon-discount">Discount percentage</label>
+      <input id="coupon-discount" name="discountPercent" type="number" min="1" max="100" placeholder="% off" aria-label="Discount percentage" required />
+      <label class="sr-only" for="coupon-applies-to">Coupon applies to</label>
+      <select id="coupon-applies-to" name="appliesTo" aria-label="Coupon applies to">
         <option value="both">Both tiers</option>
         <option value="premium">Premium only</option>
         <option value="elite">Elite only</option>
       </select>
-      <input name="maxUses" type="number" min="1" placeholder="Max uses (blank = ∞)" />
-      <input name="expiresAt" type="date" placeholder="Expires" />
+      <label class="sr-only" for="coupon-max-uses">Maximum uses</label>
+      <input id="coupon-max-uses" name="maxUses" type="number" min="1" placeholder="Max uses (blank = ∞)" aria-label="Maximum uses" />
+      <label class="sr-only" for="coupon-expires">Coupon expiry date</label>
+      <input id="coupon-expires" name="expiresAt" type="date" placeholder="Expires" aria-label="Coupon expiry date" />
       <button type="submit" class="btn btn-tier-elite">+ Create coupon</button>
     </form>
     <p class="coupon-provider-note">Whop controls the amount charged. Create the same promo code in Whop; this table only tracks local usage after Whop confirms the discount.</p>
-    <div id="coupons-wrap"><div class="loader">Loading…</div></div>
-  </div>
+    <div id="coupons-wrap"><div class="loader" role="status" aria-live="polite">Loading…</div></div>
+  </section>
 
-  <div class="card">
+  <section class="card" aria-labelledby="users-title">
     <div class="card-hdr">
-      <h2>Users</h2>
+      <h2 id="users-title">Users</h2>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <input id="search" placeholder="Filter by email…" />
-        <button class="refresh-btn" id="btn-refresh-users">↻ Refresh</button>
+        <label class="sr-only" for="search">Filter users by email</label>
+        <input id="search" placeholder="Filter by email…" aria-label="Filter users by email" />
+        <button class="refresh-btn" id="btn-refresh-users" type="button" aria-label="Refresh users">↻ Refresh</button>
       </div>
     </div>
     <div id="table-wrap">
-      <div class="loader">Loading users…</div>
+      <div class="loader" role="status" aria-live="polite">Loading users…</div>
     </div>
-  </div>
-</div>
-<div class="toast" id="toast"></div>
+  </section>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script nonce="${nonce}">
 // A thrown error anywhere in this script (a missing element, a typo) used
@@ -789,6 +816,55 @@ async function loadAuditLog() {
   } catch(e) { return false; }
 }
 
+async function loadFeedback() {
+  try {
+    const r = await fetch('/admin/api/feedback', { headers: AUTH_HEADERS });
+    if (!r.ok) {
+      document.getElementById('feedback-wrap').innerHTML = '<div class="loader" role="status">Error loading feedback.</div>';
+      return false;
+    }
+    const rows = await r.json();
+    renderFeedback(rows);
+    return true;
+  } catch (e) {
+    document.getElementById('feedback-wrap').innerHTML = '<div class="loader" role="status">Failed to fetch feedback.</div>';
+    return false;
+  }
+}
+
+function renderFeedback(rows) {
+  const el = document.getElementById('feedback-wrap');
+  if (!rows.length) {
+    el.innerHTML = '<div class="loader" role="status">No customer feedback yet.</div>';
+    return;
+  }
+  el.innerHTML = rows.map(function (row) {
+    const who = row.account_email || row.email || 'Anonymous visitor';
+    const date = new Date(row.created_at * 1000).toLocaleString('en-US', {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+    const page = row.page ? ' · ' + escapeHtml(row.page) : '';
+    return '<article class="feedback-row">' +
+      '<div class="feedback-row-hdr">' +
+        '<span class="feedback-who">' + escapeHtml(who) + '</span>' +
+        '<span class="feedback-date">' + date + '</span>' +
+      '</div>' +
+      '<p class="feedback-message">' + escapeHtml(row.message) + '</p>' +
+      '<div class="feedback-meta">' + page.replace(/^ · /, '') +
+        ' <button class="btn btn-del" data-act="feedback-del" data-id="' + escapeHtml(row.id) +
+        '" aria-label="Delete feedback ' + escapeHtml(row.id) + '" title="Delete feedback">✕</button>' +
+      '</div>' +
+    '</article>';
+  }).join('');
+}
+
+async function deleteFeedback(id) {
+  if (!confirm('Delete this feedback? This cannot be undone.')) return;
+  const r = await fetch('/admin/api/feedback/' + encodeURIComponent(id), { method: 'DELETE', headers: AUTH_HEADERS });
+  if (r.ok) { toast('Feedback deleted'); loadFeedback(); }
+  else toast('Error deleting feedback', true);
+}
+
 const BACKUP_STALE_HOURS = 48;
 
 async function loadBackupStatus() {
@@ -864,7 +940,7 @@ function renderCoupons(coupons) {
     const toggleBtn = c.active
       ? '<button class="btn btn-block" data-act="coupon-toggle" data-id="' + c.id + '" data-val="0">Disable</button>'
       : '<button class="btn btn-unblock" data-act="coupon-toggle" data-id="' + c.id + '" data-val="1">Enable</button>';
-    const delBtn = '<button class="btn btn-del" data-act="coupon-del" data-id="' + c.id + '" data-code="' + escapeHtml(c.code) + '">✕</button>';
+    const delBtn = '<button class="btn btn-del" data-act="coupon-del" data-id="' + c.id + '" data-code="' + escapeHtml(c.code) + '" aria-label="Delete coupon ' + escapeHtml(c.code) + '" title="Delete coupon">✕</button>';
     return '<tr>' +
       '<td class="coupon-code">' + escapeHtml(c.code) + '</td>' +
       '<td>' + c.discount_percent + '%</td>' +
@@ -875,7 +951,7 @@ function renderCoupons(coupons) {
       '<td><div class="actions">' + toggleBtn + delBtn + '</div></td>' +
       '</tr>';
   }).join('');
-  el.innerHTML = '<table><thead><tr><th>Code</th><th>Discount</th><th>Applies to</th><th class="center">Uses</th><th>Expires</th><th>Status</th><th>Actions</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  el.innerHTML = '<table><caption class="sr-only">Coupon management</caption><thead><tr><th scope="col">Code</th><th scope="col">Discount</th><th scope="col">Applies to</th><th scope="col" class="center">Uses</th><th scope="col">Expires</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody>' + rows + '</tbody></table>';
 }
 
 async function createCoupon(e) {
@@ -1001,7 +1077,7 @@ function renderTable(users) {
       ? \`<button class="btn btn-push-test" data-act="push-test" data-id="\${u.id}" title="Send a test push notification to this user">🔔 Test push</button>\`
       : '';
 
-    const delBtn = \`<button class="btn btn-del" data-act="del-user" data-id="\${u.id}" data-email="\${email}">✕</button>\`;
+    const delBtn = \`<button class="btn btn-del" data-act="del-user" data-id="\${u.id}" data-email="\${email}" aria-label="Delete user \${email}" title="Delete user">✕</button>\`;
 
     const usage = tier === 'elite'
       ? '∞'
@@ -1041,17 +1117,18 @@ function renderTable(users) {
 
   document.getElementById('table-wrap').innerHTML = \`
     <table>
+      <caption class="sr-only">User accounts and access controls</caption>
       <thead><tr>
-        <th class="center">#</th>
-        <th>Email</th>
-        <th>Method</th>
-        <th>Status</th>
-        <th>Plan</th>
-        <th class="center">Usage</th>
-        <th>Notifications</th>
-        <th>Joined</th>
-        <th>Last Login</th>
-        <th>Actions</th>
+        <th scope="col" class="center">#</th>
+        <th scope="col">Email</th>
+        <th scope="col">Method</th>
+        <th scope="col">Status</th>
+        <th scope="col">Plan</th>
+        <th scope="col" class="center">Usage</th>
+        <th scope="col">Notifications</th>
+        <th scope="col">Joined</th>
+        <th scope="col">Last Login</th>
+        <th scope="col">Actions</th>
       </tr></thead>
       <tbody>\${rows}</tbody>
     </table>\`;
@@ -1131,6 +1208,7 @@ document.addEventListener('click', function (e) {
     case 'force-logout':  return forceLogout(d.id);
     case 'push-test':     return sendTestPush(d.id);
     case 'del-user':      return deleteUser(d.id, d.email);
+    case 'feedback-del':  return deleteFeedback(d.id);
     case 'coupon-toggle': return toggleCoupon(d.id, Number(d.val));
     case 'coupon-del':    return deleteCoupon(d.id, d.code);
   }
@@ -1151,13 +1229,16 @@ safeOn('btn-refresh-audit', 'click', async function () {
   const ok = await loadAuditLog();
   toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
 });
+safeOn('btn-refresh-feedback', 'click', async function () {
+  const ok = await loadFeedback();
+  toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
+});
 safeOn('btn-refresh-users', 'click', async function () {
   const ok = await load();
   toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
 });
 safeOn('search', 'input', filterTable);
-safeOn('backup-run-now', 'click', function (e) {
-  e.preventDefault();
+safeOn('backup-run-now', 'click', function () {
   runBackupNow();
 });
 
@@ -1166,10 +1247,11 @@ safeOn('backup-run-now', 'click', function (e) {
 // in this page's memory.
 (async function bootstrapAdmin() {
   await refreshAuthHeaders(true);
-  await Promise.all([load(), loadAuditLog(), loadBackupStatus(), loadVisits(), loadCoupons()]);
+  await Promise.all([load(), loadAuditLog(), loadFeedback(), loadBackupStatus(), loadVisits(), loadCoupons()]);
 })();
 setInterval(load, 60000);
 setInterval(loadAuditLog, 60000);
+setInterval(loadFeedback, 60000);
 setInterval(loadBackupStatus, 60000);
 setInterval(loadVisits, 60000);
 setInterval(loadCoupons, 60000);
