@@ -483,6 +483,19 @@ router.get(
              overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   .backup-link { display: inline-block; margin-top: 6px; background: none; border: 0; padding: 0;
                  color: #71717A; font: 11px inherit; text-decoration: underline; cursor: pointer; }
+  .admin-update { display:flex; align-items:flex-start; justify-content:space-between; gap:18px;
+                  margin-bottom:20px; padding:16px 18px; border:1px solid rgba(245,158,11,0.28);
+                  border-left:3px solid #F59E0B; border-radius:8px; background:rgba(245,158,11,0.07); }
+  .admin-update-kicker { color:#F59E0B; font-size:10px; font-weight:800; letter-spacing:.1em;
+                         text-transform:uppercase; margin-bottom:5px; }
+  .admin-update h2 { color:#F4F4F5; font-size:15px; margin-bottom:5px; }
+  .admin-update p { color:#A1A1AA; font-size:12px; line-height:1.5; }
+  .admin-update-list { display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:10px; }
+  .admin-update-list span { color:#D4D4D8; font-size:11px; }
+  .admin-update-list span::before { content:'✓'; color:#22C55E; font-weight:800; margin-right:5px; }
+  .admin-update-close { flex:0 0 auto; background:transparent; border:1px solid rgba(255,255,255,.15);
+                        border-radius:6px; color:#A1A1AA; cursor:pointer; font-size:11px; padding:6px 9px; }
+  .admin-update-close:hover { color:#F4F4F5; border-color:rgba(255,255,255,.3); }
   .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 24px 60px; }
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
            gap: 12px; margin-bottom: 28px; }
@@ -494,6 +507,9 @@ router.get(
   .card-hdr { padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06);
               display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .card-hdr h2 { font-size: 14px; font-weight: 600; }
+  .card-hdr-title { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .card-hdr-note { color:#71717A; font-size:11px; font-weight:400; }
+  .card-hdr-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   #search { background: #1C1C1C; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;
             color: #E4E4E7; font-size: 13px; padding: 6px 12px; outline: none; width: 220px; }
   #search::placeholder { color: #444; }
@@ -573,6 +589,8 @@ router.get(
     #search { width: 100%; }
     .admin-token-form { width:100%; }
     .admin-token-form input { flex:1; width:auto; }
+    .admin-update { flex-direction:column; gap:12px; }
+    .admin-update-close { align-self:flex-start; }
     .card-hdr { flex-direction: column; align-items: flex-start; }
     .card-hdr > div { width: 100%; }
     .toast { left: 12px; right: 12px; bottom: 12px; }
@@ -594,6 +612,19 @@ router.get(
   </nav>
 </header>
 <main id="main-content" class="wrap" aria-labelledby="admin-page-title">
+  <section class="admin-update" aria-labelledby="admin-updates-title">
+    <div>
+      <div class="admin-update-kicker">Admin update</div>
+      <h2 id="admin-updates-title">The admin workspace is easier to operate</h2>
+      <p>These are the visible changes in this release:</p>
+      <div class="admin-update-list">
+        <span>Customer feedback inbox</span>
+        <span>Hide or restore Activity Log</span>
+        <span>Keyboard and screen-reader support</span>
+      </div>
+    </div>
+    <button type="button" class="admin-update-close" id="dismiss-admin-update" aria-label="Dismiss admin update">Got it</button>
+  </section>
   <section class="stats" id="stats" aria-labelledby="stats-title">
     <h2 id="stats-title" class="sr-only">Launch and account overview</h2>
     <div class="stat"><div class="stat-val" id="s-visits-today">—</div><div class="stat-lbl">Visits Today</div></div>
@@ -618,10 +649,16 @@ router.get(
     </div>
   </section>
 
-  <section class="card" style="margin-bottom:20px" aria-labelledby="activity-title">
+  <section class="card" id="activity-card" style="margin-bottom:20px" aria-labelledby="activity-title">
     <div class="card-hdr">
-      <h2 id="activity-title">Activity Log</h2>
-      <button class="refresh-btn" id="btn-refresh-audit" type="button" aria-label="Refresh activity log">↻ Refresh</button>
+      <div class="card-hdr-title">
+        <h2 id="activity-title">Activity Log</h2>
+        <span class="card-hdr-note">Admin actions only</span>
+      </div>
+      <div class="card-hdr-actions">
+        <button class="refresh-btn" id="btn-toggle-audit" type="button" aria-controls="audit-wrap" aria-expanded="true">Hide Activity Log</button>
+        <button class="refresh-btn" id="btn-refresh-audit" type="button" aria-label="Refresh activity log">↻ Refresh</button>
+      </div>
     </div>
     <div id="audit-wrap"><div class="loader" role="status" aria-live="polite">Loading…</div></div>
   </section>
@@ -748,6 +785,45 @@ safeOn('admin-token-save', 'click', function () {
 });
 
 let allUsers = [];
+let activityLogHidden = false;
+const ACTIVITY_LOG_PREFERENCE_KEY = 'capital-flow-admin-activity-log-hidden';
+const ADMIN_UPDATE_PREFERENCE_KEY = 'capital-flow-admin-update-2026-09-21-seen';
+
+function setActivityLogHidden(hidden, persist) {
+  activityLogHidden = Boolean(hidden);
+  const wrap = document.getElementById('audit-wrap');
+  const toggle = document.getElementById('btn-toggle-audit');
+  if (!wrap || !toggle) return;
+  wrap.hidden = activityLogHidden;
+  toggle.textContent = activityLogHidden ? 'Show Activity Log' : 'Hide Activity Log';
+  toggle.setAttribute('aria-expanded', String(!activityLogHidden));
+  toggle.setAttribute('aria-label', activityLogHidden ? 'Show activity log' : 'Hide activity log');
+  if (persist) {
+    try {
+      localStorage.setItem(ACTIVITY_LOG_PREFERENCE_KEY, activityLogHidden ? '1' : '0');
+    } catch (e) {}
+  }
+}
+
+try {
+  setActivityLogHidden(localStorage.getItem(ACTIVITY_LOG_PREFERENCE_KEY) === '1', false);
+} catch (e) {
+  setActivityLogHidden(false, false);
+}
+
+try {
+  if (localStorage.getItem(ADMIN_UPDATE_PREFERENCE_KEY) === '1') {
+    document.querySelector('.admin-update').hidden = true;
+  }
+} catch (e) {}
+
+safeOn('dismiss-admin-update', 'click', function () {
+  const update = document.querySelector('.admin-update');
+  if (update) update.hidden = true;
+  try {
+    localStorage.setItem(ADMIN_UPDATE_PREFERENCE_KEY, '1');
+  } catch (e) {}
+});
 
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
@@ -793,6 +869,7 @@ const ACTION_LABEL = {
 };
 
 async function loadAuditLog() {
+  if (activityLogHidden) return true;
   try {
     const r = await fetch('/admin/api/audit-log', { headers: AUTH_HEADERS });
     if (!r.ok) return false;
@@ -1228,6 +1305,10 @@ safeOn('btn-refresh-coupons', 'click', async function () {
 safeOn('btn-refresh-audit', 'click', async function () {
   const ok = await loadAuditLog();
   toast(ok ? 'Refreshed' : 'Refresh failed', !ok);
+});
+safeOn('btn-toggle-audit', 'click', function () {
+  setActivityLogHidden(!activityLogHidden, true);
+  if (!activityLogHidden) loadAuditLog();
 });
 safeOn('btn-refresh-feedback', 'click', async function () {
   const ok = await loadFeedback();
