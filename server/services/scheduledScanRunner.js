@@ -622,35 +622,12 @@ function normalizeScheduledScanResult(scan) {
   };
 }
 
-function hasDisplayableScheduledData(row) {
-  if (!row || !String(row.symbol || '').trim()) return false;
-  const statuses = [row.quoteDataStatus, row.dataQuality, row.dataStatus]
-    .filter((value) => value != null)
-    .map((value) => String(value).toLowerCase());
-  return !statuses.some((status) => ['stale', 'unavailable', 'partial'].includes(status));
-}
-
-function availableScheduledResults(normalized) {
-  const results = Array.isArray(normalized?.results) ? normalized.results : [];
-  if (normalized?.dataStatus === 'unavailable') return [];
-  if (normalized?.dataStatus !== 'partial') return results;
-  return results.filter(hasDisplayableScheduledData);
-}
-
 function payloadForType(scanType, scan) {
-  const results = Array.isArray(scan) ? scan : Array.isArray(scan?.results) ? scan.results : [];
-  const rawResults = Array.isArray(scan) ? scan : Array.isArray(scan?.rawResults) ? scan.rawResults : results;
-  const dataStatus = Array.isArray(scan) ? 'complete' : scan?.dataStatus || 'complete';
-  if (results.length > 0) {
+  const rawResults = Array.isArray(scan) ? scan : Array.isArray(scan?.rawResults) ? scan.rawResults : scan?.results;
+  if (Array.isArray(rawResults) && rawResults.length > 0) {
     return {
       title: MARKET_SIGNAL_TITLE,
       body: 'New market signal detected. Open Capital Flow to view it.',
-    };
-  }
-  if (dataStatus === 'complete' && rawResults.length === 0) {
-    return {
-      title: 'Capital Flow',
-      body: 'No market signals found in this scan. Open Capital Flow to review.',
     };
   }
   return {
@@ -664,8 +641,13 @@ const MARKET_SIGNAL_TITLE = 'Market Signal Detected';
 
 async function notifyScheduledUser(sched, scan) {
   const normalized = normalizeScheduledScanResult(scan);
-  const rawResults = Array.isArray(normalized.results) ? normalized.results : [];
-  const results = availableScheduledResults(normalized);
+  // The customer-facing rule is intentionally based on the scanner's actual
+  // returned rows. A partial/stale status must not turn a non-empty result set
+  // into a false "couldn't verify" notification. The row still carries its
+  // own status for the detail view; only an actually empty result set uses the
+  // unavailable copy.
+  const results = Array.isArray(normalized.results) ? normalized.results : [];
+  const rawResults = results;
 
   // A one-time schedule (scan_date set) has done its one job — deactivate it
   // the moment it fires so it can't run again. A recurring one (scan_date
@@ -678,9 +660,9 @@ async function notifyScheduledUser(sched, scan) {
     )
     .run(Math.floor(Date.now() / 1000), results.length, sched.id);
 
-  // Every fired schedule gets one short status notification. A complete empty
-  // scan says no signals were found; provider/partial failures use a neutral
-  // retry message and never pretend that no-match is a verified result.
+  // Every fired schedule gets one short status notification. Any returned row
+  // uses the normal signal copy; only a completely empty result set uses the
+  // neutral retry message.
   const { title, body } = payloadForType(sched.scan_type, { ...normalized, rawResults, results });
 
   // Persist to the in-app bell FIRST, so the user has proof the scheduled

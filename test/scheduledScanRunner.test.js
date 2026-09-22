@@ -180,7 +180,7 @@ test('a completed scheduled scan with no matches still notifies the user', async
   assert.strictEqual(notif.scan_type, 'capitalFlow');
   assert.strictEqual(notif.results_json, null);
   assert.match(notif.title, /Capital Flow/);
-  assert.strictEqual(notif.body, 'No market signals found in this scan. Open Capital Flow to review.');
+  assert.strictEqual(notif.body, "We couldn't verify a market signal this time. Open Capital Flow to try again.");
   assert.strictEqual(pushMock.mock.callCount(), 1, 'the completed empty scan must also send push');
   assert.strictEqual(pushMock.mock.calls[0].arguments[1].data.resultCount, 0);
 });
@@ -248,7 +248,7 @@ test('a partial empty scan sends a concise unverified-data notification', async 
   assert.strictEqual(pushMock.mock.callCount(), 1);
 });
 
-test('a partial scan with a verified row sends the concise signal notification', async (t) => {
+test('a partial scan with returned rows sends the concise signal notification', async (t) => {
   const u = await db
     .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
     .run('sched-partial-rows@test.local');
@@ -279,10 +279,11 @@ test('a partial scan with a verified row sends the concise signal notification',
   assert.doesNotMatch(stored.title, /Partial data/i);
   assert.deepStrictEqual(JSON.parse(stored.results_json), [
     { symbol: 'AAPL', volumeRatio: 3.2, quoteDataStatus: 'complete' },
+    { symbol: 'MSFT', volumeRatio: 4.4, quoteDataStatus: 'stale' },
   ]);
 });
 
-test('a partial scan with only stale rows sends an unverified-data notification', async (t) => {
+test('a partial scan with any returned row sends the normal signal notification', async (t) => {
   const u = await db
     .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
     .run('sched-partial-stale@test.local');
@@ -305,9 +306,11 @@ test('a partial scan with only stale rows sends an unverified-data notification'
     .prepare('SELECT title, body, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
     .get(userId);
   assert.ok(notif);
-  assert.strictEqual(notif.results_json, null);
-  assert.strictEqual(notif.title, 'Capital Flow');
-  assert.strictEqual(notif.body, "We couldn't verify a market signal this time. Open Capital Flow to try again.");
+  assert.strictEqual(notif.title, 'Market Signal Detected');
+  assert.strictEqual(notif.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.deepStrictEqual(JSON.parse(notif.results_json), [
+    { symbol: 'AAPL', volumeRatio: 3.2, quoteDataStatus: 'stale' },
+  ]);
   assert.strictEqual(pushMock.mock.callCount(), 1);
 });
 
