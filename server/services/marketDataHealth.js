@@ -24,6 +24,10 @@ function hasRequiredScanQuote(row) {
   );
 }
 
+function hasLiveScanQuote(row) {
+  return Number(row?.regularMarketPrice) > 0 && Number(row?.regularMarketVolume) > 0;
+}
+
 function hasRequiredFinnhubQuote(row) {
   return (
     Number(row?.price) > 0 &&
@@ -68,8 +72,8 @@ function normalizeFullScan(fullScan) {
 }
 
 function coverageStatus(available, requested, providerFailure, staleCount) {
-  if (available === 0 || providerFailure) return 'unavailable';
-  if (available < requested || staleCount > 0) return 'partial';
+  if (available === 0) return 'unavailable';
+  if (providerFailure || available < requested || staleCount > 0) return 'partial';
   return 'complete';
 }
 
@@ -103,14 +107,17 @@ async function probeMarketData({ fullScan } = {}) {
     quoteProbeError = error?.name || 'Error';
   }
 
-  const availableSymbols = MARKET_DATA_PROBE_SYMBOLS.filter((symbol) =>
+  const liveQuoteSymbols = MARKET_DATA_PROBE_SYMBOLS.filter((symbol) =>
+    hasLiveScanQuote(quotes?.get(normalizedSymbol(symbol)))
+  );
+  const completeQuoteSymbols = MARKET_DATA_PROBE_SYMBOLS.filter((symbol) =>
     hasRequiredScanQuote(quotes?.get(normalizedSymbol(symbol)))
   );
   const staleSymbols = Array.isArray(quotes?.staleSymbols)
     ? quotes.staleSymbols.map(normalizedSymbol).filter(Boolean)
     : [];
   const yahooStatus = coverageStatus(
-    availableSymbols.length,
+    liveQuoteSymbols.length,
     MARKET_DATA_PROBE_SYMBOLS.length,
     quoteProbeError || quotes?.providerFailure === true,
     staleSymbols.length
@@ -141,11 +148,26 @@ async function probeMarketData({ fullScan } = {}) {
     ? coverageStatus(massiveVerifiedSymbols, MARKET_DATA_PROBE_SYMBOLS.length, false, 0)
     : 'not_configured';
   const normalizedFullScan = normalizeFullScan(fullScan);
+  const finnhubMetricSymbolsByName = new Set(
+    finnhubProbe.filter((row) => row?.metricOk).map((row) => normalizedSymbol(row.symbol))
+  );
+  const massiveMetricSymbolsByName = new Set(
+    massiveProbe.filter((row) => hasRequiredMassiveMetric(row?.metric)).map((row) => normalizedSymbol(row.symbol))
+  );
+  const verifiedScanSymbols = MARKET_DATA_PROBE_SYMBOLS.filter((symbol) => {
+    const row = quotes?.get(normalizedSymbol(symbol));
+    return (
+      hasLiveScanQuote(row) &&
+      (hasRequiredScanQuote(row) ||
+        finnhubMetricSymbolsByName.has(normalizedSymbol(symbol)) ||
+        massiveMetricSymbolsByName.has(normalizedSymbol(symbol)))
+    );
+  });
   const warnings = [];
 
   if (yahooStatus !== 'complete') {
     warnings.push(
-      `Yahoo quote coverage is ${yahooStatus}: ${availableSymbols.length}/${MARKET_DATA_PROBE_SYMBOLS.length} probe symbols verified.`
+      `Yahoo quote coverage is ${yahooStatus}: ${liveQuoteSymbols.length}/${MARKET_DATA_PROBE_SYMBOLS.length} probe symbols verified.`
     );
   }
   if (finnhubStatus !== 'complete') {
@@ -156,6 +178,11 @@ async function probeMarketData({ fullScan } = {}) {
   if (massiveConfigured && massiveStatus !== 'complete') {
     warnings.push(
       `Massive required-field coverage is ${massiveStatus}: ${massiveVerifiedSymbols}/${MARKET_DATA_PROBE_SYMBOLS.length} probe symbols verified.`
+    );
+  }
+  if (verifiedScanSymbols.length < liveQuoteSymbols.length) {
+    warnings.push(
+      `Verified scan-field coverage is ${verifiedScanSymbols.length}/${liveQuoteSymbols.length} live quote symbols.`
     );
   }
   // The background worker intentionally does not start while the US market is
@@ -171,8 +198,8 @@ async function probeMarketData({ fullScan } = {}) {
     );
   }
 
-  const overallStatus = yahooStatus === 'unavailable' ? 'unavailable' : warnings.length > 0 ? 'partial' : 'complete';
-  const sampleSymbol = availableSymbols[0] || null;
+  const overallStatus = verifiedScanSymbols.length === 0 ? 'unavailable' : warnings.length > 0 ? 'partial' : 'complete';
+  const sampleSymbol = verifiedScanSymbols[0] || null;
   const sample = sampleSymbol
     ? {
         symbol: sampleSymbol,
@@ -189,8 +216,10 @@ async function probeMarketData({ fullScan } = {}) {
     dataAsOf: quotes?.dataAsOf || null,
     coverage: {
       probeSymbols: MARKET_DATA_PROBE_SYMBOLS.length,
-      verifiedProbeSymbols: availableSymbols.length,
-      missingProbeSymbols: MARKET_DATA_PROBE_SYMBOLS.length - availableSymbols.length,
+      verifiedProbeSymbols: verifiedScanSymbols.length,
+      missingProbeSymbols: MARKET_DATA_PROBE_SYMBOLS.length - verifiedScanSymbols.length,
+      liveQuoteSymbols: liveQuoteSymbols.length,
+      completeQuoteSymbols: completeQuoteSymbols.length,
       staleProbeSymbols: staleSymbols.length,
       status: yahooStatus,
     },
@@ -229,6 +258,7 @@ async function probeMarketData({ fullScan } = {}) {
 module.exports = {
   MARKET_DATA_PROBE_SYMBOLS,
   hasRequiredScanQuote,
+  hasLiveScanQuote,
   hasRequiredFinnhubQuote,
   hasRequiredFinnhubMetric,
   hasRequiredMassiveMetric,

@@ -17,6 +17,14 @@ function quote(symbol) {
   };
 }
 
+function liveQuoteWithoutSlowFields(symbol) {
+  return {
+    symbol,
+    regularMarketPrice: 100,
+    regularMarketVolume: 5_000_000,
+  };
+}
+
 function quoteMap(entries, metadata = {}) {
   const map = new Map(entries);
   Object.defineProperties(map, {
@@ -85,6 +93,26 @@ test('market-data probe exposes partial provider and full-universe coverage', as
   assert.equal(result.coverage.missingProbeSymbols, 2);
   assert.equal(result.providers.finnhub.status, 'unavailable');
   assert.match(result.warning, /verified 494\/505/i);
+});
+
+test('market-data probe stays usable when live quotes need verified slow-field fallback', async (t) => {
+  t.mock.method(quoteCache, 'getQuotes', async () =>
+    quoteMap(
+      MARKET_DATA_PROBE_SYMBOLS.map((symbol) => [symbol, liveQuoteWithoutSlowFields(symbol)]),
+      { providerFailure: true }
+    )
+  );
+  t.mock.method(finnhub, 'fetchFinnhubQuote', async () => null);
+  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => finnhubMetric());
+
+  const result = await probeMarketData();
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, 'partial');
+  assert.equal(result.coverage.liveQuoteSymbols, MARKET_DATA_PROBE_SYMBOLS.length);
+  assert.equal(result.coverage.verifiedProbeSymbols, MARKET_DATA_PROBE_SYMBOLS.length);
+  assert.equal(result.providers.yahoo.status, 'partial');
+  assert.doesNotMatch(result.warning, /Yahoo quote coverage is unavailable/i);
 });
 
 test('market-data probe does not treat an incomplete Finnhub metric payload as coverage', async (t) => {
