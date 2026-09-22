@@ -789,7 +789,12 @@ async function reconcileComponent(component, cycleId, result) {
   }
   const recent = await getRecentFinalOutcomes(component.key, 12);
   const failureStreak = consecutive(recent, (row) => !row.success);
-  const recoveryStreak = consecutive(recent, (row) => row.success && row.state === 'operational');
+  // This incident represents an availability failure. Once the protected
+  // endpoint returns a structurally valid success again, it is recovered even
+  // if the response remains degraded because of latency or a non-fatal
+  // provider-coverage warning. The component stays visibly degraded on the
+  // status page; it just must not keep an old outage incident open forever.
+  const recoveryStreak = consecutive(recent, (row) => row.success);
 
   if (!active && !result.success && failureStreak >= FAILURE_CONFIRMATIONS) {
     const incident = await createIncident(component, cycleId, result, failureStreak);

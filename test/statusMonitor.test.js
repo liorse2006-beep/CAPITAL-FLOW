@@ -18,6 +18,8 @@ const {
 
 const originalFetch = global.fetch;
 let healthFails = false;
+let marketDataFails = false;
+let marketDataDegraded = false;
 
 function jsonResponse(status, body) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -37,8 +39,15 @@ global.fetch = async function (url) {
   if (value.endsWith('/health'))
     return jsonResponse(healthFails ? 503 : 200, healthFails ? { status: 'error' } : { status: 'ok' });
   if (value.endsWith('/api/auth/login')) return jsonResponse(401, { error: 'Unauthorized' });
-  if (value.endsWith('/status/internal/market-data'))
-    return jsonResponse(200, { ok: true, provider: 'test', sample: { symbol: 'AAPL' } });
+  if (value.endsWith('/status/internal/market-data')) {
+    if (marketDataFails) return jsonResponse(503, { ok: false });
+    return jsonResponse(200, {
+      ok: true,
+      provider: 'test',
+      sample: { symbol: 'AAPL' },
+      warning: marketDataDegraded ? 'provider coverage is partial' : null,
+    });
+  }
   if (value.endsWith('/status/internal/news-data'))
     return jsonResponse(200, { ok: true, provider: 'test', sample: { symbol: 'AAPL', articleCount: 1 } });
   return new Response('<html><title>Capital Flow</title><body>Capital Flow</body></html>', { status: 200 });
@@ -165,6 +174,28 @@ test('status monitor records checks, confirms an outage, and resolves it after r
   incidents = await db.prepare("SELECT * FROM status_incidents WHERE component_key = 'backend'").all();
   assert.equal(incidents[0].status, 'resolved');
   assert.ok(Number(incidents[0].outage_seconds) >= 0);
+});
+
+test('status monitor resolves an availability incident after successful degraded checks', async () => {
+  await clearStatusTables();
+  marketDataFails = true;
+  await runStatusCycle();
+  await runStatusCycle();
+
+  let incidents = await db.prepare("SELECT * FROM status_incidents WHERE component_key = 'market-data'").all();
+  assert.equal(incidents.length, 1);
+  assert.notEqual(incidents[0].status, 'resolved');
+
+  marketDataFails = false;
+  marketDataDegraded = true;
+  await runStatusCycle();
+  incidents = await db.prepare("SELECT * FROM status_incidents WHERE component_key = 'market-data'").all();
+  assert.equal(incidents[0].status, 'monitoring');
+
+  await runStatusCycle();
+  incidents = await db.prepare("SELECT * FROM status_incidents WHERE component_key = 'market-data'").all();
+  assert.equal(incidents[0].status, 'resolved');
+  marketDataDegraded = false;
 });
 
 after(() => {
