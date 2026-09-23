@@ -184,20 +184,9 @@ export default function Topbar({
             onSignIn={onSignIn}
           />
           {isAdmin && (
-            <>
-              <a className="topbar-admin-btn" href="/admin" title="Admin panel">
-                Admin
-              </a>
-              <a
-                className="topbar-status-btn"
-                href="https://status.capitalflow.vip/status"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="System status"
-              >
-                Status
-              </a>
-            </>
+            <a className="topbar-admin-btn" href="/admin" title="Admin panel">
+              Admin
+            </a>
           )}
           {user && (
             <div className="topbar-profile-wrap" ref={profileMenuRef}>

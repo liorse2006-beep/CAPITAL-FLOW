@@ -70,7 +70,7 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '64kb' }));
 app.use(express.static(path.join(__dirname, 'public'), { index: false, maxAge: '1h' }));
 
-app.get('/', (_req, res) => res.redirect('/status'));
+app.get('/', (_req, res) => res.redirect('/status/admin'));
 
 app.get('/health', async (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');

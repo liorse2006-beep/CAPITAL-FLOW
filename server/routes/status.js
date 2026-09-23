@@ -4,8 +4,15 @@ const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const router = express.Router();
 const db = require('../db');
 const { realIp } = require('../middleware/rateLimiters');
-const { ADMIN_EMAIL, STATUS_INTERNAL_TOKEN, STATUS_CHECK_INTERVAL_MS } = require('../config');
-const { checkAdminToken } = require('../services/adminAccess');
+const {
+  ADMIN_EMAIL,
+  ADMIN_TOKEN,
+  SESSION_SECRET,
+  STATUS_ADMIN_TOKEN,
+  STATUS_INTERNAL_TOKEN,
+  STATUS_CHECK_INTERVAL_MS,
+} = require('../config');
+const { checkAdminToken: checkConfiguredAdminToken } = require('../services/adminAccess');
 const {
   getActiveMaintenance,
   getComponentDefinitionsFromDb,
@@ -48,10 +55,9 @@ const statusProbeLimiter = rateLimit({
   message: { error: 'Too many status probe requests.' },
 });
 
-// Public status pages are intentionally unauthenticated, but summary
-// generation performs a full monitoring aggregation. Keep this budget
-// separate from admin/probe traffic so a public caller cannot repeatedly
-// consume database work without affecting operator controls.
+// Keep status-summary and history requests on a separate budget. These routes
+// are now admin-authenticated, but the limiter still protects the monitor
+// store from accidental or abusive request bursts.
 const statusPublicLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 60,
@@ -78,6 +84,70 @@ function asyncRoute(fn) {
 
 function unixNow() {
   return Math.floor(Date.now() / 1000);
+}
+
+const STATUS_ADMIN_COOKIE = 'cf_status_admin';
+const STATUS_ADMIN_SESSION_SECONDS = 8 * 60 * 60;
+
+function statusSessionSecret() {
+  return STATUS_ADMIN_TOKEN || ADMIN_TOKEN || SESSION_SECRET;
+}
+
+function statusSessionSignature(expiresAt) {
+  return crypto.createHmac('sha256', statusSessionSecret()).update(`status-admin:${expiresAt}`).digest('base64url');
+}
+
+function readStatusAdminCookie(req) {
+  const cookies = String(req.headers.cookie || '').split(';');
+  for (const cookie of cookies) {
+    const separator = cookie.indexOf('=');
+    if (separator < 0 || cookie.slice(0, separator).trim() !== STATUS_ADMIN_COOKIE) continue;
+    return cookie.slice(separator + 1).trim();
+  }
+  return '';
+}
+
+function hasValidStatusAdminSession(req) {
+  const [expiresText, signature, ...extra] = readStatusAdminCookie(req).split('.');
+  if (extra.length || !/^\d+$/.test(expiresText || '') || !signature) return false;
+  const expiresAt = Number(expiresText);
+  const now = unixNow();
+  if (!Number.isSafeInteger(expiresAt) || expiresAt <= now || expiresAt > now + STATUS_ADMIN_SESSION_SECONDS + 60) return false;
+  const expected = Buffer.from(statusSessionSignature(expiresAt));
+  const actual = Buffer.from(signature);
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+}
+
+async function checkAdminToken(req, res) {
+  if (hasValidStatusAdminSession(req)) return 'status-session';
+  return checkConfiguredAdminToken(req, res);
+}
+
+function setStatusAdminCookie(req, res, expiresAt) {
+  const signature = statusSessionSignature(expiresAt);
+  const secure = process.env.NODE_ENV === 'production' || req.secure;
+  res.setHeader(
+    'Set-Cookie',
+    `${STATUS_ADMIN_COOKIE}=${expiresAt}.${signature}; Max-Age=${STATUS_ADMIN_SESSION_SECONDS}; Path=/status; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`
+  );
+}
+
+function clearStatusAdminCookie(req, res) {
+  const secure = process.env.NODE_ENV === 'production' || req.secure;
+  res.setHeader(
+    'Set-Cookie',
+    `${STATUS_ADMIN_COOKIE}=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/status; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`
+  );
+}
+
+function isSameOriginRequest(req) {
+  const origin = req.get('origin');
+  if (!origin) return true;
+  try {
+    return new URL(origin).host.toLowerCase() === String(req.get('host') || '').toLowerCase();
+  } catch {
+    return false;
+  }
 }
 
 function asNumber(value, fallback = null) {
@@ -503,6 +573,26 @@ function pageCsp(nonce) {
   ].join('; ');
 }
 
+function renderStatusAdminLogin(pageNonce) {
+  const nonce = pageNonce || crypto.randomBytes(16).toString('base64');
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>Admin sign in — Capital Flow</title>
+<style nonce="${nonce}">
+:root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#0b0b0c;color:#f0f0f1}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}.login{width:min(420px,100%);padding:28px;background:#121214;border:1px solid rgba(255,255,255,.12);border-radius:12px}.brand{color:#fbbf24;font-size:11px;letter-spacing:.18em;text-transform:uppercase}.login h1{font-size:23px;margin:13px 0 8px}.login p{color:#9999a2;font-size:14px;line-height:1.55;margin:0 0 22px}.login label{display:block;font-size:13px;margin-bottom:8px}.login input{width:100%;padding:12px;border:1px solid #34343a;border-radius:7px;background:#19191c;color:#fff;font-size:16px}.login button{width:100%;margin-top:14px;padding:12px;border:0;border-radius:7px;background:#f59e0b;color:#17120a;font-weight:700;font-size:14px;cursor:pointer}.login button:disabled{opacity:.6;cursor:wait}.message{min-height:20px;margin-top:13px;color:#fca5a5;font-size:13px}.message[aria-live]{line-height:1.45}
+</style>
+</head>
+<body><main class="login"><div class="brand">Capital Flow · Private</div><h1>Admin sign in</h1><p>This area is restricted to authorized operators.</p><form id="status-admin-login"><label for="status-admin-token">Admin token</label><input id="status-admin-token" type="password" autocomplete="off" required autofocus><button id="status-admin-submit" type="submit">Sign in</button><div class="message" id="status-admin-message" role="status" aria-live="polite"></div></form></main>
+<script nonce="${nonce}">
+(function(){var form=document.getElementById('status-admin-login');var input=document.getElementById('status-admin-token');var button=document.getElementById('status-admin-submit');var message=document.getElementById('status-admin-message');form.addEventListener('submit',async function(event){event.preventDefault();var token=input.value;button.disabled=true;message.textContent='';try{var response=await fetch('/status/api/admin/session',{method:'POST',credentials:'same-origin',headers:{'x-admin-token':token},cache:'no-store'});if(!response.ok){message.textContent=response.status===503?'Admin access is not configured.':'Sign-in failed. Check the token and try again.';input.value='';input.focus();return}input.value='';window.location.replace('/status/admin')}catch(error){message.textContent='Could not sign in. Check your connection and try again.'}finally{button.disabled=false}})})();
+</script></body></html>`;
+}
+
 function renderPage(admin, pageNonce) {
   const nonce = pageNonce || crypto.randomBytes(16).toString('base64');
   const adminFlag = admin ? 'true' : 'false';
@@ -529,7 +619,7 @@ function renderPage(admin, pageNonce) {
 <div class="status-shell">
   <header class="status-nav">
   <a class="brand" href="/" aria-label="Capital Flow home"><img src="/logo-gold.jpeg" alt="Capital Flow logo"><div><strong>CAPITAL FLOW</strong><span>System status</span></div></a>
-    <div class="nav-actions"><a class="nav-link" href="/status">Public status</a><a class="nav-link" href="/status/admin">Operations</a><button class="button refresh-control" id="refresh-status" type="button">Refresh status</button></div>
+    <div class="nav-actions"><a class="nav-link" href="/status/admin">Operations</a><button class="button refresh-control" id="refresh-status" type="button">Refresh status</button></div>
   </header>
   <main>
     <section class="hero" aria-labelledby="overall-title">
@@ -543,11 +633,11 @@ function renderPage(admin, pageNonce) {
     <section class="section" aria-labelledby="active-incidents-title"><div class="section-head"><h2 id="active-incidents-title">Active incidents</h2><p>Confirmed incidents only</p></div><div class="card" id="active-incidents"><div class="empty">No active incidents.</div></div></section>
     <section class="section" aria-labelledby="previous-incidents-title"><div class="section-head"><h2 id="previous-incidents-title">Previous incidents</h2><p>Resolved incidents from monitoring history</p></div><div class="card" id="previous-incidents"><div class="empty">No incidents have been recorded yet.</div></div></section>
      <div class="admin-area${admin ? ' show' : ''}" id="admin-area">
-       <section class="section"><div class="section-head"><h2>Operations console</h2><p>Private monitoring controls</p></div><div class="card admin-panel"><h3>Admin authentication</h3><p>Use the existing admin token. It is kept only in this page's memory and cleared when the page is reloaded.</p><div class="admin-auth"><input class="admin-input" id="admin-token" type="password" autocomplete="off" placeholder="Static admin token"><button class="admin-button" id="save-token" type="button">Use token</button><button class="admin-button secondary" id="refresh-admin-page" type="button">Refresh admin</button><button class="admin-button secondary" id="check-now" type="button">Run check now</button><a class="nav-link" href="${getFullAdminUrl()}">Full user admin</a></div><div class="admin-help" id="admin-auth-status"></div></div></section>
+       <section class="section"><div class="section-head"><h2>Operations console</h2><p>Private monitoring controls</p></div><div class="card admin-panel"><h3>Admin session</h3><p>This page is restricted to authorized operators. Your session expires automatically after eight hours.</p><div class="admin-auth"><button class="admin-button secondary" id="refresh-admin-page" type="button">Refresh admin</button><button class="admin-button secondary" id="check-now" type="button">Run check now</button><button class="admin-button danger" id="status-admin-logout" type="button">Sign out</button><a class="nav-link" href="${getFullAdminUrl()}">Full user admin</a></div><div class="admin-help" id="admin-auth-status">Authenticated session</div></div></section>
       <section class="section admin-only" id="admin-controls"><div class="section-head"><h2>Monitoring controls</h2><p id="admin-meta">—</p></div><div class="card admin-panel"><div class="admin-toolbar"><button class="admin-button secondary" id="refresh-admin" type="button">Refresh diagnostics</button><span class="admin-help">Manual checks are rate-limited and never depend on this dashboard remaining open.</span></div></div><div class="card admin-panel"><h3>Scheduled maintenance</h3><p>Maintenance suppresses normal outage alerts only for the selected components and time window. The monitor continues recording checks.</p><form class="maintenance-form" id="maintenance-form"><input class="admin-input" name="title" required maxlength="120" placeholder="Maintenance title"><input class="admin-input" name="startsAt" required type="datetime-local"><input class="admin-input" name="endsAt" required type="datetime-local"><input class="admin-input" name="components" required placeholder="Components: website,backend or *"><textarea class="admin-textarea wide" name="description" required maxlength="1000" placeholder="What is changing and what users should expect?"></textarea><div class="wide"><button class="admin-button" type="submit">Schedule maintenance</button></div></form></div><div class="card admin-panel"><h3>Alert recipients</h3><p>Environment recipients are cached into the status store. Additional recipients can be managed here.</p><form class="admin-toolbar" id="recipient-form"><input class="admin-input" name="email" required type="email" placeholder="admin@example.com"><button class="admin-button" type="submit">Add recipient</button></form><div class="admin-table-wrap" id="recipients-table"><div class="empty">No recipients loaded.</div></div></div><div class="card admin-panel"><h3>Incidents and diagnostics</h3><div class="admin-table-wrap" id="admin-incidents"><div class="empty">Authenticate to load private diagnostics.</div></div></div><div class="card admin-panel"><h3>Recent monitoring checks</h3><div class="admin-table-wrap" id="admin-checks"><div class="empty">Authenticate to load private checks.</div></div></div><div class="card admin-panel"><h3>Maintenance history</h3><div class="admin-table-wrap" id="admin-maintenance"><div class="empty">Authenticate to load maintenance.</div></div></div></section>
     </div>
   </main>
-  <footer class="footer"><span>Capital Flow status is updated automatically every 5 minutes.</span><span>Public information is sanitized; private diagnostics are available to authorized operators only.</span></footer>
+  <footer class="footer"><span>Capital Flow status is updated automatically every 5 minutes.</span><span>Private monitoring information is available to authorized operators only.</span></footer>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script nonce="${nonce}">
@@ -555,7 +645,6 @@ function renderPage(admin, pageNonce) {
   var ADMIN_PAGE=${adminFlag};
   var summary=null;
   var adminData=null;
-  var transientAdminToken='';
   var statusLabels={operational:'Operational',degraded:'Degraded Performance',partial:'Partial Outage',major:'Major Outage',maintenance:'Maintenance',unknown:'Checking'};
   function byId(id){return document.getElementById(id)}
   function escapeHtml(value){return String(value==null?'':value).replace(/[&<>'"]/g,function(char){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]})}
@@ -565,7 +654,7 @@ function renderPage(admin, pageNonce) {
   function fmtUptime(value){return value==null?'—':Number(value).toFixed(2)+'%'}
   function statusClass(status){var map={operational:'ok',degraded:'warn',partial:'partial',major:'down',maintenance:'maintenance',unknown:'unknown'};return map[status]||'unknown'}
   function toast(message){var el=byId('toast');el.textContent=message;el.classList.add('show');setTimeout(function(){el.classList.remove('show')},2600)}
-  function authHeaders(){var headers={};if(transientAdminToken)headers['x-admin-token']=transientAdminToken;return headers}
+  function authHeaders(){return {}}
   function jsonHeaders(){var headers=authHeaders();headers['Content-Type']='application/json';return headers}
   function renderBadge(status){var badge=byId('overall-badge');badge.className='status-dot '+statusClass(status);badge.textContent=statusLabels[status]||'Checking'}
   function renderComponent(component){
@@ -586,7 +675,7 @@ function renderPage(admin, pageNonce) {
   function renderScheduledMaintenance(items){var section=byId('scheduled-maintenance-section');var target=byId('scheduled-maintenance');if(!items||!items.length){section.style.display='none';target.innerHTML='';return}section.style.display='block';target.innerHTML=items.map(function(item){return '<article class="incident"><div class="incident-head"><div><div class="incident-title">'+escapeHtml(item.title)+'</div><div class="incident-meta">'+fmtTime(item.startsAt)+' → '+fmtTime(item.endsAt)+' · '+escapeHtml((item.affectedComponents||[]).join(', '))+'</div></div><span class="pill">Planned</span></div><div class="incident-summary">'+escapeHtml(item.description)+'</div></article>'}).join('')}
   function renderSummary(data){
     summary=data;var status=data.overall||'unknown';var major=status==='major';byId('overall-title').textContent=statusLabels[status]||'Checking system status';byId('overall-copy').textContent=major?'A major component is currently unavailable. We are investigating and will publish updates as the situation changes.':status==='partial'?'Some functionality is currently affected. Core monitoring remains online and the affected component is shown below.':status==='degraded'?'The platform is available, but one or more components are slower than normal.':'We monitor the platform, critical workflows, dependencies and infrastructure automatically.';renderBadge(status);byId('last-check').textContent='Last check '+fmtTime(data.heartbeat&&data.heartbeat.lastCycleAt);byId('next-check').textContent='Next automatic check '+fmtTime(data.heartbeat&&data.heartbeat.nextCycleAt);var first=data.coverageStartedAt?'Monitoring since '+fmtDate(data.coverageStartedAt):'Monitoring coverage is being established.';byId('coverage-copy').textContent=first;byId('components').innerHTML=(data.components||[]).map(renderComponent).join('')||'<div class="empty">No component data yet.</div>';renderScheduledMaintenance(data.scheduledMaintenance||[]);renderHistory(data.history||{});renderIncidents(byId('active-incidents'),data.incidents||[],true);renderIncidents(byId('previous-incidents'),data.previousIncidents||[],false);var notice=byId('active-notice');if(data.incidents&&data.incidents.length){var incident=data.incidents[0];notice.classList.add('show');byId('notice-title').textContent=incident.title+' · '+incident.severity;byId('notice-copy').textContent=incident.summary+' Started '+fmtTime(incident.startedAt)+'. Incident '+incident.publicId+'.'}else{notice.classList.remove('show')}}
-  async function loadSummary(){try{var response=await fetch('/status/api/summary',{cache:'no-store'});var data=await response.json();renderSummary(data)}catch(error){renderBadge('unknown');byId('overall-title').textContent='Status data temporarily unavailable';byId('overall-copy').textContent='The status page is online, but the latest monitoring snapshot could not be loaded.'}}
+  async function loadSummary(){try{var response=await fetch('/status/api/summary',{credentials:'same-origin',cache:'no-store'});if(response.status===401){window.location.replace('/status/admin');return}if(!response.ok)throw new Error('Status request failed');var data=await response.json();renderSummary(data)}catch(error){renderBadge('unknown');byId('overall-title').textContent='Status data temporarily unavailable';byId('overall-copy').textContent='The status page is online, but the latest monitoring snapshot could not be loaded.'}}
   function renderAdmin(data){
     adminData=data;byId('admin-controls').classList.add('show');byId('admin-auth-status').textContent='Authenticated as '+(data.adminEmail||'static admin token');byId('admin-meta').textContent='Heartbeat '+fmtTime(data.meta&&data.meta.heartbeat_at)+' · Last cycle '+fmtTime(data.meta&&data.meta.last_cycle_at);var recipients=data.recipients||[];byId('recipients-table').innerHTML=recipients.length?'<table class="admin-table"><thead><tr><th>Email</th><th>Source</th><th>Status</th><th>Action</th></tr></thead><tbody>'+recipients.map(function(item){return '<tr><td><strong>'+escapeHtml(item.email)+'</strong></td><td>'+escapeHtml(item.source)+'</td><td>'+ (item.active?'Active':'Disabled')+'</td><td><button class="admin-button danger" data-remove-recipient="'+encodeURIComponent(item.email)+'" type="button">Remove</button></td></tr>'}).join('')+'</tbody></table>':'<div class="empty">No recipients configured.</div>';
     var incidents=data.incidents||[];byId('admin-incidents').innerHTML=incidents.length?'<table class="admin-table"><thead><tr><th>Incident</th><th>Status</th><th>Private error</th><th>Actions</th></tr></thead><tbody>'+incidents.map(function(item){return '<tr><td><strong>'+escapeHtml(item.public_id)+'</strong><br>'+escapeHtml(item.title)+'<br>'+fmtTime(item.started_at)+'</td><td>'+escapeHtml(item.status)+'<br>'+escapeHtml(item.severity)+'</td><td><code>'+escapeHtml(item.error_message||'—')+'</code></td><td><button class="admin-button secondary" data-update-incident="'+item.id+'" type="button">Add update</button> '+(item.status==='resolved'?'':'<button class="admin-button danger" data-resolve-incident="'+item.id+'" type="button">Resolve</button>')+'</td></tr>'}).join('')+'</tbody></table>':'<div class="empty">No incidents.</div>';
@@ -596,9 +685,9 @@ function renderPage(admin, pageNonce) {
   async function runStatusBackup(){try{var result=await adminRequest('/status/api/admin/backup/run-now',{method:'POST'});toast('Status backup sent: '+((result.backup&&result.backup.filename)||'complete'));loadAdmin()}catch(error){toast(error.message)}}
   function installBackupButton(){var toolbar=byId('admin-controls')&&byId('admin-controls').querySelector('.admin-toolbar');if(!toolbar||byId('run-status-backup'))return;var button=document.createElement('button');button.id='run-status-backup';button.className='admin-button secondary';button.type='button';button.textContent='Backup status DB';button.addEventListener('click',runStatusBackup);toolbar.appendChild(button)}
   var adminControls=byId('admin-controls');if(adminControls&&window.MutationObserver){new MutationObserver(installBackupButton).observe(adminControls,{childList:true,subtree:true})}
-  async function loadAdmin(){if(!ADMIN_PAGE)return;try{var response=await fetch('/status/api/admin/overview',{headers:authHeaders(),cache:'no-store'});if(!response.ok){byId('admin-auth-status').textContent=response.status===401?'Enter an admin token or sign in as the configured admin.':'Admin access is not configured.';byId('admin-controls').classList.remove('show');return}renderAdmin(await response.json());installBackupButton()}catch(error){byId('admin-auth-status').textContent='Could not load private diagnostics.'}}
+  async function loadAdmin(){if(!ADMIN_PAGE)return;try{var response=await fetch('/status/api/admin/overview',{credentials:'same-origin',headers:authHeaders(),cache:'no-store'});if(response.status===401){window.location.replace('/status/admin');return}if(!response.ok){byId('admin-auth-status').textContent='Admin access is not configured.';byId('admin-controls').classList.remove('show');return}renderAdmin(await response.json());installBackupButton()}catch(error){byId('admin-auth-status').textContent='Could not load private diagnostics.'}}
   async function adminRequest(url,options){var response=await fetch(url,Object.assign({},options||{}, {headers:Object.assign({},jsonHeaders(),(options&&options.headers)||{})}));var data=await response.json().catch(function(){return {}});if(!response.ok)throw new Error(data.error||'Request failed');return data}
-  byId('save-token').addEventListener('click',function(){var value=byId('admin-token').value.trim();if(value)transientAdminToken=value;byId('admin-token').value='';loadAdmin()});
+  byId('status-admin-logout').addEventListener('click',async function(){try{await fetch('/status/api/admin/session/logout',{method:'POST',credentials:'same-origin',cache:'no-store'})}finally{window.location.replace('/status/admin')}});
   byId('check-now').addEventListener('click',async function(){try{await adminRequest('/status/api/admin/check-now',{method:'POST'});toast('Monitoring cycle started');setTimeout(function(){loadSummary();loadAdmin()},1200)}catch(error){toast(error.message)}});
   async function refreshAdminView(button){var label=button&&button.textContent;if(button){button.disabled=true;button.textContent='Refreshing…'}try{await Promise.all([loadAdmin(),loadSummary()]);markPageUpdated();toast('Admin refreshed')}finally{if(button){button.disabled=false;button.textContent=label}}}
   byId('refresh-admin').addEventListener('click',function(){refreshAdminView(this)});
@@ -615,26 +704,44 @@ function renderPage(admin, pageNonce) {
 </html>`;
 }
 
-router.get('/status', (req, res) => {
-  const nonce = crypto.randomBytes(16).toString('base64');
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+router.get('/status', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('Content-Security-Policy', pageCsp(nonce));
-  res.send(renderPage(false, nonce));
+  res.redirect(302, '/status/admin');
 });
 
 router.get('/status/admin', (req, res) => {
   const nonce = crypto.randomBytes(16).toString('base64');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
   res.setHeader('Content-Security-Policy', pageCsp(nonce));
-  res.send(renderPage(true, nonce));
+  res.send(hasValidStatusAdminSession(req) ? renderPage(true, nonce) : renderStatusAdminLogin(nonce));
+});
+
+router.post(
+  '/status/api/admin/session',
+  asyncRoute(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'Forbidden' });
+    const actor = await checkConfiguredAdminToken(req, res);
+    if (!actor) return;
+    setStatusAdminCookie(req, res, unixNow() + STATUS_ADMIN_SESSION_SECONDS);
+    res.json({ ok: true });
+  })
+);
+
+router.post('/status/api/admin/session/logout', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'Forbidden' });
+  clearStatusAdminCookie(req, res);
+  res.json({ ok: true });
 });
 
 router.get(
   '/status/api/summary',
   asyncRoute(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
+    if (!(await checkAdminToken(req, res))) return;
     try {
       res.json(await cachedPublicSnapshot());
     } catch (err) {
@@ -657,6 +764,7 @@ router.get(
   '/status/api/history',
   asyncRoute(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
+    if (!(await checkAdminToken(req, res))) return;
     res.json(await dailyHistory(req.query.days || 90));
   })
 );
