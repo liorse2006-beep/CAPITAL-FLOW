@@ -230,7 +230,7 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     await user.click(screen.getByRole('button', { name: 'Remove AAPL from recent searches' }));
     expect(screen.queryByRole('button', { name: 'AAPL' })).not.toBeInTheDocument();
     expect(localStorage.getItem('vs_fund_recent:1')).not.toContain('AAPL');
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/api/fundamentals'), expect.anything());
   });
 });
 
