@@ -3,7 +3,6 @@
 // anything that reads config — node:test runs each file in its own
 // process, so this doesn't leak into other test files.
 process.env.WHOP_WEBHOOK_SECRET = 'test-webhook-secret';
-process.env.WHOP_API_KEY = 'test-api-key';
 process.env.WHOP_PREMIUM_PLAN_ID = 'plan_premium_test';
 process.env.WHOP_ELITE_PLAN_ID = 'plan_elite_test';
 process.env.WHOP_ELITE_UPGRADE_PLAN_ID = 'plan_elite_upgrade_test';
@@ -23,7 +22,18 @@ const webhooksRouter = require('../server/routes/webhooks');
 const checkoutRouter = require('../server/routes/checkout');
 
 before(async () => {
+  assert.strictEqual(process.env.DATABASE_URL, '', 'Whop tests must not inherit an application database URL');
+  assert.match(process.env.TURSO_DB_URL, /^file:/, 'Whop tests must use a local temporary SQLite database');
+  assert.strictEqual(process.env.TURSO_DB_URL, process.env.CAPITAL_FLOW_TEST_DATABASE_URL);
   await db.ready;
+  const processedEventsTable = await db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get('processed_webhook_events');
+  assert.ok(processedEventsTable, 'webhook idempotency table must be initialized before webhook tests');
+  const paymentEntitlementsTable = await db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get('whop_payment_entitlements');
+  assert.ok(paymentEntitlementsTable, 'Whop payment mapping table must be initialized before webhook tests');
 });
 
 function sign(
@@ -36,11 +46,16 @@ function sign(
 
 function paymentData(userId, tier, extra = {}) {
   const planId = tier === 'premium' ? 'plan_premium_test' : 'plan_elite_test';
-  const { promo_code: providerPromoCode, ...metadataExtra } = extra;
+  const { promo_code: providerPromoCode, paymentId = `pay_test_${userId}`, ...metadataExtra } = extra;
   return {
+    id: paymentId,
     plan: { id: planId },
     ...(providerPromoCode ? { promo_code: providerPromoCode } : {}),
-    metadata: { userId, tier, ...metadataExtra },
+    metadata: whop.createCheckoutMetadata({
+      userId: String(userId),
+      tier,
+      couponCode: metadataExtra.couponCode || '',
+    }),
   };
 }
 
@@ -206,7 +221,10 @@ test('webhook refuses to grant access when the signed payment plan is missing or
   const user = await makeUser('webhook-plan-mismatch@test.local', 'free');
   const payload = JSON.stringify({
     type: 'payment.succeeded',
-    data: { plan: { id: 'plan_not_configured' }, metadata: { userId: user.id, tier: 'elite' } },
+    data: {
+      plan: { id: 'plan_not_configured' },
+      metadata: whop.createCheckoutMetadata({ userId: String(user.id), tier: 'elite' }),
+    },
   });
 
   const server = await startWebhookApp();
@@ -220,6 +238,63 @@ test('webhook refuses to grant access when the signed payment plan is missing or
     assert.strictEqual(res.status, 422);
     const unchanged = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
     assert.deepStrictEqual(unchanged, { tier: 'free', is_premium: 0 });
+  } finally {
+    server.close();
+  }
+});
+
+test('webhook refuses Elements metadata tampered with after the server signed it', async () => {
+  const attacker = await makeUser('webhook-metadata-attacker@test.local', 'free');
+  const victim = await makeUser('webhook-metadata-victim@test.local', 'free');
+  const data = paymentData(attacker.id, 'premium');
+  data.metadata.userId = String(victim.id);
+  const payload = JSON.stringify({ type: 'payment.succeeded', data });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(payload, { id: 'wh_metadata_tamper_1' }) },
+      body: payload,
+    });
+    assert.strictEqual(res.status, 422);
+    assert.deepStrictEqual(await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(victim.id), {
+      tier: 'free',
+      is_premium: 0,
+    });
+    assert.deepStrictEqual(await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(attacker.id), {
+      tier: 'free',
+      is_premium: 0,
+    });
+  } finally {
+    server.close();
+  }
+});
+
+test('webhook refuses unsigned legacy/client-created checkout metadata', async () => {
+  const victim = await makeUser('webhook-metadata-unsigned@test.local', 'free');
+  const payload = JSON.stringify({
+    type: 'payment.succeeded',
+    data: {
+      plan: { id: 'plan_premium_test' },
+      metadata: { userId: String(victim.id), tier: 'premium' },
+    },
+  });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(payload, { id: 'wh_metadata_unsigned_1' }) },
+      body: payload,
+    });
+    assert.strictEqual(res.status, 422);
+    assert.deepStrictEqual(await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(victim.id), {
+      tier: 'free',
+      is_premium: 0,
+    });
   } finally {
     server.close();
   }
@@ -510,13 +585,306 @@ test('webhook ignores event types other than payment_succeeded', async () => {
   }
 });
 
-test('payment_refunded downgrades the user whose current tier matches the refunded payment', async () => {
-  const user = await makeUser('webhook-refund@test.local', 'elite');
-  await db.prepare('UPDATE users SET is_premium = 1 WHERE id = ?').run(user.id);
-
-  const payload = JSON.stringify({
-    type: 'payment_refunded',
+test('refund.created downgrades the user whose current tier matches the refunded payment', async () => {
+  const user = await makeUser('webhook-refund@test.local', 'free');
+  const paymentPayload = JSON.stringify({
+    type: 'payment.succeeded',
     data: paymentData(user.id, 'elite'),
+  });
+
+  const refundPayload = JSON.stringify({
+    type: 'refund.created',
+    data: {
+      id: 'rf_test_refund',
+      status: 'succeeded',
+      payment: paymentData(user.id, 'elite'),
+    },
+  });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    const paymentRes = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(paymentPayload, { id: 'wh_refund_payment_1' }) },
+      body: paymentPayload,
+    });
+    assert.strictEqual(paymentRes.status, 200);
+
+    const refundRes = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(refundPayload, { id: 'wh_refund_1' }) },
+      body: refundPayload,
+    });
+    assert.strictEqual(refundRes.status, 200);
+
+    const updated = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
+    assert.strictEqual(updated.tier, 'free', 'refunded tier must be revoked');
+    assert.strictEqual(updated.is_premium, 0);
+
+    const entitlement = await db
+      .prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?')
+      .get(`pay_test_${user.id}`);
+    assert.strictEqual(entitlement.status, 'refunded');
+
+    const audit = await db
+      .prepare("SELECT * FROM admin_audit_log WHERE action = 'refund_downgrade' AND target_user_id = ?")
+      .get(user.id);
+    assert.ok(audit, 'refund downgrade must appear in the audit log');
+  } finally {
+    server.close();
+  }
+});
+
+test('refund.updated revokes access only after Whop confirms the refund succeeded', async () => {
+  const user = await makeUser('webhook-refund-updated@test.local', 'free');
+  const paymentId = `pay_test_${user.id}`;
+  const paymentPayload = JSON.stringify({ type: 'payment.succeeded', data: paymentData(user.id, 'elite') });
+  const pendingPayload = JSON.stringify({
+    type: 'refund.created',
+    data: {
+      id: 'rf_test_pending',
+      status: 'pending',
+      payment: { id: paymentId, plan: { id: 'plan_elite_test' } },
+    },
+  });
+  const succeededPayload = JSON.stringify({
+    type: 'refund.updated',
+    data: {
+      id: 'rf_test_pending',
+      status: 'succeeded',
+      payment: { id: paymentId, plan: { id: 'plan_elite_test' } },
+    },
+  });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    const paymentRes = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(paymentPayload, { id: 'wh_refund_update_payment' }) },
+      body: paymentPayload,
+    });
+    assert.strictEqual(paymentRes.status, 200);
+
+    const pendingRes = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(pendingPayload, { id: 'wh_refund_pending' }) },
+      body: pendingPayload,
+    });
+    assert.strictEqual(pendingRes.status, 200);
+    let state = await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id);
+    assert.strictEqual(state.tier, 'elite', 'pending refund must not revoke paid access');
+
+    const succeededRes = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(succeededPayload, { id: 'wh_refund_succeeded' }) },
+      body: succeededPayload,
+    });
+    assert.strictEqual(succeededRes.status, 200);
+    state = await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id);
+    assert.strictEqual(state.tier, 'free', 'succeeded refund must revoke its paid tier');
+    const entitlement = await db.prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?').get(paymentId);
+    assert.strictEqual(entitlement.status, 'refunded');
+  } finally {
+    server.close();
+  }
+});
+
+test('dispute.created resolves the account from its nested payment ID when metadata is omitted', async () => {
+  const user = await makeUser('webhook-dispute@test.local', 'free');
+  const paymentId = `pay_test_${user.id}`;
+  const paymentPayload = JSON.stringify({
+    type: 'payment.succeeded',
+    data: paymentData(user.id, 'elite'),
+  });
+  // Whop dispute payloads identify the charge but need not repeat checkout metadata.
+  const disputePayload = JSON.stringify({
+    type: 'dispute.created',
+    data: {
+      id: 'dspt_test_dispute',
+      plan: { id: 'plan_elite_test' },
+      payment: { id: paymentId },
+    },
+  });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    const paymentRes = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(paymentPayload, { id: 'wh_dispute_payment_1' }) },
+      body: paymentPayload,
+    });
+    assert.strictEqual(paymentRes.status, 200);
+
+    const disputeRes = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(disputePayload, { id: 'wh_dispute_1' }) },
+      body: disputePayload,
+    });
+    assert.strictEqual(disputeRes.status, 200);
+
+    const updated = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
+    assert.strictEqual(updated.tier, 'free');
+    assert.strictEqual(updated.is_premium, 0);
+    const entitlement = await db
+      .prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?')
+      .get(paymentId);
+    assert.strictEqual(entitlement.status, 'disputed');
+  } finally {
+    server.close();
+  }
+});
+
+test('dispute.updated restores the verified payment tier only when Whop marks the dispute won', async () => {
+  const user = await makeUser('webhook-dispute-won@test.local', 'free');
+  const paymentId = `pay_test_${user.id}`;
+  const paymentPayload = JSON.stringify({ type: 'payment.succeeded', data: paymentData(user.id, 'elite') });
+  const disputePayload = JSON.stringify({
+    type: 'dispute.created',
+    data: {
+      id: 'dspt_test_won',
+      status: 'needs_response',
+      payment: { id: paymentId },
+      plan: { id: 'plan_elite_test' },
+    },
+  });
+  const wonPayload = JSON.stringify({
+    type: 'dispute.updated',
+    data: {
+      id: 'dspt_test_won',
+      status: 'won',
+      payment: { id: paymentId },
+      plan: { id: 'plan_elite_test' },
+    },
+  });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    for (const [payload, webhookId] of [
+      [paymentPayload, 'wh_dispute_won_payment'],
+      [disputePayload, 'wh_dispute_won_created'],
+      [wonPayload, 'wh_dispute_won_updated'],
+    ]) {
+      const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...sign(payload, { id: webhookId }) },
+        body: payload,
+      });
+      assert.strictEqual(res.status, 200);
+    }
+
+    const restored = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
+    assert.strictEqual(restored.tier, 'elite');
+    assert.strictEqual(restored.is_premium, 1);
+    const entitlement = await db
+      .prepare('SELECT status, revoked_at, revocation_reason FROM whop_payment_entitlements WHERE payment_id = ?')
+      .get(paymentId);
+    assert.strictEqual(entitlement.status, 'dispute_won');
+    assert.strictEqual(entitlement.revoked_at, null);
+    assert.strictEqual(entitlement.revocation_reason, null);
+  } finally {
+    server.close();
+  }
+});
+
+test('dispute_alert.created is acknowledged without revoking access before a formal dispute', async () => {
+  const user = await makeUser('webhook-dispute-alert@test.local', 'free');
+  const paymentId = `pay_test_${user.id}`;
+  const paymentPayload = JSON.stringify({ type: 'payment.succeeded', data: paymentData(user.id, 'elite') });
+  const alertPayload = JSON.stringify({
+    type: 'dispute_alert.created',
+    data: {
+      id: 'dspt_alert_test',
+      payment: { id: paymentId },
+      plan: { id: 'plan_elite_test' },
+    },
+  });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    for (const [payload, webhookId] of [
+      [paymentPayload, 'wh_dispute_alert_payment'],
+      [alertPayload, 'wh_dispute_alert_created'],
+    ]) {
+      const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...sign(payload, { id: webhookId }) },
+        body: payload,
+      });
+      assert.strictEqual(res.status, 200);
+    }
+
+    const unchanged = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
+    assert.strictEqual(unchanged.tier, 'elite');
+    assert.strictEqual(unchanged.is_premium, 1);
+    const entitlement = await db.prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?').get(paymentId);
+    assert.strictEqual(entitlement.status, 'active');
+  } finally {
+    server.close();
+  }
+});
+
+test('out-of-order dispute.updated won cannot be overwritten by a late dispute.created event', async () => {
+  const user = await makeUser('webhook-dispute-order@test.local', 'free');
+  const paymentId = `pay_test_${user.id}`;
+  const paymentPayload = JSON.stringify({ type: 'payment.succeeded', data: paymentData(user.id, 'elite') });
+  const wonPayload = JSON.stringify({
+    type: 'dispute.updated',
+    data: { id: 'dspt_test_order', status: 'won', payment: { id: paymentId }, plan: { id: 'plan_elite_test' } },
+  });
+  const createdPayload = JSON.stringify({
+    type: 'dispute.created',
+    data: {
+      id: 'dspt_test_order',
+      status: 'needs_response',
+      payment: { id: paymentId },
+      plan: { id: 'plan_elite_test' },
+    },
+  });
+
+  const server = await startWebhookApp();
+  const port = server.address().port;
+  try {
+    for (const [payload, webhookId] of [
+      [paymentPayload, 'wh_dispute_order_payment'],
+      [wonPayload, 'wh_dispute_order_won'],
+      [createdPayload, 'wh_dispute_order_created_late'],
+    ]) {
+      const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...sign(payload, { id: webhookId }) },
+        body: payload,
+      });
+      assert.strictEqual(res.status, 200);
+    }
+
+    const unchanged = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
+    assert.strictEqual(unchanged.tier, 'elite');
+    assert.strictEqual(unchanged.is_premium, 1);
+    const entitlement = await db.prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?').get(paymentId);
+    assert.strictEqual(entitlement.status, 'dispute_won');
+  } finally {
+    server.close();
+  }
+});
+
+test('refund.created still identifies a pre-Elements payment from provider-signed legacy metadata', async () => {
+  const user = await makeUser('webhook-legacy-refund@test.local', 'elite');
+  const payload = JSON.stringify({
+    type: 'refund.created',
+    data: {
+      id: 'rf_test_legacy',
+      status: 'succeeded',
+      payment: {
+        id: 'pay_legacy_purchase',
+        plan: { id: 'plan_elite_test' },
+        metadata: { userId: String(user.id), tier: 'elite' },
+      },
+    },
   });
 
   const server = await startWebhookApp();
@@ -524,19 +892,13 @@ test('payment_refunded downgrades the user whose current tier matches the refund
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/webhooks/whop`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...sign(payload, { id: 'wh_refund_1' }) },
+      headers: { 'Content-Type': 'application/json', ...sign(payload, { id: 'wh_legacy_refund_1' }) },
       body: payload,
     });
     assert.strictEqual(res.status, 200);
-
     const updated = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
-    assert.strictEqual(updated.tier, 'free', 'refunded tier must be revoked');
+    assert.strictEqual(updated.tier, 'free');
     assert.strictEqual(updated.is_premium, 0);
-
-    const audit = await db
-      .prepare("SELECT * FROM admin_audit_log WHERE action = 'refund_downgrade' AND target_user_id = ?")
-      .get(user.id);
-    assert.ok(audit, 'refund downgrade must appear in the audit log');
   } finally {
     server.close();
   }
@@ -617,13 +979,7 @@ test('checkout/transaction rejects a malformed promo code before calling Whop', 
   }
 });
 
-test('checkout/transaction forwards a provider-managed promo even when the local table does not know it', async (t) => {
-  const captured = [];
-  t.mock.method(whop, 'createCheckoutSession', async (args) => {
-    captured.push(args);
-    return { id: 'ch_provider_promo', purchase_url: 'https://whop.com/checkout/x' };
-  });
-
+test('checkout/transaction returns an allowlisted plan and signed Elements metadata for provider promos', async () => {
   const user = await makeUser('checkout-providerpromo@test.local');
   const server = await startCheckoutApp();
   const port = server.address().port;
@@ -637,30 +993,22 @@ test('checkout/transaction forwards a provider-managed promo even when the local
     const body = await res.json();
     assert.strictEqual(body.couponCode, 'PROVIDER-ONLY-25');
     assert.strictEqual(body.discountPercent, undefined);
-    assert.strictEqual(captured[0].metadata.couponCode, 'PROVIDER-ONLY-25');
-    assert.strictEqual(captured[0].allowPromoCodes, true);
+    assert.strictEqual(body.planId, 'plan_premium_test');
+    assert.strictEqual(body.tier, 'premium');
+    assert.strictEqual(body.metadata.couponCode, 'PROVIDER-ONLY-25');
+    assert.strictEqual(body.metadata.userId, String(user.id));
+    assert.strictEqual(whop.verifyCheckoutMetadata(body.metadata), true);
+    assert.strictEqual(body.sessionId, undefined, 'the browser-side Elements SDK creates the checkout session');
+    assert.strictEqual(body.purchaseUrl, undefined, 'Elements does not use the legacy hosted checkout URL');
   } finally {
     server.close();
   }
 });
 
-test('checkout/transaction attaches a valid promo code to the Whop session metadata without calculating a local price', async (t) => {
-  // Regression: this used to hard-reject (409) any request with a
-  // couponCode, meaning metadata.couponCode was NEVER set on a real
-  // checkout session — the webhook's redeemCoupon(metadata.couponCode) call
-  // was unreachable dead code in production. Now a valid code must actually
-  // reach Whop's session metadata (so the webhook can redeem it once paid)
-  // and come back in the response so the frontend can keep the code visible
-  // while Whop remains the sole source of truth for the final amount.
+test('checkout/transaction signs the exact local coupon metadata without calculating a price', async () => {
   await db
     .prepare('INSERT INTO coupons (code, discount_percent, applies_to) VALUES (?, ?, ?)')
     .run('ATTACHTEST', 25, 'both');
-  const captured = [];
-  t.mock.method(whop, 'createCheckoutSession', async (args) => {
-    captured.push(args);
-    return { id: 'ch_coupon_attach', purchase_url: 'https://whop.com/checkout/x' };
-  });
-
   const user = await makeUser('checkout-couponattach@test.local');
   const server = await startCheckoutApp();
   const port = server.address().port;
@@ -674,23 +1022,14 @@ test('checkout/transaction attaches a valid promo code to the Whop session metad
     const body = await res.json();
     assert.strictEqual(body.couponCode, 'ATTACHTEST');
     assert.strictEqual(body.discountPercent, undefined);
-    assert.strictEqual(
-      captured[0].metadata.couponCode,
-      'ATTACHTEST',
-      'the session sent to Whop must carry the coupon code'
-    );
+    assert.strictEqual(body.metadata.couponCode, 'ATTACHTEST');
+    assert.strictEqual(whop.verifyCheckoutMetadata(body.metadata), true);
   } finally {
     server.close();
   }
 });
 
-test('checkout/transaction debounces a rapid double-submit into a single Whop session', async (t) => {
-  const captured = [];
-  t.mock.method(whop, 'createCheckoutSession', async (args) => {
-    captured.push(args);
-    return { id: 'ch_debounce_' + captured.length, purchase_url: 'https://whop.com/checkout/x' };
-  });
-
+test('checkout/transaction debounces a rapid double-submit', async () => {
   const user = await makeUser('checkout-doubleclick@test.local');
   const token = (await issueToken(user)).accessToken;
   const server = await startCheckoutApp();
@@ -710,7 +1049,10 @@ test('checkout/transaction debounces a rapid double-submit into a single Whop se
       [200, 429],
       'one request must succeed, the immediate double-submit must be debounced'
     );
-    assert.strictEqual(captured.length, 1, 'only one Whop checkout session must actually be created');
+    const successResponse = first.status === 200 ? first : second;
+    const successBody = await successResponse.json();
+    assert.strictEqual(successBody.planId, 'plan_premium_test');
+    assert.strictEqual(whop.verifyCheckoutMetadata(successBody.metadata), true);
   } finally {
     server.close();
   }
@@ -743,13 +1085,7 @@ test('eliteUpgrade is rejected for an account that is not currently Premium', as
   }
 });
 
-test('eliteUpgrade creates a checkout session on the upgrade plan, granting elite once paid', async (t) => {
-  const captured = [];
-  t.mock.method(whop, 'createCheckoutSession', async (args) => {
-    captured.push(args);
-    return { id: 'ch_upgrade', purchase_url: 'https://whop.com/checkout/plan_elite_upgrade_test/?session=ch_upgrade' };
-  });
-
+test('eliteUpgrade returns its configured plan with signed Elite entitlement metadata', async () => {
   const user = await makeUser('checkout-upgrade-premium@test.local', 'premium');
   const server = await startCheckoutApp();
   const port = server.address().port;
@@ -761,25 +1097,12 @@ test('eliteUpgrade creates a checkout session on the upgrade plan, granting elit
     });
     assert.strictEqual(res.status, 200);
     const body = await res.json();
-    assert.strictEqual(body.purchaseUrl, 'https://whop.com/checkout/plan_elite_upgrade_test/?session=ch_upgrade');
-    // sessionId is what the embedded checkout actually mounts against — the
-    // whole point of this response now that the frontend no longer redirects.
-    assert.strictEqual(body.sessionId, 'ch_upgrade', 'must return the session id for the embedded checkout to use');
     assert.strictEqual(body.planId, 'plan_elite_upgrade_test');
-
-    assert.strictEqual(captured.length, 1);
-    assert.strictEqual(
-      captured[0].planId,
-      'plan_elite_upgrade_test',
-      'must charge the discounted plan, not the normal Elite plan'
-    );
-    assert.strictEqual(captured[0].metadata.tier, 'elite', 'must still grant the real elite tier once paid');
-    assert.strictEqual(captured[0].metadata.userId, String(user.id));
-    assert.strictEqual(
-      captured[0].allowPromoCodes,
-      true,
-      'Whop must own promo-code validation and discount calculation'
-    );
+    assert.strictEqual(body.tier, 'elite');
+    assert.strictEqual(body.metadata.tier, 'elite', 'must grant the real Elite tier only after the webhook confirms payment');
+    assert.strictEqual(body.metadata.userId, String(user.id));
+    assert.strictEqual(whop.verifyCheckoutMetadata(body.metadata), true);
+    assert.strictEqual(body.sessionId, undefined);
   } finally {
     server.close();
   }

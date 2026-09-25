@@ -179,6 +179,7 @@ router.delete(
       'chat_messages',
       'ai_usage',
       'scan_reservations',
+      'whop_payment_entitlements',
     ].map((table) => ({ sql: `DELETE FROM ${table} WHERE user_id = ?`, args: [userId] }));
     statements.push(
       {

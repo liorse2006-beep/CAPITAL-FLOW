@@ -66,10 +66,8 @@ const spaCsp = helmet.contentSecurityPolicy({
   useDefaults: false,
   directives: {
     defaultSrc: ["'self'"],
-    // WhopCheckoutEmbed (@whop/checkout/react — see EmbeddedCheckout.jsx)
-    // injects its own script tags at runtime (the checkout mount script plus
-    // a t.whop.tw tracking pixel) — without these, the embed silently fails
-    // to load with nothing but a CSP violation, not a visible error.
+    // Whop Elements loads its hosted SDK and checkout frame from this CDN.
+    // Keep the origin explicitly allow-listed or CSP silently blocks checkout.
     // Both the bare domain AND *.whop.com are listed deliberately — a
     // `*.` wildcard only matches subdomains (sandbox.whop.com), NOT the
     // apex domain itself, and the embed's iframe actually targets bare
@@ -82,6 +80,7 @@ const spaCsp = helmet.contentSecurityPolicy({
       'https://challenges.cloudflare.com',
       'https://whop.com',
       'https://*.whop.com',
+      'https://cdn.whop.com',
       'https://whop.tw',
       'https://*.whop.tw',
       // posthog-js (src/analytics.js) is bundled into our own JS (covered by
@@ -153,14 +152,14 @@ const spaCsp = helmet.contentSecurityPolicy({
       // whatever origin the built JS actually fetches /api/scan from.
       ...(process.env.VITE_SCAN_WORKER_URL ? [process.env.VITE_SCAN_WORKER_URL] : []),
     ],
-    // Turnstile renders its challenge inside a sandboxed iframe from
-    // Cloudflare; the embedded checkout form itself is a whop.com iframe;
-    // the Google Pay wallet sheet renders from pay.google.com.
+    // Turnstile and Whop Elements render hosted content in frames. Wallet
+    // sheets may also be hosted by the browser/payment provider.
     frameSrc: [
       "'self'",
       'https://challenges.cloudflare.com',
       'https://whop.com',
       'https://*.whop.com',
+      'https://cdn.whop.com',
       'https://pay.google.com',
     ],
     objectSrc: ["'none'"],

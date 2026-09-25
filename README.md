@@ -38,7 +38,7 @@ Full list with setup instructions for each provider lives in [.env.example](.env
 - **Push:** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`
 - **Admin panel:** `ADMIN_TOKEN` and/or `ADMIN_EMAIL` (panel is disabled if both are unset)
 - **Status monitoring:** `STATUS_TARGET_URL`, `STATUS_PUBLIC_URL`, `STATUS_FULL_ADMIN_URL`, `STATUS_ALERT_RECIPIENTS`, `STATUS_INTERNAL_TOKEN`, `STATUS_ADMIN_TOKEN`, the `STATUS_*` interval/retry/retention settings, and the independent backup settings
-- **Payments:** `WHOP_API_KEY`, `WHOP_WEBHOOK_SECRET`, `WHOP_PREMIUM_PLAN_ID`, `WHOP_ELITE_PLAN_ID`
+- **Payments:** `WHOP_WEBHOOK_SECRET`, `WHOP_PREMIUM_PLAN_ID`, `WHOP_ELITE_PLAN_ID` (Whop Elements; no API key exposed to the app)
 - **Database:** `DATABASE_URL` (PostgreSQL/Neon) and its pool/SSL settings; legacy `TURSO_DB_URL`/`TURSO_AUTH_TOKEN` only during migration
 - **Optional monitoring:** `VITE_SENTRY_DSN`/`SENTRY_DSN`, `VITE_POSTHOG_KEY`/`VITE_POSTHOG_HOST`
 - **Optional scaling:** `VITE_SCAN_WORKER_URL`, `CLUSTER_WORKERS`

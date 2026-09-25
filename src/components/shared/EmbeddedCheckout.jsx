@@ -1,39 +1,97 @@
-import React from 'react';
-import { WhopCheckoutEmbed } from '@whop/checkout/react';
+import React, { useState } from 'react';
+import { loadWhop } from '@whop/elements';
+import { WhopElements, Checkout, CheckoutElement } from '@whop/elements-react';
 
-// Renders Whop's real payment form inline, in an iframe scoped to just the
-// checkout fields — never a full-page redirect or a new tab/window. Whop's
-// own embed terms require the processor to stay visibly attributed even
-// when it's this invisible, so "Powered by Whop" stays on screen; everything
-// else (the page around it, the theme, what happens on completion) is ours.
-export default function EmbeddedCheckout({ sessionId, onComplete, onError }) {
-  // External wallet flows can leave the page for authorization (for example,
-  // 3-D Secure or a native wallet sheet). Keep the return target on the same
-  // origin so App.jsx can consume ?status=success|error and finish the normal
-  // webhook/tier refresh flow after the customer comes back.
-  const returnUrl = typeof window === 'undefined' ? '/' : `${window.location.origin}/`;
+const APPEARANCE = { theme: { appearance: 'dark', accentColor: 'amber', grayColor: 'slate' } };
+
+// Whop Elements owns checkout-session creation and keeps the session
+// credential inside its hosted element. The signed metadata comes from our
+// server and is independently verified by our payment webhook before any
+// account entitlement changes.
+export default function EmbeddedCheckout({ planId, metadata, promoCode, buyerEmail, onComplete, onError }) {
+  const [elements] = useState(() => loadWhop());
+  const [loadFailure, setLoadFailure] = useState(false);
+  const [retryLoad, setRetryLoad] = useState(null);
+  const [paymentReceived, setPaymentReceived] = useState(false);
+  const returnUrl =
+    typeof window === 'undefined'
+      ? undefined
+      : (() => {
+          const url = new URL(window.location.pathname, window.location.origin);
+          url.searchParams.set('status', 'success');
+          return url.toString();
+        })();
+
+  function handleLoadError(_error, retry) {
+    setRetryLoad(() => retry);
+    setLoadFailure(true);
+  }
+
+  function handleComplete(result) {
+    if (result?.result !== 'payment') {
+      onError?.(new Error('Payment was not completed.'));
+      return;
+    }
+    setPaymentReceived(true);
+    onComplete?.(result);
+  }
+
+  function handleElementError() {
+    // Do not surface provider internals or raw errors in the customer UI.
+    onError?.(new Error('Secure checkout is temporarily unavailable.'));
+  }
 
   return (
     <div className="embedded-checkout">
-      <WhopCheckoutEmbed
-        sessionId={sessionId}
-        returnUrl={returnUrl}
-        theme="dark"
-        skipRedirect
-        themeOptions={{
-          accentColor: '#f59e0b',
-          backgroundColor: '#141414',
-          borderRadius: 8,
-        }}
-        onComplete={onComplete}
-        onPaymentError={onError}
-        fallback={
-          <div className="embedded-checkout-loading">
-            <div className="spinner" />
-            Loading secure checkout…
-          </div>
-        }
-      />
+      <WhopElements
+        elements={elements}
+        locale="en"
+        appearance={APPEARANCE}
+        onLoadError={handleLoadError}
+      >
+        <Checkout
+          plan={planId}
+          metadata={metadata}
+          promoCode={promoCode || undefined}
+          returnUrl={returnUrl}
+          appearance={APPEARANCE}
+          locale="en"
+          analytics={false}
+          onComplete={handleComplete}
+        >
+          <CheckoutElement
+            buyerEmail={buyerEmail || ''}
+            lockBuyerEmail={Boolean(buyerEmail)}
+            onError={handleElementError}
+            fallback={
+              <div className="embedded-checkout-loading" role="status" aria-live="polite">
+                <div className="spinner" />
+                Loading secure checkout…
+              </div>
+            }
+          />
+        </Checkout>
+      </WhopElements>
+      {loadFailure && (
+        <div className="embedded-checkout-error" role="alert">
+          <p>We couldn’t load secure checkout. Check your connection and try again.</p>
+          <button
+            type="button"
+            onClick={() => {
+              if (!retryLoad) return;
+              setLoadFailure(false);
+              retryLoad();
+            }}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+      {paymentReceived && (
+        <p className="embedded-checkout-confirmation" role="status" aria-live="polite">
+          Payment received. We’re confirming your access now…
+        </p>
+      )}
       <div className="embedded-checkout-powered-by">
         Powered by <span className="embedded-checkout-whop-mark">Whop</span>
       </div>

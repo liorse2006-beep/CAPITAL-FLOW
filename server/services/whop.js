@@ -1,36 +1,67 @@
 const crypto = require('crypto');
-const { WHOP_API_KEY, WHOP_WEBHOOK_SECRET } = require('../config');
-const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
+const { JWT_SECRET, WHOP_WEBHOOK_SECRET } = require('../config');
 
-const API_BASE = 'https://api.whop.com/api/v2';
+const CHECKOUT_METADATA_VERSION = 'elements-v1';
+const CHECKOUT_TIERS = new Set(['premium', 'elite']);
 
-const enabled = !!WHOP_API_KEY;
+function checkoutMetadataPayload({ userId, tier, couponCode }) {
+  // Fixed-order, domain-separated serialization prevents the same HMAC from
+  // being usable as a token for a different feature or field combination.
+  return JSON.stringify(['capital-flow:whop-checkout', CHECKOUT_METADATA_VERSION, userId, tier, couponCode || '']);
+}
 
-/** Creates a Whop checkout session server-side so we can attach metadata
- * (which user/tier this is for) — the frontend mounts the returned session in
- * Whop's embedded checkout (with purchase_url retained as a fallback), which
- * is what makes the user linkage possible (the webhook reads this metadata
- * back). */
-async function createCheckoutSession({ planId, metadata, redirectUrl, allowPromoCodes = true }) {
-  if (!enabled) throw new Error('Whop is not configured (WHOP_API_KEY unset)');
-
-  const body = { plan_id: planId, metadata, allow_promo_codes: allowPromoCodes };
-  if (redirectUrl) body.redirect_url = redirectUrl;
-
-  const res = await fetchWithTimeout(`${API_BASE}/checkout_sessions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${WHOP_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    const message = data && data.error ? data.error.message || data.error : 'Whop API error';
-    throw new Error(message);
+/**
+ * Creates webhook metadata for Whop Elements. Elements mints its checkout
+ * session in the browser, so metadata itself is client-visible; the HMAC
+ * makes the account, entitlement and optional campaign code tamper-evident.
+ */
+function createCheckoutMetadata({ userId, tier, couponCode = '' }) {
+  const normalizedUserId = String(userId || '').trim();
+  if (!normalizedUserId || normalizedUserId.length > 128 || !CHECKOUT_TIERS.has(tier)) {
+    throw new TypeError('Invalid Whop checkout metadata');
   }
-  return data;
+  if (couponCode && (typeof couponCode !== 'string' || couponCode.length > 32)) {
+    throw new TypeError('Invalid Whop checkout metadata');
+  }
+
+  const metadata = {
+    userId: normalizedUserId,
+    tier,
+    checkoutVersion: CHECKOUT_METADATA_VERSION,
+    ...(couponCode ? { couponCode } : {}),
+  };
+  metadata.metadataSignature = crypto
+    .createHmac('sha256', JWT_SECRET)
+    .update(checkoutMetadataPayload(metadata), 'utf8')
+    .digest('base64url');
+  return metadata;
+}
+
+/** Verifies client-visible checkout metadata before it can affect access. */
+function verifyCheckoutMetadata(metadata) {
+  if (
+    !metadata ||
+    typeof metadata !== 'object' ||
+    Array.isArray(metadata) ||
+    typeof metadata.userId !== 'string' ||
+    !metadata.userId.trim() ||
+    metadata.userId.length > 128 ||
+    !CHECKOUT_TIERS.has(metadata.tier) ||
+    metadata.checkoutVersion !== CHECKOUT_METADATA_VERSION ||
+    (metadata.couponCode !== undefined &&
+      (typeof metadata.couponCode !== 'string' || metadata.couponCode.length > 32)) ||
+    typeof metadata.metadataSignature !== 'string' ||
+    !/^[A-Za-z0-9_-]{43}$/.test(metadata.metadataSignature)
+  ) {
+    return false;
+  }
+
+  const expected = crypto
+    .createHmac('sha256', JWT_SECRET)
+    .update(checkoutMetadataPayload(metadata), 'utf8')
+    .digest();
+  const actual = Buffer.from(metadata.metadataSignature, 'base64url');
+  return actual.length === expected.length && crypto.timingSafeEqual(expected, actual);
 }
 
 // Standard Webhooks spec's own recommended tolerance — rejects a
@@ -109,4 +140,8 @@ function verifyWebhookSignature(rawBody, headers) {
   });
 }
 
-module.exports = { enabled, createCheckoutSession, verifyWebhookSignature };
+module.exports = {
+  createCheckoutMetadata,
+  verifyCheckoutMetadata,
+  verifyWebhookSignature,
+};

@@ -19,6 +19,7 @@ const BACKUP_TABLES = Object.freeze([
   'notifications',
   'admin_audit_log',
   'processed_webhook_events',
+  'whop_payment_entitlements',
   'ai_usage',
   'scan_reservations',
   'site_visits',

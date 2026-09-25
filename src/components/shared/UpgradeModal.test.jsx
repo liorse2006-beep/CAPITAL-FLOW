@@ -5,17 +5,66 @@ import { MemoryRouter } from 'react-router-dom';
 import UpgradeModal from './UpgradeModal';
 import { AuthProvider } from '../../context/AuthContext';
 
-// The real WhopCheckoutEmbed mounts an iframe pointed at Whop's own servers
-// — not something jsdom can (or should) exercise. Stubbed to a simple marker
-// so these tests verify OUR wiring (session creation, prop pass-through,
-// onComplete handling) without depending on Whop's actual embed internals.
-vi.mock('@whop/checkout/react', () => ({
-  WhopCheckoutEmbed: (props) => (
-    <div data-testid="whop-checkout-embed" data-session-id={props.sessionId} data-return-url={props.returnUrl}>
-      <button onClick={() => props.onComplete('plan_x', 'receipt_x', {})}>Simulate payment complete</button>
+// The real Whop SDK loads a hosted frame, which jsdom cannot exercise. These
+// stubs verify our plan, signed metadata, return URL, retry and safe error UI.
+vi.mock('@whop/elements', () => ({ loadWhop: () => Promise.resolve(() => ({})) }));
+vi.mock('@whop/elements-react', () => ({
+  WhopElements: (props) => (
+    <div data-testid="whop-elements">
+      <button
+        type="button"
+        onClick={() => props.onLoadError(new Error('raw loader detail'), vi.fn())}
+      >
+        Simulate loader failure
+      </button>
+      {props.children}
+    </div>
+  ),
+  Checkout: (props) => (
+    <div
+      data-testid="whop-elements-checkout"
+      data-plan={props.plan}
+      data-metadata={JSON.stringify(props.metadata)}
+      data-return-url={props.returnUrl}
+      data-analytics={String(props.analytics)}
+    >
+      {props.children}
+      <button
+        type="button"
+        onClick={() => props.onComplete({ result: 'payment', paymentId: 'pay_test', sessionId: 'chs_test' })}
+      >
+        Simulate payment complete
+      </button>
+    </div>
+  ),
+  CheckoutElement: (props) => (
+    <div
+      data-testid="whop-checkout-element"
+      data-buyer-email={props.buyerEmail}
+      data-lock-buyer-email={String(props.lockBuyerEmail)}
+    >
+      <button type="button" onClick={() => props.onError({ message: 'raw processor detail' })}>
+        Simulate checkout error
+      </button>
     </div>
   ),
 }));
+
+vi.mock('../../context/AuthContext', () => ({
+  AuthProvider: ({ children }) => children,
+  useAuth: () => ({ getToken: () => 'test-access-token', user: { email: 'customer@example.com' } }),
+}));
+
+const signedCheckoutResponse = (tier = 'premium', planId = `plan_${tier}_test`) => ({
+  planId,
+  tier,
+  metadata: {
+    userId: '7',
+    tier,
+    checkoutVersion: 'elements-v1',
+    metadataSignature: 'x'.repeat(43),
+  },
+});
 
 function renderWithProviders(ui) {
   return render(
@@ -75,13 +124,13 @@ describe('UpgradeModal', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('mounts the checkout inline (embedded) instead of redirecting to a Whop-hosted page', async () => {
+  it('mounts Whop Elements inline with the server plan, signed metadata and safe return URL', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ sessionId: 'ch_test123', planId: 'plan_test' }),
+        json: async () => signedCheckoutResponse(),
       })
     );
     renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
@@ -94,48 +143,57 @@ describe('UpgradeModal', () => {
         expect.objectContaining({ method: 'POST', body: JSON.stringify({ tier: 'premium' }) })
       )
     );
-    const embed = await screen.findByTestId('whop-checkout-embed');
-    expect(embed).toHaveAttribute('data-session-id', 'ch_test123');
-    expect(embed).toHaveAttribute('data-return-url', `${window.location.origin}/`);
-    // Never navigated away — this is the whole point of the embed.
+    const checkout = await screen.findByTestId('whop-elements-checkout');
+    expect(checkout).toHaveAttribute('data-plan', 'plan_premium_test');
+    expect(JSON.parse(checkout.getAttribute('data-metadata'))).toMatchObject({
+      userId: '7',
+      tier: 'premium',
+      checkoutVersion: 'elements-v1',
+      metadataSignature: 'x'.repeat(43),
+    });
+    expect(checkout).toHaveAttribute('data-return-url', `${window.location.origin}/?status=success`);
+    expect(checkout).toHaveAttribute('data-analytics', 'false');
+    expect(await screen.findByTestId('whop-checkout-element')).toHaveAttribute('data-buyer-email', 'customer@example.com');
+    expect(screen.getByTestId('whop-checkout-element')).toHaveAttribute('data-lock-buyer-email', 'true');
     expect(window.location.href).not.toContain('whop.com');
   });
 
-  it('closes the checkout when payment completes so the post-purchase handoff is unobstructed', async () => {
+  it('shows confirmation after payment while Whop returns to the webhook-backed app flow', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ sessionId: 'ch_test123', planId: 'plan_test' }),
+        json: async () => signedCheckoutResponse(),
       })
     );
     const onClose = vi.fn();
     renderWithProviders(<UpgradeModal userTier="free" onClose={onClose} />);
 
     await user.click(screen.getByRole('button', { name: /get premium/i }));
-    await screen.findByTestId('whop-checkout-embed');
+    await screen.findByTestId('whop-elements-checkout');
     await user.click(screen.getByRole('button', { name: 'Simulate payment complete' }));
 
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText(/Payment received\. We’re confirming your access now/)).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
-  it('renders one session-bound checkout for wallets and card payments', async () => {
+  it('renders one complete Whop checkout surface for card and eligible payment methods', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ sessionId: 'ch_test123', planId: 'plan_test' }),
+        json: async () => signedCheckoutResponse(),
       })
     );
     renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: /get premium/i }));
 
-    expect(await screen.findByTestId('whop-checkout-embed')).toBeInTheDocument();
-    expect(screen.queryByTestId('whop-express-button')).not.toBeInTheDocument();
-    expect(screen.getAllByTestId('whop-checkout-embed')).toHaveLength(1);
+    expect(await screen.findByTestId('whop-elements-checkout')).toBeInTheDocument();
+    expect(screen.getAllByTestId('whop-elements-checkout')).toHaveLength(1);
+    expect(screen.getByTestId('whop-checkout-element')).toBeInTheDocument();
   });
 
   it('starts checkout without exposing a legacy promo-code field', async () => {
@@ -144,7 +202,7 @@ describe('UpgradeModal', () => {
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ sessionId: 'ch_test123', planId: 'plan_test' }),
+        json: async () => signedCheckoutResponse(),
       })
     );
     renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
@@ -160,7 +218,7 @@ describe('UpgradeModal', () => {
         })
       )
     );
-    expect(await screen.findByTestId('whop-checkout-embed')).toBeInTheDocument();
+    expect(await screen.findByTestId('whop-elements-checkout')).toBeInTheDocument();
     expect(screen.queryByText(/promo code/i)).not.toBeInTheDocument();
   });
 
@@ -170,7 +228,7 @@ describe('UpgradeModal', () => {
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ sessionId: 'ch_test123', planId: 'plan_test' }),
+        json: async () => signedCheckoutResponse('elite'),
       })
     );
     renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
@@ -178,6 +236,7 @@ describe('UpgradeModal', () => {
     await user.click(screen.getByRole('button', { name: /get elite/i }));
 
     await waitFor(() => expect(localStorage.getItem('vs_pending_tier')).toBe('elite'));
+    expect(await screen.findByTestId('whop-elements-checkout')).toHaveAttribute('data-plan', 'plan_elite_test');
   });
 
   it('clears the pending tier handoff when checkout is explicitly closed', async () => {
@@ -186,14 +245,14 @@ describe('UpgradeModal', () => {
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ sessionId: 'ch_test123', planId: 'plan_test' }),
+        json: async () => signedCheckoutResponse(),
       })
     );
     const onClose = vi.fn();
     renderWithProviders(<UpgradeModal userTier="free" onClose={onClose} />);
 
     await user.click(screen.getByRole('button', { name: /get premium/i }));
-    await screen.findByTestId('whop-checkout-embed');
+    await screen.findByTestId('whop-elements-checkout');
     expect(localStorage.getItem('vs_pending_tier')).toBe('premium');
 
     await user.click(screen.getByRole('button', { name: 'Close' }));
@@ -212,6 +271,22 @@ describe('UpgradeModal', () => {
     await user.click(screen.getByRole('button', { name: /get premium/i }));
 
     expect(await screen.findByText('Whop is not configured yet')).toBeInTheDocument();
-    expect(screen.queryByTestId('whop-checkout-embed')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('whop-elements-checkout')).not.toBeInTheDocument();
+  });
+
+  it('does not show raw provider error text to the customer', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => signedCheckoutResponse() })
+    );
+    renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /get premium/i }));
+    await screen.findByTestId('whop-checkout-element');
+    await user.click(screen.getByRole('button', { name: 'Simulate checkout error' }));
+
+    expect(await screen.findByText('Secure checkout is temporarily unavailable. Please try again.')).toBeInTheDocument();
+    expect(screen.queryByText('raw processor detail')).not.toBeInTheDocument();
   });
 });

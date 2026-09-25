@@ -3,7 +3,12 @@ const { requireAuth } = require('../middleware/authMiddleware');
 const { checkoutLimiter } = require('../middleware/rateLimiters');
 const { normalizeCode } = require('../services/coupons');
 const whop = require('../services/whop');
-const { WHOP_PREMIUM_PLAN_ID, WHOP_ELITE_PLAN_ID, WHOP_ELITE_UPGRADE_PLAN_ID, FRONTEND_URL } = require('../config');
+const {
+  WHOP_WEBHOOK_SECRET,
+  WHOP_PREMIUM_PLAN_ID,
+  WHOP_ELITE_PLAN_ID,
+  WHOP_ELITE_UPGRADE_PLAN_ID,
+} = require('../config');
 const { reportError } = require('../utils/reportError');
 
 const PLAN_ID = { premium: WHOP_PREMIUM_PLAN_ID, elite: WHOP_ELITE_PLAN_ID };
@@ -37,9 +42,13 @@ function isDuplicateCheckout(key) {
 // grants the normal 'elite' tier once paid — the webhook independently checks
 // that the authoritative plan matches this configured upgrade plan first.
 router.post('/checkout/transaction', checkoutLimiter, requireAuth, async (req, res) => {
-  if (!whop.enabled) return res.status(503).json({ error: 'Checkout is not configured yet' });
+  if (!WHOP_WEBHOOK_SECRET) return res.status(503).json({ error: 'Checkout is not configured yet' });
 
   const { tier, couponCode: rawCouponCode } = req.body || {};
+
+  if (!['premium', 'elite', 'eliteUpgrade'].includes(tier)) {
+    return res.status(400).json({ error: 'Choose a valid plan' });
+  }
 
   if (isDuplicateCheckout(`${req.user.id}:${tier}`)) {
     return res.status(429).json({ error: 'Checkout already starting — please wait a moment.' });
@@ -52,26 +61,15 @@ router.post('/checkout/transaction', checkoutLimiter, requireAuth, async (req, r
     if (req.user.tier !== 'premium') {
       return res.status(403).json({ error: 'This offer is only available to Premium accounts' });
     }
-    try {
-      const session = await whop.createCheckoutSession({
-        planId: WHOP_ELITE_UPGRADE_PLAN_ID,
-        metadata: { userId: String(req.user.id), tier: 'elite' },
-        allowPromoCodes: true,
-        redirectUrl: `${FRONTEND_URL}/`,
-      });
-      // sessionId + planId are what the embedded checkout (WhopCheckoutEmbed)
-      // needs to render inline on our own page — purchaseUrl is kept only as
-      // a fallback for any caller still using the old hosted-redirect flow.
-      return res.json({ purchaseUrl: session.purchase_url, sessionId: session.id, planId: WHOP_ELITE_UPGRADE_PLAN_ID });
-    } catch (err) {
-      reportError(err, '[checkout/transaction eliteUpgrade]');
-      return res.status(502).json({ error: 'Could not start checkout — please try again' });
-    }
+    return res.json({
+      planId: WHOP_ELITE_UPGRADE_PLAN_ID,
+      tier: 'elite',
+      metadata: whop.createCheckoutMetadata({ userId: req.user.id, tier: 'elite' }),
+    });
   }
 
   const planId = PLAN_ID[tier];
-  if (!planId)
-    return res.status(400).json({ error: 'tier must be premium or elite, and its Whop plan must be configured' });
+  if (!planId) return res.status(503).json({ error: 'This plan is not configured yet' });
 
   try {
     // Whop is the only authority for both promo eligibility and the amount
@@ -95,19 +93,10 @@ router.post('/checkout/transaction', checkoutLimiter, requireAuth, async (req, r
       couponCode = normalizeCode(trimmedCouponCode);
     }
 
-    const session = await whop.createCheckoutSession({
-      planId,
-      metadata: { userId: String(req.user.id), tier, ...(couponCode ? { couponCode } : {}) },
-      allowPromoCodes: true,
-      // Whop redirects here regardless of outcome, appending its own
-      // ?status=success|error — never bake an assumed outcome into this
-      // URL ourselves (see src/App.jsx, which reads that param).
-      redirectUrl: `${FRONTEND_URL}/`,
-    });
     res.json({
-      purchaseUrl: session.purchase_url,
-      sessionId: session.id,
       planId,
+      tier,
+      metadata: whop.createCheckoutMetadata({ userId: req.user.id, tier, couponCode }),
       ...(couponCode ? { couponCode } : {}),
     });
   } catch (err) {

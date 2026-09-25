@@ -1,9 +1,39 @@
 // Must be required before any server/ module — sets up a safe, isolated
 // environment so tests never touch real secrets or the real user database.
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const crypto = require('node:crypto');
+
 process.env.JWT_SECRET = 'test-jwt-secret-'.padEnd(32, 'x');
 process.env.SESSION_SECRET = 'test-session-secret-'.padEnd(32, 'x');
-// Use libsql in-memory mode — no file on disk, isolated per process.
-process.env.TURSO_DB_URL = 'file::memory:';
+// Use a unique temporary SQLite file. The libsql memory URL can isolate
+// connections created in separate async/test contexts, making an HTTP route
+// see an empty schema even after the test runner initialized it. A per-process
+// temp file shares the schema safely and never points at application data.
+// DATABASE_URL takes precedence over TURSO_DB_URL in server/db, so it must be
+// blank in tests even when a developer has a local or hosted database URL in
+// their environment. Otherwise tests can mutate application data.
+process.env.DATABASE_URL = '';
+// Node's test runner can reuse worker PIDs between sequential test files. A
+// random suffix prevents a stale SQLite file from a prior worker/run from
+// being mistaken for this process's isolated database.
+const testDatabasePath = path.join(os.tmpdir(), `capital-flow-tests-${process.pid}-${crypto.randomUUID()}.db`);
+process.env.TURSO_DB_URL = `file:${testDatabasePath}`;
+process.env.CAPITAL_FLOW_TEST_DATABASE_URL = process.env.TURSO_DB_URL;
+process.once('exit', () => {
+  for (const suffix of ['', '-wal', '-shm']) {
+    try {
+      fs.unlinkSync(`${testDatabasePath}${suffix}`);
+    } catch (_) {
+      // The operating system removes any locked temp files after the process exits.
+    }
+  }
+});
+// dotenv supports DOTENV_CONFIG_OVERRIDE as a process-level switch. Prevent
+// it from letting .env replace the isolated database above when test modules
+// load server/config.js later.
+process.env.DOTENV_CONFIG_OVERRIDE = 'false';
 process.env.ADMIN_EMAIL = 'admin@test.local';
 // dotenv (loaded when config.js is first required) would otherwise leak the
 // developer's real RESEND_API_KEY from .env into every test run — every

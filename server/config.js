@@ -168,9 +168,8 @@ module.exports = {
   ADMIN_TOKEN: env('ADMIN_TOKEN'),
   ADMIN_EMAIL: env('ADMIN_EMAIL'),
   SENTRY_DSN: env('SENTRY_DSN'),
-  // Whop (checkout) — opt-in, same pattern as Sentry: features that depend
-  // on these simply no-op until they're set.
-  WHOP_API_KEY: env('WHOP_API_KEY'),
+  // Whop Elements creates checkout sessions in the browser; only the
+  // webhook signing secret and server-allowlisted plan IDs are needed here.
   WHOP_WEBHOOK_SECRET: env('WHOP_WEBHOOK_SECRET'),
   WHOP_PREMIUM_PLAN_ID: env('WHOP_PREMIUM_PLAN_ID'),
   WHOP_ELITE_PLAN_ID: env('WHOP_ELITE_PLAN_ID'),

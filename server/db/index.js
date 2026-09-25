@@ -426,6 +426,24 @@ async function initDb() {
       completed_at INTEGER
     );
 
+    -- Links verified Whop payments to local accounts so newer refund and
+    -- dispute webhook payloads (which may omit checkout metadata) can revoke
+    -- only the entitlement originally purchased by that payment.
+    CREATE TABLE IF NOT EXISTS whop_payment_entitlements (
+      payment_id          TEXT PRIMARY KEY,
+      user_id              INTEGER NOT NULL,
+      tier                 TEXT NOT NULL,
+      plan_id              TEXT NOT NULL,
+      status               TEXT NOT NULL DEFAULT 'active',
+      created_at           INTEGER NOT NULL,
+      revoked_at           INTEGER,
+      revocation_reason    TEXT,
+      revocation_event_id  TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_whop_payment_entitlements_user
+      ON whop_payment_entitlements(user_id, status);
+
     CREATE TABLE IF NOT EXISTS admin_audit_log (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
       actor          TEXT    NOT NULL,

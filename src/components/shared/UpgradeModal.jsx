@@ -1,24 +1,19 @@
 import React, { useRef, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
 import useModalA11y from '../../hooks/useModalA11y';
 import { useAuth } from '../../context/AuthContext';
 import EmbeddedCheckout from './EmbeddedCheckout';
 import TierComparisonMatrix from './TierComparisonMatrix';
 
-const TIER_LABEL = { premium: 'Premium', elite: 'Elite' };
+const TIER_LABEL = { premium: 'Premium', elite: 'Elite', eliteUpgrade: 'Elite upgrade' };
 //
 // Clicking "Get <tier>" swaps this same modal over to Whop's checkout
-// embed, mounted inline (an iframe scoped to the payment form) — the user
-// never leaves the page or sees a Whop-hosted URL. The embed still needs a
-// server-created checkout session first, since that's what carries the
-// userId/tier metadata the webhook reads back once payment succeeds.
+// Elements checkout, mounted inline. The server returns an allowlisted plan
+// and HMAC-signed account metadata; the webhook alone grants the paid tier.
 export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = false }) {
-  const { getToken } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const { getToken, user } = useAuth();
   const [payingTier, setPayingTier] = useState(null);
   const [payError, setPayError] = useState('');
-  const [checkoutSession, setCheckoutSession] = useState(null); // { sessionId, tierKey } | null
+  const [checkoutSession, setCheckoutSession] = useState(null); // { planId, metadata, promoCode, tier, tierKey } | null
   const checkoutSessionRef = useRef(false);
   React.useEffect(() => {
     checkoutSessionRef.current = Boolean(checkoutSession);
@@ -42,13 +37,22 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not start checkout');
-      if (!data.sessionId) throw new Error('Checkout session was not created — please try again.');
-      // The completion callback only tells us the checkout finished, not
-      // which tier was bought — stash it so the welcome screen can show the
-      // right badge/copy immediately instead of waiting on the webhook.
-      localStorage.setItem('vs_pending_tier', tierKey);
+      if (
+        !data.planId ||
+        !data.metadata ||
+        typeof data.metadata.metadataSignature !== 'string' ||
+        !['premium', 'elite'].includes(data.tier)
+      ) {
+        throw new Error('Secure checkout could not be prepared. Please try again.');
+      }
+      // This is only a UI handoff hint. The webhook remains the authority
+      // that changes the user's tier after Whop confirms payment.
+      localStorage.setItem('vs_pending_tier', data.tier);
       setCheckoutSession({
-        sessionId: data.sessionId,
+        planId: data.planId,
+        metadata: data.metadata,
+        promoCode: data.couponCode || '',
+        tier: data.tier,
         tierKey,
       });
     } catch (err) {
@@ -58,18 +62,8 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
     }
   }
 
-  function handleComplete() {
-    // Reuses the exact same ?status=success handling App.jsx already has
-    // for the old hosted-redirect flow (shows the welcome modal, refreshes
-    // the real tier from the server) — same outcome, just never left the page.
-    navigate(location.pathname + '?status=success', { replace: false });
-    // Remove the checkout surface immediately so the customer sees only the
-    // post-purchase handoff while the webhook-backed tier refresh completes.
-    onClose();
-  }
-
-  function handlePaymentError(error) {
-    setPayError((error && error.message) || 'Payment failed — please try again.');
+  function handlePaymentError() {
+    setPayError('Secure checkout is temporarily unavailable. Please try again.');
     setCheckoutSession(null);
     localStorage.removeItem('vs_pending_tier');
   }
@@ -102,8 +96,10 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
             {TIER_LABEL[checkoutSession.tierKey]} checkout
           </h2>
           <EmbeddedCheckout
-            sessionId={checkoutSession.sessionId}
-            onComplete={handleComplete}
+            planId={checkoutSession.planId}
+            metadata={checkoutSession.metadata}
+            promoCode={checkoutSession.promoCode}
+            buyerEmail={user?.email}
             onError={handlePaymentError}
           />
         </div>
