@@ -45,6 +45,32 @@ test('scheduled volume notification stays safe when the leading ratio is unavail
   assert.doesNotMatch(payload.title, /NaN|undefined/);
 });
 
+test('scheduled scan cycle waits for database schema readiness before querying', async () => {
+  const originalReady = db.ready;
+  const originalPrepare = db.prepare;
+  let releaseReady;
+  let queryCount = 0;
+  db.ready = new Promise((resolve) => {
+    releaseReady = resolve;
+  });
+  db.prepare = (...args) => {
+    queryCount += 1;
+    return originalPrepare(...args);
+  };
+
+  let cycle;
+  try {
+    cycle = runScheduledScans();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.strictEqual(queryCount, 0, 'no scheduler database query should run before schema setup finishes');
+  } finally {
+    db.prepare = originalPrepare;
+    db.ready = originalReady;
+    releaseReady();
+  }
+  await cycle;
+});
+
 // ── one shared scan per type ────────────────────────────────────────────────
 
 test('two users scheduled for the same window share ONE scan and both get pushed', async (t) => {
