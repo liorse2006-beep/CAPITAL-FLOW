@@ -777,6 +777,11 @@ async function runScheduledScans() {
   if (scheduledScanCycleRunning) return;
   scheduledScanCycleRunning = true;
   try {
+    // The first cycle runs immediately on boot. Database schema creation is
+    // asynchronous, so do not let the scheduler query a shared database until
+    // its migrations have completed (otherwise a fresh staging DB can report
+    // "no such table: scheduled_scans" and miss that startup cycle).
+    await db.ready;
     await runScheduledScansCycle();
   } finally {
     scheduledScanCycleRunning = false;
