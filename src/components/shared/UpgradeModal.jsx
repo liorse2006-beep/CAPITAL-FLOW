@@ -3,6 +3,7 @@ import useModalA11y from '../../hooks/useModalA11y';
 import { useAuth } from '../../context/AuthContext';
 import EmbeddedCheckout from './EmbeddedCheckout';
 import TierComparisonMatrix from './TierComparisonMatrix';
+import { clearWhopReturnState, saveWhopReturnState } from '../../utils/checkoutReturn';
 
 const TIER_LABEL = { premium: 'Premium', elite: 'Elite', eliteUpgrade: 'Elite upgrade' };
 //
@@ -20,7 +21,10 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
   }, [checkoutSession]);
 
   function handleClose() {
-    if (checkoutSessionRef.current) localStorage.removeItem('vs_pending_tier');
+    if (checkoutSessionRef.current) {
+      localStorage.removeItem('vs_pending_tier');
+      clearWhopReturnState();
+    }
     onClose();
   }
 
@@ -48,6 +52,7 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
       // This is only a UI handoff hint. The webhook remains the authority
       // that changes the user's tier after Whop confirms payment.
       localStorage.setItem('vs_pending_tier', data.tier);
+      saveWhopReturnState();
       setCheckoutSession({
         planId: data.planId,
         metadata: data.metadata,
@@ -66,6 +71,7 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
     setPayError('Secure checkout is temporarily unavailable. Please try again.');
     setCheckoutSession(null);
     localStorage.removeItem('vs_pending_tier');
+    clearWhopReturnState();
   }
 
   if (checkoutSession) {
@@ -88,6 +94,7 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
             onClick={() => {
               setCheckoutSession(null);
               localStorage.removeItem('vs_pending_tier');
+              clearWhopReturnState();
             }}
           >
             ‹ Back to plans

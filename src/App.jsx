@@ -7,6 +7,7 @@ import usePushSubscription from './hooks/usePushSubscription';
 import { parseVolInput, formatPrice } from './utils/format';
 import { categoryQuota } from './utils/quota';
 import { hasEliteAccess, hasPremiumFeatureAccess } from './utils/access';
+import { restoreWhopReturnScroll } from './utils/checkoutReturn';
 import { useAuth } from './context/AuthContext';
 import { track } from './analytics';
 import PushPermissionPrompt from './components/shared/PushPermissionPrompt';
@@ -855,7 +856,15 @@ function App() {
         handledStatusRef.current = false;
         return;
       }
-      navigate(location.pathname, { replace: true });
+      var cleanedSearch = new URLSearchParams(location.search);
+      cleanedSearch.delete('status');
+      var cleanedSearchString = cleanedSearch.toString();
+      var cleanUrl =
+        location.pathname +
+        (cleanedSearchString ? '?' + cleanedSearchString : '') +
+        (location.hash || '');
+      restoreWhopReturnScroll();
+      navigate(cleanUrl, { replace: true });
       if (status !== 'success') {
         // A cancelled/failed checkout must not leave a stale tier handoff in
         // this browser. Otherwise a later, unrelated success callback could

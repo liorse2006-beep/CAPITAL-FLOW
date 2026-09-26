@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { loadWhop } from '@whop/elements';
 import { WhopElements, Checkout, CheckoutElement } from '@whop/elements-react';
+import { createWhopReturnUrl, redirectToWhopReturn } from '../../utils/checkoutReturn';
 
 const APPEARANCE = { theme: { appearance: 'dark', accentColor: 'amber', grayColor: 'slate' } };
 
@@ -13,14 +14,7 @@ export default function EmbeddedCheckout({ planId, metadata, promoCode, buyerEma
   const [loadFailure, setLoadFailure] = useState(false);
   const [retryLoad, setRetryLoad] = useState(null);
   const [paymentReceived, setPaymentReceived] = useState(false);
-  const returnUrl =
-    typeof window === 'undefined'
-      ? undefined
-      : (() => {
-          const url = new URL(window.location.pathname, window.location.origin);
-          url.searchParams.set('status', 'success');
-          return url.toString();
-        })();
+  const returnUrl = typeof window === 'undefined' ? undefined : createWhopReturnUrl();
 
   function handleLoadError(_error, retry) {
     setRetryLoad(() => retry);
@@ -34,6 +28,10 @@ export default function EmbeddedCheckout({ planId, metadata, promoCode, buyerEma
     }
     setPaymentReceived(true);
     onComplete?.(result);
+    // Whop's returnUrl normally performs this navigation. Do it from the
+    // confirmed completion callback too, so the customer reliably returns to
+    // the app even if an iOS/embedded browser leaves them on Whop afterward.
+    redirectToWhopReturn(returnUrl);
   }
 
   function handleElementError() {

@@ -5,6 +5,17 @@ import { MemoryRouter } from 'react-router-dom';
 import UpgradeModal from './UpgradeModal';
 import { AuthProvider } from '../../context/AuthContext';
 
+const checkoutReturnMocks = vi.hoisted(() => ({
+  redirectToWhopReturn: vi.fn(),
+  saveWhopReturnState: vi.fn(),
+  clearWhopReturnState: vi.fn(),
+}));
+
+vi.mock('../../utils/checkoutReturn', () => ({
+  createWhopReturnUrl: () => `${window.location.origin}/?status=success`,
+  ...checkoutReturnMocks,
+}));
+
 // The real Whop SDK loads a hosted frame, which jsdom cannot exercise. These
 // stubs verify our plan, signed metadata, return URL, retry and safe error UI.
 vi.mock('@whop/elements', () => ({ loadWhop: () => Promise.resolve(() => ({})) }));
@@ -77,6 +88,9 @@ function renderWithProviders(ui) {
 describe('UpgradeModal', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    checkoutReturnMocks.redirectToWhopReturn.mockClear();
+    checkoutReturnMocks.saveWhopReturnState.mockClear();
+    checkoutReturnMocks.clearWhopReturnState.mockClear();
     localStorage.clear();
   });
 
@@ -175,6 +189,9 @@ describe('UpgradeModal', () => {
     await user.click(screen.getByRole('button', { name: 'Simulate payment complete' }));
 
     expect(await screen.findByText(/Payment received\. We’re confirming your access now/)).toBeInTheDocument();
+    expect(checkoutReturnMocks.redirectToWhopReturn).toHaveBeenCalledWith(
+      `${window.location.origin}/?status=success`
+    );
     expect(onClose).not.toHaveBeenCalled();
   });
 
