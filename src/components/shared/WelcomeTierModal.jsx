@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import useModalA11y from '../../hooks/useModalA11y';
 
 const COPY = {
@@ -13,6 +13,8 @@ const COPY = {
     readyBody: 'Your Elite access is active. You can start scanning now.',
   },
 };
+
+const MIN_PENDING_SCREEN_MS = 1200;
 
 function AccessIcon() {
   return (
@@ -38,30 +40,45 @@ function AccessIcon() {
 export default function WelcomeTierModal({ tier, confirmed, onClose }) {
   const panelRef = useModalA11y(onClose);
   const copy = COPY[tier];
+  const [showPending, setShowPending] = useState(true);
+
+  useEffect(() => {
+    if (!confirmed) {
+      setShowPending(true);
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => setShowPending(false), MIN_PENDING_SCREEN_MS);
+    return () => window.clearTimeout(timer);
+  }, [confirmed]);
 
   if (!copy) return null;
 
+  // Always show the designed activation handoff after checkout, even when the
+  // payment webhook confirms the tier before the app finishes loading.
+  const isPending = !confirmed || showPending;
+
   return (
     <div
-      className={'upgrade-overlay welcome-tier-overlay' + (!confirmed ? ' welcome-tier-overlay-pending' : '')}
+      className={'upgrade-overlay welcome-tier-overlay' + (isPending ? ' welcome-tier-overlay-pending' : '')}
       onClick={onClose}
     >
       <div
         className={
-          'upgrade-modal welcome-tier-modal ' + copy.badgeClass + (!confirmed ? ' welcome-tier-modal-pending' : '')
+          'upgrade-modal welcome-tier-modal ' + copy.badgeClass + (isPending ? ' welcome-tier-modal-pending' : '')
         }
         ref={panelRef}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label={confirmed ? 'Thank you for your purchase' : 'Payment received — activating access'}
+        aria-label={isPending ? 'Payment received — activating access' : 'Thank you for your purchase'}
         onClick={(event) => event.stopPropagation()}
       >
         <button className="upgrade-close" onClick={onClose} aria-label="Close">
           ×
         </button>
 
-        {confirmed ? (
+        {!isPending ? (
           <div className="welcome-tier-badge-wrap">
             <span className={'welcome-tier-badge ' + copy.badgeClass}>{tier.toUpperCase()}</span>
           </div>
@@ -73,10 +90,10 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
           </div>
         )}
 
-        <div className="welcome-tier-eyebrow">{confirmed ? 'ACCESS READY' : 'PAYMENT RECEIVED'}</div>
+        <div className="welcome-tier-eyebrow">{isPending ? 'PAYMENT RECEIVED' : 'ACCESS READY'}</div>
         <h2 className="upgrade-title welcome-tier-headline">Thank you for your purchase</h2>
 
-        {confirmed ? (
+        {!isPending ? (
           <>
             <p className="upgrade-desc welcome-tier-body">{copy.readyBody}</p>
             <button className="upgrade-cta welcome-tier-cta" onClick={onClose}>

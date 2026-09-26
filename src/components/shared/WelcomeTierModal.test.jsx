@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { act, render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import WelcomeTierModal from './WelcomeTierModal';
 import { AuthProvider } from '../../context/AuthContext';
@@ -12,14 +12,25 @@ function renderWithProviders(ui) {
   );
 }
 
+async function advanceToReadyState() {
+  await act(async () => {
+    vi.advanceTimersByTime(1200);
+  });
+}
+
 describe('WelcomeTierModal', () => {
   afterEach(() => {
+    vi.useRealTimers();
     localStorage.clear();
   });
 
-  it('shows a compact Premium confirmation with one clear next step', () => {
+  it('shows a compact Premium confirmation with one clear next step', async () => {
+    vi.useFakeTimers();
     const { container } = renderWithProviders(<WelcomeTierModal tier="premium" confirmed onClose={vi.fn()} />);
 
+    expect(screen.getByText('PAYMENT RECEIVED')).toBeInTheDocument();
+    expect(screen.getByText('ACTIVATING ACCESS')).toBeInTheDocument();
+    await advanceToReadyState();
     expect(screen.getByText('ACCESS READY')).toBeInTheDocument();
     expect(screen.getByText('PREMIUM')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Thank you for your purchase' })).toBeInTheDocument();
@@ -30,11 +41,28 @@ describe('WelcomeTierModal', () => {
     expect(screen.queryByRole('button', { name: /upgrade to elite/i })).not.toBeInTheDocument();
   });
 
-  it('shows the same minimal confirmation for Elite', () => {
+  it('shows the same minimal confirmation for Elite', async () => {
+    vi.useFakeTimers();
     renderWithProviders(<WelcomeTierModal tier="elite" confirmed onClose={vi.fn()} />);
 
+    expect(screen.getByText('PAYMENT RECEIVED')).toBeInTheDocument();
+    await advanceToReadyState();
     expect(screen.getByText('ELITE')).toBeInTheDocument();
     expect(screen.getByText('Your Elite access is active. You can start scanning now.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'START SCANNING' })).toBeInTheDocument();
+  });
+
+  it('shows the activation screen briefly even when access is confirmed immediately', async () => {
+    vi.useFakeTimers();
+    renderWithProviders(<WelcomeTierModal tier="elite" confirmed onClose={vi.fn()} />);
+
+    expect(screen.getByText('PAYMENT RECEIVED')).toBeInTheDocument();
+    expect(screen.getByText('ACTIVATING ACCESS')).toBeInTheDocument();
+    expect(screen.queryByText('ACCESS READY')).not.toBeInTheDocument();
+
+    await advanceToReadyState();
+
+    expect(screen.getByText('ACCESS READY')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'START SCANNING' })).toBeInTheDocument();
   });
 
@@ -52,7 +80,8 @@ describe('WelcomeTierModal', () => {
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
   });
 
-  it('reveals Start scanning when the server confirms the paid tier', () => {
+  it('reveals Start scanning when the server confirms the paid tier', async () => {
+    vi.useFakeTimers();
     const { rerender } = renderWithProviders(<WelcomeTierModal tier="elite" confirmed={false} onClose={vi.fn()} />);
 
     rerender(
@@ -63,14 +92,18 @@ describe('WelcomeTierModal', () => {
       </MemoryRouter>
     );
 
+    expect(screen.getByText('ACTIVATING ACCESS')).toBeInTheDocument();
+    await advanceToReadyState();
     expect(screen.queryByText('ACTIVATING ACCESS')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'START SCANNING' })).toBeInTheDocument();
   });
 
-  it('closes from Start scanning, the X, and Escape', () => {
+  it('closes from Start scanning, the X, and Escape', async () => {
+    vi.useFakeTimers();
     const onClose = vi.fn();
     const { rerender } = renderWithProviders(<WelcomeTierModal tier="elite" confirmed onClose={onClose} />);
 
+    await advanceToReadyState();
     fireEvent.click(screen.getByRole('button', { name: 'START SCANNING' }));
     expect(onClose).toHaveBeenCalledTimes(1);
 
