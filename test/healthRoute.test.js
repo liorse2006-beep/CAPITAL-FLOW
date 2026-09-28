@@ -45,3 +45,42 @@ test('concurrent health checks share one database probe and keep the probe fail-
     server.close();
   }
 });
+
+test('process liveness stays healthy while database initialization is unavailable', async () => {
+  const originalReady = db.ready;
+  const originalPrepare = db.prepare;
+  db.ready = new Promise(() => {});
+  db.prepare = () => {
+    throw new Error('Liveness must not query the database');
+  };
+
+  const server = await startHealthApp();
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/health/live`);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).status, 'ok');
+  } finally {
+    db.ready = originalReady;
+    db.prepare = originalPrepare;
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('database readiness fails closed within its probe timeout', async () => {
+  // Let the previous test's deliberately short successful-probe cache expire.
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  const originalReady = db.ready;
+  db.ready = new Promise(() => {});
+  const server = await startHealthApp();
+  const startedAt = Date.now();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/health`);
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).status, 'error');
+    assert.ok(Date.now() - startedAt < 4500, 'probe should complete before Render’s five-second limit');
+  } finally {
+    db.ready = originalReady;
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

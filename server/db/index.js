@@ -3,6 +3,7 @@ const { createPostgresDatabase, isPostgresUrl } = require('./postgres');
 const path = require('path');
 const fs = require('fs');
 const { safeErrorSummary } = require('../utils/reportError');
+const { retryUntilReady } = require('./startupRetry');
 
 function isExpectedDuplicateColumnError(error) {
   const message = String(error?.message || error || '');
@@ -175,7 +176,7 @@ const db = {
   tableInfo,
   dialect: isPostgresDatabase ? 'postgres' : 'sqlite',
   resetSequences: postgresDb ? postgresDb.resetSequences : async () => {},
-  close: postgresDb ? postgresDb.close : async () => {},
+  close: postgresDb ? postgresDb.close : async () => client.close(),
 };
 
 // ── Schema migrations (run at startup) ────────────────────────────────────
@@ -966,16 +967,9 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// SQLITE_BUSY/SQLITE_LOCKED are transient — the schema is identical on every
-// boot (every migration is CREATE-IF-NOT-EXISTS/ALTER-IF-MISSING, so running
-// it twice is always safe), so retrying past a brief lock is correct, not
-// just convenient. This matters most when multiple processes share one
-// local SQLite file and boot at the same moment — e.g. `CLUSTER_WORKERS`
-// (server.js) starting several workers together, each running this same
-// initDb() independently. Real Turso in production is a proper client/
-// server database rather than raw file locking, so this path is expected
-// to matter mainly for local/file-mode DBs, but retrying costs nothing
-// either way.
+// SQLITE_BUSY/SQLITE_LOCKED are transient — the schema is idempotent, so
+// retrying past a brief local lock is correct. Hosted provider/network retries
+// are handled separately below with a longer capped backoff.
 async function initDbWithRetry(maxAttempts = 20) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -988,11 +982,19 @@ async function initDbWithRetry(maxAttempts = 20) {
   }
 }
 
-// Kick off schema init. All db consumers must await db.ready before their
-// first query — but since this only takes a few ms on startup and every
-// consumer is in an async context (route handlers, service functions) the
-// natural startup order is fine in practice.
-const ready = initDbWithRetry().catch((err) => {
+// A hosted database can temporarily reject connections because of provider
+// quotas, maintenance, or a short network interruption. Exiting immediately
+// turns that into a Render restart loop (and a full 502 outage) even though
+// the app can recover as soon as the database is available again. Keep the
+// process alive, retry only recognizable transient failures with capped
+// backoff, and leave readiness false until schema initialization succeeds.
+const ready = retryUntilReady(() => initDbWithRetry(), {
+  onRetry(error, { attempt, delayMs }) {
+    console.warn(
+      `[db] Schema initialization unavailable; retry ${attempt} in ${delayMs}ms: ${JSON.stringify(safeErrorSummary(error))}`
+    );
+  },
+}).catch((err) => {
   console.error('[db] Fatal: schema init failed:', safeErrorSummary(err));
   process.exit(1);
 });
