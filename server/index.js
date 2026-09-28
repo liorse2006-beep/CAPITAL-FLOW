@@ -10,6 +10,7 @@ const passport = require('passport');
 const path = require('path');
 const fs = require('fs');
 const { PORT, SESSION_SECRET, FRONTEND_URL, TRUSTED_PROXY_CIDRS } = require('./config');
+const db = require('./db');
 const { resolveTrustedProxy } = require('./proxyTrust');
 const { startBackgroundScheduler } = require('./services/backgroundScan');
 const { startScheduledDigest } = require('./services/scheduledDigest');
@@ -436,15 +437,27 @@ process.on('uncaughtException', (err) => crashCleanly('uncaughtException', err))
 // isSingletonWorker() is true in every non-cluster process (today's actual
 // deployment, local dev, tests) and true for exactly one worker when
 // running under server/cluster.js.
+let shuttingDown = false;
+
 if (isSingletonWorker()) {
-  startBackgroundScheduler();
-  startScheduledDigest();
-  startScheduledScanRunner();
-  startScheduledBackup();
-  startStatusMonitor();
+  // Do not start timers that read/write the database until the schema is
+  // actually ready. db.ready retries transient provider outages, so these
+  // workers start once after recovery rather than hammering a failed DB.
+  db.ready
+    .then(() => {
+      if (shuttingDown) return;
+      startBackgroundScheduler();
+      startScheduledDigest();
+      startScheduledScanRunner();
+      startScheduledBackup();
+      startStatusMonitor();
+    })
+    .catch((err) => {
+      console.error('[startup] Background services were not started:', safeErrorSummary(err));
+    });
 }
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Volume Scanner running at http://localhost:${PORT}`);
   // The session store (now a signed cookie — see the cookieSession setup
   // above) and SSE broadcast/scan-scheduling (now routed through
@@ -460,5 +473,43 @@ app.listen(PORT, () => {
     console.log('[startup] Running as one of multiple cluster workers — see server.js and services/clusterBus.js.');
   }
 });
+
+let shutdownPromise;
+function gracefulShutdown(signal) {
+  if (shutdownPromise) return shutdownPromise;
+  shuttingDown = true;
+  console.log(`[shutdown] ${signal} received; draining HTTP requests and closing database`);
+
+  shutdownPromise = new Promise((resolve) => {
+    const forceTimer = setTimeout(() => {
+      console.error('[shutdown] Grace period expired; forcing process exit');
+      server.closeAllConnections?.();
+      process.exit(1);
+    }, 15_000);
+
+    server.close(async (serverError) => {
+      try {
+        if (serverError) throw serverError;
+        await db.close();
+        const { Sentry } = require('./sentry');
+        await Sentry.flush(2000);
+        clearTimeout(forceTimer);
+        console.log('[shutdown] Clean shutdown complete');
+        process.exit(0);
+      } catch (err) {
+        clearTimeout(forceTimer);
+        console.error('[shutdown] Clean shutdown failed:', safeErrorSummary(err));
+        process.exit(1);
+      } finally {
+        resolve();
+      }
+    });
+  });
+
+  return shutdownPromise;
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 module.exports = app;

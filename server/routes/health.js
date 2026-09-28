@@ -10,16 +10,26 @@ const { STATUS_INTERNAL_TOKEN } = require('../config');
 // the probe fail-closed, but coalesce concurrent checks and reuse a successful
 // result only for a very short freshness window.
 const HEALTH_PROBE_TTL_MS = 1000;
+const HEALTH_PROBE_TIMEOUT_MS = 2000;
 let healthProbePromise = null;
 let lastHealthyProbeAt = 0;
+
+function withTimeout(promise, ms) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Database readiness probe timed out')), ms);
+    timer.unref?.();
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 
 function verifyDatabaseReadiness() {
   const now = Date.now();
   if (lastHealthyProbeAt && now - lastHealthyProbeAt < HEALTH_PROBE_TTL_MS) return Promise.resolve();
   if (healthProbePromise) return healthProbePromise;
 
-  healthProbePromise = Promise.resolve(db.ready)
-    .then(() => db.prepare('SELECT 1').get())
+  const probe = Promise.resolve(db.ready).then(() => db.prepare('SELECT 1').get());
+  healthProbePromise = withTimeout(probe, HEALTH_PROBE_TIMEOUT_MS)
     .then(() => {
       lastHealthyProbeAt = Date.now();
     })
@@ -41,6 +51,18 @@ function hasValidStatusToken(req) {
   return Boolean(STATUS_INTERNAL_TOKEN) && req.get('x-status-check-token') === STATUS_INTERNAL_TOKEN;
 }
 
+// Process liveness is deliberately independent of the database. Render uses
+// this endpoint to detect a wedged/crashed process; a database outage should
+// make readiness fail without causing a restart loop that takes the whole app
+// offline. Database-dependent traffic still fails closed at its own routes.
+router.get('/health/live', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Database readiness remains available to operators and the status monitor.
+// It fails closed, but the bounded probe guarantees the platform never waits
+// on a provider that is unavailable or over quota.
 router.get('/health', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   try {
