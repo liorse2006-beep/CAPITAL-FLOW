@@ -32,6 +32,21 @@ const FIRE_WINDOW_MIN = 3;
 const RADAR_RUN_LEASE_SECONDS = 10 * 60;
 const MAX_RADAR_RUN_ATTEMPTS = 2;
 const RADAR_RECOVERY_WINDOW_MIN = 20;
+const SCHEDULER_POLL_MS = 15 * 1000;
+const RADAR_RECOVERY_POLL_MS = 60 * 1000;
+const SCHEDULER_DB_RETRY_MS = 5 * 60 * 1000;
+let schedulerCache = { loaded: false, scans: [], radars: [] };
+let schedulerCacheRefreshPromise = null;
+let schedulerCacheRefreshRequested = false;
+let schedulerCacheStale = false;
+let schedulerCacheRetryAt = 0;
+let schedulerTimer = null;
+let schedulerTickPromise = null;
+let lastScanAttemptMinute = null;
+let lastRadarAttemptMinute = null;
+let radarRecoveryUntil = 0;
+let nextRadarRecoveryCheckAt = 0;
+let settledRadarSlots = new Set();
 
 function isRadarMarketWindow(now = new Date()) {
   if (isMarketOpen(now) || isPreMarket(now)) return true;
@@ -83,6 +98,93 @@ function isDue(hhmm, nowMinutes) {
   return sinceScheduled <= FIRE_WINDOW_MIN;
 }
 
+function schedulerMinuteKey(now = new Date()) {
+  return `${israelToday(now)}:${String(israelNowMinutes(now)).padStart(4, '0')}`;
+}
+
+async function refreshScheduledScanCache(options = {}) {
+  if (options.force) schedulerCacheStale = true;
+  if (schedulerCacheRefreshPromise) {
+    if (options.force) schedulerCacheRefreshRequested = true;
+    const inFlight = schedulerCacheRefreshPromise;
+    return inFlight
+      .then(() => {
+        if (schedulerCacheRefreshRequested) {
+          schedulerCacheRefreshRequested = false;
+          return refreshScheduledScanCache({ force: true });
+        }
+        return schedulerCache.loaded && !schedulerCacheStale;
+      })
+      .catch((err) => {
+        schedulerCacheRefreshRequested = false;
+        throw err;
+      });
+  }
+  if (!options.force && Date.now() < schedulerCacheRetryAt) return schedulerCache.loaded && !schedulerCacheStale;
+
+  schedulerCacheRefreshPromise = (async () => {
+    try {
+      await db.ready;
+      const today = israelToday();
+      const [scans, radars] = await Promise.all([
+        db.prepare('SELECT * FROM scheduled_scans WHERE active = 1').all(),
+        db
+          .prepare(
+            `SELECT id, mode, schedule_time_1, schedule_time_2, expires_on,
+                    ma_period, ma_distance, ma_interval, ma_direction, condition_mode, condition_version
+               FROM capital_flow_radars
+              WHERE active = 1 AND expires_on >= ?`
+          )
+          .all(today),
+      ]);
+      schedulerCache = {
+        loaded: true,
+        scans: Array.isArray(scans) ? scans : [],
+        radars: Array.isArray(radars) ? radars : [],
+      };
+      schedulerCacheStale = false;
+      schedulerCacheRetryAt = 0;
+      return true;
+    } catch (err) {
+      schedulerCacheStale = true;
+      schedulerCacheRetryAt = Date.now() + SCHEDULER_DB_RETRY_MS;
+      throw err;
+    }
+  })();
+
+  try {
+    return await schedulerCacheRefreshPromise;
+  } finally {
+    schedulerCacheRefreshPromise = null;
+  }
+}
+
+function dueScheduledScanRows(now = new Date()) {
+  const nowMinutes = israelNowMinutes(now);
+  const today = israelToday(now);
+  const oneHourAgo = Math.floor(now.getTime() / 1000) - 3600;
+  return schedulerCache.scans.filter(
+    (schedule) =>
+      Number(schedule.active) === 1 &&
+      (schedule.last_run_at == null || Number(schedule.last_run_at) < oneHourAgo) &&
+      (schedule.scan_date == null || schedule.scan_date === today) &&
+      isDue(schedule.scan_time, nowMinutes)
+  );
+}
+
+function dueRadarSlotKeys(now = new Date()) {
+  const nowMinutes = israelNowMinutes(now);
+  const today = israelToday(now);
+  const keys = [];
+  for (const radar of schedulerCache.radars) {
+    if (radar.expires_on < today) continue;
+    for (const time of [radar.schedule_time_1, radar.schedule_time_2]) {
+      if (time && isDue(time, nowMinutes)) keys.push(`${today}:${radar.id}:${time}`);
+    }
+  }
+  return keys;
+}
+
 function normalizedRadarRecipe(row) {
   const period = Number(row.ma_period);
   const distance = Number(row.ma_distance);
@@ -98,7 +200,7 @@ function normalizedRadarRecipe(row) {
   };
 }
 
-async function hasRecoverableRadarRun(radarId, runDate, scheduledTime, nowSeconds) {
+async function radarRunRecoveryState(radarId, runDate, scheduledTime, nowSeconds) {
   const run = await db
     .prepare(
       `SELECT status, attempts, started_at, completed_at, lease_until
@@ -106,15 +208,17 @@ async function hasRecoverableRadarRun(radarId, runDate, scheduledTime, nowSecond
         WHERE radar_id = ? AND run_date = ? AND scheduled_time = ?`
     )
     .get(radarId, runDate, scheduledTime);
-  return (
-    run &&
-    ((run.status === 'pending' &&
-      Number(run.lease_until || 0) < nowSeconds &&
-      Number(run.started_at || 0) >= nowSeconds - RADAR_RECOVERY_WINDOW_MIN * 60) ||
-      (run.status === 'failed' &&
-        Number(run.attempts || 0) < MAX_RADAR_RUN_ATTEMPTS &&
-        Number(run.completed_at || 0) >= nowSeconds - RADAR_RECOVERY_WINDOW_MIN * 60))
-  );
+  if (!run) return { relevant: false, claimable: false };
+  const recentPending =
+    run.status === 'pending' && Number(run.started_at || 0) >= nowSeconds - RADAR_RECOVERY_WINDOW_MIN * 60;
+  const retryableFailure =
+    run.status === 'failed' &&
+    Number(run.attempts || 0) < MAX_RADAR_RUN_ATTEMPTS &&
+    Number(run.completed_at || 0) >= nowSeconds - RADAR_RECOVERY_WINDOW_MIN * 60;
+  if (recentPending) {
+    return { relevant: true, claimable: Number(run.lease_until || 0) < nowSeconds };
+  }
+  return { relevant: retryableFailure, claimable: retryableFailure };
 }
 
 async function claimRadarRun(radarId, runDate, scheduledTime, nowSeconds) {
@@ -247,36 +351,50 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
   // The selectable 11:00–23:00 Jerusalem window covers the US pre-market
   // and regular session. Allow both so an 11:00 choice is a real scheduled
   // check instead of being silently discarded before the NYSE open.
-  if (!options.ignoreMarketHours && !isRadarMarketWindow(referenceNow)) return;
+  if (!options.ignoreMarketHours && !isRadarMarketWindow(referenceNow)) return { retry: false, dueRuns: 0 };
 
   const nowMinutes = israelNowMinutes(referenceNow);
   const runDate = israelToday(referenceNow);
-  let rows;
-  try {
-    rows = await db
-      .prepare(
-        `SELECT id, mode, schedule_time_1, schedule_time_2, expires_on,
-                ma_period, ma_distance, ma_interval, ma_direction, condition_mode, condition_version
-           FROM capital_flow_radars
-          WHERE active = 1
-            AND expires_on >= ?`
-      )
-      .all(runDate);
-  } catch (err) {
-    reportError(err, '[Radar scheduler] DB error');
-    return;
+  let rows = options.radarRows;
+  if (!Array.isArray(rows)) {
+    try {
+      rows = await db
+        .prepare(
+          `SELECT id, mode, schedule_time_1, schedule_time_2, expires_on,
+                  ma_period, ma_distance, ma_interval, ma_direction, condition_mode, condition_version
+             FROM capital_flow_radars
+            WHERE active = 1
+              AND expires_on >= ?`
+        )
+        .all(runDate);
+    } catch (err) {
+      reportError(err, '[Radar scheduler] DB error');
+      return { retry: true, dueRuns: 0 };
+    }
   }
 
   const dueRuns = [];
   const nowSeconds = Math.floor(referenceNow.getTime() / 1000);
+  let retryRequested = false;
   for (const row of rows) {
     for (const scheduledTime of [row.schedule_time_1, row.schedule_time_2]) {
-      if (
-        !scheduledTime ||
-        (!isDue(scheduledTime, nowMinutes) &&
-          !(await hasRecoverableRadarRun(row.id, runDate, scheduledTime, nowSeconds)))
-      )
-        continue;
+      if (!scheduledTime) continue;
+      const scheduledNow = isDue(scheduledTime, nowMinutes);
+      let recovery = { relevant: false, claimable: false };
+      if (!scheduledNow) {
+        try {
+          recovery = await radarRunRecoveryState(row.id, runDate, scheduledTime, nowSeconds);
+        } catch (err) {
+          reportError(err, `[Radar scheduler] recovery check failed for ${row.id}`);
+          retryRequested = true;
+          continue;
+        }
+        if (!recovery.relevant) continue;
+        if (!recovery.claimable) {
+          retryRequested = true;
+          continue;
+        }
+      }
       try {
         if (await claimRadarRun(row.id, runDate, scheduledTime, nowSeconds)) {
           const recipe = normalizedRadarRecipe(row);
@@ -286,13 +404,17 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
             scheduledTime,
             ...recipe,
           });
+        } else {
+          const currentRun = await radarRunRecoveryState(row.id, runDate, scheduledTime, nowSeconds);
+          if (currentRun.relevant) retryRequested = true;
         }
       } catch (err) {
         reportError(err, `[Radar scheduler] claim failed for ${row.id}`);
+        retryRequested = true;
       }
     }
   }
-  if (dueRuns.length === 0) return;
+  if (dueRuns.length === 0) return { retry: retryRequested, dueRuns: 0 };
 
   const { ALL_TICKERS } = require('../../tickers');
   let capitalFlowScan;
@@ -512,6 +634,7 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
       });
       const unavailableRuns = runs.filter((run) => conditionStatusByRadarId[String(run.radarId)] === 'unavailable');
       const completedRuns = runs.filter((run) => conditionStatusByRadarId[String(run.radarId)] !== 'unavailable');
+      if (unavailableRuns.length > 0) retryRequested = true;
       if (completedRuns.length > 0) {
         await finishRadarRuns(completedRuns, 'completed', compositeResults.length, null, {
           errors,
@@ -536,6 +659,7 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
       }
     } catch (err) {
       reportError(err, '[Radar scheduler] composite processing failed');
+      retryRequested = true;
       try {
         await require('./radar').markRadarsUnavailable(groupIds, {
           scanId,
@@ -570,6 +694,7 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
       }
     }
   }
+  return { retry: retryRequested, dueRuns: dueRuns.length };
 }
 
 let scheduledScanCycleRunning = false;
@@ -708,10 +833,9 @@ async function notifyScheduledUser(sched, scan) {
   );
 }
 
-async function runScheduledScansCycle() {
-  await runRadarScheduledScans();
-  const nowMinutes = israelNowMinutes();
-  const oneHourAgo = Math.floor(Date.now() / 1000) - 3600;
+async function runScheduledScansCycle(now = new Date()) {
+  const nowMinutes = israelNowMinutes(now);
+  const oneHourAgo = Math.floor(now.getTime() / 1000) - 3600;
 
   let rows;
   try {
@@ -724,14 +848,14 @@ async function runScheduledScansCycle() {
       .all(oneHourAgo);
   } catch (err) {
     reportError(err, '[ScheduledScans] DB error');
-    return;
+    return false;
   }
 
-  const today = israelToday();
+  const today = israelToday(now);
   const due = rows.filter(
     (sched) => (sched.scan_date == null || sched.scan_date === today) && isDue(sched.scan_time, nowMinutes)
   );
-  if (due.length === 0) return;
+  if (due.length === 0) return true;
 
   // Group by scan type → one scan each, fanned out to every subscriber.
   const byType = new Map();
@@ -762,35 +886,98 @@ async function runScheduledScansCycle() {
     // rest.
     await mapWithConcurrency(scheds, 10, (sched) => notifyScheduledUser(sched, scan));
   }
+  return true;
+}
+
+async function runCachedSchedulerTick(now = new Date(), options = {}) {
+  if (schedulerTickPromise) return schedulerTickPromise;
+  schedulerTickPromise = (async () => {
+    if (!schedulerCache.loaded || schedulerCacheStale) {
+      const loaded = await refreshScheduledScanCache();
+      if (!loaded || schedulerCacheStale) return;
+    }
+
+    const minuteKey = schedulerMinuteKey(now);
+    const dueScans = dueScheduledScanRows(now);
+    const dueRadarKeys = dueRadarSlotKeys(now);
+    const freshRadarKeys = dueRadarKeys.filter((key) => !settledRadarSlots.has(key));
+    const recoveryDue = radarRecoveryUntil > Date.now() && Date.now() >= nextRadarRecoveryCheckAt;
+
+    if ((options.force || freshRadarKeys.length > 0) && (options.force || lastRadarAttemptMinute !== minuteKey)) {
+      lastRadarAttemptMinute = minuteKey;
+      const result = await runRadarScheduledScans(now, { radarRows: schedulerCache.radars });
+      if (result && result.retry) {
+        radarRecoveryUntil = Date.now() + RADAR_RECOVERY_WINDOW_MIN * 60 * 1000;
+        nextRadarRecoveryCheckAt = Date.now() + RADAR_RECOVERY_POLL_MS;
+      } else {
+        freshRadarKeys.forEach((key) => settledRadarSlots.add(key));
+        if (recoveryDue) {
+          radarRecoveryUntil = 0;
+          nextRadarRecoveryCheckAt = 0;
+        }
+      }
+    } else if (recoveryDue && (options.force || lastRadarAttemptMinute !== minuteKey)) {
+      lastRadarAttemptMinute = minuteKey;
+      const result = await runRadarScheduledScans(now, { radarRows: schedulerCache.radars });
+      if (result && result.retry) {
+        nextRadarRecoveryCheckAt = Date.now() + RADAR_RECOVERY_POLL_MS;
+      } else {
+        radarRecoveryUntil = 0;
+        nextRadarRecoveryCheckAt = 0;
+      }
+    }
+
+    if (dueScans.length > 0 && (options.force || lastScanAttemptMinute !== minuteKey)) {
+      lastScanAttemptMinute = minuteKey;
+      const completed = await runScheduledScansCycle(now);
+      if (completed) {
+        await refreshScheduledScanCache({ force: true });
+      }
+    }
+
+    if (settledRadarSlots.size > 1000) {
+      const today = israelToday(now);
+      settledRadarSlots = new Set(Array.from(settledRadarSlots).filter((key) => key.startsWith(`${today}:`)));
+    }
+  })();
+  try {
+    await schedulerTickPromise;
+  } finally {
+    schedulerTickPromise = null;
+  }
 }
 
 async function runScheduledScans() {
   if (scheduledScanCycleRunning) return;
   scheduledScanCycleRunning = true;
   try {
-    // The first cycle runs immediately on boot. Database schema creation is
-    // asynchronous, so do not let the scheduler query a shared database until
-    // its migrations have completed (otherwise a fresh staging DB can report
-    // "no such table: scheduled_scans" and miss that startup cycle).
+    // Startup/manual reconciliation refreshes the cache once, then queries
+    // schedule tables only when a cached schedule is due or a Radar run needs
+    // its bounded recovery check.
     await db.ready;
-    await runScheduledScansCycle();
+    await refreshScheduledScanCache({ force: true });
+    await runCachedSchedulerTick(new Date(), { force: true });
   } finally {
     scheduledScanCycleRunning = false;
   }
 }
 
 function startScheduledScanRunner() {
-  // Do not wait for the first 60-second interval after a deploy/restart. A
-  // server can come back inside a schedule's delivery window, and the first
-  // tick should reconcile it immediately while the database and provider state
-  // are already available.
+  if (schedulerTimer) return;
+  // Refresh once at boot for catch-up, then poll only the in-memory schedule
+  // cache. This preserves the short delivery window without reading the DB
+  // every minute when no task is due.
   runScheduledScans().catch((err) => reportError(err, '[ScheduledScans] startup cycle failed'));
-  setInterval(runScheduledScans, 60 * 1000).unref();
+  schedulerTimer = setInterval(() => {
+    runCachedSchedulerTick(new Date()).catch((err) => reportError(err, '[ScheduledScans] scheduler tick failed'));
+  }, SCHEDULER_POLL_MS);
+  schedulerTimer.unref();
 }
 
 module.exports = {
   startScheduledScanRunner,
   runScheduledScans,
+  refreshScheduledScanCache,
   runRadarScheduledScans,
   normalizedRadarRecipe,
   payloadForType,

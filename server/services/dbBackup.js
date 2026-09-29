@@ -5,6 +5,10 @@ const { GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_EMAIL, RESEND_API_KEY } = require(
 const { reportError } = require('../utils/reportError');
 const { sendApplicationBackupEmail, sendApplicationBackupFailureEmail } = require('./email');
 const { BACKUP_TABLES: TABLES } = require('./backupTables');
+const BACKUP_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const BACKUP_STARTUP_DELAY_MS = 2 * 60 * 1000;
+const BACKUP_MIN_GAP_MS = 6 * 24 * 60 * 60 * 1000;
+const BACKUP_OVERDUE_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Render's filesystem is ephemeral — anything written to disk there is gone
 // on the next deploy or restart, so a backup can only be useful if it leaves
@@ -106,23 +110,27 @@ async function runBackupTick() {
     .run(String(Math.floor(Date.now() / 1000)));
 }
 
-function startScheduledBackup() {
-  const CHECK_INTERVAL_MS = 60 * 60 * 1000; // hourly poll is plenty for a once-a-week job
-  const STARTUP_DELAY_MS = 2 * 60 * 1000; // let the DB/config finish settling after boot
-  const MIN_GAP_MS = 6 * 24 * 60 * 60 * 1000; // guards against a second send within the same Sunday
+function shouldRunScheduledBackup(nowMs, lastBackupMs, isSunday) {
+  const ageMs = lastBackupMs ? nowMs - lastBackupMs : 0;
+  if (lastBackupMs && ageMs < BACKUP_MIN_GAP_MS) return false;
+  // Keep the first-ever backup on Sunday; if a previous successful backup is
+  // overdue, allow a daily retry after a missed/failed weekly run.
+  if (!isSunday && (!lastBackupMs || ageMs < BACKUP_OVERDUE_RETRY_MS)) return false;
+  return true;
+}
 
+function startScheduledBackup() {
   async function maybeRunBackup() {
     try {
       // Every redeploy restarts this process, so "run once on boot" (the old
       // behavior) sent a fresh backup email on every push — the actual
       // complaint that led to this weekly schedule. Checking wall-clock day
       // instead of process uptime makes the schedule survive redeploys.
-      const isSunday = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' })).getDay() === 0;
-      if (!isSunday) return;
-
       const row = await db.prepare("SELECT value FROM app_meta WHERE key = 'last_backup_at'").get();
       const lastBackupMs = row ? Number(row.value) * 1000 : 0;
-      if (Date.now() - lastBackupMs < MIN_GAP_MS) return; // already sent this week
+      const israelDay = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' })).getDay();
+      const isSunday = israelDay === 0;
+      if (!shouldRunScheduledBackup(Date.now(), lastBackupMs, isSunday)) return;
 
       await runBackupTick();
     } catch (err) {
@@ -130,8 +138,8 @@ function startScheduledBackup() {
     }
   }
 
-  setTimeout(maybeRunBackup, STARTUP_DELAY_MS);
-  setInterval(maybeRunBackup, CHECK_INTERVAL_MS);
+  setTimeout(maybeRunBackup, BACKUP_STARTUP_DELAY_MS);
+  setInterval(maybeRunBackup, BACKUP_CHECK_INTERVAL_MS);
 }
 
-module.exports = { dumpTables, runBackupTick, startScheduledBackup, TABLES };
+module.exports = { dumpTables, runBackupTick, shouldRunScheduledBackup, startScheduledBackup, TABLES };

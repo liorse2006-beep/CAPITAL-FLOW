@@ -7,6 +7,12 @@ const VALID_TYPES = ['capitalFlow', 'maScanner', 'sectorMoving'];
 const MAX_SCHEDULES = 3;
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
+function refreshSchedulerCache() {
+  require('../services/scheduledScanRunner').refreshScheduledScanCache({ force: true }).catch((err) => {
+    reportError(err, '[scheduled-scans cache refresh]');
+  });
+}
+
 function isValidIsoDate(value) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [year, month, day] = value.split('-').map(Number);
@@ -89,6 +95,7 @@ router.post('/scheduled-scans', requireEliteOrTrial, async (req, res) => {
     if (!result.changes) {
       return res.status(400).json({ error: `Maximum ${MAX_SCHEDULES} active schedules` });
     }
+    refreshSchedulerCache();
     res.json({
       id: result.lastInsertRowid,
       scan_type,
@@ -149,6 +156,7 @@ router.put('/scheduled-scans/:id', requireEliteOrTrial, async (req, res) => {
         return res.status(400).json({ error: `Maximum ${MAX_SCHEDULES} active schedules` });
       }
     }
+    refreshSchedulerCache();
     res.json({ id: existing.id, scan_type: existing.scan_type, scan_time: newTime, active: newActive });
   } catch (err) {
     reportError(err, '[scheduled-scans PUT]');
@@ -163,6 +171,7 @@ router.delete('/scheduled-scans/:id', requireEliteOrTrial, async (req, res) => {
       .prepare('DELETE FROM scheduled_scans WHERE id = ? AND user_id = ?')
       .run(req.params.id, req.user.id);
     if (!result.changes) return res.status(404).json({ error: 'Not found' });
+    refreshSchedulerCache();
     res.json({ ok: true });
   } catch (err) {
     reportError(err, '[scheduled-scans DELETE]');

@@ -66,6 +66,9 @@ router.post('/push/notification-time', requireEliteOrTrial, async (req, res) => 
       return res.status(400).json({ error: 'time must be "HH:MM" or null' });
     }
     await db.prepare('UPDATE users SET notification_time = ? WHERE id = ?').run(time, req.user.id);
+    require('../services/scheduledDigest').refreshScheduledDigestTimes({ force: true }).catch((err) => {
+      reportError(err, '[push/notification-time schedule refresh]');
+    });
     res.json({ ok: true, time });
   } catch (err) {
     reportError(err, '[push/notification-time POST]');

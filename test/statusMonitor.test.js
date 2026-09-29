@@ -104,7 +104,7 @@ test('status heartbeat reports fresh, starting, and stale worker states', () => 
   assert.equal(starting.status, 'starting');
 
   const stale = getHeartbeatHealth({
-    last_cycle_at: current - 3600,
+    last_cycle_at: current - 7200,
     last_cycle_status: 'success',
   });
   assert.equal(stale.healthy, false);

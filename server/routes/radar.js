@@ -37,6 +37,12 @@ function sendValidationError(res, error) {
   return null;
 }
 
+function refreshSchedulerCache() {
+  require('../services/scheduledScanRunner').refreshScheduledScanCache({ force: true }).catch((error) => {
+    reportError(error, '[radars scheduler cache refresh]');
+  });
+}
+
 // GET /api/radars — only the authenticated owner's recipes and sanitized
 // event payloads are returned. Provider errors, secrets, and stack traces do
 // not cross this boundary.
@@ -64,6 +70,7 @@ router.post('/radars', requireEliteOrTrial, async (req, res) => {
     }
 
     const row = await createRadar(req.user.id, req.body || {});
+    refreshSchedulerCache();
     res.status(201).json({ radar: serializeRadar(row, []) });
   } catch (error) {
     if (sendValidationError(res, error)) return;
@@ -88,6 +95,7 @@ router.put('/radars/:id', requireEliteOrTrial, async (req, res) => {
       }
     }
     const row = await updateRadar(req.user.id, id, req.body || {});
+    refreshSchedulerCache();
     res.json({ radar: serializeRadar(row, []) });
   } catch (error) {
     if (sendValidationError(res, error)) return;
@@ -115,6 +123,7 @@ router.delete('/radars/:id', requireEliteOrTrial, async (req, res) => {
   try {
     const deleted = await deleteRadar(req.user.id, id);
     if (!deleted) return res.status(404).json({ error: 'Radar not found.' });
+    refreshSchedulerCache();
     res.json({ ok: true });
   } catch (error) {
     reportError(error, '[radars DELETE]');

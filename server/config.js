@@ -138,9 +138,11 @@ module.exports = {
   STATUS_INTERNAL_TOKEN: rawStatusInternalToken,
   STATUS_ADMIN_TOKEN: env('STATUS_ADMIN_TOKEN'),
   STATUS_MONITOR_ENABLED: env('STATUS_MONITOR_ENABLED', 'true').toLowerCase() !== 'false',
+  // Keep periodic status probes from waking a scale-to-zero database every
+  // few minutes. Render's external service health checks remain independent.
   STATUS_CHECK_INTERVAL_MS: Math.max(
-    60 * 1000,
-    parseInt(env('STATUS_CHECK_INTERVAL_MS', String(5 * 60 * 1000)), 10) || 5 * 60 * 1000
+    30 * 60 * 1000,
+    parseInt(env('STATUS_CHECK_INTERVAL_MS', String(30 * 60 * 1000)), 10) || 30 * 60 * 1000
   ),
   STATUS_CHECK_TIMEOUT_MS: Math.max(1000, parseInt(env('STATUS_CHECK_TIMEOUT_MS', '8000'), 10) || 8000),
   STATUS_RETRY_DELAY_MS: Math.max(250, parseInt(env('STATUS_RETRY_DELAY_MS', '1200'), 10) || 1200),
@@ -150,7 +152,10 @@ module.exports = {
   // The independent status host must detect a monitor that has stopped
   // advancing even when its process and database are still reachable.
   STATUS_HEARTBEAT_STALE_MULTIPLIER: Math.max(1.5, parseFloat(env('STATUS_HEARTBEAT_STALE_MULTIPLIER', '2')) || 2),
-  STATUS_WATCHDOG_INTERVAL_MS: Math.max(15 * 1000, parseInt(env('STATUS_WATCHDOG_INTERVAL_MS', '60000'), 10) || 60000),
+  STATUS_WATCHDOG_INTERVAL_MS: Math.max(
+    30 * 60 * 1000,
+    parseInt(env('STATUS_WATCHDOG_INTERVAL_MS', String(30 * 60 * 1000)), 10) || 30 * 60 * 1000
+  ),
   // Status backups are disabled by default. The primary application backup
   // is the only scheduled email backup; enabling this opt-in would create a
   // second operational backup stream for the independent status database.

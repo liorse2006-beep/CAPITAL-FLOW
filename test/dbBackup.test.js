@@ -18,7 +18,7 @@ before(async () => {
 const nodemailer = require('nodemailer');
 const zlib = require('zlib');
 const dbBackup = require('../server/services/dbBackup');
-const { runBackupTick, dumpTables } = dbBackup;
+const { runBackupTick, dumpTables, shouldRunScheduledBackup } = dbBackup;
 const { issueToken } = require('../server/services/auth');
 const adminRouter = require('../server/routes/admin');
 
@@ -42,6 +42,17 @@ function startTestApp() {
     const server = app.listen(0, () => resolve(server));
   });
 }
+
+test('weekly backup gate checks Sundays and retries only a genuinely overdue backup', () => {
+  const now = 100 * 24 * 60 * 60 * 1000;
+  const day = 24 * 60 * 60 * 1000;
+  assert.equal(shouldRunScheduledBackup(now, 0, false), false, 'first backup waits for Sunday');
+  assert.equal(shouldRunScheduledBackup(now, 0, true), true, 'first backup runs on Sunday');
+  assert.equal(shouldRunScheduledBackup(now, now - 5 * day, true), false, 'never sends twice within six days');
+  assert.equal(shouldRunScheduledBackup(now, now - 6 * day, true), true, 'normal weekly Sunday run remains eligible');
+  assert.equal(shouldRunScheduledBackup(now, now - 6 * day, false), false, 'not overdue before a week off-Sunday');
+  assert.equal(shouldRunScheduledBackup(now, now - 7 * day, false), true, 'a missed Sunday backup retries after a week');
+});
 
 test('dumpTables includes every user-facing and operational table, not just the original short list', async () => {
   const dump = await dumpTables();

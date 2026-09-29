@@ -21,7 +21,7 @@ before(async () => {
   await db.ready;
 });
 
-const { israelNow, buildDigestPayload, runDigestTick } = require('../server/services/scheduledDigest');
+const { israelNow, isDigestTimeDue, buildDigestPayload, runDigestTick } = require('../server/services/scheduledDigest');
 const { backgroundCache } = require('../server/services/backgroundScan');
 const { setAlert } = require('../server/services/watchlistAlerts');
 const webPush = require('../server/services/webPush');
@@ -35,6 +35,14 @@ test('israelNow returns HH:MM and YYYY-MM-DD shaped strings', () => {
   const now = israelNow();
   assert.match(now.hm, /^\d{2}:\d{2}$/);
   assert.match(now.date, /^\d{4}-\d{2}-\d{2}$/);
+});
+
+test('digest schedule matching keeps the catch-up window without polling the database each minute', () => {
+  assert.equal(isDigestTimeDue('09:30', '09:30'), true);
+  assert.equal(isDigestTimeDue('09:30', '09:33'), true);
+  assert.equal(isDigestTimeDue('09:30', '09:34'), false);
+  assert.equal(isDigestTimeDue('23:59', '00:02'), true);
+  assert.equal(isDigestTimeDue('24:00', '00:00'), false);
 });
 
 test('buildDigestPayload uses the signal copy whenever at least one result exists', () => {

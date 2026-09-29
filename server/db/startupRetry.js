@@ -20,6 +20,8 @@ const RETRYABLE_MESSAGE =
 
 const INITIAL_RETRY_DELAY_MS = 5_000;
 const MAX_RETRY_DELAY_MS = 5 * 60 * 1000;
+const QUOTA_RETRY_DELAY_MS = 15 * 60 * 1000;
+const MAX_QUOTA_RETRY_DELAY_MS = 60 * 60 * 1000;
 
 function isRetryableDatabaseError(error) {
   let current = error;
@@ -32,9 +34,21 @@ function isRetryableDatabaseError(error) {
   return false;
 }
 
-function retryDelayMs(attempt) {
+function isQuotaDatabaseError(error) {
+  let current = error;
+  for (let depth = 0; current && depth < 4; depth += 1) {
+    if (/quota|exceeded (?:the )?(?:plan|limit)/i.test(String(current.message || current))) return true;
+    current = current.cause;
+  }
+  return false;
+}
+
+function retryDelayMs(attempt, error) {
   const safeAttempt = Math.max(1, Math.floor(Number(attempt) || 1));
-  return Math.min(MAX_RETRY_DELAY_MS, INITIAL_RETRY_DELAY_MS * 2 ** Math.min(safeAttempt - 1, 16));
+  const quotaFailure = isQuotaDatabaseError(error);
+  const baseDelay = quotaFailure ? QUOTA_RETRY_DELAY_MS : INITIAL_RETRY_DELAY_MS;
+  const maxDelay = quotaFailure ? MAX_QUOTA_RETRY_DELAY_MS : MAX_RETRY_DELAY_MS;
+  return Math.min(maxDelay, baseDelay * 2 ** Math.min(safeAttempt - 1, 16));
 }
 
 function sleep(ms) {
@@ -49,11 +63,11 @@ async function retryUntilReady(operation, { wait = sleep, onRetry = () => {} } =
     } catch (error) {
       if (!isRetryableDatabaseError(error)) throw error;
       attempt += 1;
-      const delayMs = retryDelayMs(attempt);
+      const delayMs = retryDelayMs(attempt, error);
       onRetry(error, { attempt, delayMs });
       await wait(delayMs);
     }
   }
 }
 
-module.exports = { isRetryableDatabaseError, retryDelayMs, retryUntilReady };
+module.exports = { isRetryableDatabaseError, isQuotaDatabaseError, retryDelayMs, retryUntilReady };
