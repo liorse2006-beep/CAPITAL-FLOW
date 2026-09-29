@@ -3,10 +3,7 @@ const test = require('node:test');
 const { isRetryableDatabaseError, retryDelayMs, retryUntilReady } = require('../server/db/startupRetry');
 
 test('database quota and network failures are classified as retryable', () => {
-  assert.equal(
-    isRetryableDatabaseError(new Error('Your account or project has exceeded the quota.')),
-    true
-  );
+  assert.equal(isRetryableDatabaseError(new Error('Your account or project has exceeded the quota.')), true);
   assert.equal(isRetryableDatabaseError({ code: '08006', message: 'connection failure' }), true);
   assert.equal(isRetryableDatabaseError({ code: 'ETIMEDOUT' }), true);
 });
@@ -34,6 +31,9 @@ test('transient database initialization recovers with capped exponential backoff
   assert.equal(result, 'ready');
   assert.equal(calls, 4);
   assert.deepEqual(delays, [5000, 10000, 20000]);
-  assert.deepEqual(retryEvents.map((event) => event.attempt), [1, 2, 3]);
+  assert.deepEqual(
+    retryEvents.map((event) => event.attempt),
+    [1, 2, 3]
+  );
   assert.equal(retryDelayMs(99), 5 * 60 * 1000);
 });

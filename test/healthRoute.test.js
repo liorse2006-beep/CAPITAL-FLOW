@@ -34,7 +34,9 @@ test('concurrent readiness checks share one database probe and keep the probe fa
   const port = server.address().port;
 
   try {
-    const responses = await Promise.all(Array.from({ length: 25 }, () => fetch(`http://127.0.0.1:${port}/health/ready`)));
+    const responses = await Promise.all(
+      Array.from({ length: 25 }, () => fetch(`http://127.0.0.1:${port}/health/ready`))
+    );
     assert.deepEqual(
       responses.map((response) => response.status),
       Array.from({ length: 25 }, () => 200)

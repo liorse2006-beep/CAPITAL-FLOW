@@ -162,7 +162,7 @@ test('a scheduled scan persists an in-app notification, so it is visible even wi
   // many results the run found, not an alert about one specific ticker.
   assert.strictEqual(notif.symbol, null);
   assert.strictEqual(notif.title, 'Market Signal Detected');
-   assert.strictEqual(notif.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.strictEqual(notif.body, 'New market signal detected. Open Capital Flow to view it.');
 
   // The notification must carry the scan's own results and type, so tapping
   // it can show exactly what that run found — not just "something happened".
