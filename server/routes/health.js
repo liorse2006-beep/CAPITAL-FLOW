@@ -51,19 +51,26 @@ function hasValidStatusToken(req) {
   return Boolean(STATUS_INTERNAL_TOKEN) && req.get('x-status-check-token') === STATUS_INTERNAL_TOKEN;
 }
 
-// Process liveness is deliberately independent of the database. Render uses
-// this endpoint to detect a wedged/crashed process; a database outage should
-// make readiness fail without causing a restart loop that takes the whole app
-// offline. Database-dependent traffic still fails closed at its own routes.
-router.get('/health/live', (req, res) => {
+// Render and external uptime checks use /health to detect whether this process
+// is alive. Keep it independent of the database so a provider outage does not
+// make Render remove/restart an otherwise healthy application instance. The
+// release workflow also reads releaseCommit from this response.
+function sendLiveness(req, res) {
   res.setHeader('Cache-Control', 'no-store');
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+  res.json({
+    status: 'ok',
+    releaseCommit: RELEASE_COMMIT,
+    timestamp: new Date().toISOString(),
+  });
+}
+router.get('/health', sendLiveness);
+router.get('/health/live', sendLiveness);
 
-// Database readiness remains available to operators and the status monitor.
-// It fails closed, but the bounded probe guarantees the platform never waits
-// on a provider that is unavailable or over quota.
-router.get('/health', async (req, res) => {
+// Database readiness is a separate, bounded probe for operators and internal
+// automation. It fails closed without being used as Render's process-health
+// check, so database-dependent actions remain safely unavailable during an
+// outage while the process can recover when the database returns.
+router.get('/health/ready', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   try {
     // A database connection alone is not enough for readiness: schema
