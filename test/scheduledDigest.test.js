@@ -1,6 +1,6 @@
 // Regression tests for the personal scheduled-scan digest: each user picks
-// a time (Israel local); at that minute they get exactly one push summarizing
-// which of their watchlist thresholds were crossed — never zero, never twice.
+// an Israel-local time; at that minute the alert copy must reflect whether
+// the shared scan returned any rows, never whether a personal threshold matched.
 require('./helpers/testEnv');
 const { test, before } = require('node:test');
 const assert = require('node:assert');
@@ -37,40 +37,60 @@ test('israelNow returns HH:MM and YYYY-MM-DD shaped strings', () => {
   assert.match(now.date, /^\d{4}-\d{2}-\d{2}$/);
 });
 
-test('buildDigestPayload uses the concise signal copy when a threshold is crossed', () => {
-  const results = [
-    { symbol: 'AAA', volumeRatio: 3 },
-    { symbol: 'BBB', volumeRatio: 1 }, // below its threshold — must not appear
-  ];
-  const payload = buildDigestPayload({ AAA: 2, BBB: 2 }, results, 'now');
+test('buildDigestPayload uses the signal copy whenever at least one result exists', () => {
+  const results = [{ symbol: 'AAA', volumeRatio: 1, quoteDataStatus: 'stale' }];
+  const payload = buildDigestPayload(results);
   assert.strictEqual(payload.title, 'Market Signal Detected');
   assert.strictEqual(payload.body, 'New market signal detected. Open Capital Flow to view it.');
-  assert.strictEqual(payload.matched, true);
 });
 
-test('buildDigestPayload reports clearly when nothing crossed the threshold', () => {
-  const payload = buildDigestPayload({ AAA: 5 }, [{ symbol: 'AAA', volumeRatio: 1 }], '10:00');
+test('buildDigestPayload uses the unverified copy only when the result list is empty', () => {
+  const payload = buildDigestPayload([]);
   assert.strictEqual(payload.title, 'Capital Flow');
-  assert.strictEqual(payload.body, 'No market signals found in this scan. Open Capital Flow to review.');
+  assert.strictEqual(payload.body, "We couldn't verify a market signal this time.");
 });
 
-test('buildDigestPayload never formats a malformed volume ratio as invented numeric data', () => {
-  const payload = buildDigestPayload({ AAA: 1 }, [{ symbol: 'AAA', volumeRatio: 'not-a-number' }], '10:00');
-  assert.strictEqual(payload.matched, false);
-  assert.strictEqual(payload.body, 'No market signals found in this scan. Open Capital Flow to review.');
-});
-
-test('buildDigestPayload uses the concise signal copy for a verified match in a partial digest', () => {
-  const payload = buildDigestPayload(
-    { AAA: 2 },
-    [{ symbol: 'AAA', volumeRatio: 3, quoteDataStatus: 'complete' }],
-    '10:00',
-    'partial'
-  );
-  assert.strictEqual(payload.matched, true);
+test('buildDigestPayload does not let partial status or unusable fields hide an existing row', () => {
+  const payload = buildDigestPayload([{ symbol: 'AAA', volumeRatio: 'not-a-number', dataStatus: 'partial' }]);
   assert.strictEqual(payload.title, 'Market Signal Detected');
   assert.strictEqual(payload.body, 'New market signal detected. Open Capital Flow to view it.');
-  assert.doesNotMatch(payload.title, /Partial data/i);
+});
+
+test('buildDigestPayload treats a missing result list as empty', () => {
+  const payload = buildDigestPayload(null);
+  assert.strictEqual(payload.title, 'Capital Flow');
+  assert.strictEqual(payload.body, "We couldn't verify a market signal this time.");
+});
+
+test('runDigestTick persists the matching scan rows and deep-links the push to them', async (t) => {
+  const u = await makeUser('digest-results@test.local');
+  const now = israelNow();
+  await db.prepare('UPDATE users SET notification_time = ? WHERE id = ?').run(now.hm, u);
+  await setAlert(u, 'AAA', { type: 'volume', minRatio: 10 });
+  await webPush.saveSubscription(u, {
+    endpoint: 'https://push.example/digest-results',
+    keys: { p256dh: 'p', auth: 'a' },
+  });
+
+  const results = [{ symbol: 'AAA', volumeRatio: 2, dataStatus: 'partial' }];
+  backgroundCache.results = results;
+  backgroundCache.scanTime = new Date().toISOString();
+  backgroundCache.dataStatus = 'partial';
+
+  const pushMock = t.mock.method(webpushLib, 'sendNotification', async () => ({ statusCode: 201 }));
+  await runDigestTick();
+
+  const notification = await db
+    .prepare('SELECT id, title, body, scan_type, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+    .get(u);
+  assert.ok(notification);
+  assert.strictEqual(notification.title, 'Market Signal Detected');
+  assert.strictEqual(notification.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.strictEqual(notification.scan_type, 'capitalFlow');
+  assert.deepStrictEqual(JSON.parse(notification.results_json), results);
+  assert.strictEqual(pushMock.mock.callCount(), 1);
+  const pushPayload = JSON.parse(pushMock.mock.calls[0].arguments[1]);
+  assert.strictEqual(pushPayload.data.url, '/scanner?notif=' + notification.id);
 });
 
 test('runDigestTick sends exactly one push per user per day, even if the tick fires twice', async () => {

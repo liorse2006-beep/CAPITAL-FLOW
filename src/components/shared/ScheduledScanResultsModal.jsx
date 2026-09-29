@@ -28,7 +28,7 @@ export default function ScheduledScanResultsModal({ notification, onClose, isInW
   if (!notification) return null;
   var results = notification.results || [];
   var label = SCAN_LABEL[notification.scanType] || 'Scheduled Scan';
-  var dataUnavailable = /temporarily unavailable|could not be verified|no complete result set/i.test(
+  var dataUnavailable = /temporarily unavailable|could not be verified|couldn't verify|no complete result set/i.test(
     notification.body || ''
   );
 

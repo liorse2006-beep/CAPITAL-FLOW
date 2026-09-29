@@ -180,7 +180,7 @@ test('a completed scheduled scan with no matches still notifies the user', async
   assert.strictEqual(notif.scan_type, 'capitalFlow');
   assert.strictEqual(notif.results_json, null);
   assert.match(notif.title, /Capital Flow/);
-  assert.strictEqual(notif.body, "We couldn't verify a market signal this time. Open Capital Flow to try again.");
+  assert.strictEqual(notif.body, "We couldn't verify a market signal this time.");
   assert.strictEqual(pushMock.mock.callCount(), 1, 'the completed empty scan must also send push');
   assert.strictEqual(pushMock.mock.calls[0].arguments[1].data.resultCount, 0);
 });
@@ -207,7 +207,7 @@ test('a provider failure sends a concise unverified-data notification', async (t
   assert.ok(notif, 'provider failures still need a clear customer status notification');
   assert.strictEqual(notif.results_json, null);
   assert.strictEqual(notif.title, 'Capital Flow');
-  assert.strictEqual(notif.body, "We couldn't verify a market signal this time. Open Capital Flow to try again.");
+  assert.strictEqual(notif.body, "We couldn't verify a market signal this time.");
   assert.strictEqual(pushMock.mock.callCount(), 1);
   assert.strictEqual(pushMock.mock.calls[0].arguments[1].body, notif.body);
 
@@ -244,7 +244,7 @@ test('a partial empty scan sends a concise unverified-data notification', async 
   assert.ok(notif);
   assert.strictEqual(notif.results_json, null);
   assert.strictEqual(notif.title, 'Capital Flow');
-  assert.strictEqual(notif.body, "We couldn't verify a market signal this time. Open Capital Flow to try again.");
+  assert.strictEqual(notif.body, "We couldn't verify a market signal this time.");
   assert.strictEqual(pushMock.mock.callCount(), 1);
 });
 

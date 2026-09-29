@@ -1,6 +1,5 @@
 const scanner = require('./scanner');
-
-const MARKET_SIGNAL_TITLE = 'Market Signal Detected';
+const { marketSignalNotificationFor } = require('./marketSignalNotification');
 const { SP500, NASDAQ100, ALL_TICKERS } = require('../../tickers');
 const { reportError } = require('../utils/reportError');
 const { isMarketOpen, isPreMarket } = require('./marketCalendar');
@@ -197,8 +196,7 @@ function alertNotificationPayload(alert, r) {
   const payload = {
     symbol: r.symbol,
     name: r.name,
-    title: MARKET_SIGNAL_TITLE,
-    body: 'New market signal detected. Open Capital Flow to view it.',
+    ...marketSignalNotificationFor([r]),
     change: r.change,
     price: r.price,
     ts: Date.now(),

@@ -12,6 +12,7 @@ const { ADMIN_EMAIL } = require('../config');
 const { freeTrialActive } = require('./scanQuota');
 const { reportError } = require('../utils/reportError');
 const { buildFinancialProvenance } = require('./financialProvenance');
+const { marketSignalNotificationFor } = require('./marketSignalNotification');
 const {
   MA_PERIODS,
   MA_DISTANCES,
@@ -35,7 +36,6 @@ const MAX_ACTIVE_RADARS_PER_USER = 1;
 const MAX_EVENTS_PER_RADAR = 50;
 const DATA_UNAVAILABLE_MESSAGE = 'Data is not available right now. Try again in a few minutes.';
 const PARTIAL_DATA_MESSAGE = 'Some market data is unavailable right now. Try again in a few minutes.';
-const MARKET_SIGNAL_TITLE = 'Market Signal Detected';
 const RADAR_DATA_SOURCES = [
   {
     provider: 'Yahoo Finance',
@@ -624,26 +624,9 @@ function eventPayload(row, scanTime, meta = {}) {
   };
 }
 
-function eventBody(payload, reentry) {
-  const ratio = Number.isFinite(payload.volumeRatio) ? payload.volumeRatio.toFixed(2) + 'x RVOL' : 'volume signal';
-  const price = Number.isFinite(payload.price) ? '$' + payload.price.toFixed(2) : 'price unavailable';
-  const ma = Number.isFinite(payload.maDistance)
-    ? `SMA${payload.maPeriod || ''} ${payload.maDistance >= 0 ? '+' : ''}${payload.maDistance.toFixed(2)}%`
-    : 'moving-average condition';
-  const matched = Array.isArray(payload.matchedConditions) ? payload.matchedConditions : [];
-  const conditionText =
-    payload.conditionMode === 'either'
-      ? matched.length > 0
-        ? `matches ${matched.join(' + ')}`
-        : 'matches a Radar condition'
-      : 'meets both Radar conditions';
-  return `${reentry ? 'Re-entry' : 'New entry'}: ${payload.symbol} ${conditionText} · ${ratio} · ${ma} · ${price}`;
-}
-
 async function dispatchRadarEvent(radar, event) {
   const payload = eventPayload(event.row, event.scanTime, event.meta);
-  const title = `${payload.dataStatus === 'partial' ? 'Partial data — ' : ''}${MARKET_SIGNAL_TITLE}`;
-  const body = eventBody(payload, event.reentry);
+  const { title, body } = marketSignalNotificationFor([payload]);
   const eventRow = await db
     .prepare('SELECT id, notified_at FROM radar_events WHERE radar_id = ? AND symbol = ? AND scan_time = ?')
     .get(radar.id, payload.symbol, event.scanTime);

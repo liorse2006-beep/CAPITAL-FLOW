@@ -3,8 +3,7 @@ const { getAllAlertsGrouped } = require('./watchlistAlerts');
 const { sendPushToUser } = require('./webPush');
 const { addNotification } = require('./notifications');
 const { reportError } = require('../utils/reportError');
-
-const MARKET_SIGNAL_TITLE = 'Market Signal Detected';
+const { marketSignalNotificationFor } = require('./marketSignalNotification');
 
 // How many users' push sends run concurrently per batch. A plain
 // sequential for-loop here would mean 10,000 users sharing a
@@ -12,14 +11,6 @@ const MARKET_SIGNAL_TITLE = 'Market Signal Detected';
 // push calls — this caps the fan-out instead of removing it entirely,
 // so one slow push endpoint can't stall everyone behind it.
 const DIGEST_CONCURRENCY = 20;
-
-function isUsableDigestRow(row) {
-  if (!row || !String(row.symbol || '').trim()) return false;
-  const statuses = [row.quoteDataStatus, row.dataQuality, row.dataStatus]
-    .filter((value) => value != null)
-    .map((value) => String(value).toLowerCase());
-  return !statuses.some((status) => ['stale', 'unavailable', 'partial'].includes(status));
-}
 
 /** Current Israel local time as "HH:MM" and "YYYY-MM-DD", for matching against users.notification_time */
 function israelNow() {
@@ -44,44 +35,10 @@ function israelNow() {
 var sentToday = new Set();
 var sentDate = null;
 
-function buildDigestPayload(thresholds, results, asOf, dataStatus = 'complete') {
-  const availableResults = (Array.isArray(results) ? results : []).filter(isUsableDigestRow);
-  var bySymbol = new Map(
-    availableResults.map(function (r) {
-      return [r.symbol, r];
-    })
-  );
-  var matches = [];
-  Object.entries(thresholds).forEach(function ([symbol, minRatio]) {
-    var r = bySymbol.get(symbol);
-    var ratio = r ? Number(r.volumeRatio) : NaN;
-    var threshold = Number(minRatio);
-    if (r && Number.isFinite(ratio) && ratio > 0 && Number.isFinite(threshold) && ratio >= threshold) {
-      matches.push(Object.assign({}, r, { volumeRatio: ratio }));
-    }
-  });
-
-  if (matches.length > 0) {
-    return {
-      title: MARKET_SIGNAL_TITLE,
-      body: 'New market signal detected. Open Capital Flow to view it.',
-      ts: Date.now(),
-      matched: true,
-    };
-  }
-  if (dataStatus === 'complete') {
-    return {
-      title: 'Capital Flow',
-      body: 'No market signals found in this scan. Open Capital Flow to review.',
-      ts: Date.now(),
-      matched: false,
-    };
-  }
+function buildDigestPayload(results) {
   return {
-    title: 'Capital Flow',
-    body: "We couldn't verify a market signal this time. Open Capital Flow to try again.",
+    ...marketSignalNotificationFor(results),
     ts: Date.now(),
-    matched: false,
   };
 }
 
@@ -96,11 +53,7 @@ async function runDigestTick() {
   if (!users.length) return;
 
   var backgroundCache = require('./backgroundScan').backgroundCache;
-  var results = backgroundCache.results || [];
-  var dataStatus = backgroundCache.dataStatus || 'unavailable';
-  var asOf = backgroundCache.scanTime
-    ? new Date(backgroundCache.scanTime).toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' })
-    : 'unknown';
+  var results = Array.isArray(backgroundCache.results) ? backgroundCache.results : [];
 
   var allAlerts = await getAllAlertsGrouped();
 
@@ -117,20 +70,29 @@ async function runDigestTick() {
       batch.map(function (u) {
         var thresholds = allAlerts[u.id] || {};
         if (Object.keys(thresholds).length === 0) return; // nothing to check against
-        var payload = buildDigestPayload(thresholds, results, asOf, dataStatus);
-        var notificationPromise = addNotification(u.id, { title: payload.title, body: payload.body }).catch(
-          function (err) {
+        var payload = buildDigestPayload(results);
+        return (async function () {
+          var notificationId = null;
+          try {
+            notificationId = await addNotification(u.id, {
+              title: payload.title,
+              body: payload.body,
+              scanType: 'capitalFlow',
+              results,
+            });
+          } catch (err) {
             reportError(err, '[scheduled digest notification]');
           }
-        );
-        var pushPromise = sendPushToUser(u.id, payload).catch(function (err) {
-          reportError(err, '[scheduled digest push]');
-        });
-        // Wait for both durable in-app history and push delivery to settle.
-        // This prevents a successful tick from returning while its
-        // notification write is still in flight and potentially being lost
-        // during a process restart.
-        return Promise.all([notificationPromise, pushPromise]);
+
+          try {
+            await sendPushToUser(u.id, {
+              ...payload,
+              data: { url: notificationId ? '/scanner?notif=' + notificationId : '/scanner' },
+            });
+          } catch (err) {
+            reportError(err, '[scheduled digest push]');
+          }
+        })();
       })
     );
   }

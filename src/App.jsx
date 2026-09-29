@@ -4,7 +4,8 @@ import Toast from './components/shared/Toast';
 import useSSE from './hooks/useSSE';
 import useScanQuota from './hooks/useScanQuota';
 import usePushSubscription from './hooks/usePushSubscription';
-import { parseVolInput, formatPrice } from './utils/format';
+import { parseVolInput } from './utils/format';
+import { marketSignalNotificationFor } from './utils/marketSignalNotification';
 import { categoryQuota } from './utils/quota';
 import { hasEliteAccess, hasPremiumFeatureAccess } from './utils/access';
 import { restoreWhopReturnScroll } from './utils/checkoutReturn';
@@ -1044,15 +1045,9 @@ function App() {
                     return r.symbol === sym;
                   });
                   if (!stock) return;
-                  var title = 'Market Signal Detected';
-                  var body =
-                    sym +
-                    ' · ' +
-                    formatPrice(stock.price) +
-                    '  ·  ' +
-                    (Number.isFinite(Number(stock.volumeRatio)) && Number(stock.volumeRatio) > 0
-                      ? Number(stock.volumeRatio) + 'x avg volume'
-                      : 'average volume unavailable');
+                  var notification = marketSignalNotificationFor([stock]);
+                  var title = notification.title;
+                  var body = notification.body;
                   addAlertToHistory(sym, title, body);
                   if (window.Notification && Notification.permission === 'granted') {
                     new Notification(title, { body: body, icon: '/icon-192.png', tag: sym });
@@ -1077,13 +1072,15 @@ function App() {
               if (alertData.type === 'price') {
                 var side = livePrice >= alertData.targetPrice ? 'above' : 'below';
                 if (side === alertData.startingSide) return;
-                title = 'Market Signal Detected';
-                body = stock.symbol + ' crossed $' + alertData.targetPrice + ' — now ' + formatPrice(livePrice);
+                var notification = marketSignalNotificationFor([stock]);
+                title = notification.title;
+                body = notification.body;
               } else {
                 var liveRatio = Number(stock.volumeRatio);
                 if (!Number.isFinite(liveRatio) || liveRatio <= 0 || liveRatio < alertData.minRatio) return;
-                title = 'Market Signal Detected';
-                body = stock.symbol + ' crossed your ' + alertData.minRatio + 'x threshold · ' + formatPrice(livePrice);
+                var volumeNotification = marketSignalNotificationFor([stock]);
+                title = volumeNotification.title;
+                body = volumeNotification.body;
               }
 
               alertFired.current[stock.symbol] = true;

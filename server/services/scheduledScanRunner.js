@@ -2,6 +2,7 @@ const db = require('../db');
 const { reportError } = require('../utils/reportError');
 const { isMarketOpen, isPreMarket } = require('./backgroundScan');
 const { MA_PERIODS, MA_DISTANCES, MA_INTERVALS, MA_DIRECTIONS, CONDITION_MODES } = require('./radarLogic');
+const { marketSignalNotificationFor } = require('./marketSignalNotification');
 
 // Runs `worker` over every item with at most `limit` in flight at once — a
 // bounded fan-out. Used so that when hundreds of users are all scheduled for
@@ -624,20 +625,10 @@ function normalizeScheduledScanResult(scan) {
 
 function payloadForType(scanType, scan) {
   const rawResults = Array.isArray(scan) ? scan : Array.isArray(scan?.rawResults) ? scan.rawResults : scan?.results;
-  if (Array.isArray(rawResults) && rawResults.length > 0) {
-    return {
-      title: MARKET_SIGNAL_TITLE,
-      body: 'New market signal detected. Open Capital Flow to view it.',
-    };
-  }
-  return {
-    title: 'Capital Flow',
-    body: "We couldn't verify a market signal this time. Open Capital Flow to try again.",
-  };
+  return marketSignalNotificationFor(rawResults);
 }
 
 const SCAN_URL = { capitalFlow: '/scanner', maScanner: '/ma', sectorMoving: '/flow' };
-const MARKET_SIGNAL_TITLE = 'Market Signal Detected';
 
 async function notifyScheduledUser(sched, scan) {
   const normalized = normalizeScheduledScanResult(scan);
