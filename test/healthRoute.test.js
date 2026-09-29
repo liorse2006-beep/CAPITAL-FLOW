@@ -3,6 +3,7 @@ const express = require('express');
 const test = require('node:test');
 
 require('./helpers/testEnv');
+process.env.STATUS_INTERNAL_TOKEN = 'status-probe-test-token-which-is-long-enough';
 const db = require('../server/db');
 const healthRouter = require('../server/routes/health');
 
@@ -14,7 +15,7 @@ async function startHealthApp() {
   });
 }
 
-test('concurrent readiness checks share one database probe and keep the probe fail-closed', async () => {
+test('concurrent protected database checks share one probe and keep readiness fail-closed', async () => {
   await db.ready;
   const originalPrepare = db.prepare;
   let probeCount = 0;
@@ -35,7 +36,11 @@ test('concurrent readiness checks share one database probe and keep the probe fa
 
   try {
     const responses = await Promise.all(
-      Array.from({ length: 25 }, () => fetch(`http://127.0.0.1:${port}/health/ready`))
+      Array.from({ length: 25 }, () =>
+        fetch(`http://127.0.0.1:${port}/status/internal/database`, {
+          headers: { 'x-status-check-token': process.env.STATUS_INTERNAL_TOKEN },
+        })
+      )
     );
     assert.deepEqual(
       responses.map((response) => response.status),
@@ -72,7 +77,7 @@ test('public health and process liveness stay healthy while database initializat
   }
 });
 
-test('database readiness endpoint fails closed within its probe timeout', async () => {
+test('protected database readiness fails closed within its probe timeout', async () => {
   // Let the previous test's deliberately short successful-probe cache expire.
   await new Promise((resolve) => setTimeout(resolve, 1100));
   const originalReady = db.ready;
@@ -81,12 +86,24 @@ test('database readiness endpoint fails closed within its probe timeout', async 
   const startedAt = Date.now();
 
   try {
-    const response = await fetch(`http://127.0.0.1:${server.address().port}/health/ready`);
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/status/internal/database`, {
+      headers: { 'x-status-check-token': process.env.STATUS_INTERNAL_TOKEN },
+    });
     assert.equal(response.status, 503);
     assert.equal((await response.json()).status, 'error');
     assert.ok(Date.now() - startedAt < 4500, 'probe should complete before Render’s five-second limit');
   } finally {
     db.ready = originalReady;
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('database readiness details stay hidden from callers without the status token', async () => {
+  const server = await startHealthApp();
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/status/internal/database`);
+    assert.equal(response.status, 401);
+  } finally {
     await new Promise((resolve) => server.close(resolve));
   }
 });

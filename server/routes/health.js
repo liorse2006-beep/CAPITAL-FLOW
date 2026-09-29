@@ -66,31 +66,8 @@ function sendLiveness(req, res) {
 router.get('/health', sendLiveness);
 router.get('/health/live', sendLiveness);
 
-// Database readiness is a separate, bounded probe for operators and internal
-// automation. It fails closed without being used as Render's process-health
-// check, so database-dependent actions remain safely unavailable during an
-// outage while the process can recover when the database returns.
-router.get('/health/ready', async (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  try {
-    // A database connection alone is not enough for readiness: schema
-    // migrations and the one-active-Radar invariant must have completed before
-    // the platform starts routing traffic to this process.
-    await verifyDatabaseReadiness();
-    res.json({
-      status: 'ok',
-      releaseCommit: RELEASE_COMMIT,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (err) {
-    reportError(err, '[health]');
-    res.status(503).json({
-      status: 'error',
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
-
+// Database readiness is only exposed through the token-protected internal
+// probe below; no public endpoint reveals database availability.
 router.get('/status/internal/database', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (!hasValidStatusToken(req)) return res.status(401).json({ error: 'Unauthorized' });
