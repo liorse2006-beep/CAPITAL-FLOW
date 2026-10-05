@@ -11,10 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -42,15 +44,19 @@ jobs:
       - name: Run Cloudflare Worker tests
         run: npm run test:worker
 
+      - name: Verify multi-process notification isolation
+        run: npm run test:cluster
+
       - name: Run lint
         run: npm run lint
 
       - name: Check formatting for changed files
         shell: bash
         run: |
-          changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" | grep -E '\\.(js|jsx|mjs|cjs|css|html)$' || true)"
+          base_sha="${{ github.event.pull_request.base.sha || github.event.before }}"
+          changed_files="$(git diff --name-only "$base_sha" "${{ github.sha }}" | grep -E '\.(js|jsx|mjs|cjs|css|html)$' || true)"
           if [ -n "$changed_files" ]; then
-            printf '%s\\n' "$changed_files" | xargs npx prettier --check
+            printf '%s\n' "$changed_files" | xargs npx prettier --check
           else
             echo "No changed source files require a formatting check."
           fi

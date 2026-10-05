@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { safeErrorSummary } = require('../utils/reportError');
 const { retryUntilReady } = require('./startupRetry');
+const { createBoundedQueue } = require('../services/boundedQueue');
 
 function isExpectedDuplicateColumnError(error) {
   const message = String(error?.message || error || '');
@@ -25,6 +26,8 @@ function makeUrl() {
 
 const databaseUrl = makeUrl();
 const isPostgresDatabase = isPostgresUrl(databaseUrl);
+const isLocalSqlite = /^file:/i.test(databaseUrl);
+const runSqlite = createBoundedQueue({ concurrency: 1, maxWaiting: 500, waitTimeoutMs: 10000 });
 const postgresDb = isPostgresDatabase ? createPostgresDatabase(databaseUrl) : null;
 const client = isPostgresDatabase
   ? null
@@ -49,6 +52,7 @@ function sqliteResultShape(result) {
   return {
     rows: result.rows || [],
     rowsAffected: Number(result.rowsAffected || 0),
+    changes: Number(result.rowsAffected || 0),
     lastInsertRowid: result.lastInsertRowid != null ? Number(result.lastInsertRowid) : undefined,
   };
 }
@@ -58,22 +62,23 @@ async function executeSql(sql, args = [], target = client) {
     if (args.length) return postgresDb.prepare(sql).run(...args);
     return postgresDb.exec(sql);
   }
-  return target.execute(args.length ? { sql, args } : sql);
+  const operation = () => target.execute(args.length ? { sql, args } : sql);
+  return isLocalSqlite && target === client ? runSqlite(operation) : operation();
 }
 
 function prepare(sql) {
   if (isPostgresDatabase) return postgresDb.prepare(sql);
   return {
     async get(...args) {
-      const result = await client.execute({ sql, args });
+      const result = await executeSql(sql, args);
       return result.rows.length > 0 ? toPlainObject(result.rows[0]) : undefined;
     },
     async all(...args) {
-      const result = await client.execute({ sql, args });
+      const result = await executeSql(sql, args);
       return result.rows.map(toPlainObject);
     },
     async run(...args) {
-      const result = await client.execute({ sql, args });
+      const result = await executeSql(sql, args);
       return {
         changes: result.rowsAffected,
         lastInsertRowid: result.lastInsertRowid != null ? Number(result.lastInsertRowid) : undefined,
@@ -103,7 +108,7 @@ async function exec(sql) {
     .map((s) => s.trim())
     .filter(Boolean);
   for (const s of stmts) {
-    await client.execute(s);
+    await executeSql(s);
   }
 }
 
@@ -111,11 +116,34 @@ async function exec(sql) {
 // a small wrapper around libSQL's write transaction mode so routes that touch
 // multiple user-owned tables cannot leave a partial state after a transient
 // database failure.
-async function transaction(statementsOrCallback) {
+function transaction(statementsOrCallback) {
+  if (isPostgresDatabase) return postgresDb.transaction(statementsOrCallback);
+  // Local libSQL transactions share a native connection. Starting another
+  // write transaction while an async callback is suspended can abort the
+  // first one. Serialize callbacks without weakening remote DB atomicity.
+  return runSqlite(() => executeTransaction(statementsOrCallback));
+}
+
+async function executeTransaction(statementsOrCallback) {
   if (isPostgresDatabase) return postgresDb.transaction(statementsOrCallback);
   if (typeof statementsOrCallback === 'function') {
-    const tx = await client.transaction('write');
+    // The local driver detaches its connection in transaction(), which loses
+    // a :memory: database on the next operation. The process-wide queue lets
+    // local transactions safely retain one connection instead.
+    let tx;
+    if (isLocalSqlite) {
+      await client.execute('BEGIN IMMEDIATE');
+      tx = {
+        execute: (statement) => client.execute(statement),
+        commit: () => client.execute('COMMIT'),
+        rollback: () => client.execute('ROLLBACK'),
+      };
+    } else tx = await client.transaction('write');
+    const commitHooks = [];
     const txDb = {
+      afterCommit(callback) {
+        commitHooks.push(callback);
+      },
       prepare(sql) {
         return {
           async get(...args) {
@@ -145,6 +173,13 @@ async function transaction(statementsOrCallback) {
     try {
       const result = await statementsOrCallback(txDb);
       await tx.commit();
+      for (const callback of commitHooks) {
+        try {
+          callback();
+        } catch (error) {
+          console.warn('[db afterCommit]', safeErrorSummary(error));
+        }
+      }
       return result;
     } catch (error) {
       try {
@@ -430,6 +465,25 @@ async function initDb() {
     -- Links verified Whop payments to local accounts so newer refund and
     -- dispute webhook payloads (which may omit checkout metadata) can revoke
     -- only the entitlement originally purchased by that payment.
+    CREATE TABLE IF NOT EXISTS whop_checkout_authorizations (
+      authorization_id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      plan_id TEXT NOT NULL,
+      tier TEXT NOT NULL,
+      issued_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      payment_id TEXT,
+      revoked_at BIGINT
+    );
+    CREATE INDEX IF NOT EXISTS idx_whop_checkout_authorizations_user ON whop_checkout_authorizations(user_id);
+
+    CREATE TABLE IF NOT EXISTS whop_payment_dispositions (
+      payment_id TEXT PRIMARY KEY,
+      plan_id TEXT,
+      status TEXT NOT NULL DEFAULT 'open',
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS whop_payment_entitlements (
       payment_id          TEXT PRIMARY KEY,
       user_id              INTEGER NOT NULL,
@@ -444,6 +498,46 @@ async function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_whop_payment_entitlements_user
       ON whop_payment_entitlements(user_id, status);
+
+    CREATE TABLE IF NOT EXISTS scheduled_scan_runs (
+      run_key TEXT PRIMARY KEY,
+      schedule_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      claim_token TEXT,
+      lease_until INTEGER NOT NULL DEFAULT 0,
+      completed_at INTEGER,
+      notification_id INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_scheduled_scan_runs_owner ON scheduled_scan_runs(user_id, schedule_id);
+
+    CREATE TABLE IF NOT EXISTS scheduled_digest_runs (
+      run_key TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      completed_at INTEGER NOT NULL,
+      notification_id INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS notification_push_receipts (
+      notification_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      endpoint TEXT NOT NULL,
+      accepted_at INTEGER NOT NULL,
+      PRIMARY KEY (notification_id, endpoint)
+    );
+    CREATE INDEX IF NOT EXISTS idx_notification_push_receipts_user ON notification_push_receipts(user_id);
+    CREATE TABLE IF NOT EXISTS notification_outbox (
+      notification_id INTEGER PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      payload_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at INTEGER NOT NULL DEFAULT 0,
+      lease_until INTEGER NOT NULL DEFAULT 0,
+      claim_token TEXT,
+      finished_at INTEGER,
+      outcome TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_notification_outbox_due ON notification_outbox(finished_at, next_attempt_at);
 
     CREATE TABLE IF NOT EXISTS admin_audit_log (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -554,6 +648,15 @@ async function initDb() {
     -- live beside the application data so the status APIs can be added without
     -- changing any user-facing schema. Raw diagnostics stay private in
     -- status_checks, while the public route only exposes sanitized aggregates.
+    CREATE TABLE IF NOT EXISTS status_admin_sessions (
+      token_hash TEXT PRIMARY KEY,
+      expires_at INTEGER NOT NULL,
+      credential_hash TEXT NOT NULL,
+      user_id INTEGER,
+      session_id INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_status_admin_session_expiry ON status_admin_sessions(expires_at);
+
     CREATE TABLE IF NOT EXISTS status_components (
       component_key       TEXT PRIMARY KEY,
       name                TEXT NOT NULL,
@@ -748,6 +851,8 @@ async function initDb() {
   // error here would let the process serve traffic with a partially migrated
   // schema after a network, permissions, syntax, or missing-table failure.
   const migrations = [
+    `ALTER TABLE whop_checkout_authorizations ADD COLUMN revoked_at BIGINT`,
+    `ALTER TABLE whop_payment_entitlements ADD COLUMN payment_verified INTEGER NOT NULL DEFAULT 1`,
     `ALTER TABLE users ADD COLUMN ma_scan_count INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE users ADD COLUMN is_blocked    INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE users ADD COLUMN is_pilot      INTEGER NOT NULL DEFAULT 0`,
@@ -823,6 +928,8 @@ async function initDb() {
     `ALTER TABLE radar_schedule_runs ADD COLUMN error_json TEXT`,
     `ALTER TABLE radar_schedule_runs ADD COLUMN attempts INTEGER NOT NULL DEFAULT 1`,
     `ALTER TABLE radar_schedule_runs ADD COLUMN lease_until INTEGER`,
+    `ALTER TABLE radar_schedule_runs ADD COLUMN claim_token TEXT`,
+    `ALTER TABLE radar_events ADD COLUMN notification_id INTEGER`,
     `ALTER TABLE radar_schedule_runs ADD COLUMN scan_id TEXT`,
     `ALTER TABLE radar_schedule_runs ADD COLUMN data_status TEXT`,
     `ALTER TABLE radar_schedule_runs ADD COLUMN data_as_of TEXT`,
@@ -831,6 +938,8 @@ async function initDb() {
     `ALTER TABLE ai_usage ADD COLUMN reservation_token TEXT`,
     `ALTER TABLE otp_codes ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE otp_codes ADD COLUMN locked_until INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE notifications ADD COLUMN data_status TEXT`,
+    `ALTER TABLE notifications ADD COLUMN data_as_of TEXT`,
   ];
 
   for (const sql of migrations) {

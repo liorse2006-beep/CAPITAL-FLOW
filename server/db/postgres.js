@@ -212,6 +212,9 @@ function createPostgresDatabase(databaseUrl) {
       Number.parseInt(process.env.DATABASE_CONNECT_TIMEOUT_MS || '10000', 10) || 10000
     ),
     idleTimeoutMillis: Math.max(1000, Number.parseInt(process.env.DATABASE_IDLE_TIMEOUT_MS || '30000', 10) || 30000),
+    statement_timeout: 10000,
+    lock_timeout: 3000,
+    idle_in_transaction_session_timeout: 15000,
     ...(sslDisabled ? {} : { ssl: { rejectUnauthorized: !allowInsecureSsl } }),
   });
 
@@ -249,10 +252,14 @@ function createPostgresDatabase(databaseUrl) {
     try {
       await connection.query('BEGIN');
       let result;
+      const commitHooks = [];
       if (typeof statementsOrCallback === 'function') {
         result = await statementsOrCallback({
           prepare: (sql) => prepare(sql, connection),
           exec: (sql) => exec(sql, connection),
+          afterCommit: (callback) => {
+            commitHooks.push(callback);
+          },
         });
       } else {
         if (!Array.isArray(statementsOrCallback) || statementsOrCallback.length === 0) {
@@ -265,6 +272,13 @@ function createPostgresDatabase(databaseUrl) {
         }
       }
       await connection.query('COMMIT');
+      for (const callback of commitHooks) {
+        try {
+          callback();
+        } catch (_) {
+          console.warn('[db afterCommit] notification wake-up failed');
+        }
+      }
       return result;
     } catch (error) {
       try {

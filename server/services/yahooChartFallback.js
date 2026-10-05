@@ -21,6 +21,7 @@ function toYahooSymbol(symbol) {
 }
 
 function finite(value) {
+  if (typeof value !== 'number' && (typeof value !== 'string' || !value.trim())) return null;
   const number = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(number) ? number : null;
 }
@@ -67,10 +68,12 @@ function parseChartQuote(body, requestedSymbol) {
   const volumes = Array.isArray(quote?.volume) ? quote.volume : [];
   const symbol = normalizeSymbol(requestedSymbol);
   if (!meta || !symbol || !timestamps.length || !volumes.length) return null;
+  if (toYahooSymbol(meta.symbol) !== toYahooSymbol(symbol)) return null;
 
   const price = finite(meta.regularMarketPrice);
   const regularMarketTime = finite(meta.regularMarketTime);
-  const lastVolume = finite(meta.regularMarketVolume) || finite(volumes[volumes.length - 1]);
+  const lastVolume =
+    meta.regularMarketVolume == null ? finite(volumes[volumes.length - 1]) : finite(meta.regularMarketVolume);
   if (price === null || price <= 0 || lastVolume === null || lastVolume <= 0 || regularMarketTime === null) return null;
 
   // Exclude the newest daily bar so today's growing volume is never used as a

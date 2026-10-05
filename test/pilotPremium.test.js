@@ -1,7 +1,5 @@
-// Regression test: pilot accounts must get full premium access for as long
-// as they're tagged is_pilot, without ever mutating their real is_premium
-// column — so removing the pilot tag cleanly reverts them to their actual
-// subscription status.
+// Pilot is a cohort marker, not proof of a paid/admin entitlement. Only the
+// stored subscription or explicit administrator override grants access.
 require('./helpers/testEnv');
 const { test, before } = require('node:test');
 const assert = require('node:assert');
@@ -21,12 +19,13 @@ async function makeUser(email, { isPilot = false, isPremium = false } = {}) {
   return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
 }
 
-test('a free pilot user resolves as premium through the app', async () => {
+test('a free pilot user stays free through token resolution', async () => {
   const user = await makeUser('free-pilot@test.local', { isPilot: true, isPremium: false });
   const token = (await issueToken(user)).accessToken;
   const resolved = await resolveToken(token);
 
-  assert.strictEqual(resolved.is_premium, 1, 'pilot tag must grant premium at resolve time');
+  assert.strictEqual(resolved.is_premium, 0, 'a cohort tag must not grant paid access');
+  assert.strictEqual(resolved.tier, 'free');
   const dbRow = await db.prepare('SELECT is_premium FROM users WHERE id = ?').get(user.id);
   assert.strictEqual(dbRow.is_premium, 0, 'the real is_premium column must stay untouched in the DB');
 });
@@ -56,15 +55,16 @@ test('a genuinely paying user keeps premium after their pilot tag is removed', a
 test('withEffectivePremium never mutates the original object', async () => {
   const user = await makeUser('immutable-check@test.local', { isPilot: true, isPremium: false });
   const derived = withEffectivePremium(user);
-  assert.strictEqual(derived.is_premium, 1);
+  assert.strictEqual(derived.is_premium, 0);
+  assert.strictEqual(derived.tier, 'free');
   assert.strictEqual(user.is_premium, 0, 'the source object passed in must not be mutated');
 });
 
-test('the JWT issued for a free pilot embeds is_premium=1', async () => {
+test('the JWT issued for a free pilot embeds its actual unpaid entitlement', async () => {
   const user = await makeUser('token-check@test.local', { isPilot: true, isPremium: false });
   const token = (await issueToken(user)).accessToken;
   const payload = verifyToken(token);
-  assert.strictEqual(payload.is_premium, 1);
+  assert.strictEqual(payload.is_premium, 0);
 });
 
 test('the account matching ADMIN_EMAIL always resolves as elite, even on the free tier', async () => {

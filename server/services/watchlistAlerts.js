@@ -3,6 +3,7 @@
 // who set them — never shared across accounts.
 
 const db = require('../db');
+const { withUserWrite } = require('./userWrite');
 const fs = require('fs');
 const path = require('path');
 
@@ -120,9 +121,10 @@ async function setAlert(userId, symbol, alert) {
   // the cap; only a genuinely new symbol is rejected by the conditional
   // SELECT. `changes()` is not needed here because the caller only needs the
   // distinction between one inserted/updated row and a cap-rejected insert.
-  const result = await db
-    .prepare(
-      `INSERT INTO watchlist_alerts (user_id, symbol, min_ratio, type, target_price, starting_side)
+  const result = await withUserWrite(userId, (tx) =>
+    tx
+      .prepare(
+        `INSERT INTO watchlist_alerts (user_id, symbol, min_ratio, type, target_price, starting_side)
        SELECT ?, ?, ?, ?, ?, ?
         WHERE EXISTS (SELECT 1 FROM watchlist_alerts WHERE user_id = ? AND symbol = ?)
            OR (SELECT COUNT(*) FROM watchlist_alerts WHERE user_id = ?) < ?
@@ -131,8 +133,9 @@ async function setAlert(userId, symbol, alert) {
          type = excluded.type,
          target_price = excluded.target_price,
          starting_side = excluded.starting_side`
-    )
-    .run(userId, symbol, minRatio, alert.type, targetPrice, startingSide, userId, symbol, userId, MAX_ALERTS_PER_USER);
+      )
+      .run(userId, symbol, minRatio, alert.type, targetPrice, startingSide, userId, symbol, userId, MAX_ALERTS_PER_USER)
+  );
   if (!result || result.changes !== 1) {
     const error = new Error(`Maximum ${MAX_ALERTS_PER_USER} alerts per user`);
     error.code = 'ALERT_LIMIT';

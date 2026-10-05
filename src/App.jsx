@@ -860,10 +860,7 @@ function App() {
       var cleanedSearch = new URLSearchParams(location.search);
       cleanedSearch.delete('status');
       var cleanedSearchString = cleanedSearch.toString();
-      var cleanUrl =
-        location.pathname +
-        (cleanedSearchString ? '?' + cleanedSearchString : '') +
-        (location.hash || '');
+      var cleanUrl = location.pathname + (cleanedSearchString ? '?' + cleanedSearchString : '') + (location.hash || '');
       restoreWhopReturnScroll();
       navigate(cleanUrl, { replace: true });
       if (status !== 'success') {
@@ -890,7 +887,7 @@ function App() {
         return;
       }
     },
-    [location.pathname, location.search, navigate, refreshUser]
+    [location.pathname, location.search, location.hash, navigate, refreshUser]
   );
 
   // Poll independently from the callback URL cleanup above. Navigating from
@@ -932,8 +929,9 @@ function App() {
       // Local-only alert entries (a Date.now()+Math.random() id) never made it
       // to the server, so there's nothing to fetch — only 'srv-<id>' entries
       // (persisted via addNotification) can possibly have scan results.
-      if (typeof rawId !== 'string' || rawId.indexOf('srv-') !== 0) return;
-      var id = rawId.slice(4);
+      if (typeof rawId !== 'string' || !/^(?:srv-)?[1-9]\d*$/.test(rawId)) return;
+      var id = rawId.startsWith('srv-') ? rawId.slice(4) : rawId;
+      if (!Number.isSafeInteger(Number(id))) return;
       if (!id || !user) return;
       fetch('/api/notifications/' + id, { headers: { Authorization: 'Bearer ' + getToken() } })
         .then(function (r) {
@@ -950,8 +948,8 @@ function App() {
     function () {
       var notifId = new URLSearchParams(location.search).get('notif');
       if (!notifId) return;
-      navigate(location.pathname, { replace: true });
       if (!user) return;
+      navigate(location.pathname, { replace: true });
       openScheduledNotification(notifId);
     },
     [location.pathname, location.search, navigate, openScheduledNotification, user]

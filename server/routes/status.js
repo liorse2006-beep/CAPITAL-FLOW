@@ -7,7 +7,6 @@ const { realIp } = require('../middleware/rateLimiters');
 const {
   ADMIN_EMAIL,
   ADMIN_TOKEN,
-  SESSION_SECRET,
   STATUS_ADMIN_TOKEN,
   STATUS_INTERNAL_TOKEN,
   STATUS_CHECK_INTERVAL_MS,
@@ -89,46 +88,85 @@ function unixNow() {
 const STATUS_ADMIN_COOKIE = 'cf_status_admin';
 const STATUS_ADMIN_SESSION_SECONDS = 8 * 60 * 60;
 
-function statusSessionSecret() {
-  return STATUS_ADMIN_TOKEN || ADMIN_TOKEN || SESSION_SECRET;
-}
-
-function statusSessionSignature(expiresAt) {
-  return crypto.createHmac('sha256', statusSessionSecret()).update(`status-admin:${expiresAt}`).digest('base64url');
+function credentialHash(userBound = false) {
+  const credential = userBound ? ADMIN_EMAIL : STATUS_ADMIN_TOKEN || ADMIN_TOKEN;
+  return credential
+    ? crypto
+        .createHash('sha256')
+        .update(`${userBound ? 'user' : 'static'}:${credential}`)
+        .digest('hex')
+    : null;
 }
 
 function readStatusAdminCookie(req) {
   const cookies = String(req.headers.cookie || '').split(';');
+  const values = [];
   for (const cookie of cookies) {
     const separator = cookie.indexOf('=');
     if (separator < 0 || cookie.slice(0, separator).trim() !== STATUS_ADMIN_COOKIE) continue;
-    return cookie.slice(separator + 1).trim();
+    values.push(cookie.slice(separator + 1).trim());
   }
-  return '';
+  return values.length === 1 ? values[0] : '';
 }
 
-function hasValidStatusAdminSession(req) {
-  const [expiresText, signature, ...extra] = readStatusAdminCookie(req).split('.');
-  if (extra.length || !/^\d+$/.test(expiresText || '') || !signature) return false;
-  const expiresAt = Number(expiresText);
-  const now = unixNow();
-  if (!Number.isSafeInteger(expiresAt) || expiresAt <= now || expiresAt > now + STATUS_ADMIN_SESSION_SECONDS + 60) return false;
-  const expected = Buffer.from(statusSessionSignature(expiresAt));
-  const actual = Buffer.from(signature);
-  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+function sessionTokenHash(req) {
+  const token = readStatusAdminCookie(req);
+  return /^[A-Za-z0-9_-]{43}$/.test(token) ? crypto.createHash('sha256').update(token).digest('hex') : null;
+}
+
+async function hasValidStatusAdminSession(req) {
+  const hash = sessionTokenHash(req);
+  if (!hash) return false;
+  await db.ready;
+  const session = await db
+    .prepare('SELECT * FROM status_admin_sessions WHERE token_hash = ? AND expires_at > ?')
+    .get(hash, unixNow());
+  if (!session || credentialHash(session.user_id != null) !== session.credential_hash) return false;
+  if (session.user_id == null) return true;
+  if (process.env.INDEPENDENT_STATUS_SERVICE === 'true') return false;
+  const user = await db
+    .prepare(
+      'SELECT u.email, u.is_blocked FROM user_sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ? AND s.user_id = ?'
+    )
+    .get(session.session_id, session.user_id);
+  return !!user && !user.is_blocked && String(user.email).toLowerCase() === ADMIN_EMAIL.toLowerCase();
 }
 
 async function checkAdminToken(req, res) {
-  if (hasValidStatusAdminSession(req)) return 'status-session';
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !isSameOriginRequest(req)) {
+    res.status(403).json({ error: 'Forbidden' });
+    return false;
+  }
+  if (await hasValidStatusAdminSession(req)) return 'status-session';
   return checkConfiguredAdminToken(req, res);
 }
 
-function setStatusAdminCookie(req, res, expiresAt) {
-  const signature = statusSessionSignature(expiresAt);
+async function setStatusAdminCookie(req, res, expiresAt, actor) {
+  const userBound = actor !== 'static-token';
+  const binding = credentialHash(userBound);
+  if (!binding) throw new Error('Status session credentials unavailable');
+  const payload = userBound ? require('../services/auth').verifyToken(req.headers.authorization.slice(7)) : null;
+  if (userBound && (!Number.isSafeInteger(Number(payload.sid)) || Number(payload.sid) <= 0))
+    throw new Error('Status session is not bound to an active login');
+  const token = crypto.randomBytes(32).toString('base64url');
+  await db.ready;
+  await revokePresentedStatusSessions(req);
+  await db.prepare('DELETE FROM status_admin_sessions WHERE expires_at <= ?').run(unixNow());
+  await db
+    .prepare(
+      'INSERT INTO status_admin_sessions (token_hash, expires_at, credential_hash, user_id, session_id) VALUES (?, ?, ?, ?, ?)'
+    )
+    .run(
+      crypto.createHash('sha256').update(token).digest('hex'),
+      expiresAt,
+      binding,
+      payload ? Number(payload.id) : null,
+      payload ? Number(payload.sid) : null
+    );
   const secure = process.env.NODE_ENV === 'production' || req.secure;
   res.setHeader(
     'Set-Cookie',
-    `${STATUS_ADMIN_COOKIE}=${expiresAt}.${signature}; Max-Age=${STATUS_ADMIN_SESSION_SECONDS}; Path=/status; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`
+    `${STATUS_ADMIN_COOKIE}=${token}; Max-Age=${STATUS_ADMIN_SESSION_SECONDS}; Path=/status; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`
   );
 }
 
@@ -140,11 +178,23 @@ function clearStatusAdminCookie(req, res) {
   );
 }
 
+async function revokePresentedStatusSessions(req) {
+  for (const part of String(req.headers.cookie || '').split(';')) {
+    const [name, token] = part.trim().split('=');
+    if (name === STATUS_ADMIN_COOKIE && /^[A-Za-z0-9_-]{43}$/.test(token || '')) {
+      await db
+        .prepare('DELETE FROM status_admin_sessions WHERE token_hash = ?')
+        .run(crypto.createHash('sha256').update(token).digest('hex'));
+    }
+  }
+}
+
 function isSameOriginRequest(req) {
   const origin = req.get('origin');
-  if (!origin) return true;
+  if (!origin) return !['same-site', 'cross-site'].includes(req.get('sec-fetch-site'));
   try {
-    return new URL(origin).host.toLowerCase() === String(req.get('host') || '').toLowerCase();
+    const protocol = req.secure || process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    return new URL(origin).origin.toLowerCase() === `${protocol}://${String(req.get('host') || '').toLowerCase()}`;
   } catch {
     return false;
   }
@@ -709,14 +759,17 @@ router.get('/status', (_req, res) => {
   res.redirect(302, '/status/admin');
 });
 
-router.get('/status/admin', (req, res) => {
-  const nonce = crypto.randomBytes(16).toString('base64');
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
-  res.setHeader('Content-Security-Policy', pageCsp(nonce));
-  res.send(hasValidStatusAdminSession(req) ? renderPage(true, nonce) : renderStatusAdminLogin(nonce));
-});
+router.get(
+  '/status/admin',
+  asyncRoute(async (req, res) => {
+    const nonce = crypto.randomBytes(16).toString('base64');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    res.setHeader('Content-Security-Policy', pageCsp(nonce));
+    res.send((await hasValidStatusAdminSession(req)) ? renderPage(true, nonce) : renderStatusAdminLogin(nonce));
+  })
+);
 
 router.post(
   '/status/api/admin/session',
@@ -725,17 +778,21 @@ router.post(
     if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'Forbidden' });
     const actor = await checkConfiguredAdminToken(req, res);
     if (!actor) return;
-    setStatusAdminCookie(req, res, unixNow() + STATUS_ADMIN_SESSION_SECONDS);
+    await setStatusAdminCookie(req, res, unixNow() + STATUS_ADMIN_SESSION_SECONDS, actor);
     res.json({ ok: true });
   })
 );
 
-router.post('/status/api/admin/session/logout', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'Forbidden' });
-  clearStatusAdminCookie(req, res);
-  res.json({ ok: true });
-});
+router.post(
+  '/status/api/admin/session/logout',
+  asyncRoute(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'Forbidden' });
+    await revokePresentedStatusSessions(req);
+    clearStatusAdminCookie(req, res);
+    res.json({ ok: true });
+  })
+);
 
 router.get(
   '/status/api/summary',

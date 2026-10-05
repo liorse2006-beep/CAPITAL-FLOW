@@ -1,5 +1,10 @@
 const router = require('express').Router();
-const { requireEliteOrTrial, requirePremiumSSE, issueSseTicket } = require('../middleware/authMiddleware');
+const {
+  requireEliteOrTrial,
+  requirePremiumSSE,
+  issueSseTicket,
+  resolveStreamAccess,
+} = require('../middleware/authMiddleware');
 const { verifyToken } = require('../services/auth');
 const { sseStreamLimiter } = require('../middleware/rateLimiters');
 const clusterBus = require('../services/clusterBus');
@@ -13,6 +18,134 @@ const clusterBus = require('../services/clusterBus');
 // see clusterBus.js for why that distinction matters once there's more
 // than one worker.
 const clients = new Set();
+const MAX_STREAMS_PER_SESSION = 2;
+const MAX_STREAMS_PER_USER = 4;
+const MAX_STREAMS_PER_WORKER = 200;
+const MAX_CLIENT_QUEUE_BYTES = 512 * 1024;
+const MAX_WORKER_QUEUE_BYTES = 8 * 1024 * 1024;
+const DRAIN_TIMEOUT_MS = 10000;
+const ACCESS_TIMEOUT_MS = 8000;
+const runAccessCheck = require('../services/boundedQueue').createBoundedQueue({
+  concurrency: 16,
+  maxWaiting: MAX_STREAMS_PER_WORKER,
+  waitTimeoutMs: ACCESS_TIMEOUT_MS,
+});
+let queuedBytes = 0;
+const accessChecks = new Map();
+let closing = false;
+
+function closeClient(client, gracefully = false) {
+  if (client.closed) return;
+  client.closed = true;
+  clearInterval(client.keepAlive);
+  clearTimeout(client.expires);
+  queuedBytes -= client.bytes;
+  client.bytes = 0;
+  client.queue.length = 0;
+  clients.delete(client);
+  client.cancelDrain?.();
+  if (gracefully) client.res.end();
+  else client.res.destroy();
+}
+
+// Event streams are deliberately long-lived; HTTP server.close() alone
+// cannot drain them. End existing streams and refuse late admissions while
+// the instance restarts. Stored notifications remain available on reconnect.
+function closeAllStreams() {
+  closing = true;
+  for (const client of clients) closeClient(client, true);
+}
+
+function checkAccess(client) {
+  const key = `${client.userId}:${client.sessionId}`;
+  if (accessChecks.has(key)) return accessChecks.get(key);
+  let timer;
+  let active = true;
+  const query = runAccessCheck(() =>
+    active && !client.closed ? resolveStreamAccess(client.userId, client.sessionId) : null
+  );
+  const promise = Promise.race([
+    query,
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(null), ACCESS_TIMEOUT_MS);
+      timer.unref();
+    }),
+  ]).finally(() => {
+    active = false;
+    clearTimeout(timer);
+    if (accessChecks.get(key) === promise) accessChecks.delete(key);
+  });
+  accessChecks.set(key, promise);
+  return promise;
+}
+
+function waitForDrain(client) {
+  return new Promise((resolve) => {
+    const done = (ok = false) => {
+      clearTimeout(timer);
+      client.res.off('drain', onDrain);
+      client.cancelDrain = null;
+      resolve(ok);
+    };
+    const onDrain = () => done(true);
+    const timer = setTimeout(done, DRAIN_TIMEOUT_MS);
+    timer.unref();
+    client.cancelDrain = done;
+    client.res.once('drain', onDrain);
+    if (client.closed) done();
+  });
+}
+
+async function drainClient(client) {
+  if (client.draining || client.closed) return;
+  client.draining = true;
+  try {
+    while (!client.closed && client.queue.length) {
+      // Do not cache a prior admission decision for protected deliveries.
+      // This also detects revocations on independent replicas and trial expiry.
+      if (client.queue[0].protected && !(await checkAccess(client))) return closeClient(client);
+      if (client.closed) return;
+      const item = client.queue.shift();
+      if (!client.res.write(item.payload) && !(await waitForDrain(client))) return closeClient(client);
+      if (!client.closed) {
+        client.bytes -= item.bytes;
+        queuedBytes -= item.bytes;
+      }
+    }
+  } catch {
+    closeClient(client);
+  } finally {
+    client.draining = false;
+  }
+}
+
+function enqueue(client, payload, protectedDelivery = true) {
+  if (client.closed) return;
+  const bytes = Buffer.byteLength(payload);
+  if (
+    client.bytes + bytes > MAX_CLIENT_QUEUE_BYTES ||
+    queuedBytes + bytes > MAX_WORKER_QUEUE_BYTES ||
+    client.res.writableLength + bytes > MAX_CLIENT_QUEUE_BYTES
+  )
+    return closeClient(client);
+  client.queue.push({ payload, bytes, protected: protectedDelivery });
+  client.bytes += bytes;
+  queuedBytes += bytes;
+  void drainClient(client);
+}
+
+function closeForUser(userId, sessionId) {
+  for (const client of clients) {
+    if (
+      Number(client.userId) === Number(userId) &&
+      (sessionId == null || Number(client.sessionId) === Number(sessionId))
+    )
+      closeClient(client);
+  }
+}
+clusterBus.subscribe('auth:session-revoked', ({ userId, sessionId }) => closeForUser(userId, sessionId));
+clusterBus.subscribe('auth:user-sessions-revoked', ({ userId }) => closeForUser(userId));
+clusterBus.subscribe('auth:user-entitlement-changed', ({ userId }) => closeForUser(userId));
 
 clusterBus.subscribe('sse-broadcast', ({ event, data }) => {
   deliverToAll(event, data);
@@ -23,29 +156,14 @@ clusterBus.subscribe('sse-broadcast-user', ({ userId, event, data }) => {
 
 function deliverToAll(event, data) {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  const dead = [];
-  clients.forEach((client) => {
-    try {
-      client.res.write(payload);
-    } catch (e) {
-      dead.push(client);
-    }
-  });
-  dead.forEach((c) => clients.delete(c));
+  clients.forEach((client) => enqueue(client, payload));
 }
 
 function deliverToUser(userId, event, data) {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  const dead = [];
   clients.forEach((client) => {
-    if (client.userId !== userId) return;
-    try {
-      client.res.write(payload);
-    } catch (e) {
-      dead.push(client);
-    }
+    if (Number(client.userId) === Number(userId)) enqueue(client, payload);
   });
-  dead.forEach((c) => clients.delete(c));
 }
 
 // EventSource cannot attach an Authorization header. This endpoint exchanges
@@ -61,20 +179,37 @@ router.get('/stream-ticket', requireEliteOrTrial, (req, res) => {
 });
 
 router.get('/stream', sseStreamLimiter, requirePremiumSSE, (req, res) => {
+  if (closing) {
+    res.setHeader('Retry-After', '5');
+    return res.status(503).json({ error: 'Capital Flow is restarting. Please try again shortly.' });
+  }
+  const userStreams = [...clients].filter((client) => client.userId === req.user.id);
+  if (
+    clients.size >= MAX_STREAMS_PER_WORKER ||
+    userStreams.length >= MAX_STREAMS_PER_USER ||
+    userStreams.filter((client) => client.sessionId === req.streamSessionId).length >= MAX_STREAMS_PER_SESSION
+  )
+    return res.status(429).json({ error: 'Too many active connections. Close another tab and try again.' });
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no'); // disable nginx buffering
   res.flushHeaders();
 
-  const client = { res, userId: req.user.id };
+  const client = {
+    res,
+    userId: req.user.id,
+    sessionId: req.streamSessionId,
+    closed: false,
+    queue: [],
+    bytes: 0,
+    draining: false,
+    keepAlive: null,
+    cancelDrain: null,
+  };
   clients.add(client);
 
-  const send = (event, data) => {
-    try {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-    } catch (e) {}
-  };
+  const send = (event, data) => enqueue(client, `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 
   // pid identifies which worker this particular connection landed on —
   // harmless to expose (just a process id, reveals nothing about the
@@ -85,12 +220,15 @@ router.get('/stream', sseStreamLimiter, requirePremiumSSE, (req, res) => {
   send('connected', { ts: Date.now(), clientCount: clients.size, pid: process.pid });
 
   // Keep-alive every 25s (below typical 30s proxy timeout)
-  const keepAlive = setInterval(() => send('ping', { ts: Date.now() }), 25000);
-
-  req.on('close', () => {
-    clearInterval(keepAlive);
-    clients.delete(client);
-  });
+  // Heartbeats carry no account/market data. Avoid thousands of idle DB
+  // reads per device; protected events still recheck the durable permission.
+  client.keepAlive = setInterval(() => enqueue(client, `event: ping\ndata: {"ts":${Date.now()}}\n\n`, false), 25000);
+  client.keepAlive.unref();
+  client.expires = setTimeout(() => closeClient(client), Math.max(1, req.streamExpiresAt - Date.now()));
+  client.expires.unref();
+  req.on('close', () => closeClient(client));
+  res.on('close', () => closeClient(client));
+  res.on('error', () => closeClient(client));
 });
 
 // Test-only, strictly gated: exercises the exact same broadcastToUser()
@@ -179,4 +317,4 @@ function clientCount() {
   return clients.size;
 }
 
-module.exports = { router, broadcast, broadcastToUser, clientCount };
+module.exports = { router, broadcast, broadcastToUser, clientCount, closeAllStreams };

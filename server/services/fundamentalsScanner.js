@@ -68,6 +68,7 @@ async function scanFundamentals(tickers) {
   var results = [];
   var errors = [];
   var incomplete = false;
+  var invalidQuote = false;
 
   var quotesMap = await quoteCache.getQuotes(tickers);
   var quoteDataStale = quotesMap.usedStaleFallback === true || Number(quotesMap.staleCount || 0) > 0;
@@ -75,7 +76,14 @@ async function scanFundamentals(tickers) {
   var candidates = [];
   tickers.forEach(function (symbol) {
     var quote = quotesMap.get(symbol);
-    if (!quote || !quote.regularMarketPrice) {
+    if (
+      !quote ||
+      typeof quote.regularMarketPrice !== 'number' ||
+      !Number.isFinite(quote.regularMarketPrice) ||
+      quote.regularMarketPrice <= 0 ||
+      quote.symbol !== symbol
+    ) {
+      if (quote) invalidQuote = true;
       errors.push(symbol);
       return;
     }
@@ -121,7 +129,7 @@ async function scanFundamentals(tickers) {
       results.push({
         symbol: c.symbol,
         name: c.quote.shortName || c.quote.longName || c.symbol,
-        price: c.quote.regularMarketPrice,
+        price: Number(c.quote.regularMarketPrice),
         change: c.quote.regularMarketChangePercent ?? null,
         marketCap: c.quote.marketCap ?? null,
         // null means the source reported no value for this company —
@@ -159,13 +167,13 @@ async function scanFundamentals(tickers) {
     results: results,
     errors: errors,
     dataStatus: errors.length ? 'unavailable' : quoteDataStale || incomplete ? 'partial' : 'complete',
-    quoteDataStatus: quoteDataStale ? 'stale' : quotesMap.providerFailure ? 'unavailable' : 'complete',
+    quoteDataStatus: quoteDataStale ? 'stale' : invalidQuote || quotesMap.providerFailure ? 'unavailable' : 'complete',
     staleCount: Number(quotesMap.staleCount || 0),
     dataAsOf: quotesMap.dataAsOf || null,
     dataProvenance: buildFinancialProvenance({
       dataAsOf: quotesMap.dataAsOf || null,
       status: errors.length ? 'unavailable' : quoteDataStale || incomplete ? 'partial' : 'complete',
-      quoteStatus: quoteDataStale ? 'stale' : quotesMap.providerFailure ? 'unavailable' : 'complete',
+      quoteStatus: quoteDataStale ? 'stale' : invalidQuote || quotesMap.providerFailure ? 'unavailable' : 'complete',
       sources: FUNDAMENTALS_SOURCES.map((source) => ({
         ...source,
         asOf: source.provider === 'Yahoo Finance' ? quotesMap.dataAsOf || null : null,
@@ -173,7 +181,7 @@ async function scanFundamentals(tickers) {
           source.provider === 'Yahoo Finance'
             ? quoteDataStale
               ? 'stale'
-              : quotesMap.providerFailure
+              : invalidQuote || quotesMap.providerFailure
                 ? 'unavailable'
                 : 'complete'
             : 'unknown',

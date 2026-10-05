@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import useModalA11y from '../../hooks/useModalA11y';
 
 const PERIODS = ['1D', '1W', '1M', '3M', '1Y'];
+const CHART_UNAVAILABLE = 'Chart data is not available right now. Try again in a few minutes.';
 
 const THEME = {
   bg: '#0F0F0F',
@@ -203,36 +204,69 @@ export default function ChartModal({ symbol, name, onClose }) {
   const [error, setError] = useState(null);
   const [tooltip, setTooltip] = useState(null);
   const [quote, setQuote] = useState(null);
+  const [dataNotice, setDataNotice] = useState(null);
 
   const load = useCallback(
     (p, signal) => {
       setLoading(true);
       setError(null);
+      setQuote(null);
+      setDataNotice(null);
+      setTooltip(null);
+      dataRef.current = null;
+      helpersRef.current = null;
       fetch(`/api/chart/${encodeURIComponent(symbol)}?period=${p}`, {
         headers: { Authorization: 'Bearer ' + getToken() },
         signal,
       })
-        .then((r) =>
-          r.ok
-            ? r.json()
-            : r.json().then((d) => {
-                throw new Error(d.error || 'Fetch failed');
-              })
-        )
+        .then((r) => {
+          if (!r.ok) throw new Error(CHART_UNAVAILABLE);
+          return r.json();
+        })
         .then((d) => {
+          if (signal.aborted) return;
           if (!Array.isArray(d.quotes) || d.quotes.length === 0) {
-            throw new Error('Chart data is not available right now. Try again in a few minutes.');
+            throw new Error(CHART_UNAVAILABLE);
           }
           dataRef.current = d;
-          setQuote(d.currentPrice);
+          const observedAt = Date.parse(d.currentPrice?.dataAsOf);
+          const hasCurrentPrice =
+            typeof d.currentPrice?.price === 'number' &&
+            Number.isFinite(d.currentPrice.price) &&
+            d.currentPrice.price > 0 &&
+            Number.isFinite(observedAt);
+          setQuote(hasCurrentPrice ? d.currentPrice : null);
+          const notices = [];
+          if (!hasCurrentPrice) notices.push('Current price unavailable. Showing historical prices.');
+          if (
+            d.dataStatus !== 'complete' ||
+            d.quoteDataStatus === 'partial' ||
+            d.currentPrice?.dataStatus === 'partial'
+          ) {
+            notices.push('Some chart data is unavailable.');
+          }
+          if (hasCurrentPrice) {
+            notices.push(
+              'Price as of ' +
+                new Date(observedAt).toLocaleString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  timeZoneName: 'short',
+                }) +
+                '.'
+            );
+          }
+          setDataNotice(notices.join(' '));
           setLoading(false);
           requestAnimationFrame(() => {
-            helpersRef.current = drawChart(canvasRef.current, d, p);
+            if (!signal.aborted) helpersRef.current = drawChart(canvasRef.current, d, p);
           });
         })
         .catch((e) => {
-          if (e.name === 'AbortError') return;
-          setError(e.message);
+          if (signal.aborted || e.name === 'AbortError') return;
+          setError(CHART_UNAVAILABLE);
           setLoading(false);
         });
     },
@@ -260,6 +294,7 @@ export default function ChartModal({ symbol, name, onClose }) {
   const panelRef = useModalA11y(onClose);
 
   function handleMouseMove(e) {
+    if (loading || error) return;
     const h = helpersRef.current;
     if (!h) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -383,7 +418,11 @@ export default function ChartModal({ symbol, name, onClose }) {
             React.createElement('span', { className: 'chart-ma-label' }, 'MA50')
           )
         ),
-        React.createElement('button', { className: 'chart-modal-close', onClick: onClose }, '✕')
+        React.createElement(
+          'button',
+          { className: 'chart-modal-close', 'aria-label': 'Close chart', onClick: onClose },
+          '✕'
+        )
       ),
 
       // ── Period Tabs ──────────────────────────────────────────────────────
@@ -403,12 +442,29 @@ export default function ChartModal({ symbol, name, onClose }) {
         )
       ),
 
+      dataNotice &&
+        !loading &&
+        !error &&
+        React.createElement(
+          'div',
+          { role: 'status', style: { padding: '0 20px 8px', color: THEME.textBright, fontSize: 11 } },
+          dataNotice
+        ),
+
       // ── Canvas ──────────────────────────────────────────────────────────
       React.createElement(
         'div',
         { className: 'chart-canvas-wrap', onMouseMove: handleMouseMove, onMouseLeave: handleMouseLeave },
-        React.createElement('canvas', { ref: canvasRef, className: 'chart-canvas' }),
-        React.createElement('canvas', { ref: overlayRef, className: 'chart-canvas chart-overlay' }),
+        React.createElement('canvas', {
+          ref: canvasRef,
+          className: 'chart-canvas',
+          style: { visibility: loading || error ? 'hidden' : 'visible' },
+        }),
+        React.createElement('canvas', {
+          ref: overlayRef,
+          className: 'chart-canvas chart-overlay',
+          style: { visibility: loading || error ? 'hidden' : 'visible' },
+        }),
 
         loading &&
           React.createElement(

@@ -3,6 +3,28 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { latestMarketCap, parseChartQuote } = require('../server/services/yahooChartFallback');
 
+test('Yahoo chart fallback rejects mismatched or absent provider symbol and malformed price', () => {
+  const now = Math.floor(Date.now() / 1000);
+  const body = {
+    chart: {
+      result: [
+        {
+          meta: { symbol: 'OTHER', regularMarketPrice: 100, regularMarketTime: now, regularMarketVolume: 2500 },
+          timestamp: Array.from({ length: 12 }, (_, index) => now - (12 - index) * 86400),
+          indicators: { quote: [{ volume: Array(12).fill(1000) }] },
+        },
+      ],
+    },
+  };
+  assert.equal(parseChartQuote(body, 'AAPL'), null);
+  delete body.chart.result[0].meta.symbol;
+  assert.equal(parseChartQuote(body, 'AAPL'), null);
+  body.chart.result[0].meta.symbol = 'BRK-B';
+  assert.equal(parseChartQuote(body, 'BRK.B').symbol, 'BRK.B');
+  body.chart.result[0].meta.regularMarketPrice = true;
+  assert.equal(parseChartQuote(body, 'BRK.B'), null);
+});
+
 test('Yahoo chart fallback preserves provider timestamp and computes a completed-volume baseline', () => {
   const now = Math.floor(Date.now() / 1000);
   const body = {

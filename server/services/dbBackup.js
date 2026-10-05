@@ -41,11 +41,18 @@ function createTransport() {
 }
 
 async function dumpTables() {
-  const dump = { createdAt: new Date().toISOString(), tables: {} };
-  for (const table of TABLES) {
-    dump.tables[table] = await db.prepare(`SELECT * FROM ${table}`).all();
-  }
-  return dump;
+  await db.ready;
+  return db.transaction(async (tx) => {
+    // A backup must see one database version, not different moments for the
+    // user, payment and reversal tables. PostgreSQL's default isolation does
+    // not provide that guarantee across multiple SELECTs.
+    if (db.dialect === 'postgres') await tx.exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    const dump = { createdAt: new Date().toISOString(), tables: {} };
+    for (const table of TABLES) {
+      dump.tables[table] = await tx.prepare(`SELECT * FROM ${table}`).all();
+    }
+    return dump;
+  });
 }
 
 async function runBackupTick() {

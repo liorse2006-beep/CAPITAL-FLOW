@@ -9432,6 +9432,7 @@ html.a11y-highlight-links a {
   display: flex;
   align-items: baseline;
   gap: 10px;
+  min-width: 0;
 }
 .chart-modal-symbol {
   font-size: 20px;
@@ -9454,6 +9455,8 @@ html.a11y-highlight-links a {
   gap: 14px;
   flex: 1;
   justify-content: flex-end;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 .chart-modal-price {
   font-size: 18px;
@@ -10684,6 +10687,36 @@ html.a11y-highlight-links a {
     max-width: 100%;
     max-height: 100%;
     border-radius: 0;
+  }
+  .chart-modal-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    align-items: start;
+    gap: 8px 12px;
+    padding: 12px;
+  }
+  .chart-modal-title {
+    grid-column: 1;
+    grid-row: 1;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+  }
+  .chart-modal-name {
+    max-width: 100%;
+  }
+  .chart-modal-meta {
+    grid-column: 1;
+    grid-row: 2;
+    justify-content: flex-start;
+    gap: 8px 12px;
+    overflow-wrap: anywhere;
+  }
+  .chart-modal-close {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: 44px;
+    height: 44px;
+    align-self: start;
   }
   .ai-insight-header {
     flex-wrap: wrap;

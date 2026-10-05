@@ -27,15 +27,15 @@ function verifyPassword(password, hash) {
 }
 
 /**
- * Pilot accounts (and the configured admin's own account) get full (Elite)
- * access for as long as that's true. Call this on any user row read directly
+ * The configured admin's own account gets full (Elite) access. A pilot tag
+ * identifies a cohort, not a purchase. Call this on any user row read directly
  * from the DB (outside authMiddleware.resolveToken, which already applies
  * it) before that row's tier/is_premium value is shown to the client or
  * embedded in a token.
  */
 function withEffectivePremium(user) {
   const isAdminOwner = !!ADMIN_EMAIL && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-  if (user.is_pilot || isAdminOwner) return { ...user, tier: 'elite', is_premium: 1 };
+  if (isAdminOwner) return { ...user, tier: 'elite', is_premium: 1 };
   return { ...user, is_premium: user.tier !== 'free' ? 1 : 0 };
 }
 

@@ -126,7 +126,7 @@ test('Capital Flow Radar push opens the exact notification snapshot', async (t) 
   assert.strictEqual(notification.title, 'Market Signal Detected');
   assert.strictEqual(notification.body, 'New market signal detected. Open Capital Flow to view it.');
   assert.match(notification.results_json, /"quoteStatus":"partial"/);
-  assert.strictEqual(pushMock.mock.calls[0].arguments[1].data.url, '/scanner?notif=' + notification.id);
+  assert.strictEqual(pushMock.mock.calls[0].arguments[1].data.url, '/scanner?notif=srv-' + notification.id);
   assert.strictEqual(pushMock.mock.calls[0].arguments[1].title, 'Market Signal Detected');
   assert.strictEqual(
     pushMock.mock.calls[0].arguments[1].body,

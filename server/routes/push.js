@@ -32,6 +32,10 @@ router.post('/push/subscribe', requireEliteOrTrial, async (req, res) => {
     await saveSubscription(req.user.id, sub);
     res.json({ ok: true });
   } catch (err) {
+    if (err.code === 'PUSH_SUBSCRIPTION_LIMIT')
+      return res
+        .status(409)
+        .json({ error: 'Notifications are already enabled on 10 devices. Remove an old device and try again.' });
     reportError(err, '[push/subscribe]');
     res.status(500).json({ error: 'Server error' });
   }
@@ -66,9 +70,11 @@ router.post('/push/notification-time', requireEliteOrTrial, async (req, res) => 
       return res.status(400).json({ error: 'time must be "HH:MM" or null' });
     }
     await db.prepare('UPDATE users SET notification_time = ? WHERE id = ?').run(time, req.user.id);
-    require('../services/scheduledDigest').refreshScheduledDigestTimes({ force: true }).catch((err) => {
-      reportError(err, '[push/notification-time schedule refresh]');
-    });
+    require('../services/scheduledDigest')
+      .refreshScheduledDigestTimes({ force: true })
+      .catch((err) => {
+        reportError(err, '[push/notification-time schedule refresh]');
+      });
     res.json({ ok: true, time });
   } catch (err) {
     reportError(err, '[push/notification-time POST]');

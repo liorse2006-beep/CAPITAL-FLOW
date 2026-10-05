@@ -684,7 +684,9 @@ test('refund.updated revokes access only after Whop confirms the refund succeede
     assert.strictEqual(succeededRes.status, 200);
     state = await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id);
     assert.strictEqual(state.tier, 'free', 'succeeded refund must revoke its paid tier');
-    const entitlement = await db.prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?').get(paymentId);
+    const entitlement = await db
+      .prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?')
+      .get(paymentId);
     assert.strictEqual(entitlement.status, 'refunded');
   } finally {
     server.close();
@@ -821,7 +823,9 @@ test('dispute_alert.created is acknowledged without revoking access before a for
     const unchanged = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
     assert.strictEqual(unchanged.tier, 'elite');
     assert.strictEqual(unchanged.is_premium, 1);
-    const entitlement = await db.prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?').get(paymentId);
+    const entitlement = await db
+      .prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?')
+      .get(paymentId);
     assert.strictEqual(entitlement.status, 'active');
   } finally {
     server.close();
@@ -865,14 +869,16 @@ test('out-of-order dispute.updated won cannot be overwritten by a late dispute.c
     const unchanged = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
     assert.strictEqual(unchanged.tier, 'elite');
     assert.strictEqual(unchanged.is_premium, 1);
-    const entitlement = await db.prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?').get(paymentId);
+    const entitlement = await db
+      .prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?')
+      .get(paymentId);
     assert.strictEqual(entitlement.status, 'dispute_won');
   } finally {
     server.close();
   }
 });
 
-test('refund.created still identifies a pre-Elements payment from provider-signed legacy metadata', async () => {
+test('unrecorded unsigned reversal metadata cannot revoke an unrelated paid account', async () => {
   const user = await makeUser('webhook-legacy-refund@test.local', 'elite');
   const payload = JSON.stringify({
     type: 'refund.created',
@@ -897,11 +903,487 @@ test('refund.created still identifies a pre-Elements payment from provider-signe
     });
     assert.strictEqual(res.status, 200);
     const updated = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
-    assert.strictEqual(updated.tier, 'free');
-    assert.strictEqual(updated.is_premium, 0);
+    assert.strictEqual(updated.tier, 'elite');
+    const state = await db
+      .prepare('SELECT status FROM whop_payment_dispositions WHERE payment_id = ?')
+      .get('pay_legacy_purchase');
+    assert.strictEqual(state.status, 'refunded', 'remember the refund without trusting the supplied account identity');
   } finally {
     server.close();
   }
+});
+
+test('ledger-backed legacy reversal remains supported without trusted client metadata', async () => {
+  const user = await makeUser('webhook-recorded-legacy-refund@test.local', 'elite');
+  await db
+    .prepare(
+      "INSERT INTO whop_payment_entitlements (payment_id, user_id, tier, plan_id, created_at) VALUES (?, ?, 'elite', 'plan_elite_test', ?)"
+    )
+    .run('pay_recorded_legacy', user.id, Math.floor(Date.now() / 1000));
+  const data = {
+    id: 'rf_recorded_legacy',
+    status: 'succeeded',
+    payment: {
+      id: 'pay_recorded_legacy',
+      plan: { id: 'plan_elite_test' },
+      metadata: { userId: '999999', tier: 'elite' },
+    },
+  };
+  await deliverEvents([{ type: 'refund.created', data }], 'recorded-legacy');
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'free');
+});
+
+async function deliverEvents(events, label, concurrent = false) {
+  const server = await startWebhookApp();
+  try {
+    const deliver = async (event, index) => {
+      const payload = JSON.stringify(event);
+      const response = await fetch(`http://127.0.0.1:${server.address().port}/api/webhooks/whop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...sign(payload, { id: `wh_${label}_${index}` }) },
+        body: payload,
+      });
+      assert.equal(response.status, 200, await response.text());
+    };
+    if (concurrent) await Promise.all(events.map(deliver));
+    else for (const [index, event] of events.entries()) await deliver(event, index);
+  } finally {
+    server.close();
+  }
+}
+
+async function expectRejectedPayment(data, label) {
+  const server = await startWebhookApp();
+  try {
+    const payload = JSON.stringify({ type: 'payment.succeeded', data });
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(payload, { id: 'wh_' + label }) },
+      body: payload,
+    });
+    assert.equal(response.status, 422);
+  } finally {
+    server.close();
+  }
+}
+
+function legacyUpgradeMetadata(userId) {
+  const metadata = { userId: String(userId), tier: 'elite', checkoutVersion: 'elements-v1' };
+  metadata.metadataSignature = crypto
+    .createHmac('sha256', process.env.JWT_SECRET)
+    .update(JSON.stringify(['capital-flow:whop-checkout', 'elements-v1', String(userId), 'elite', '']))
+    .digest('base64url');
+  return metadata;
+}
+
+test('an unused discounted authorization cannot buy after Premium has been refunded', async (t) => {
+  const user = await makeUser('offer-after-premium-refund@test.local');
+  const premium = paymentData(user.id, 'premium', { paymentId: 'pay_eligibility_premium' });
+  await deliverEvents([{ type: 'payment.succeeded', data: premium }], 'eligibility-premium');
+  const metadata = await whop.issueUpgradeCheckoutMetadata(user.id);
+  const clock = Date.now();
+  t.mock.method(Date, 'now', () => clock + 60000);
+  await deliverEvents(
+    [{ type: 'refund.updated', data: { status: 'succeeded', payment: { id: premium.id } } }],
+    'eligibility-refund'
+  );
+  t.mock.method(Date, 'now', () => clock + 120000);
+  await expectRejectedPayment(
+    {
+      id: 'pay_after_eligibility',
+      plan: { id: metadata.planId },
+      created_at: new Date(Date.now()).toISOString(),
+      metadata,
+    },
+    'after-eligibility'
+  );
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'free');
+});
+
+test('a payment made before Premium refund remains valid on delayed delivery', async (t) => {
+  const user = await makeUser('offer-before-premium-refund@test.local');
+  const premium = paymentData(user.id, 'premium', { paymentId: 'pay_before_eligibility_premium' });
+  await deliverEvents([{ type: 'payment.succeeded', data: premium }], 'before-eligibility-premium');
+  const metadata = await whop.issueUpgradeCheckoutMetadata(user.id);
+  const clock = Date.now();
+  t.mock.method(Date, 'now', () => clock + 60000);
+  await deliverEvents(
+    [{ type: 'refund.updated', data: { status: 'succeeded', payment: { id: premium.id } } }],
+    'before-eligibility-refund'
+  );
+  await deliverEvents(
+    [
+      {
+        type: 'payment.succeeded',
+        data: {
+          id: 'pay_before_eligibility',
+          plan: { id: metadata.planId },
+          created_at: new Date(clock).toISOString(),
+          metadata,
+        },
+      },
+    ],
+    'before-eligibility-delayed'
+  );
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'elite');
+});
+
+test('issuing another checkout must not delete evidence of an older already-paid checkout', async (t) => {
+  const user = await makeUser('offer-evidence-retention@test.local', 'premium');
+  const metadata = await whop.issueUpgradeCheckoutMetadata(user.id);
+  const clock = Date.now();
+  t.mock.method(Date, 'now', () => clock + 9 * 86400000);
+  await whop.issueUpgradeCheckoutMetadata(user.id);
+  await deliverEvents(
+    [
+      {
+        type: 'payment.succeeded',
+        data: {
+          id: 'pay_retained_evidence',
+          plan: { id: metadata.planId },
+          created_at: new Date(clock).toISOString(),
+          metadata,
+        },
+      },
+    ],
+    'retained-evidence'
+  );
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'elite');
+});
+
+test('a legacy discounted signature cannot be reused for a second payment', async (t) => {
+  const user = await makeUser('legacy-offer-one-payment@test.local');
+  const premium = paymentData(user.id, 'premium', { paymentId: 'pay_legacy_premium' });
+  await deliverEvents([{ type: 'payment.succeeded', data: premium }], 'legacy-premium');
+  const clock = Date.now();
+  t.mock.method(Date, 'now', () => clock + 60000);
+  const payment = {
+    id: 'pay_legacy_discount_one',
+    plan: { id: 'plan_elite_upgrade_test' },
+    created_at: new Date(Date.now()).toISOString(),
+    metadata: legacyUpgradeMetadata(user.id),
+  };
+  await deliverEvents(
+    [
+      { type: 'payment.succeeded', data: payment },
+      { type: 'refund.updated', data: { status: 'succeeded', payment: { id: payment.id } } },
+    ],
+    'legacy-one'
+  );
+  await expectRejectedPayment({ ...payment, id: 'pay_legacy_discount_two' }, 'legacy-second');
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'premium');
+});
+
+test('a legacy discounted payment made while Premium survives a later Premium refund', async (t) => {
+  const user = await makeUser('legacy-offer-delayed-refund@test.local');
+  const clock = Date.now();
+  const premium = paymentData(user.id, 'premium', { paymentId: 'pay_legacy_delayed_premium' });
+  premium.created_at = new Date(clock).toISOString();
+  await deliverEvents([{ type: 'payment.succeeded', data: premium }], 'legacy-delayed-premium');
+  t.mock.method(Date, 'now', () => clock + 120000);
+  await deliverEvents(
+    [{ type: 'refund.updated', data: { status: 'succeeded', payment: { id: premium.id } } }],
+    'legacy-delayed-refund'
+  );
+  await deliverEvents(
+    [
+      {
+        type: 'payment.succeeded',
+        data: {
+          id: 'pay_legacy_delayed_discount',
+          plan: { id: 'plan_elite_upgrade_test' },
+          created_at: new Date(clock + 60000).toISOString(),
+          metadata: legacyUpgradeMetadata(user.id),
+        },
+      },
+    ],
+    'legacy-delayed-discount'
+  );
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'elite');
+});
+
+test('signed reversal metadata cannot turn a reused authorization into a verified payment', async () => {
+  const user = await makeUser('offer-dispute-replay@test.local', 'premium');
+  const metadata = await whop.issueUpgradeCheckoutMetadata(user.id);
+  const first = { id: 'pay_dispute_replay_one', plan: { id: metadata.planId }, metadata };
+  await deliverEvents(
+    [
+      { type: 'payment.succeeded', data: first },
+      { type: 'refund.updated', data: { status: 'succeeded', payment: { id: first.id } } },
+    ],
+    'dispute-replay-first'
+  );
+  const payment = { ...first, id: 'pay_dispute_replay_two' };
+  await deliverEvents(
+    [
+      { type: 'dispute.created', data: { status: 'under_review', payment } },
+      { type: 'dispute.updated', data: { status: 'won', payment } },
+    ],
+    'dispute-replay-second'
+  );
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'free');
+});
+
+test('legacy numeric provider timestamps stay usable without accepting malformed timestamps', async () => {
+  const user = await makeUser('offer-numeric-timestamp@test.local', 'premium');
+  const metadata = await whop.issueUpgradeCheckoutMetadata(user.id);
+  const payment = {
+    id: 'pay_numeric_timestamp',
+    plan: { id: metadata.planId },
+    created_at: Math.floor(Date.now() / 1000),
+    metadata,
+  };
+  await deliverEvents([{ type: 'payment.succeeded', data: payment }], 'numeric-timestamp');
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'elite');
+});
+
+test('the timestamp gate rejects malformed, future and ambiguous provider values', async () => {
+  const user = await makeUser('offer-malformed-timestamps@test.local', 'premium');
+  const metadata = await whop.issueUpgradeCheckoutMetadata(user.id);
+  for (const [index, created_at] of [
+    true,
+    'not-a-date',
+    '',
+    '10/04/2026',
+    Date.now(),
+    Math.floor(Date.now() / 1000) + 600,
+  ].entries()) {
+    await expectRejectedPayment(
+      { id: 'pay_invalid_time_' + index, plan: { id: metadata.planId }, created_at, metadata },
+      'invalid-time-' + index
+    );
+  }
+});
+
+test('a paid checkout preceding revocation within the same second is not rejected', async (t) => {
+  const user = await makeUser('offer-same-second@test.local');
+  const clock = Math.floor(Date.now() / 1000) * 1000;
+  t.mock.method(Date, 'now', () => clock + 200);
+  const premium = paymentData(user.id, 'premium', { paymentId: 'pay_same_second_premium' });
+  await deliverEvents([{ type: 'payment.succeeded', data: premium }], 'same-second-premium');
+  const metadata = await whop.issueUpgradeCheckoutMetadata(user.id);
+  t.mock.method(Date, 'now', () => clock + 700);
+  await deliverEvents(
+    [{ type: 'refund.updated', data: { status: 'succeeded', payment: { id: premium.id } } }],
+    'same-second-refund'
+  );
+  await deliverEvents(
+    [
+      {
+        type: 'payment.succeeded',
+        data: {
+          id: 'pay_same_second_upgrade',
+          plan: { id: metadata.planId },
+          paid_at: new Date(clock + 250).toISOString(),
+          metadata,
+        },
+      },
+    ],
+    'same-second-upgrade'
+  );
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'elite');
+});
+
+test('a discounted authorization cannot be reused for a second payment after refund', async () => {
+  const user = await makeUser('whop-offer-reuse@test.local', 'premium');
+  const metadata = await whop.issueUpgradeCheckoutMetadata(user.id);
+  const payment = { id: 'pay_offer_first', plan: { id: metadata.planId }, metadata };
+  await deliverEvents(
+    [
+      { type: 'payment.succeeded', data: payment },
+      { type: 'refund.updated', data: { status: 'succeeded', payment: { id: payment.id } } },
+    ],
+    'offer-first-refunded'
+  );
+  await expectRejectedPayment({ ...payment, id: 'pay_offer_second' }, 'offer-reused');
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'free');
+});
+
+test('a delayed webhook remains valid if the provider payment was created during its authorization window', async (t) => {
+  const user = await makeUser('whop-offer-delayed@test.local', 'premium');
+  const metadata = await whop.issueUpgradeCheckoutMetadata(user.id);
+  const createdAt = new Date().toISOString();
+  const clock = Date.now();
+  t.mock.method(Date, 'now', () => clock + 2 * 86400000);
+  await deliverEvents(
+    [
+      {
+        type: 'payment.succeeded',
+        data: { id: 'pay_offer_delayed', plan: { id: metadata.planId }, created_at: createdAt, metadata },
+      },
+    ],
+    'offer-delayed'
+  );
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'elite');
+});
+
+test('a new payment created after the discounted authorization expires is rejected', async (t) => {
+  const user = await makeUser('whop-offer-expired@test.local', 'premium');
+  const metadata = await whop.issueUpgradeCheckoutMetadata(user.id);
+  const clock = Date.now();
+  t.mock.method(Date, 'now', () => clock + 2 * 86400000);
+  await expectRejectedPayment(
+    {
+      id: 'pay_offer_expired',
+      plan: { id: metadata.planId },
+      created_at: new Date(clock + 2 * 86400000).toISOString(),
+      metadata,
+    },
+    'offer-expired'
+  );
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'premium');
+});
+
+test('optional mismatched metadata cannot erase a refund tombstone for an unrecorded payment', async () => {
+  const user = await makeUser('whop-reversal-metadata-conflict@test.local');
+  const metadata = whop.createCheckoutMetadata({ userId: user.id, tier: 'elite' });
+  await deliverEvents(
+    [
+      {
+        type: 'refund.updated',
+        data: {
+          status: 'succeeded',
+          payment: { id: 'pay_unknown_conflict', plan: { id: 'plan_elite_upgrade_test' }, metadata },
+        },
+      },
+    ],
+    'reversal-conflict'
+  );
+  assert.equal(
+    (await db.prepare('SELECT status FROM whop_payment_dispositions WHERE payment_id = ?').get('pay_unknown_conflict'))
+      .status,
+    'refunded'
+  );
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'free');
+});
+
+test('a won dispute with signed metadata alone cannot grant an unverified payment', async () => {
+  const user = await makeUser('whop-won-without-success@test.local');
+  const payment = paymentData(user.id, 'elite', { paymentId: 'pay_won_without_success' });
+  await deliverEvents([{ type: 'dispute.updated', data: { status: 'won', payment } }], 'won-no-success');
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'free');
+  assert.equal(
+    await db.prepare('SELECT payment_id FROM whop_payment_entitlements WHERE payment_id = ?').get(payment.id),
+    undefined
+  );
+});
+
+for (const status of ['refunded', 'disputed', 'dispute_won']) {
+  test(`${status} arriving before payment success is remembered without granting from a reversal`, async () => {
+    const user = await makeUser(`webhook-before-${status}@test.local`);
+    const payment = paymentData(user.id, 'elite');
+    const reversal = {
+      type: status === 'refunded' ? 'refund.updated' : 'dispute.updated',
+      data: {
+        id: `event_${status}`,
+        status: status === 'refunded' ? 'succeeded' : status === 'dispute_won' ? 'won' : 'under_review',
+        payment: { id: payment.id },
+        plan: payment.plan,
+      },
+    };
+    await deliverEvents([reversal], `before-${status}`);
+    assert.equal(
+      (await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier,
+      'free',
+      'a reversal is not proof of a fulfilled payment'
+    );
+    await deliverEvents([{ type: 'payment.succeeded', data: payment }], `after-${status}`);
+    assert.equal(
+      (await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier,
+      status === 'dispute_won' ? 'elite' : 'free'
+    );
+    const record = await db
+      .prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?')
+      .get(payment.id);
+    assert.equal(record.status, status);
+  });
+}
+
+test('concurrent distinct success and refund event IDs leave a terminal refunded entitlement', async () => {
+  const user = await makeUser('webhook-refund-success-concurrent@test.local');
+  const payment = paymentData(user.id, 'elite');
+  await deliverEvents(
+    [
+      { type: 'payment.succeeded', data: payment },
+      { type: 'refund.updated', data: { status: 'succeeded', payment: { id: payment.id }, plan: payment.plan } },
+    ],
+    'concurrent-refund-success',
+    true
+  );
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'free');
+  assert.equal(
+    (await db.prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?').get(payment.id)).status,
+    'refunded'
+  );
+});
+
+test('refunding one purchase preserves another active same-tier purchase', async () => {
+  const user = await makeUser('webhook-sibling-purchase@test.local');
+  const one = paymentData(user.id, 'elite', { paymentId: 'pay_sibling_one' });
+  const two = paymentData(user.id, 'elite', { paymentId: 'pay_sibling_two' });
+  await deliverEvents(
+    [
+      { type: 'payment.succeeded', data: one },
+      { type: 'payment.succeeded', data: two },
+      { type: 'refund.updated', data: { status: 'succeeded', payment: { id: one.id }, plan: one.plan } },
+    ],
+    'sibling-purchase'
+  );
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'elite');
+});
+
+test('metadata issued for the regular Elite plan cannot authorize a discounted plan', async () => {
+  const user = await makeUser('webhook-plan-bound@test.local');
+  const data = paymentData(user.id, 'elite');
+  data.plan = { id: 'plan_elite_upgrade_test' };
+  const payload = JSON.stringify({ type: 'payment.succeeded', data });
+  const server = await startWebhookApp();
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/api/webhooks/whop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...sign(payload, { id: 'wh_plan_bound' }) },
+      body: payload,
+    });
+    assert.equal(response.status, 422);
+    assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'free');
+  } finally {
+    server.close();
+  }
+});
+
+test('an eligible discounted checkout grants Elite even if a later downgrade precedes the webhook', async () => {
+  const user = await makeUser('webhook-eligible-offer@test.local', 'premium');
+  const checkoutServer = await startCheckoutApp();
+  let checkout;
+  try {
+    const response = await fetch(`http://127.0.0.1:${checkoutServer.address().port}/api/checkout/transaction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await issueToken(user)).accessToken },
+      body: JSON.stringify({ tier: 'eliteUpgrade' }),
+    });
+    assert.equal(response.status, 200);
+    checkout = await response.json();
+  } finally {
+    checkoutServer.close();
+  }
+  assert.equal(checkout.metadata.planId, checkout.planId);
+  const paidAt = new Date().toISOString();
+  await db.prepare("UPDATE users SET tier = 'free' WHERE id = ?").run(user.id);
+  await deliverEvents(
+    [
+      {
+        type: 'payment.succeeded',
+        data: {
+          id: 'pay_eligible_discount',
+          plan: { id: checkout.planId },
+          paid_at: paidAt,
+          metadata: checkout.metadata,
+        },
+      },
+    ],
+    'eligible-discount'
+  );
+  assert.equal((await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id)).tier, 'elite');
 });
 
 test('refunding an old premium payment does NOT strip a user who since upgraded to elite', async () => {
@@ -1099,7 +1581,11 @@ test('eliteUpgrade returns its configured plan with signed Elite entitlement met
     const body = await res.json();
     assert.strictEqual(body.planId, 'plan_elite_upgrade_test');
     assert.strictEqual(body.tier, 'elite');
-    assert.strictEqual(body.metadata.tier, 'elite', 'must grant the real Elite tier only after the webhook confirms payment');
+    assert.strictEqual(
+      body.metadata.tier,
+      'elite',
+      'must grant the real Elite tier only after the webhook confirms payment'
+    );
     assert.strictEqual(body.metadata.userId, String(user.id));
     assert.strictEqual(whop.verifyCheckoutMetadata(body.metadata), true);
     assert.strictEqual(body.sessionId, undefined);

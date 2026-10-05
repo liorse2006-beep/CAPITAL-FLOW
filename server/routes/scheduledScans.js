@@ -2,15 +2,18 @@ const router = require('express').Router();
 const { requireAuth, requireEliteOrTrial } = require('../middleware/authMiddleware');
 const db = require('../db');
 const { reportError } = require('../utils/reportError');
+const { withUserWrite } = require('../services/userWrite');
 
 const VALID_TYPES = ['capitalFlow', 'maScanner', 'sectorMoving'];
 const MAX_SCHEDULES = 3;
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 function refreshSchedulerCache() {
-  require('../services/scheduledScanRunner').refreshScheduledScanCache({ force: true }).catch((err) => {
-    reportError(err, '[scheduled-scans cache refresh]');
-  });
+  require('../services/scheduledScanRunner')
+    .refreshScheduledScanCache({ force: true })
+    .catch((err) => {
+      reportError(err, '[scheduled-scans cache refresh]');
+    });
 }
 
 function isValidIsoDate(value) {
@@ -85,13 +88,15 @@ router.post('/scheduled-scans', requireEliteOrTrial, async (req, res) => {
     // concurrent requests to both observe two active schedules and create a
     // fourth one. SQLite/Turso serializes this conditional INSERT, so the
     // limit remains true under double-clicks and multiple tabs.
-    const result = await db
-      .prepare(
-        `INSERT INTO scheduled_scans (user_id, scan_type, scan_time, scan_date)
+    const result = await withUserWrite(req.user.id, (tx) =>
+      tx
+        .prepare(
+          `INSERT INTO scheduled_scans (user_id, scan_type, scan_time, scan_date)
          SELECT ?, ?, ?, ?
          WHERE (SELECT COUNT(*) FROM scheduled_scans WHERE user_id = ? AND active = 1) < ?`
-      )
-      .run(req.user.id, scan_type, scan_time, dateToStore, req.user.id, MAX_SCHEDULES);
+        )
+        .run(req.user.id, scan_type, scan_time, dateToStore, req.user.id, MAX_SCHEDULES)
+    );
     if (!result.changes) {
       return res.status(400).json({ error: `Maximum ${MAX_SCHEDULES} active schedules` });
     }
@@ -132,9 +137,10 @@ router.put('/scheduled-scans/:id', requireEliteOrTrial, async (req, res) => {
     // Reactivation uses the same conditional write as creation. The current
     // row is excluded from the count, so editing an already-active schedule
     // remains allowed while an inactive row cannot race the cap.
-    const result = await db
-      .prepare(
-        `UPDATE scheduled_scans
+    const result = await withUserWrite(req.user.id, (tx) =>
+      tx
+        .prepare(
+          `UPDATE scheduled_scans
             SET active = ?, scan_time = ?
           WHERE id = ? AND user_id = ?
             AND (
@@ -143,8 +149,9 @@ router.put('/scheduled-scans/:id', requireEliteOrTrial, async (req, res) => {
               OR (SELECT COUNT(*) FROM scheduled_scans
                     WHERE user_id = ? AND active = 1 AND id != ?) < ?
             )`
-      )
-      .run(newActive, newTime, existing.id, req.user.id, newActive, req.user.id, existing.id, MAX_SCHEDULES);
+        )
+        .run(newActive, newTime, existing.id, req.user.id, newActive, req.user.id, existing.id, MAX_SCHEDULES)
+    );
     if (!result.changes) {
       // A no-op UPDATE can report zero changes on some SQLite/libSQL
       // versions. Distinguish that harmless case from a real cap rejection.
@@ -167,9 +174,15 @@ router.put('/scheduled-scans/:id', requireEliteOrTrial, async (req, res) => {
 // DELETE /api/scheduled-scans/:id (Elite or trial)
 router.delete('/scheduled-scans/:id', requireEliteOrTrial, async (req, res) => {
   try {
-    const result = await db
-      .prepare('DELETE FROM scheduled_scans WHERE id = ? AND user_id = ?')
-      .run(req.params.id, req.user.id);
+    const result = await db.transaction(async (tx) => {
+      const deleted = await tx
+        .prepare('DELETE FROM scheduled_scans WHERE id = ? AND user_id = ?')
+        .run(req.params.id, req.user.id);
+      await tx
+        .prepare('DELETE FROM scheduled_scan_runs WHERE schedule_id = ? AND user_id = ?')
+        .run(req.params.id, req.user.id);
+      return deleted;
+    });
     if (!result.changes) return res.status(404).json({ error: 'Not found' });
     refreshSchedulerCache();
     res.json({ ok: true });

@@ -1,13 +1,22 @@
 const crypto = require('crypto');
-const { JWT_SECRET, WHOP_WEBHOOK_SECRET } = require('../config');
+const {
+  JWT_SECRET,
+  WHOP_WEBHOOK_SECRET,
+  WHOP_PREMIUM_PLAN_ID,
+  WHOP_ELITE_PLAN_ID,
+  WHOP_ELITE_UPGRADE_PLAN_ID,
+} = require('../config');
 
-const CHECKOUT_METADATA_VERSION = 'elements-v1';
+const CHECKOUT_METADATA_VERSION = 'elements-v2';
 const CHECKOUT_TIERS = new Set(['premium', 'elite']);
 
-function checkoutMetadataPayload({ userId, tier, couponCode }) {
+function checkoutMetadataPayload({ userId, tier, couponCode, planId, checkoutVersion, authorizationId, expiresAt }) {
   // Fixed-order, domain-separated serialization prevents the same HMAC from
   // being usable as a token for a different feature or field combination.
-  return JSON.stringify(['capital-flow:whop-checkout', CHECKOUT_METADATA_VERSION, userId, tier, couponCode || '']);
+  const fields = ['capital-flow:whop-checkout', checkoutVersion, userId, tier, couponCode || ''];
+  if (checkoutVersion !== 'elements-v1') fields.push(planId);
+  if (checkoutVersion === 'elements-v3') fields.push(authorizationId, expiresAt);
+  return JSON.stringify(fields);
 }
 
 /**
@@ -15,9 +24,22 @@ function checkoutMetadataPayload({ userId, tier, couponCode }) {
  * session in the browser, so metadata itself is client-visible; the HMAC
  * makes the account, entitlement and optional campaign code tamper-evident.
  */
-function createCheckoutMetadata({ userId, tier, couponCode = '' }) {
+function createCheckoutMetadata({
+  userId,
+  tier,
+  couponCode = '',
+  planId = tier === 'premium' ? WHOP_PREMIUM_PLAN_ID : WHOP_ELITE_PLAN_ID,
+  authorizationId,
+  expiresAt,
+}) {
   const normalizedUserId = String(userId || '').trim();
-  if (!normalizedUserId || normalizedUserId.length > 128 || !CHECKOUT_TIERS.has(tier)) {
+  if (
+    !normalizedUserId ||
+    normalizedUserId.length > 128 ||
+    !CHECKOUT_TIERS.has(tier) ||
+    typeof planId !== 'string' ||
+    !/^plan_[A-Za-z0-9_-]{1,128}$/.test(planId)
+  ) {
     throw new TypeError('Invalid Whop checkout metadata');
   }
   if (couponCode && (typeof couponCode !== 'string' || couponCode.length > 32)) {
@@ -27,7 +49,9 @@ function createCheckoutMetadata({ userId, tier, couponCode = '' }) {
   const metadata = {
     userId: normalizedUserId,
     tier,
-    checkoutVersion: CHECKOUT_METADATA_VERSION,
+    checkoutVersion: authorizationId ? 'elements-v3' : CHECKOUT_METADATA_VERSION,
+    planId,
+    ...(authorizationId ? { authorizationId, expiresAt: String(expiresAt) } : {}),
     ...(couponCode ? { couponCode } : {}),
   };
   metadata.metadataSignature = crypto
@@ -47,7 +71,13 @@ function verifyCheckoutMetadata(metadata) {
     !metadata.userId.trim() ||
     metadata.userId.length > 128 ||
     !CHECKOUT_TIERS.has(metadata.tier) ||
-    metadata.checkoutVersion !== CHECKOUT_METADATA_VERSION ||
+    !['elements-v1', CHECKOUT_METADATA_VERSION, 'elements-v3'].includes(metadata.checkoutVersion) ||
+    (metadata.checkoutVersion !== 'elements-v1' &&
+      (typeof metadata.planId !== 'string' || !/^plan_[A-Za-z0-9_-]{1,128}$/.test(metadata.planId))) ||
+    (metadata.checkoutVersion === 'elements-v3' &&
+      (typeof metadata.authorizationId !== 'string' ||
+        !/^[a-f0-9-]{36}$/.test(metadata.authorizationId) ||
+        !/^\d{10}$/.test(metadata.expiresAt))) ||
     (metadata.couponCode !== undefined &&
       (typeof metadata.couponCode !== 'string' || metadata.couponCode.length > 32)) ||
     typeof metadata.metadataSignature !== 'string' ||
@@ -56,12 +86,112 @@ function verifyCheckoutMetadata(metadata) {
     return false;
   }
 
-  const expected = crypto
-    .createHmac('sha256', JWT_SECRET)
-    .update(checkoutMetadataPayload(metadata), 'utf8')
-    .digest();
+  const expected = crypto.createHmac('sha256', JWT_SECRET).update(checkoutMetadataPayload(metadata), 'utf8').digest();
   const actual = Buffer.from(metadata.metadataSignature, 'base64url');
   return actual.length === expected.length && crypto.timingSafeEqual(expected, actual);
+}
+
+// The discounted upgrade is issued while eligibility is current, bound to
+// one payment, and expires for NEW purchases. Delayed webhooks for a payment
+// created inside the window remain valid; they must not strip paid access.
+async function issueUpgradeCheckoutMetadata(userId) {
+  return require('./userWrite').withUserWrite(userId, async (tx) => {
+    const buyer = await tx.prepare('SELECT tier FROM users WHERE id = ?').get(userId);
+    if (buyer?.tier !== 'premium') {
+      const error = new Error('This offer is only available to Premium accounts');
+      error.code = 'CHECKOUT_NOT_ELIGIBLE';
+      throw error;
+    }
+    const now = Math.floor(Date.now() / 1000);
+    // Reuse a still-open offer instead of creating unbounded abandoned rows.
+    // Expired evidence is retained: its payment may already have succeeded
+    // while the provider webhook is still being retried.
+    const pending = await tx
+      .prepare(
+        'SELECT * FROM whop_checkout_authorizations WHERE user_id = ? AND plan_id = ? AND payment_id IS NULL AND revoked_at IS NULL AND expires_at > ? ORDER BY issued_at DESC LIMIT 1'
+      )
+      .get(userId, WHOP_ELITE_UPGRADE_PLAN_ID, now + 300);
+    if (pending)
+      return createCheckoutMetadata({
+        userId,
+        tier: 'elite',
+        planId: pending.plan_id,
+        authorizationId: pending.authorization_id,
+        expiresAt: pending.expires_at,
+      });
+    const authorizationId = crypto.randomUUID();
+    const expiresAt = now + 86400;
+    await tx
+      .prepare(
+        `INSERT INTO whop_checkout_authorizations
+      (authorization_id, user_id, plan_id, tier, issued_at, expires_at) VALUES (?, ?, ?, 'elite', ?, ?)`
+      )
+      .run(authorizationId, userId, WHOP_ELITE_UPGRADE_PLAN_ID, now, expiresAt);
+    return createCheckoutMetadata({
+      userId,
+      tier: 'elite',
+      planId: WHOP_ELITE_UPGRADE_PLAN_ID,
+      authorizationId,
+      expiresAt,
+    });
+  });
+}
+
+function paymentCreatedAt(event) {
+  const payment = event?.data?.payment || event?.data;
+  const value = payment?.paid_at ?? payment?.created_at;
+  if (value == null) return null;
+  const seconds =
+    typeof value === 'number' && Number.isSafeInteger(value)
+      ? value
+      : typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)
+        ? Date.parse(value) / 1000
+        : NaN;
+  return Number.isFinite(seconds) && seconds >= 1000000000 && seconds <= Date.now() / 1000 + 300 ? seconds : NaN;
+}
+
+async function revokeUnusedCheckoutAuthorizations(userId, tx) {
+  await tx
+    .prepare(
+      'UPDATE whop_checkout_authorizations SET revoked_at = ? WHERE user_id = ? AND payment_id IS NULL AND revoked_at IS NULL'
+    )
+    .run(Date.now(), userId);
+}
+
+async function claimCheckoutAuthorization(metadata, paymentId, event, tx) {
+  if (metadata.checkoutVersion !== 'elements-v3') return;
+  const db = require('../db');
+  const row = await tx
+    .prepare(
+      'SELECT * FROM whop_checkout_authorizations WHERE authorization_id = ?' +
+        (db.dialect === 'postgres' ? ' FOR UPDATE' : '')
+    )
+    .get(metadata.authorizationId);
+  const providerTime = paymentCreatedAt(event);
+  const createdAt = providerTime ?? Math.floor(Date.now() / 1000);
+  const buyer = await tx.prepare('SELECT tier FROM users WHERE id = ?').get(metadata.userId);
+  if (
+    !row ||
+    String(row.user_id) !== metadata.userId ||
+    row.plan_id !== metadata.planId ||
+    row.tier !== metadata.tier ||
+    String(row.expires_at) !== metadata.expiresAt ||
+    (row.payment_id && row.payment_id !== paymentId) ||
+    (!row.payment_id &&
+      ((providerTime == null && (row.revoked_at != null || buyer?.tier !== 'premium')) ||
+        !Number.isFinite(createdAt) ||
+        (row.revoked_at != null && createdAt * 1000 >= row.revoked_at) ||
+        createdAt < row.issued_at - 300 ||
+        createdAt > row.expires_at ||
+        createdAt > Date.now() / 1000 + 300))
+  ) {
+    const error = new Error('Checkout authorization is invalid or already used');
+    error.code = 'WHOP_PLAN_MISMATCH';
+    throw error;
+  }
+  await tx
+    .prepare('UPDATE whop_checkout_authorizations SET payment_id = ? WHERE authorization_id = ?')
+    .run(paymentId, metadata.authorizationId);
 }
 
 // Standard Webhooks spec's own recommended tolerance — rejects a
@@ -142,6 +272,10 @@ function verifyWebhookSignature(rawBody, headers) {
 
 module.exports = {
   createCheckoutMetadata,
+  issueUpgradeCheckoutMetadata,
+  claimCheckoutAuthorization,
+  paymentCreatedAt,
+  revokeUnusedCheckoutAuthorizations,
   verifyCheckoutMetadata,
   verifyWebhookSignature,
 };

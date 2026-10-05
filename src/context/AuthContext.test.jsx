@@ -89,7 +89,7 @@ describe('AuthContext — Google OAuth pending-token handoff', () => {
   });
 
   it('keeps the access token when /me has a temporary server failure', async () => {
-    setUrl('/?token=still-valid-token', '');
+    localStorage.setItem('vs_token', 'still-valid-token');
     const fetchMock = vi.fn((url) => {
       if (url === '/api/auth/refresh') return Promise.resolve({ ok: false, status: 401 });
       if (url === '/api/auth/me') return Promise.resolve({ ok: false, status: 503 });
@@ -113,6 +113,25 @@ describe('AuthContext — Google OAuth pending-token handoff', () => {
       })
     );
   });
+
+  it.each(['token=attacker', '%74oken=attacker', 'token=attacker&token=other'])(
+    'ignores URL bearer credentials (%s)',
+    async (query) => {
+      setUrl(`/?${query}&notif=srv-12`, '');
+      const fetchMock = vi.fn(() => Promise.resolve({ ok: false, status: 401 }));
+      vi.stubGlobal('fetch', fetchMock);
+      render(
+        <AuthProvider>
+          <AuthHealthProbe />
+        </AuthProvider>
+      );
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      expect(screen.getByTestId('auth-token')).toHaveTextContent('empty');
+      expect(fetchMock.mock.calls.some(([url]) => url === '/api/auth/me')).toBe(false);
+      expect(new URLSearchParams(window.location.search).has('token')).toBe(false);
+      expect(new URLSearchParams(window.location.search).get('notif')).toBe('srv-12');
+    }
+  );
 
   it('retries a transient refresh failure and restores the session without showing sign-in', async () => {
     let refreshAttempts = 0;

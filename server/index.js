@@ -450,6 +450,7 @@ if (isSingletonWorker()) {
       startScheduledDigest();
       startScheduledScanRunner();
       startScheduledBackup();
+      require('./services/notificationOutbox').startNotificationOutbox();
       startStatusMonitor();
     })
     .catch((err) => {
@@ -479,6 +480,7 @@ function gracefulShutdown(signal) {
   if (shutdownPromise) return shutdownPromise;
   shuttingDown = true;
   console.log(`[shutdown] ${signal} received; draining HTTP requests and closing database`);
+  require('./routes/stream').closeAllStreams();
 
   shutdownPromise = new Promise((resolve) => {
     const forceTimer = setTimeout(() => {

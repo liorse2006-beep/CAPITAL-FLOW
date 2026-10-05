@@ -15,21 +15,71 @@ const MAX_PER_USER = 200;
 
 /** Returns the new notification's id, so a caller (scheduled scans) can build
  * a "show me exactly this run" deep link into the push payload. */
-async function addNotification(userId, { symbol, title, body, scanType, results }) {
+async function addNotification(
+  userId,
+  { symbol, title, body, scanType, results, dataStatus, dataAsOf, pushPayload },
+  target
+) {
+  if (!target)
+    return db.transaction((tx) =>
+      addNotification(userId, { symbol, title, body, scanType, results, dataStatus, dataAsOf, pushPayload }, tx)
+    );
+  if (pushPayload) {
+    // Never discard previously committed delivery work to admit more work.
+    // The caller's transaction rolls back and its durable job can retry.
+    if (db.dialect === 'postgres') await target.prepare('SELECT id FROM users WHERE id = ? FOR UPDATE').get(userId);
+    const pending = await target
+      .prepare('SELECT COUNT(*) AS total FROM notification_outbox WHERE user_id = ? AND finished_at IS NULL')
+      .get(userId);
+    if (Number(pending.total) >= MAX_PER_USER) {
+      const error = new Error('Notification queue is at capacity');
+      error.code = 'WORK_QUEUE_BUSY';
+      throw error;
+    }
+  }
   const resultsJson = Array.isArray(results) && results.length > 0 ? JSON.stringify(results) : null;
-  const res = await db
+  const res = await target
     .prepare(
-      'INSERT INTO notifications (user_id, symbol, title, body, scan_type, results_json) VALUES (?, ?, ?, ?, ?, ?)'
+      'INSERT INTO notifications (user_id, symbol, title, body, scan_type, results_json, data_status, data_as_of) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     )
-    .run(userId, symbol || null, title, body, scanType || null, resultsJson);
-  await db
+    .run(
+      userId,
+      symbol || null,
+      title,
+      body,
+      scanType || null,
+      resultsJson,
+      ['complete', 'partial', 'unavailable', 'stale'].includes(dataStatus) ? dataStatus : null,
+      dataAsOf && Number.isFinite(Date.parse(dataAsOf)) ? new Date(dataAsOf).toISOString() : null
+    );
+  await target
     .prepare(
-      `DELETE FROM notifications WHERE user_id = ? AND id NOT IN (
-         SELECT id FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?
+      `DELETE FROM notifications WHERE user_id = ? AND id NOT IN (SELECT notification_id FROM notification_outbox WHERE user_id = ? AND finished_at IS NULL) AND id NOT IN (
+         SELECT id FROM notifications WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?
        )`
     )
-    .run(userId, userId, MAX_PER_USER);
-  return res.lastInsertRowid;
+    .run(userId, userId, userId, MAX_PER_USER);
+  const id = res.lastInsertRowid;
+  if (pushPayload) {
+    const baseUrl = pushPayload.data?.url || '/scanner';
+    await require('./notificationOutbox').enqueueNotification(target, id, userId, {
+      ...pushPayload,
+      title,
+      body,
+      data: { ...pushPayload.data, url: scanType ? baseUrl.split('?')[0] + '?notif=srv-' + id : baseUrl },
+    });
+  }
+  await target
+    .prepare(
+      'DELETE FROM notification_outbox WHERE user_id = ? AND notification_id NOT IN (SELECT id FROM notifications WHERE user_id = ?)'
+    )
+    .run(userId, userId);
+  await target
+    .prepare(
+      'DELETE FROM notification_push_receipts WHERE user_id = ? AND notification_id NOT IN (SELECT id FROM notifications WHERE user_id = ?)'
+    )
+    .run(userId, userId);
+  return id;
 }
 
 /**
@@ -40,57 +90,32 @@ async function addNotification(userId, { symbol, title, body, scanType, results 
  * If the notification insert fails, the write transaction rolls the alert
  * deletion back and the next scan can retry it safely.
  */
-async function consumeWatchlistAlert(userId, symbol, { title, body }) {
-  // libSQL's batch API preserves SQLite's connection-local changes() state
-  // and is also the stable path for file::memory: test databases. PostgreSQL
-  // cannot evaluate changes(), so use the callback transaction there.
-  if (db.dialect !== 'postgres') {
-    const rows = await db.transaction([
-      {
-        sql: 'DELETE FROM watchlist_alerts WHERE user_id = ? AND symbol = ?',
-        args: [userId, symbol],
-      },
-      {
-        sql: `INSERT INTO notifications (user_id, symbol, title, body, scan_type, results_json)
-              SELECT ?, ?, ?, ?, NULL, NULL
-               WHERE changes() > 0`,
-        args: [userId, symbol, title, body],
-      },
-      {
-        sql: `DELETE FROM notifications WHERE user_id = ? AND id NOT IN (
-                SELECT id FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?
-              )`,
-        args: [userId, userId, MAX_PER_USER],
-      },
-    ]);
-    const deleted = Number(rows[0] && (rows[0].rowsAffected ?? rows[0].changes ?? 0));
-    const notificationId = rows[1] && rows[1].lastInsertRowid != null ? Number(rows[1].lastInsertRowid) : null;
-    return { consumed: deleted > 0 && notificationId != null, notificationId };
-  }
-
+async function consumeWatchlistAlert(userId, symbol, { title, body, pushPayload, expectedAlert }) {
   return db.transaction(async (tx) => {
+    if (!(await require('./deferredAccess').hasDeferredAccess(userId, tx))) {
+      return { consumed: false, notificationId: null };
+    }
+    const guard = expectedAlert
+      ? expectedAlert.type === 'price'
+        ? ' AND type = ? AND target_price = ? AND starting_side = ?'
+        : ' AND type = ? AND min_ratio = ?'
+      : '';
+    const args = expectedAlert
+      ? expectedAlert.type === 'price'
+        ? ['price', expectedAlert.targetPrice, expectedAlert.startingSide]
+        : ['volume', expectedAlert.minRatio]
+      : [];
     const deleted = await tx
-      .prepare('DELETE FROM watchlist_alerts WHERE user_id = ? AND symbol = ?')
-      .run(userId, symbol);
+      .prepare('DELETE FROM watchlist_alerts WHERE user_id = ? AND symbol = ?' + guard)
+      .run(userId, symbol, ...args);
     if (Number(deleted?.changes ?? deleted?.rowsAffected ?? 0) < 1) {
       return { consumed: false, notificationId: null };
     }
 
-    const inserted = await tx
-      .prepare(
-        'INSERT INTO notifications (user_id, symbol, title, body, scan_type, results_json) VALUES (?, ?, ?, ?, ?, ?)'
-      )
-      .run(userId, symbol, title, body, null, null);
-    const notificationId = inserted?.lastInsertRowid == null ? null : Number(inserted.lastInsertRowid);
+    const insertedId = await addNotification(userId, { symbol, title, body, pushPayload }, tx);
+    const notificationId = insertedId == null ? null : Number(insertedId);
     if (notificationId == null) throw new Error('Notification insert did not return an id.');
 
-    await tx
-      .prepare(
-        `DELETE FROM notifications WHERE user_id = ? AND id NOT IN (
-           SELECT id FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?
-         )`
-      )
-      .run(userId, userId, MAX_PER_USER);
     return { consumed: true, notificationId };
   });
 }
@@ -110,7 +135,7 @@ async function getNotifications(userId, limit) {
 async function getNotificationDetail(userId, id) {
   const row = await db
     .prepare(
-      'SELECT id, symbol, title, body, scan_type, results_json, created_at FROM notifications WHERE user_id = ? AND id = ?'
+      'SELECT id, symbol, title, body, scan_type, results_json, data_status, data_as_of, created_at FROM notifications WHERE user_id = ? AND id = ?'
     )
     .get(userId, id);
   if (!row) return undefined;
@@ -130,6 +155,8 @@ async function getNotificationDetail(userId, id) {
     body: row.body,
     scanType: row.scan_type,
     results,
+    dataStatus: row.data_status || 'unknown',
+    dataAsOf: row.data_as_of || null,
     createdAt: row.created_at,
   };
 }
@@ -144,11 +171,19 @@ async function markAllRead(userId) {
 }
 
 async function removeNotification(userId, id) {
-  await db.prepare('DELETE FROM notifications WHERE user_id = ? AND id = ?').run(userId, id);
+  await db.transaction([
+    { sql: 'DELETE FROM notification_push_receipts WHERE user_id = ? AND notification_id = ?', args: [userId, id] },
+    { sql: 'DELETE FROM notification_outbox WHERE user_id = ? AND notification_id = ?', args: [userId, id] },
+    { sql: 'DELETE FROM notifications WHERE user_id = ? AND id = ?', args: [userId, id] },
+  ]);
 }
 
 async function clearAll(userId) {
-  await db.prepare('DELETE FROM notifications WHERE user_id = ?').run(userId);
+  await db.transaction([
+    { sql: 'DELETE FROM notification_push_receipts WHERE user_id = ?', args: [userId] },
+    { sql: 'DELETE FROM notification_outbox WHERE user_id = ?', args: [userId] },
+    { sql: 'DELETE FROM notifications WHERE user_id = ?', args: [userId] },
+  ]);
 }
 
 module.exports = {

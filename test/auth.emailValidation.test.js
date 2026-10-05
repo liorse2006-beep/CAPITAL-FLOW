@@ -128,3 +128,52 @@ test('retrying an unverified signup never replaces the pending account password'
     server.close();
   }
 });
+
+test('mailbox verification establishes the owners chosen password, not a preregistered password', async () => {
+  const db = require('../server/db');
+  const { hashPassword, verifyPassword, saveOTP } = require('../server/services/auth');
+  await db.ready;
+  const email = 'owner-verification@test.local';
+  const server = await startTestApp();
+  try {
+    await db
+      .prepare('INSERT INTO users (email, password_hash, is_verified) VALUES (?, ?, 0)')
+      .run(email, await hashPassword('planted-password-123'));
+    await saveOTP(email, '123456', 'verify_email');
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/api/auth/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code: '123456', password: 'owner-password-456' }),
+    });
+    assert.equal(res.status, 200);
+    const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    assert.equal(user.is_verified, 1);
+    assert.equal(await verifyPassword('owner-password-456', user.password_hash), true);
+    assert.equal(await verifyPassword('planted-password-123', user.password_hash), false);
+  } finally {
+    server.close();
+  }
+});
+
+test('activation without an owner-chosen password cannot promote a preregistered credential', async () => {
+  const db = require('../server/db');
+  const { hashPassword, saveOTP } = require('../server/services/auth');
+  await db.ready;
+  const email = 'missing-credential@test.local';
+  const server = await startTestApp();
+  try {
+    await db
+      .prepare('INSERT INTO users (email, password_hash, is_verified) VALUES (?, ?, 0)')
+      .run(email, await hashPassword('planted-password-123'));
+    await saveOTP(email, '123456', 'verify_email');
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/api/auth/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code: '123456' }),
+    });
+    assert.equal(res.status, 400);
+    assert.equal((await db.prepare('SELECT is_verified FROM users WHERE email = ?').get(email)).is_verified, 0);
+  } finally {
+    server.close();
+  }
+});

@@ -19,14 +19,15 @@ const WEBHOOK_CLAIM_LEASE_SEC = 60;
 function planIdFromPayment(event) {
   const data = event?.data;
   const payment = data?.payment || data;
-  const plan = data?.plan || payment?.plan;
-  if (typeof plan === 'string') return plan;
-  return plan?.id || data?.plan_id || data?.planId || payment?.plan_id || payment?.planId || null;
+  const candidates = [data?.plan, payment?.plan, data?.plan_id, data?.planId, payment?.plan_id, payment?.planId]
+    .map((value) => (typeof value === 'string' ? value : value?.id))
+    .filter(Boolean);
+  return new Set(candidates).size === 1 && /^plan_[A-Za-z0-9_-]{1,128}$/.test(candidates[0]) ? candidates[0] : null;
 }
 
 function paymentIdFromEvent(event) {
   const payment = event?.data?.payment || event?.data;
-  const paymentId = payment?.id;
+  const paymentId = typeof payment === 'string' ? payment : payment?.id;
   return typeof paymentId === 'string' && /^pay_[A-Za-z0-9_-]{1,128}$/.test(paymentId) ? paymentId : null;
 }
 
@@ -62,6 +63,51 @@ function assertTrustedCheckoutMetadata(metadata) {
   throw error;
 }
 
+async function assertMetadataPlan(metadata, planId, record, target = db, event = null) {
+  // Older regular-price signed checkouts remain valid. A legacy signature
+  // does not prove eligibility for a different discounted plan.
+  const boundPlan = ['elements-v2', 'elements-v3'].includes(metadata.checkoutVersion)
+    ? metadata.planId
+    : (record?.payment_verified ? record.plan_id : null) ||
+      (metadata.tier === 'premium' ? WHOP_PREMIUM_PLAN_ID : WHOP_ELITE_PLAN_ID);
+  if (
+    metadata.checkoutVersion === 'elements-v1' &&
+    !record?.payment_verified &&
+    metadata.tier === 'elite' &&
+    planId === WHOP_ELITE_UPGRADE_PLAN_ID
+  ) {
+    const buyer = await target.prepare('SELECT tier FROM users WHERE id = ?').get(metadata.userId);
+    const paymentTime = whop.paymentCreatedAt(event);
+    const now = Math.floor(Date.now() / 1000);
+    const cutoff = paymentTime ?? now;
+    const premiumPurchase = Number.isFinite(cutoff)
+      ? await target
+          .prepare(
+            "SELECT payment_id, created_at FROM whop_payment_entitlements WHERE user_id = ? AND tier = 'premium' AND payment_verified = 1 AND created_at <= ? AND (revoked_at IS NULL OR revoked_at > ?) ORDER BY created_at DESC LIMIT 1"
+          )
+          .get(metadata.userId, cutoff, cutoff)
+      : null;
+    const manual = await target
+      .prepare(
+        "SELECT detail, created_at FROM admin_audit_log WHERE target_user_id = ? AND action = 'set_tier' AND created_at <= ? ORDER BY created_at DESC, id DESC LIMIT 1"
+      )
+      .get(metadata.userId, Number.isFinite(cutoff) ? cutoff : now);
+    const manuallyRevoked =
+      manual?.detail === 'free' && (!premiumPurchase || manual.created_at >= premiumPurchase.created_at);
+    if (
+      Number.isFinite(cutoff) &&
+      !manuallyRevoked &&
+      (paymentTime == null ? buyer?.tier === 'premium' : premiumPurchase || (buyer?.tier === 'premium' && !manual))
+    )
+      return;
+  }
+  if (String(boundPlan) !== String(planId)) {
+    const error = new Error('Checkout metadata is not bound to this payment plan');
+    error.code = 'WHOP_PLAN_MISMATCH';
+    throw error;
+  }
+}
+
 function assertPaymentId(paymentId) {
   if (paymentId) return;
   const error = new Error('Whop payment ID could not be verified');
@@ -70,11 +116,7 @@ function assertPaymentId(paymentId) {
 }
 
 function assertPaymentRecordMatches(record, userId, tier, planId) {
-  if (
-    String(record.user_id) === String(userId) &&
-    record.tier === tier &&
-    String(record.plan_id) === String(planId)
-  ) {
+  if (String(record.user_id) === String(userId) && record.tier === tier && String(record.plan_id) === String(planId)) {
     return;
   }
   const error = new Error('Whop payment ID is already linked to a different checkout');
@@ -82,53 +124,61 @@ function assertPaymentRecordMatches(record, userId, tier, planId) {
   throw error;
 }
 
-async function resolveReversedEntitlement(event) {
+async function resolveReversedEntitlement(event, target = db, { allowLegacyLink = true } = {}) {
   const metadata = metadataFromEvent(event);
   const paymentId = paymentIdFromEvent(event);
   const planId = planIdFromPayment(event);
   const record = paymentId
-    ? await db
-        .prepare('SELECT payment_id, user_id, tier, plan_id, status FROM whop_payment_entitlements WHERE payment_id = ?')
+    ? await target
+        .prepare(
+          'SELECT payment_id, user_id, tier, plan_id, status, payment_verified FROM whop_payment_entitlements WHERE payment_id = ?'
+        )
         .get(paymentId)
     : null;
-
-  if (metadata && whop.verifyCheckoutMetadata(metadata)) {
-    assertExpectedPlan(event, metadata.tier);
-    if (record) assertPaymentRecordMatches(record, metadata.userId, metadata.tier, planId);
-    return { userId: metadata.userId, tier: metadata.tier, paymentId, entitlementStatus: record?.status || null };
-  }
-
-  // Old Whop checkout sessions were created server-side and their metadata is
-  // covered by this already-verified provider webhook, even though it predates
-  // our Elements HMAC. Preserve refund handling for purchases made before the
-  // migration; current payment.succeeded grants still require the HMAC above.
-  if (
-    metadata &&
-    typeof metadata.userId === 'string' &&
-    metadata.userId.length > 0 &&
-    ['premium', 'elite'].includes(metadata.tier)
-  ) {
-    assertExpectedPlan(event, metadata.tier);
-    if (record) assertPaymentRecordMatches(record, metadata.userId, metadata.tier, planId);
-    return { userId: metadata.userId, tier: metadata.tier, paymentId, entitlementStatus: record?.status || null };
-  }
 
   // Current refund/dispute payloads nest the payment and may omit custom
   // metadata entirely. Resolve them only through the payment-ID ledger that
   // was written after a verified payment.succeeded webhook.
   if (record) {
-    assertExpectedPlan(event, record.tier);
-    if (String(record.plan_id) !== String(planId)) {
-      const error = new Error('Whop payment plan does not match its recorded checkout');
-      error.code = 'WHOP_PAYMENT_RECORD_MISMATCH';
-      throw error;
-    }
+    // Optional metadata cannot veto or redirect a signed provider reversal
+    // of a payment already linked to its owner in the verified ledger.
     return {
       userId: String(record.user_id),
       tier: record.tier,
       paymentId,
       entitlementStatus: record.status,
+      paymentVerified: Boolean(record.payment_verified),
     };
+  }
+
+  if (allowLegacyLink && metadata && whop.verifyCheckoutMetadata(metadata) && planId) {
+    try {
+      assertExpectedPlan(event, metadata.tier);
+      await assertMetadataPlan(metadata, planId, null, target);
+    } catch (error) {
+      // Untrusted optional account selectors must not roll back an authentic
+      // provider refund/dispute tombstone. Keep it to fence a later success.
+      if (error.code !== 'WHOP_PLAN_MISMATCH') throw error;
+      return null;
+    }
+    const owner = await target.prepare('SELECT id FROM users WHERE id = ?').get(metadata.userId);
+    if (owner) {
+      // Retain account-bound signed legacy reversals, never unsigned account
+      // selectors. Reversals create only a revoked ledger row, not a grant.
+      await target
+        .prepare(
+          `INSERT INTO whop_payment_entitlements (payment_id, user_id, tier, plan_id, created_at, status, payment_verified)
+        VALUES (?, ?, ?, ?, ?, 'disputed', 0) ON CONFLICT(payment_id) DO NOTHING`
+        )
+        .run(paymentId, owner.id, metadata.tier, planId, Math.floor(Date.now() / 1000));
+      return {
+        userId: String(owner.id),
+        tier: metadata.tier,
+        paymentId,
+        entitlementStatus: 'disputed',
+        paymentVerified: false,
+      };
+    }
   }
 
   console.warn('[webhooks/whop] reversal could not be linked to a verified payment', {
@@ -137,6 +187,28 @@ async function resolveReversedEntitlement(event) {
     hasMetadata: Boolean(metadata),
   });
   return null;
+}
+
+async function lockedDisposition(tx, paymentId, planId) {
+  await tx
+    .prepare(
+      `INSERT INTO whop_payment_dispositions (payment_id, plan_id, status, updated_at)
+    VALUES (?, ?, 'open', ?) ON CONFLICT(payment_id) DO UPDATE SET updated_at = excluded.updated_at`
+    )
+    .run(paymentId, planId, Math.floor(Date.now() / 1000));
+  const state = await tx.prepare('SELECT * FROM whop_payment_dispositions WHERE payment_id = ?').get(paymentId);
+  if (state.plan_id == null && planId != null) {
+    await tx
+      .prepare('UPDATE whop_payment_dispositions SET plan_id = ? WHERE payment_id = ? AND plan_id IS NULL')
+      .run(planId, paymentId);
+    state.plan_id = planId;
+  }
+  if (planId != null && state.plan_id != null && String(state.plan_id) !== String(planId)) {
+    const error = new Error('Payment plan changed across events');
+    error.code = 'WHOP_PAYMENT_RECORD_MISMATCH';
+    throw error;
+  }
+  return state;
 }
 
 function safeMetadataSummary(metadata) {
@@ -159,23 +231,41 @@ function providerPromoCode(event) {
 }
 
 function tierRank(tier) {
-  return ({ free: 0, premium: 1, elite: 2 })[tier] ?? -1;
+  return { free: 0, premium: 1, elite: 2 }[tier] ?? -1;
 }
 
-async function applyPaymentReversal(event, entitlement, { status, reason, restore = false }) {
-  const { userId, tier, paymentId } = entitlement;
+async function applyPaymentReversal(event, { status, reason, restore = false }) {
+  const paymentId = paymentIdFromEvent(event);
+  assertPaymentId(paymentId);
   const now = Math.floor(Date.now() / 1000);
 
   return db.transaction(async (tx) => {
-    const record = paymentId
-      ? await tx.prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ? AND user_id = ?').get(paymentId, userId)
-      : null;
+    const disposition = await lockedDisposition(tx, paymentId, null);
+    const effectiveStatus =
+      disposition.status === 'refunded'
+        ? 'refunded'
+        : reason === 'dispute' && !restore && disposition.status === 'dispute_won'
+          ? 'dispute_won'
+          : status;
+    // A historical restore may have captured an active entitlement alongside
+    // a final refund. Reconcile it rather than skipping terminal states.
+    await tx
+      .prepare('UPDATE whop_payment_dispositions SET status = ?, updated_at = ? WHERE payment_id = ?')
+      .run(effectiveStatus, now, paymentId);
+    const entitlement = await resolveReversedEntitlement(event, tx, { allowLegacyLink: !restore });
+    if (!entitlement) return { changed: false, user: null };
+    const { userId, tier } = entitlement;
+    if (db.dialect === 'postgres') await tx.prepare('SELECT id FROM users WHERE id = ? FOR UPDATE').get(userId);
+    const record = await tx
+      .prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ? AND user_id = ?')
+      .get(paymentId, userId);
 
-    if (restore) {
+    if (effectiveStatus === 'dispute_won') {
       // A dispute update may arrive before its create event. Restore only from
       // a verified payment ledger entry, never from provider metadata alone,
       // and never undo a refund that has already completed.
-      if (!record || record.status === 'refunded') return { changed: false, user: null };
+      if (!record || !entitlement.paymentVerified || record.status === 'refunded')
+        return { changed: false, user: null };
 
       await tx
         .prepare(
@@ -198,10 +288,6 @@ async function applyPaymentReversal(event, entitlement, { status, reason, restor
 
     // A later delivery for an already-refunded payment must not remove access
     // granted by a newer purchase of the same tier.
-    if (record?.status === 'refunded' || (reason === 'dispute' && record?.status === 'dispute_won')) {
-      return { changed: false, user: null };
-    }
-
     if (paymentId && record) {
       await tx
         .prepare(
@@ -209,12 +295,33 @@ async function applyPaymentReversal(event, entitlement, { status, reason, restor
               SET status = ?, revoked_at = ?, revocation_reason = ?, revocation_event_id = ?
             WHERE payment_id = ? AND user_id = ? AND status <> 'refunded'`
         )
-        .run(status, now, reason, event.id || null, paymentId, userId);
+        .run(
+          effectiveStatus,
+          now,
+          effectiveStatus === 'refunded' ? 'refund' : reason,
+          event.id || null,
+          paymentId,
+          userId
+        );
     }
 
     const user = await tx.prepare('SELECT id, tier FROM users WHERE id = ?').get(userId);
     if (user && user.tier === tier) {
-      await tx.prepare(`UPDATE users SET tier = 'free', is_premium = 0 WHERE id = ?`).run(user.id);
+      const remaining = await tx
+        .prepare("SELECT tier FROM whop_payment_entitlements WHERE user_id = ? AND status IN ('active', 'dispute_won')")
+        .all(user.id);
+      const nextTier = remaining.reduce((best, row) => (tierRank(row.tier) > tierRank(best) ? row.tier : best), 'free');
+      if (tierRank(nextTier) >= tierRank(user.tier)) return { changed: false, user };
+      const manualGrant = await tx
+        .prepare(
+          "SELECT id FROM admin_audit_log WHERE target_user_id = ? AND action = 'set_tier' AND detail = ? AND created_at >= (SELECT created_at FROM whop_payment_entitlements WHERE payment_id = ?) ORDER BY id DESC LIMIT 1"
+        )
+        .get(user.id, user.tier, paymentId);
+      if (manualGrant) return { changed: false, user };
+      await tx
+        .prepare('UPDATE users SET tier = ?, is_premium = ? WHERE id = ?')
+        .run(nextTier, nextTier === 'free' ? 0 : 1, user.id);
+      if (nextTier !== 'premium') await whop.revokeUnusedCheckoutAuthorizations(user.id, tx);
       await tx
         .prepare('INSERT INTO admin_audit_log (actor, action, target_user_id, detail) VALUES (?, ?, ?, ?)')
         .run('whop-webhook', reason === 'dispute' ? 'dispute_downgrade' : 'refund_downgrade', user.id, tier);
@@ -340,24 +447,80 @@ async function handleWhopEvent(event) {
       const paymentId = paymentIdFromEvent(event);
       const planId = planIdFromPayment(event);
       assertPaymentId(paymentId);
+      if (Number.isNaN(whop.paymentCreatedAt(event))) {
+        const error = new Error('Provider payment timestamp could not be verified');
+        error.code = 'WHOP_PLAN_MISMATCH';
+        throw error;
+      }
       const result = await db.transaction(async (tx) => {
+        const disposition = await lockedDisposition(tx, paymentId, planId);
+        // All eligibility changes lock the owner before an authorization.
+        const buyer = await tx
+          .prepare('SELECT email, tier FROM users WHERE id = ?' + (db.dialect === 'postgres' ? ' FOR UPDATE' : ''))
+          .get(metadata.userId);
         const existing = await tx
-          .prepare('SELECT payment_id, user_id, tier, plan_id FROM whop_payment_entitlements WHERE payment_id = ?')
+          .prepare(
+            'SELECT payment_id, user_id, tier, plan_id, status, payment_verified FROM whop_payment_entitlements WHERE payment_id = ?'
+          )
           .get(paymentId);
         if (existing) assertPaymentRecordMatches(existing, metadata.userId, tier, planId);
-        else {
+        await assertMetadataPlan(metadata, planId, existing, tx, event);
+        if (metadata.checkoutVersion === 'elements-v1' && planId === WHOP_ELITE_UPGRADE_PLAN_ID) {
+          const authorizationId = 'legacy:' + metadata.metadataSignature;
+          const previous = await tx
+            .prepare(
+              'SELECT payment_id FROM whop_payment_entitlements WHERE user_id = ? AND plan_id = ? AND payment_id <> ? LIMIT 1'
+            )
+            .get(metadata.userId, planId, paymentId);
+          const claim = await tx
+            .prepare('SELECT payment_id FROM whop_checkout_authorizations WHERE authorization_id = ?')
+            .get(authorizationId);
+          if ((previous && !existing?.payment_verified) || (claim && claim.payment_id !== paymentId)) {
+            const error = new Error('Legacy discounted checkout is already used');
+            error.code = 'WHOP_PLAN_MISMATCH';
+            throw error;
+          }
+          if (!claim)
+            await tx
+              .prepare(
+                'INSERT INTO whop_checkout_authorizations (authorization_id, user_id, plan_id, tier, issued_at, expires_at, payment_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+              )
+              .run(authorizationId, metadata.userId, planId, tier, 0, Math.floor(Date.now() / 1000), paymentId);
+        }
+        await whop.claimCheckoutAuthorization(metadata, paymentId, event, tx);
+        const status = ['refunded', 'disputed'].includes(disposition.status)
+          ? disposition.status
+          : disposition.status === 'dispute_won'
+            ? 'dispute_won'
+            : 'active';
+        const isActive =
+          ['active', 'dispute_won'].includes(status) &&
+          (!existing?.payment_verified || ['active', 'dispute_won'].includes(existing.status));
+        if (!existing) {
           await tx
             .prepare(
-              `INSERT INTO whop_payment_entitlements (payment_id, user_id, tier, plan_id, created_at)
-               VALUES (?, ?, ?, ?, ?)`
+              `INSERT INTO whop_payment_entitlements (payment_id, user_id, tier, plan_id, created_at, status, revoked_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)`
             )
-            .run(paymentId, metadata.userId, tier, String(planId), Math.floor(Date.now() / 1000));
+            .run(
+              paymentId,
+              metadata.userId,
+              tier,
+              String(planId),
+              Math.floor(whop.paymentCreatedAt(event) ?? Date.now() / 1000),
+              status,
+              isActive ? null : Math.floor(Date.now() / 1000)
+            );
         }
-        const buyer = await tx.prepare('SELECT email FROM users WHERE id = ?').get(metadata.userId);
-        if (buyer && !existing) {
+        if (existing && !existing.payment_verified)
+          await tx
+            .prepare('UPDATE whop_payment_entitlements SET payment_verified = 1, status = ? WHERE payment_id = ?')
+            .run(status, paymentId);
+        const firstVerifiedPayment = !existing?.payment_verified;
+        if (buyer && firstVerifiedPayment && isActive && tierRank(tier) > tierRank(buyer.tier)) {
           await tx.prepare('UPDATE users SET tier = ?, is_premium = 1 WHERE id = ?').run(tier, metadata.userId);
         }
-        return { buyer, isNewPayment: !existing };
+        return { buyer, isNewPayment: firstVerifiedPayment && isActive };
       });
       const { buyer, isNewPayment } = result;
       if (!buyer) {
@@ -422,12 +585,9 @@ async function handleWhopEvent(event) {
   // revoke access until Whop confirms success; refund.updated supplies that
   // transition. The old event aliases are retained for earlier integrations.
   const isCurrentRefund = event.type === 'refund.created' || event.type === 'refund.updated';
-  const isLegacyRefund = [
-    'payment_refunded',
-    'payment.refunded',
-    'refund_created',
-    'refund_updated',
-  ].includes(event.type);
+  const isLegacyRefund = ['payment_refunded', 'payment.refunded', 'refund_created', 'refund_updated'].includes(
+    event.type
+  );
   if (isCurrentRefund && event.data?.status !== 'succeeded') {
     if (!['pending', 'failed', 'canceled', 'cancelled'].includes(event.data?.status)) {
       console.warn('[webhooks/whop] refund event ignored until a confirmed succeeded status', {
@@ -451,9 +611,10 @@ async function handleWhopEvent(event) {
   } else if (isDisputeCreated) {
     const disputeStatus = String(event.data?.status || '').toLowerCase();
     if (disputeStatus.startsWith('warning_')) return;
-    reversal = disputeStatus === 'won'
-      ? { status: 'dispute_won', reason: 'dispute', restore: true }
-      : { status: 'disputed', reason: 'dispute' };
+    reversal =
+      disputeStatus === 'won'
+        ? { status: 'dispute_won', reason: 'dispute', restore: true }
+        : { status: 'disputed', reason: 'dispute' };
   } else if (isDisputeUpdated) {
     const disputeStatus = String(event.data?.status || '').toLowerCase();
     if (disputeStatus === 'won') {
@@ -471,13 +632,10 @@ async function handleWhopEvent(event) {
   }
 
   if (reversal) {
-    const entitlement = await resolveReversedEntitlement(event);
-    if (!entitlement) return;
-    const result = await applyPaymentReversal(event, entitlement, reversal);
+    const result = await applyPaymentReversal(event, reversal);
     if (result.changed && result.user) invalidateUserEntitlement(result.user.id);
     if (result.changed) {
       console.log(`[webhooks/whop] ${event.type}: entitlement updated`, {
-        tier: entitlement.tier,
         restored: Boolean(reversal.restore),
       });
     }

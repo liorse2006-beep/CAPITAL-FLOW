@@ -120,11 +120,15 @@ function hasVerifiedAlertData(r) {
   // A stale fallback is useful for an explicitly labelled scan result, but it
   // must never consume a live alert: the user asked to be notified about a
   // real threshold crossing, not about an old quote replayed during an outage.
-  // A partial row is not a verified quote either. The full scan may still be
-  // useful for the results page, but it must never consume a one-shot alert or
-  // send a customer notification when the provider only verified part of the
-  // requested universe.
-  return !statuses.some((status) => ['stale', 'partial', 'unavailable'].includes(status));
+  // A partial universe can still contain a verified individual observation.
+  // Its own status and provider timestamp are required; neither the request
+  // time nor a different symbol's aggregate timestamp establishes freshness.
+  if (!statuses.length || !statuses.every((status) => status === 'complete')) return false;
+  const { isProviderTimestampStale } = require('./quoteCache');
+  return (
+    !isProviderTimestampStale({ regularMarketTime: r?.quoteAsOf }) &&
+    !isProviderTimestampStale({ regularMarketTime: r?.priceAsOf || r?.quoteAsOf })
+  );
 }
 
 function normalizeAlertSymbol(symbol) {
@@ -182,7 +186,10 @@ async function addMissingAlertQuotes(bySymbol, alertsByUser) {
         volumeRatio,
         quoteDataStatus: status,
         dataStatus: status,
-        dataAsOf: quotes.dataAsOf || null,
+        quoteAsOf:
+          quoteCache.providerTimestampMs(quote) === null
+            ? null
+            : new Date(quoteCache.providerTimestampMs(quote)).toISOString(),
       });
     });
   } catch (err) {
@@ -221,6 +228,7 @@ async function checkWatchlistAlerts(results, { resolveMissingQuotes = false, sca
     if (resolveMissingQuotes) await addMissingAlertQuotes(bySymbol, byUser);
 
     for (const [userId, alerts] of Object.entries(byUser)) {
+      if (!(await require('./deferredAccess').hasDeferredAccess(Number(userId)))) continue;
       for (const [symbol, alert] of Object.entries(alerts)) {
         const r = bySymbol.get(normalizeAlertSymbol(symbol));
         if (!r || !hasVerifiedAlertData(r)) continue;
@@ -240,11 +248,14 @@ async function checkWatchlistAlerts(results, { resolveMissingQuotes = false, sca
         const consumed = await notifications.consumeWatchlistAlert(Number(userId), symbol, {
           title: alertPayload.title,
           body: alertPayload.body,
+          pushPayload: alertPayload,
+          expectedAlert: alert,
         });
         if (!consumed.consumed) continue;
+        if (!(await require('./deferredAccess').hasDeferredAccess(Number(userId)))) continue;
         broadcastToUser(Number(userId), 'alert', alertPayload);
         try {
-          await require('./webPush').sendPushToUser(Number(userId), alertPayload);
+          await require('./notificationOutbox').dispatchNotification(consumed.notificationId);
         } catch (err) {
           reportError(err, '[checkWatchlistAlerts push]');
         }
@@ -316,7 +327,9 @@ async function checkWatchlistAlertsWithQuoteFallback(results) {
   const quoteStatus = String(quoteScan?.quoteDataStatus || quoteScan?.dataStatus || 'unavailable').toLowerCase();
   const hydratedResults = (Array.isArray(quoteScan?.results) ? quoteScan.results : []).map((row) => ({
     ...row,
-    quoteDataStatus: quoteStatus,
+    // Do not downgrade a verified row because another symbol was missing,
+    // and do not upgrade a stale row using a whole-batch status.
+    quoteDataStatus: row.quoteDataStatus || quoteStatus,
   }));
   if (hydratedResults.length > 0) await checkWatchlistAlerts(hydratedResults);
 }
