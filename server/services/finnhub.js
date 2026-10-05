@@ -10,9 +10,20 @@ const { createCircuitBreaker } = require('../utils/circuitBreaker');
 const finnhubBreaker = createCircuitBreaker('finnhub', { failureThreshold: 5, cooldownMs: 20000 });
 
 function finiteOrNull(value) {
-  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && !/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())) return null;
   const number = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function positiveOrNull(value) {
+  const number = finiteOrNull(value);
+  return number !== null && number > 0 ? number : null;
+}
+
+function millionsOrNull(value) {
+  const number = positiveOrNull(value);
+  return number !== null && Number.isFinite(number * 1e6) ? number * 1e6 : null;
 }
 
 function providerTimeOrNull(value) {
@@ -49,10 +60,10 @@ function parseFinnhubQuote(data, nowMs = Date.now()) {
     price,
     change: finiteOrNull(data.dp),
     changeAbs: finiteOrNull(data.d),
-    dayHigh: finiteOrNull(data.h),
-    dayLow: finiteOrNull(data.l),
-    open: finiteOrNull(data.o),
-    prevClose: finiteOrNull(data.pc),
+    dayHigh: positiveOrNull(data.h),
+    dayLow: positiveOrNull(data.l),
+    open: positiveOrNull(data.o),
+    prevClose: positiveOrNull(data.pc),
     dataAsOf,
     dataStatus: missingFields.length === 0 ? 'complete' : 'partial',
     missingFields,
@@ -62,13 +73,11 @@ function parseFinnhubQuote(data, nowMs = Date.now()) {
 function parseFinnhubMetric(data) {
   if (!data || typeof data !== 'object' || !data.metric || typeof data.metric !== 'object') return null;
   const metric = data.metric;
-  const marketCapRaw = finiteOrNull(metric.marketCapitalization);
-  const avgVolRaw = finiteOrNull(metric['10DayAverageTradingVolume']);
   const result = {
-    weekHigh52: finiteOrNull(metric['52WeekHigh']),
-    weekLow52: finiteOrNull(metric['52WeekLow']),
-    marketCap: marketCapRaw === null ? null : marketCapRaw * 1e6,
-    avgVol10d: avgVolRaw === null ? null : avgVolRaw * 1e6,
+    weekHigh52: positiveOrNull(metric['52WeekHigh']),
+    weekLow52: positiveOrNull(metric['52WeekLow']),
+    marketCap: millionsOrNull(metric.marketCapitalization),
+    avgVol10d: millionsOrNull(metric['10DayAverageTradingVolume']),
     // These fields are optional for the Capital Flow scanner, but are kept
     // explicit so Fundamentals can distinguish a missing value from a failed
     // provider response.
@@ -103,8 +112,15 @@ async function finnhubFetch(urlWithoutToken) {
         const separator = urlWithoutToken.includes('?') ? '&' : '?';
         const res = await fetchWithTimeout(urlWithoutToken + separator + 'token=' + encodeURIComponent(key));
         if (res.status === 429) {
+          await res.body?.cancel().catch(() => {});
           pool.reportRateLimited(key);
           continue; // try the next account
+        }
+        // An error body with quote-shaped JSON is still a failed request.
+        // Do not include the token-bearing URL or upstream body in errors.
+        if (!res.ok) {
+          await res.body?.cancel().catch(() => {});
+          throw new Error('Finnhub request was unsuccessful');
         }
         return res;
       }
