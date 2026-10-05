@@ -28,9 +28,10 @@ export default function ScheduledScanResultsModal({ notification, onClose, isInW
   if (!notification) return null;
   var results = notification.results || [];
   var label = SCAN_LABEL[notification.scanType] || 'Scheduled Scan';
-  var dataUnavailable = /temporarily unavailable|could not be verified|couldn't verify|no complete result set/i.test(
-    notification.body || ''
-  );
+  var dataUnavailable =
+    /temporarily unavailable|could not be verified|couldn't verify|no complete result set/i.test(
+      notification.body || ''
+    ) || notification.dataStatus === 'unavailable';
 
   return (
     <div className="upgrade-overlay scheduled-results-overlay" onClick={onClose}>
@@ -47,6 +48,14 @@ export default function ScheduledScanResultsModal({ notification, onClose, isInW
               {label} — {formatWhen(notification.createdAt)}
             </h2>
             <p className="scheduled-results-sub">{notification.body}</p>
+            {['partial', 'stale'].includes(notification.dataStatus) && (
+              <p className="scheduled-results-sub" role="status">
+                Some data is delayed or unavailable. These are the available results.
+              </p>
+            )}
+            {notification.dataAsOf && (
+              <p className="scheduled-results-sub">Data as of {new Date(notification.dataAsOf).toLocaleString()}</p>
+            )}
           </div>
           <button className="scheduled-results-close" onClick={onClose} aria-label="Close">
             &times;

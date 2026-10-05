@@ -89,7 +89,7 @@ test('requireElite allows an elite-tier user through', async () => {
   }
 });
 
-test('requireElite allows a pilot account through, even with tier=free in the DB', async () => {
+test('requireElite rejects an unpaid pilot while preserving its cohort marker', async () => {
   const result = await db
     .prepare('INSERT INTO users (email, is_verified, tier, is_premium, is_pilot) VALUES (?, 1, ?, 0, 1)')
     .run('elite-gate-pilot@test.local', 'free');
@@ -99,7 +99,9 @@ test('requireElite allows a pilot account through, even with tier=free in the DB
   const port = server.address().port;
   try {
     const res = await fetch(`http://127.0.0.1:${port}/probe`, { headers: { Authorization: 'Bearer ' + token } });
-    assert.strictEqual(res.status, 200, 'the pilot override must resolve to elite even though the DB column says free');
+    assert.strictEqual(res.status, 403, 'pilot membership is not an Elite entitlement');
+    assert.strictEqual((await res.json()).code, 'NOT_ELITE');
+    assert.strictEqual((await db.prepare('SELECT is_pilot FROM users WHERE id = ?').get(user.id)).is_pilot, 1);
   } finally {
     server.close();
   }

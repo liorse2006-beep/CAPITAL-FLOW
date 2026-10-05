@@ -450,6 +450,7 @@ if (isSingletonWorker()) {
       startScheduledDigest();
       startScheduledScanRunner();
       startScheduledBackup();
+      require('./services/notificationOutbox').startNotificationOutbox();
       startStatusMonitor();
     })
     .catch((err) => {

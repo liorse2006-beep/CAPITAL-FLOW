@@ -10,10 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -34,13 +36,14 @@ jobs:
           HCAPTCHA_SECRET: ''
       - run: npx vitest run
       - run: npm run test:worker
+      - run: npm run test:cluster
       - run: npm run lint
       - name: Check formatting for changed files
         shell: bash
         run: |
-          changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" | grep -E '\\.(js|jsx|mjs|cjs|css|html)$' || true)"
+          changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" | grep -E '\.(js|jsx|mjs|cjs|css|html)$' || true)"
           if [ -n "$changed_files" ]; then
-            printf '%s\\n' "$changed_files" | xargs npx prettier --check
+            printf '%s\n' "$changed_files" | xargs npx prettier --check
           else
             echo "No changed source files require a formatting check."
           fi

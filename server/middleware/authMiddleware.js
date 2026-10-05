@@ -31,6 +31,7 @@ const { publish, subscribe } = require('../services/clusterBus');
 const SSE_TICKET_TTL_MS = 10 * 60 * 1000;
 
 function signSseTicket(userId, sessionId, expiresAt) {
+  if (!SESSION_SECRET || SESSION_SECRET.length < 32) throw new Error('SSE signing is not configured');
   return crypto.createHmac('sha256', SESSION_SECRET).update(`${userId}.${sessionId}.${expiresAt}`).digest('base64url');
 }
 
@@ -43,6 +44,7 @@ function issueSseTicket(userId, sessionId) {
 }
 
 function resolveSseTicket(ticket) {
+  if (!SESSION_SECRET || SESSION_SECRET.length < 32) return null;
   if (!ticket || typeof ticket !== 'string') return null;
   const parts = ticket.split('.');
   if (parts.length !== 4) return null;
@@ -221,7 +223,7 @@ async function resolveToken(token) {
       dropCachedToken(token);
       return null;
     }
-    // Pilot accounts (and the configured admin's own account) get full
+    // Only the configured admin's own account gets full
     // (Elite) access for as long as that's true — this is the ONLY place
     // that needs to know that, since every tier check (requirePremium,
     // requireElite, requireScanQuota, the frontend's `isPremium`/`tier`,
@@ -230,7 +232,7 @@ async function resolveToken(token) {
     // tag (or changing ADMIN_EMAIL) cleanly reverts them to their real
     // subscription status.
     const isAdminOwner = !!ADMIN_EMAIL && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-    if (user.is_pilot || isAdminOwner) {
+    if (isAdminOwner) {
       user.tier = 'elite';
       user.is_premium = 1;
     } else {
@@ -351,22 +353,23 @@ async function requireEliteOrTrial(req, res, next) {
  * Same as requireEliteOrTrial but reads the signed ticket from ?ticket=.
  * Used for SSE (EventSource cannot set Authorization headers).
  */
+async function resolveStreamIdentity(userId, sessionId) {
+  const user = await db
+    .prepare('SELECT u.* FROM users u JOIN user_sessions s ON s.user_id = u.id WHERE u.id = ? AND s.id = ?')
+    .get(userId, sessionId);
+  if (!user || user.is_blocked) return null;
+  return require('../services/auth').withEffectivePremium(user);
+}
+
+async function resolveStreamAccess(userId, sessionId) {
+  const effectiveUser = await resolveStreamIdentity(userId, sessionId);
+  if (!effectiveUser) return null;
+  return require('../services/scanQuota').eliteAccess(effectiveUser) ? effectiveUser : null;
+}
+
 async function requirePremiumSSE(req, res, next) {
   const ticket = resolveSseTicket(req.query.ticket);
-  const session = ticket
-    ? await db.prepare('SELECT id FROM user_sessions WHERE id = ? AND user_id = ?').get(ticket.sessionId, ticket.userId)
-    : null;
-  const user = session
-    ? await db
-        .prepare(
-          `SELECT id, email, is_verified, is_premium, is_blocked, free_scan_count,
-                  is_pilot, pilot_terms_accepted_at, tier, created_at,
-                  free_scan_used_capital_flow, free_scan_used_ma_scanner, free_scan_used_sector_moving,
-                  premium_scan_count, premium_scan_window_start
-           FROM users WHERE id = ?`
-        )
-        .get(ticket.userId)
-    : null;
+  const user = ticket ? await resolveStreamIdentity(ticket.userId, ticket.sessionId) : null;
   function rejectSse(code, status) {
     // EventSource still exposes the HTTP status before it receives the
     // stream body. Set it explicitly; calling flushHeaders() without a
@@ -386,15 +389,14 @@ async function requirePremiumSSE(req, res, next) {
   if (user.is_blocked) {
     return rejectSse('NOT_AUTHENTICATED', 401);
   }
-  const effectiveUser =
-    user.is_pilot || (!!ADMIN_EMAIL && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase())
-      ? { ...user, tier: 'elite', is_premium: 1 }
-      : { ...user, is_premium: user.tier !== 'free' ? 1 : 0 };
+  const effectiveUser = user;
   const trialActive = effectiveUser.tier === 'free' && freeTrialActive(effectiveUser);
   if (effectiveUser.tier !== 'elite' && !trialActive) {
     return rejectSse('NOT_ELITE', 403);
   }
   req.user = effectiveUser;
+  req.streamSessionId = ticket.sessionId;
+  req.streamExpiresAt = Number(req.query.ticket.split('.')[2]);
   next();
 }
 
@@ -453,4 +455,5 @@ module.exports = {
   invalidateUserEntitlement,
   issueSseTicket,
   resolveSseTicket,
+  resolveStreamAccess,
 };

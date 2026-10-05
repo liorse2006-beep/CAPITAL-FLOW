@@ -23,11 +23,52 @@ const quoteCache = require('../server/services/quoteCache');
 const scanner = require('../server/services/scanner');
 const { checkWatchlistAlerts, checkWatchlistAlertsWithQuoteFallback } = require('../server/services/backgroundScan');
 
+test('watchlist alerts reject undated, stale, future and unlabelled observations', async (t) => {
+  const userId = await makeUser('bg-alert-unverified-observation@test.local');
+  const pushCalls = [];
+  t.mock.method(webPush, 'sendPushToUser', (uid, payload) => pushCalls.push({ uid, payload }));
+  const base = { symbol: 'ZZZZ', price: 100, volumeRatio: 4, quoteDataStatus: 'complete' };
+  const cases = [
+    base,
+    { ...base, quoteAsOf: new Date(Date.now() - 10 * 86400000).toISOString() },
+    { ...base, quoteAsOf: new Date(Date.now() + 86400000).toISOString() },
+    { ...base, quoteDataStatus: undefined, quoteAsOf: new Date().toISOString() },
+  ];
+  for (const row of cases) {
+    await setAlert(userId, 'ZZZZ', { type: 'volume', minRatio: 2 });
+    await checkWatchlistAlerts([row]);
+    assert.ok((await getWatchlistAlerts(userId)).ZZZZ, 'unverified data must leave the alert armed');
+    assert.equal((await getNotifications(userId)).length, 0);
+  }
+  assert.equal(pushCalls.length, 0);
+});
+
+test('an obsolete evaluation cannot consume a replacement alert recipe', async () => {
+  await db.ready;
+  const userId = await makeUser('alert-recipe-replaced@test.local');
+  await setAlert(userId, 'AAPL', { type: 'volume', minRatio: 2 });
+  await setAlert(userId, 'AAPL', { type: 'volume', minRatio: 10 });
+  const result = await require('../server/services/notifications').consumeWatchlistAlert(userId, 'AAPL', {
+    title: 'test',
+    body: 'test',
+    expectedAlert: { type: 'volume', minRatio: 2 },
+    pushPayload: {},
+  });
+  assert.equal(result.consumed, false);
+  assert.equal((await getWatchlistAlerts(userId)).AAPL.minRatio, 10);
+  assert.equal((await getNotifications(userId)).length, 0);
+});
+
 async function makeUser(email) {
   const result = await db
     .prepare("INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, 'elite', 1)")
     .run(email);
   return result.lastInsertRowid;
+}
+
+function verifiedRow(row) {
+  // A synthetic provider observation, never a production/request-time fallback.
+  return { quoteDataStatus: 'complete', quoteAsOf: new Date().toISOString(), ...row };
 }
 
 test('checkWatchlistAlerts fires a push when a real threshold is crossed', async () => {
@@ -41,7 +82,9 @@ test('checkWatchlistAlerts fires a push when a real threshold is crossed', async
   };
 
   try {
-    await checkWatchlistAlerts([{ symbol: 'AAPL', name: 'Apple', volumeRatio: 3.5, change: 1.2, price: 150 }]);
+    await checkWatchlistAlerts([
+      verifiedRow({ symbol: 'AAPL', name: 'Apple', volumeRatio: 3.5, change: 1.2, price: 150 }),
+    ]);
     assert.strictEqual(pushCalls.length, 1, 'expected one push notification to fire for the crossed threshold');
     assert.strictEqual(pushCalls[0].uid, userId);
     assert.strictEqual(pushCalls[0].payload.symbol, 'AAPL');
@@ -61,7 +104,7 @@ test('checkWatchlistAlerts is one-shot: firing cancels the threshold so it never
   };
 
   try {
-    const spikedResult = [{ symbol: 'TSLA', name: 'Tesla', volumeRatio: 4.0, change: 2.5, price: 250 }];
+    const spikedResult = [verifiedRow({ symbol: 'TSLA', name: 'Tesla', volumeRatio: 4.0, change: 2.5, price: 250 })];
 
     await checkWatchlistAlerts(spikedResult);
     assert.strictEqual(pushCalls.length, 1, 'first crossing should fire');
@@ -89,7 +132,9 @@ test('checkWatchlistAlerts does not fire when the ratio is below threshold', asy
   };
 
   try {
-    await checkWatchlistAlerts([{ symbol: 'MSFT', name: 'Microsoft', volumeRatio: 1.2, change: 0.3, price: 300 }]);
+    await checkWatchlistAlerts([
+      verifiedRow({ symbol: 'MSFT', name: 'Microsoft', volumeRatio: 1.2, change: 0.3, price: 300 }),
+    ]);
     assert.strictEqual(pushCalls.length, 0, 'a ratio below threshold must not fire an alert');
   } finally {
     webPush.sendPushToUser = originalSend;
@@ -115,6 +160,7 @@ test('background alert recovery checks armed symbols outside the scanner floor',
           symbol: 'CRM',
           shortName: 'Salesforce',
           regularMarketPrice: 300,
+          regularMarketTime: Math.floor(Date.now() / 1000),
           regularMarketVolume: 1200,
           averageDailyVolume10Day: 1000,
           regularMarketChangePercent: 1.4,
@@ -153,7 +199,7 @@ test('checkWatchlistAlerts absorbs a rejected push delivery without crashing the
 
   try {
     await assert.doesNotReject(() =>
-      checkWatchlistAlerts([{ symbol: 'NVDA', name: 'NVIDIA', volumeRatio: 4.0, change: 2.5, price: 120 }])
+      checkWatchlistAlerts([verifiedRow({ symbol: 'NVDA', name: 'NVIDIA', volumeRatio: 4.0, change: 2.5, price: 120 })])
     );
   } finally {
     webPush.sendPushToUser = originalSend;
@@ -168,7 +214,7 @@ test('checkWatchlistAlerts uses the concise alert copy when the quote has no cha
   webPush.sendPushToUser = () => {};
   try {
     await assert.doesNotReject(() =>
-      checkWatchlistAlerts([{ symbol: 'AMD', name: 'AMD', volumeRatio: 3.2, change: null, price: 120 }])
+      checkWatchlistAlerts([verifiedRow({ symbol: 'AMD', name: 'AMD', volumeRatio: 3.2, change: null, price: 120 })])
     );
     assert.strictEqual((await getWatchlistAlerts(userId)).AMD, undefined, 'the alert is consumed once it is persisted');
     const notifications = await getNotifications(userId, 10);
@@ -186,7 +232,7 @@ test('concurrent alert checks consume one threshold and create one notification'
   const originalSend = webPush.sendPushToUser;
   webPush.sendPushToUser = () => {};
   try {
-    const result = [{ symbol: 'META', name: 'Meta', volumeRatio: 3.2, change: 1.1, price: 500 }];
+    const result = [verifiedRow({ symbol: 'META', name: 'Meta', volumeRatio: 3.2, change: 1.1, price: 500 })];
     await Promise.all([checkWatchlistAlerts(result), checkWatchlistAlerts(result)]);
     assert.strictEqual((await getWatchlistAlerts(userId)).META, undefined);
     const notifications = await getNotifications(userId, 10);
@@ -210,10 +256,14 @@ test('checkWatchlistAlerts fires a price alert once the price crosses to the oth
   };
 
   try {
-    await checkWatchlistAlerts([{ symbol: 'GME', name: 'GameStop', volumeRatio: 1.0, change: 0.5, price: 28 }]);
+    await checkWatchlistAlerts([
+      verifiedRow({ symbol: 'GME', name: 'GameStop', volumeRatio: 1.0, change: 0.5, price: 28 }),
+    ]);
     assert.strictEqual(pushCalls.length, 0, 'still below the target — must not fire yet');
 
-    await checkWatchlistAlerts([{ symbol: 'GME', name: 'GameStop', volumeRatio: 1.0, change: 8.0, price: 31.5 }]);
+    await checkWatchlistAlerts([
+      verifiedRow({ symbol: 'GME', name: 'GameStop', volumeRatio: 1.0, change: 8.0, price: 31.5 }),
+    ]);
     assert.strictEqual(pushCalls.length, 1, 'crossed above the target — must fire exactly once');
     assert.strictEqual(pushCalls[0].payload.symbol, 'GME');
 
@@ -236,7 +286,7 @@ test('full background alert checks hydrate symbols filtered out of the market-wi
     assert.ok(symbols.includes('GME'), 'the newly armed symbol must be included in the fallback refresh');
     assert.deepStrictEqual(options, { withMetadata: true });
     return {
-      results: [{ symbol: 'GME', name: 'GameStop', price: 31.5, change: 8, volumeRatio: 1 }],
+      results: [verifiedRow({ symbol: 'GME', name: 'GameStop', price: 31.5, change: 8, volumeRatio: 1 })],
       dataStatus: 'complete',
       quoteDataStatus: 'complete',
     };
@@ -258,7 +308,9 @@ test('checkWatchlistAlerts does not fire a price alert when the quote has no pri
   webPush.sendPushToUser = () => {};
   try {
     await assert.doesNotReject(() =>
-      checkWatchlistAlerts([{ symbol: 'NFLX', name: 'Netflix', volumeRatio: 2.5, change: null, price: null }])
+      checkWatchlistAlerts([
+        verifiedRow({ symbol: 'NFLX', name: 'Netflix', volumeRatio: 2.5, change: null, price: null }),
+      ])
     );
     assert.equal((await getWatchlistAlerts(userId)).NFLX.targetPrice, 100, 'the alert must remain armed');
     const notifications = await getNotifications(userId, 10);
@@ -280,7 +332,7 @@ test('checkWatchlistAlerts does not consume an alert from a stale quote fallback
 
   try {
     await checkWatchlistAlerts([
-      { symbol: 'IBM', name: 'IBM', volumeRatio: 4.0, change: 2.1, price: 200, quoteDataStatus: 'stale' },
+      verifiedRow({ symbol: 'IBM', name: 'IBM', volumeRatio: 4.0, change: 2.1, price: 200, quoteDataStatus: 'stale' }),
     ]);
     assert.strictEqual(pushCalls.length, 0, 'stale provider data must never trigger a live alert');
     assert.ok((await getWatchlistAlerts(userId)).IBM, 'the alert must remain armed for a verified quote');
@@ -305,7 +357,7 @@ test('checkWatchlistAlerts rejects stale or unavailable status from any data-qua
       { symbol: 'ORCL', volumeRatio: 4.0, price: 100, quoteDataStatus: 'complete', dataStatus: 'unavailable' },
       { symbol: 'ORCL', volumeRatio: 4.0, price: 100, quoteDataStatus: 'partial' },
     ]) {
-      await checkWatchlistAlerts([row]);
+      await checkWatchlistAlerts([verifiedRow(row)]);
       assert.strictEqual(pushCalls.length, 0);
       assert.ok((await getWatchlistAlerts(userId)).ORCL);
     }
@@ -326,7 +378,7 @@ test('checkWatchlistAlerts does not consume an alert from a partial result row',
 
   try {
     await checkWatchlistAlerts([
-      { symbol: 'ORCL', name: 'Oracle', volumeRatio: 4.0, change: 1.1, price: 180, dataStatus: 'partial' },
+      verifiedRow({ symbol: 'ORCL', name: 'Oracle', volumeRatio: 4.0, change: 1.1, price: 180, dataStatus: 'partial' }),
     ]);
     assert.strictEqual(pushCalls.length, 0);
     assert.ok((await getWatchlistAlerts(userId)).ORCL, 'partial data must leave the alert armed');
@@ -347,7 +399,16 @@ test('checkWatchlistAlerts sends the same concise alert copy for a verified row 
 
   try {
     await checkWatchlistAlerts(
-      [{ symbol: 'AAPL', name: 'Apple', volumeRatio: 3.5, change: 1.2, price: 150, quoteDataStatus: 'complete' }],
+      [
+        verifiedRow({
+          symbol: 'AAPL',
+          name: 'Apple',
+          volumeRatio: 3.5,
+          change: 1.2,
+          price: 150,
+          quoteDataStatus: 'complete',
+        }),
+      ],
       { scanDataStatus: 'partial' }
     );
     assert.strictEqual(pushCalls.length, 1);

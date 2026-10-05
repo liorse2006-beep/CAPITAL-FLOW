@@ -208,6 +208,10 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
             maDirection: pctDist >= 0 ? 'above' : 'below',
             dataQuality: 'complete',
             quoteDataStatus: staleQuoteSymbols.has(String(symbol).trim().toUpperCase()) ? 'stale' : 'complete',
+            quoteAsOf:
+              quoteCache.providerTimestampMs(q) === null
+                ? null
+                : new Date(quoteCache.providerTimestampMs(q)).toISOString(),
             // Real bars-since-crossing computed from the same `closes`
             // history above, or null when the data doesn't show one within
             // the lookback window — see daysSinceCross's own doc comment.

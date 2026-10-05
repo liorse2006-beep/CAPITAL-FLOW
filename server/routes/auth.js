@@ -222,6 +222,9 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
         try {
           const email = normalizeEmail(profile.emails && profile.emails[0] && profile.emails[0].value);
           if (!email) return done(new Error('No email from Google'));
+          if (profile._json?.email_verified === false || profile.emails?.[0]?.verified === false) {
+            return done(new Error('Google email is not verified'));
+          }
           const avatarUrl = getGoogleAvatarUrl(profile);
 
           let user = await db.prepare('SELECT * FROM users WHERE google_id = ?').get(profile.id);
@@ -230,13 +233,13 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
             if (user) {
               await db
                 .prepare(
-                  'UPDATE users SET google_id = ?, google_email = ?, avatar_url = COALESCE(?, avatar_url), is_verified = 1 WHERE id = ?'
+                  'UPDATE users SET google_id = ?, google_email = ?, avatar_url = COALESCE(?, avatar_url), password_hash = CASE WHEN is_verified = 0 THEN NULL ELSE password_hash END, is_verified = 1 WHERE id = ?'
                 )
                 .run(profile.id, email, avatarUrl, user.id);
               user = await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
             } else {
               const isPilot = (await pilotAllowlist.isAllowed(email)) ? 1 : 0;
-              const tierForGoogle = isPilot ? 'elite' : 'free';
+              const tierForGoogle = 'free';
               const result = await db
                 .prepare(
                   'INSERT INTO users (email, google_id, google_email, avatar_url, is_verified, is_pilot, tier) VALUES (?, ?, ?, ?, 1, ?, ?)'
@@ -340,13 +343,13 @@ router.post('/signup', authLimiter, async (req, res) => {
       // verification challenge succeeds. The retry may still re-issue the
       // challenge, and the private pilot invite may still update entitlements.
       if (isPilotByInvite) {
-        await db.prepare("UPDATE users SET is_pilot = 1, tier = 'elite' WHERE email = ?").run(email);
+        await db.prepare('UPDATE users SET is_pilot = 1 WHERE email = ?').run(email);
       }
     } else {
       const hash = await hashPassword(password);
       const isPilotByAllowlist = (await pilotAllowlist.isAllowed(email)) ? 1 : 0;
       const isPilot = isPilotByInvite || isPilotByAllowlist;
-      const tier = isPilot ? 'elite' : 'free';
+      const tier = 'free';
       await db
         .prepare('INSERT INTO users (email, password_hash, is_pilot, tier) VALUES (?, ?, ?, ?)')
         .run(email, hash, isPilot, tier);
@@ -372,6 +375,22 @@ router.post('/verify-otp', otpLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Invalid verification details' });
     }
 
+    const existingUser = await db.prepare('SELECT is_verified FROM users WHERE email = ?').get(email);
+    if (!existingUser) return res.status(400).json({ error: 'Invalid verification details' });
+    // Mailbox proof authorizes the password chosen in THIS verification flow,
+    // not a credential that a stranger may have preregistered for the address.
+    let verifiedPasswordHash = null;
+    if (!existingUser.is_verified) {
+      const password = req.body.password;
+      if (
+        typeof password !== 'string' ||
+        password.length < 8 ||
+        Buffer.byteLength(password, 'utf8') > MAX_PASSWORD_BYTES
+      ) {
+        return res.status(400).json({ error: 'Please return to sign up and choose a valid password.' });
+      }
+      verifiedPasswordHash = await hashPassword(password);
+    }
     const result = await verifyOTP(email, code, 'verify_email');
     if (!result.valid) return res.status(400).json({ error: result.reason });
 
@@ -381,7 +400,13 @@ router.post('/verify-otp', otpLimiter, async (req, res) => {
     const wasAlreadyVerified = (await db.prepare('SELECT is_verified FROM users WHERE email = ?').get(email))
       ?.is_verified;
 
-    await db.prepare('UPDATE users SET is_verified = 1 WHERE email = ?').run(email);
+    if (verifiedPasswordHash) {
+      // The condition belongs in the write: concurrent Google verification or
+      // password reset must not have its established credential replaced.
+      await db
+        .prepare('UPDATE users SET password_hash = ?, is_verified = 1 WHERE email = ? AND is_verified = 0')
+        .run(verifiedPasswordHash, email);
+    }
     const user = withEffectivePremium(await db.prepare('SELECT * FROM users WHERE email = ?').get(email));
     const { accessToken, refreshToken } = await issueToken(user);
     setRefreshCookie(res, refreshToken);
@@ -617,11 +642,17 @@ router.delete('/account', requireAuth, async (req, res) => {
       'push_subscriptions',
       'feedback',
       'scheduled_scans',
+      'scheduled_scan_runs',
+      'scheduled_digest_runs',
+      'notification_outbox',
+      'notification_push_receipts',
+      'status_admin_sessions',
       'notifications',
       'chat_messages',
       'ai_usage',
       'scan_reservations',
       'whop_payment_entitlements',
+      'whop_checkout_authorizations',
     ].map((table) => ({ sql: `DELETE FROM ${table} WHERE user_id = ?`, args: [userId] }));
     statements.push(
       {
@@ -667,7 +698,7 @@ router.post('/apply-invite', authLimiter, requireAuth, async (req, res) => {
     const matches =
       !!PILOT_INVITE_CODE && supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
     if (!matches) return res.status(400).json({ error: 'Invalid invite code' });
-    await db.prepare("UPDATE users SET is_pilot = 1, tier = 'elite' WHERE id = ?").run(req.user.id);
+    await db.prepare('UPDATE users SET is_pilot = 1 WHERE id = ?').run(req.user.id);
     invalidateUserEntitlement(req.user.id);
     res.json({ ok: true });
   } catch (err) {

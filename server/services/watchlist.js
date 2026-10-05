@@ -3,6 +3,7 @@
 // same per-user isolation), just for "which symbols" instead of "at what ratio".
 
 const db = require('../db');
+const { withUserWrite } = require('./userWrite');
 const MAX_WATCHLIST_SIZE = 50;
 
 async function getWatchlist(userId) {
@@ -15,15 +16,17 @@ async function addToWatchlist(userId, symbol) {
   // INSERT has a TOCTOU gap where concurrent tabs can both observe 49 rows
   // and create a 51-ticker watchlist. Existing symbols remain harmless
   // no-ops, including when the list is already full.
-  const result = await db
-    .prepare(
-      `INSERT INTO watchlist (user_id, symbol)
+  const result = await withUserWrite(userId, (tx) =>
+    tx
+      .prepare(
+        `INSERT INTO watchlist (user_id, symbol)
        SELECT ?, ?
         WHERE EXISTS (SELECT 1 FROM watchlist WHERE user_id = ? AND symbol = ?)
            OR (SELECT COUNT(*) FROM watchlist WHERE user_id = ?) < ?
        ON CONFLICT(user_id, symbol) DO NOTHING`
-    )
-    .run(userId, symbol, userId, symbol, userId, MAX_WATCHLIST_SIZE);
+      )
+      .run(userId, symbol, userId, symbol, userId, MAX_WATCHLIST_SIZE)
+  );
   if (result && result.changes === 1) return true;
   const exists = await db.prepare('SELECT 1 FROM watchlist WHERE user_id = ? AND symbol = ?').get(userId, symbol);
   if (exists) return false;

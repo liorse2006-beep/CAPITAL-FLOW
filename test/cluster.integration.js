@@ -49,7 +49,8 @@ const os = require('node:os');
 const ROOT = path.join(__dirname, '..');
 const JWT_SECRET = 'cluster-it-jwt-secret-'.padEnd(32, 'x');
 const SESSION_SECRET = 'cluster-it-session-secret-'.padEnd(32, 'x');
-const CONNECTION_COUNT = 30;
+// Realistic tabs/devices stay inside the production per-session limit.
+const CONNECTION_COUNT = 4;
 
 async function retryFetch(base, url, opts, attempts = 10) {
   let lastBody;
@@ -106,6 +107,10 @@ async function waitForBothWorkers(base, timeoutMs = 20000) {
 async function connectSseOnce(base, ticket) {
   const controller = new AbortController();
   const res = await fetch(`${base}/api/stream?ticket=${ticket}`, { signal: controller.signal });
+  if (!res.ok) {
+    controller.abort();
+    throw new Error(`SSE admission returned ${res.status}`);
+  }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
@@ -216,9 +221,23 @@ async function runScenario(port) {
     const { ticket } = await ticketRes.json();
 
     const clients = await Promise.all(Array.from({ length: CONNECTION_COUNT }, () => connectSse(base, ticket)));
+    const peerSeed = await retryFetch(base, '/api/stream/_test-seed-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'cluster-it-peer@test.local' }),
+    });
+    const { userId: peerUserId } = await peerSeed.json();
+    const peerTicketResponse = await retryFetch(base, '/api/stream/_test-issue-ticket', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: peerUserId }),
+    });
+    const { ticket: peerTicket } = await peerTicketResponse.json();
+    const peer = await connectSse(base, peerTicket);
     const pids = new Set(clients.map((c) => c.pid));
     if (pids.size < 2) {
       clients.forEach((c) => c.close());
+      peer.close();
       throw new Error(
         `all ${CONNECTION_COUNT} connections landed on the same worker (pid ${[...pids]}) — can't verify cross-worker delivery this attempt`
       );
@@ -230,6 +249,16 @@ async function runScenario(port) {
       body: JSON.stringify({ userId, event: 'test-alert', data: { msg: 'hello from the cluster' } }),
     });
     assert.strictEqual(triggerRes.status, 200);
+    const peerTrigger = await fetch(base + '/api/stream/_test-broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: peerUserId, event: 'peer-only', data: { msg: 'private peer alert' } }),
+    });
+    assert.strictEqual(peerTrigger.status, 200);
+    const peerEvent = await peer.nextEvent();
+    assert.equal(peerEvent.event, 'peer-only', "the peer must not receive the first account's alert");
+    assert.equal(peerEvent.data.msg, 'private peer alert');
+    peer.close();
 
     const results = await Promise.all(
       clients.map(async (c) => {

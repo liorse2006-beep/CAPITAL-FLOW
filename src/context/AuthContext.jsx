@@ -149,7 +149,6 @@ export function AuthProvider({ children }) {
     // where a query string carrying the same access token would. See
     // routes/auth.js's /google/callback for the redirect side of this.
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-    const tokenFromUrl = params.get('token');
     const pendingFromUrl = hashParams.get('google_pending');
     const errorFromUrl = params.get('auth_error');
     const inviteFromUrl = params.get('invite');
@@ -158,9 +157,16 @@ export function AuthProvider({ children }) {
       localStorage.setItem('vs_pilot_invite', inviteFromUrl);
     }
 
-    if (tokenFromUrl) {
-      setAccessToken(tokenFromUrl);
-      window.history.replaceState({}, '', window.location.pathname);
+    if (params.has('token')) {
+      // URL possession does not prove this browser intended to sign in.
+      // Remove legacy bearer parameters without using them or losing deep links.
+      params.delete('token');
+      const search = params.toString();
+      window.history.replaceState(
+        {},
+        '',
+        window.location.pathname + (search ? `?${search}` : '') + window.location.hash
+      );
     }
 
     if (pendingFromUrl) {
@@ -186,8 +192,11 @@ export function AuthProvider({ children }) {
     // two, so this is a real, not just theoretical, recovery path).
     silentRefresh({ retryTransient: true })
       .then((refreshResult) => {
-        const tokenToUse = refreshResult.token || tokenFromUrl || stored;
-        if (tokenToUse) return fetchMe(tokenToUse);
+        const tokenToUse = refreshResult.token || stored;
+        if (tokenToUse) {
+          setAccessToken(tokenToUse);
+          return fetchMe(tokenToUse);
+        }
 
         // A transient refresh failure means the existing httpOnly cookie may
         // still be valid. Keep the user out of a misleading guest state and

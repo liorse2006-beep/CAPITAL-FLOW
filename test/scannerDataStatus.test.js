@@ -20,6 +20,7 @@ function quote(symbol) {
     symbol,
     shortName: symbol,
     regularMarketPrice: 100,
+    regularMarketTime: Math.floor(Date.now() / 1000),
     regularMarketVolume: 5_000_000,
     averageDailyVolume10Day: 2_000_000,
     marketCap: 5_000_000_000,
@@ -99,6 +100,33 @@ test('Capital Flow keeps an FMP quote authoritative during enrichment', async (t
   assert.strictEqual(result.results[0].price, 100);
   assert.strictEqual(result.results[0].change, 1.25);
   assert.strictEqual(finnhubQuoteCalls, 0);
+});
+
+test('Capital Flow rejects outdated enrichment and keeps verified filtering inputs', async (t) => {
+  const symbol = 'AUDIT_OLD_ENRICHMENT';
+  const currentQuote = { ...quote(symbol), regularMarketChangePercent: 1.25 };
+  t.mock.method(quoteCache, 'getQuotes', async () => new Map([[symbol, currentQuote]]));
+  t.mock.method(finnhub, 'fetchFinnhubQuote', async () => ({
+    price: 110,
+    change: 10,
+    dayHigh: 110,
+    dayLow: 109,
+    prevClose: 100,
+    dataStatus: 'complete',
+    dataAsOf: new Date(Date.now() - 10 * 86400000).toISOString(),
+  }));
+  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => ({ marketCap: 1, avgVol10d: 100000000 }));
+  t.mock.method(yahoo, 'chart', async () => ({ quotes: [] }));
+  t.mock.method(yahoo, 'quoteSummary', async () => ({ assetProfile: { sector: 'Technology' } }));
+  const result = await scanTickers([symbol], { minVolumeRatio: 1.5, minMarketCap: 1 });
+  assert.equal(result.results.length, 1);
+  const row = result.results[0];
+  assert.equal(row.price, 100);
+  assert.equal(row.change, 1.25);
+  assert.equal(row.avgVolume, 2000000);
+  assert.equal(row.marketCap, 5000000000);
+  assert.equal(row.volumeRatio, 2.5);
+  assert.equal(row.quoteAsOf, new Date(currentQuote.regularMarketTime * 1000).toISOString());
 });
 
 test('Moving Average marks a total quote outage as unavailable', async (t) => {

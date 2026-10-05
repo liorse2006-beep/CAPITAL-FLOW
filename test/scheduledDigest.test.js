@@ -2,10 +2,16 @@
 // an Israel-local time; at that minute the alert copy must reflect whether
 // the shared scan returned any rows, never whether a personal threshold matched.
 require('./helpers/testEnv');
-const { test, before } = require('node:test');
+const { test, before, beforeEach } = require('node:test');
 const assert = require('node:assert');
 
 const webpushLib = require('web-push');
+const pushTransport = require('../server/services/pushTransport');
+const keys1 = { p256dh: webpushLib.generateVAPIDKeys().publicKey, auth: Buffer.alloc(16, 1).toString('base64url') };
+const dns = require('node:dns').promises;
+beforeEach((t) => {
+  t.mock.method(dns, 'lookup', async () => [{ address: '8.8.8.8', family: 4 }]);
+});
 const vapidKeys = webpushLib.generateVAPIDKeys();
 process.env.VAPID_PUBLIC_KEY = vapidKeys.publicKey;
 process.env.VAPID_PRIVATE_KEY = vapidKeys.privateKey;
@@ -27,7 +33,9 @@ const { setAlert } = require('../server/services/watchlistAlerts');
 const webPush = require('../server/services/webPush');
 
 async function makeUser(email) {
-  const result = await db.prepare('INSERT INTO users (email, is_verified, is_premium) VALUES (?, 1, 1)').run(email);
+  const result = await db
+    .prepare("INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, 'elite', 1)")
+    .run(email);
   return result.lastInsertRowid;
 }
 
@@ -37,11 +45,12 @@ test('israelNow returns HH:MM and YYYY-MM-DD shaped strings', () => {
   assert.match(now.date, /^\d{4}-\d{2}-\d{2}$/);
 });
 
-test('digest schedule matching keeps the catch-up window without polling the database each minute', () => {
+test('digest schedule catches up after downtime without replaying yesterday across midnight', () => {
   assert.equal(isDigestTimeDue('09:30', '09:30'), true);
   assert.equal(isDigestTimeDue('09:30', '09:33'), true);
-  assert.equal(isDigestTimeDue('09:30', '09:34'), false);
-  assert.equal(isDigestTimeDue('23:59', '00:02'), true);
+  assert.equal(isDigestTimeDue('09:30', '09:34'), true);
+  assert.equal(isDigestTimeDue('09:30', '18:00'), true);
+  assert.equal(isDigestTimeDue('23:59', '00:02'), false);
   assert.equal(isDigestTimeDue('24:00', '00:00'), false);
 });
 
@@ -77,7 +86,7 @@ test('runDigestTick persists the matching scan rows and deep-links the push to t
   await setAlert(u, 'AAA', { type: 'volume', minRatio: 10 });
   await webPush.saveSubscription(u, {
     endpoint: 'https://push.example/digest-results',
-    keys: { p256dh: 'p', auth: 'a' },
+    keys: keys1,
   });
 
   const results = [{ symbol: 'AAA', volumeRatio: 2, dataStatus: 'partial' }];
@@ -85,11 +94,13 @@ test('runDigestTick persists the matching scan rows and deep-links the push to t
   backgroundCache.scanTime = new Date().toISOString();
   backgroundCache.dataStatus = 'partial';
 
-  const pushMock = t.mock.method(webpushLib, 'sendNotification', async () => ({ statusCode: 201 }));
+  const pushMock = t.mock.method(pushTransport, 'sendNotification', async () => ({ statusCode: 201 }));
   await runDigestTick();
 
   const notification = await db
-    .prepare('SELECT id, title, body, scan_type, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+    .prepare(
+      'SELECT id, title, body, scan_type, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1'
+    )
     .get(u);
   assert.ok(notification);
   assert.strictEqual(notification.title, 'Market Signal Detected');
@@ -98,7 +109,7 @@ test('runDigestTick persists the matching scan rows and deep-links the push to t
   assert.deepStrictEqual(JSON.parse(notification.results_json), results);
   assert.strictEqual(pushMock.mock.callCount(), 1);
   const pushPayload = JSON.parse(pushMock.mock.calls[0].arguments[1]);
-  assert.strictEqual(pushPayload.data.url, '/scanner?notif=' + notification.id);
+  assert.strictEqual(pushPayload.data.url, '/scanner?notif=srv-' + notification.id);
 });
 
 test('runDigestTick sends exactly one push per user per day, even if the tick fires twice', async () => {
@@ -106,22 +117,22 @@ test('runDigestTick sends exactly one push per user per day, even if the tick fi
   const now = israelNow();
   await db.prepare('UPDATE users SET notification_time = ? WHERE id = ?').run(now.hm, u);
   await setAlert(u, 'AAA', { type: 'volume', minRatio: 2 });
-  await webPush.saveSubscription(u, { endpoint: 'https://push.example/digest-a', keys: { p256dh: 'p', auth: 'a' } });
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/digest-a', keys: keys1 });
 
   backgroundCache.results = [{ symbol: 'AAA', volumeRatio: 3 }];
   backgroundCache.scanTime = new Date().toISOString();
   backgroundCache.dataStatus = 'complete';
 
   let calls = 0;
-  const original = webpushLib.sendNotification;
-  webpushLib.sendNotification = async () => {
+  const original = pushTransport.sendNotification;
+  pushTransport.sendNotification = async () => {
     calls++;
   };
   try {
     await runDigestTick();
     await runDigestTick();
   } finally {
-    webpushLib.sendNotification = original;
+    pushTransport.sendNotification = original;
   }
 
   assert.strictEqual(calls, 1, 'the same user must not be pushed twice for the same day');
@@ -131,21 +142,21 @@ test('runDigestTick skips users with no watchlist thresholds set', async () => {
   const u = await makeUser('digest-b@test.local');
   const now = israelNow();
   await db.prepare('UPDATE users SET notification_time = ? WHERE id = ?').run(now.hm, u);
-  await webPush.saveSubscription(u, { endpoint: 'https://push.example/digest-b', keys: { p256dh: 'p', auth: 'a' } });
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/digest-b', keys: keys1 });
 
   backgroundCache.results = [{ symbol: 'AAA', volumeRatio: 3 }];
   backgroundCache.scanTime = new Date().toISOString();
   backgroundCache.dataStatus = 'complete';
 
   let calls = 0;
-  const original = webpushLib.sendNotification;
-  webpushLib.sendNotification = async () => {
+  const original = pushTransport.sendNotification;
+  pushTransport.sendNotification = async () => {
     calls++;
   };
   try {
     await runDigestTick();
   } finally {
-    webpushLib.sendNotification = original;
+    pushTransport.sendNotification = original;
   }
 
   assert.strictEqual(calls, 0, 'a user with no thresholds has nothing to check, so no push should be sent');

@@ -110,7 +110,28 @@ async function verifyJwtHS256(token, secret) {
 // allowed into the shared edge cache — quota must never be shared across
 // users. quotaFor() (server/services/scanQuota.js) always includes `tier`.
 function stripPersonalFields(body) {
-  const { tier, isPremium, premium, free, ...shared } = body;
+  const shared = {};
+  for (const key of [
+    'results',
+    'scanTime',
+    'processed',
+    'tickersScanned',
+    'total',
+    'errors',
+    'dataStatus',
+    'quoteDataStatus',
+    'dataAsOf',
+    'dataProvenance',
+    'staleCount',
+    'staleSymbols',
+    'marketState',
+    'marketClosed',
+    'fromCache',
+    'cacheAgeMs',
+    'cacheAge',
+  ]) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) shared[key] = body[key];
+  }
   return shared;
 }
 
@@ -147,7 +168,45 @@ export default {
       // check belongs here; it's not the real request.
       return new Response(null, { status: 204, headers: cors });
     }
-    if (request.method !== 'GET') return fetch(request); // pass through anything else untouched
+    const url = new URL(request.url);
+    const proxy = async () => {
+      const response = await fetch(new Request(env.ORIGIN + url.pathname + url.search, request));
+      const headers = new Headers(response.headers);
+      for (const [key, value] of Object.entries(cors)) headers.set(key, value);
+      headers.set('Cache-Control', 'no-store');
+      return new Response(response.body, { status: response.status, headers });
+    };
+    // Every private route must reach its own origin authorization boundary.
+    // Unknown/duplicate query forms are never canonicalized into a shared key.
+    const seen = new Set();
+    let duplicate = false;
+    for (const key of url.searchParams.keys()) {
+      if (seen.has(key)) duplicate = true;
+      seen.add(key);
+    }
+    const allowedQuery = new Set([
+      'list',
+      'sectors',
+      'minVolumeRatio',
+      'minMarketCap',
+      'minPrice',
+      'maxPrice',
+      'minVol',
+      'async',
+    ]);
+    const ratio = url.searchParams.get('minVolumeRatio');
+    const cap = url.searchParams.get('minMarketCap');
+    const belowSharedFloor =
+      (ratio != null && ratio !== '' && (!Number.isFinite(Number(ratio)) || Number(ratio) < 1.5)) ||
+      (cap != null && cap !== '' && (!Number.isFinite(Number(cap)) || Number(cap) < 500000000));
+    if (
+      request.method !== 'GET' ||
+      url.pathname !== '/api/scan' ||
+      duplicate ||
+      belowSharedFloor ||
+      [...seen].some((key) => !allowedQuery.has(key))
+    )
+      return proxy();
 
     const auth = request.headers.get('Authorization') || '';
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
@@ -160,7 +219,6 @@ export default {
       });
     }
 
-    const url = new URL(request.url);
     // A queued scan response is user-specific and short-lived. Never put its
     // scan id or queued state into the shared edge cache; the app's UI uses
     // the origin progress/result endpoints for this mode.
@@ -173,6 +231,7 @@ export default {
       });
     }
     const cacheKeyUrl = new URL(url.origin + url.pathname + '?' + new URLSearchParams([...url.searchParams].sort()));
+    cacheKeyUrl.searchParams.set('__cache_schema', 'shared-scan-v2');
     const cacheKey = new Request(cacheKeyUrl.toString(), { method: 'GET' });
     const cache = caches.default;
 
@@ -180,7 +239,7 @@ export default {
     let sharedJson;
 
     if (sharedBody) {
-      sharedJson = await sharedBody.json();
+      sharedJson = stripPersonalFields(await sharedBody.json());
     } else {
       // Cache miss — full round trip through the real app, with the
       // caller's own token, exactly as if this Worker weren't here.
@@ -198,6 +257,12 @@ export default {
       }
 
       const fullJson = await originResp.json();
+      if (originResp.status !== 200 || !Array.isArray(fullJson.results)) {
+        return new Response(JSON.stringify(fullJson), {
+          status: originResp.status,
+          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors },
+        });
+      }
       sharedJson = stripPersonalFields(fullJson);
       ctx.waitUntil(
         cache.put(

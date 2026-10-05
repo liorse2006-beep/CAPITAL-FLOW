@@ -61,11 +61,18 @@ router.post('/checkout/transaction', checkoutLimiter, requireAuth, async (req, r
     if (req.user.tier !== 'premium') {
       return res.status(403).json({ error: 'This offer is only available to Premium accounts' });
     }
-    return res.json({
-      planId: WHOP_ELITE_UPGRADE_PLAN_ID,
-      tier: 'elite',
-      metadata: whop.createCheckoutMetadata({ userId: req.user.id, tier: 'elite' }),
-    });
+    try {
+      return res.json({
+        planId: WHOP_ELITE_UPGRADE_PLAN_ID,
+        tier: 'elite',
+        metadata: await whop.issueUpgradeCheckoutMetadata(req.user.id),
+      });
+    } catch (error) {
+      if (error.code === 'CHECKOUT_NOT_ELIGIBLE')
+        return res.status(403).json({ error: 'This offer is only available to Premium accounts' });
+      reportError(error, '[checkout/upgrade]');
+      return res.status(502).json({ error: 'Could not start checkout — please try again' });
+    }
   }
 
   const planId = PLAN_ID[tier];
@@ -96,7 +103,7 @@ router.post('/checkout/transaction', checkoutLimiter, requireAuth, async (req, r
     res.json({
       planId,
       tier,
-      metadata: whop.createCheckoutMetadata({ userId: req.user.id, tier, couponCode }),
+      metadata: whop.createCheckoutMetadata({ userId: req.user.id, tier, couponCode, planId }),
       ...(couponCode ? { couponCode } : {}),
     });
   } catch (err) {

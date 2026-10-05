@@ -24,6 +24,21 @@ const finnhub = require('../server/services/finnhub');
 const yahoo = require('../server/services/yahoo');
 const { scanFundamentals } = require('../server/services/fundamentalsScanner');
 
+test('Fundamentals never converts booleans, objects or arrays into prices', async (t) => {
+  const metric = t.mock.method(finnhub, 'fetchFinnhubMetric', async () => ({}));
+  const summary = t.mock.method(yahoo, 'quoteSummary', async () => ({}));
+  const quotes = t.mock.method(quoteCache, 'getQuotes', async () => new Map());
+  for (const price of [true, false, [123], { raw: 123 }, '', '123']) {
+    quotes.mock.mockImplementation(
+      async () => new Map([['INVALID_PRICE', { symbol: 'INVALID_PRICE', regularMarketPrice: price }]])
+    );
+    const result = await scanFundamentals(['INVALID_PRICE']);
+    assert.equal(result.results.length, 0, 'must not coerce ' + JSON.stringify(price));
+  }
+  assert.equal(metric.mock.callCount(), 0);
+  assert.equal(summary.mock.callCount(), 0);
+});
+
 function quotesMapFor(entries) {
   const map = new Map();
   entries.forEach(([symbol, marketCap]) => {
@@ -62,6 +77,29 @@ function keyStats(overrides) {
     overrides
   );
 }
+
+test('Fundamentals rejects invalid quote prices without enriching or caching them', async (t) => {
+  let enrichCalls = 0;
+  t.mock.method(finnhub, 'fetchFinnhubMetric', async () => {
+    enrichCalls++;
+    return {};
+  });
+  t.mock.method(yahoo, 'quoteSummary', async () => {
+    enrichCalls++;
+    return keyStats();
+  });
+  for (const price of [-1, 0, NaN, Infinity, null, '', 'not-a-number']) {
+    t.mock.method(
+      quoteCache,
+      'getQuotes',
+      async () => new Map([['INVALID_PRICE', { symbol: 'INVALID_PRICE', regularMarketPrice: price }]])
+    );
+    const result = await scanFundamentals(['INVALID_PRICE']);
+    assert.deepEqual(result.results, [], `must reject price ${String(price)}`);
+    assert.equal(result.dataStatus, 'unavailable');
+  }
+  assert.equal(enrichCalls, 0);
+});
 
 test('scanFundamentals has no market-cap floor — a small-cap ticker the customer chose is still looked up', async (t) => {
   t.mock.method(quoteCache, 'getQuotes', async () => quotesMapFor([['TINY', 5e7]])); // $50M — would have failed the old universe-scan floor

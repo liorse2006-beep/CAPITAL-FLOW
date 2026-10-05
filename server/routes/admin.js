@@ -125,11 +125,20 @@ router.post(
     if (!userId) return res.status(400).json({ error: 'Invalid user id' });
     const { tier } = req.body;
     if (!VALID_TIERS.has(tier)) return res.status(400).json({ error: 'tier must be free, premium, or elite' });
-    await db
-      .prepare('UPDATE users SET tier = ?, is_premium = ? WHERE id = ?')
-      .run(tier, tier !== 'free' ? 1 : 0, userId);
+    await db.transaction(async (tx) => {
+      const owner = await tx
+        .prepare('SELECT id FROM users WHERE id = ?' + (db.dialect === 'postgres' ? ' FOR UPDATE' : ''))
+        .get(userId);
+      if (!owner) return;
+      if (tier !== 'premium') await require('../services/whop').revokeUnusedCheckoutAuthorizations(userId, tx);
+      await tx
+        .prepare('UPDATE users SET tier = ?, is_premium = ? WHERE id = ?')
+        .run(tier, tier !== 'free' ? 1 : 0, userId);
+      await tx
+        .prepare('INSERT INTO admin_audit_log (actor, action, target_user_id, detail) VALUES (?, ?, ?, ?)')
+        .run(actor, 'set_tier', userId, tier);
+    });
     invalidateUserEntitlement(userId);
-    logAction(actor, 'set_tier', userId, tier);
     res.json({ ok: true, tier });
   })
 );
@@ -143,6 +152,7 @@ router.post(
     const userId = parsePositiveUserId(req.params.id);
     if (!userId) return res.status(400).json({ error: 'Invalid user id' });
     const { value } = req.body; // 1 or 0
+    if (![0, 1, false, true].includes(value)) return res.status(400).json({ error: 'Invalid pilot value' });
     await db.prepare('UPDATE users SET is_blocked = ? WHERE id = ?').run(value ? 1 : 0, userId);
     // is_blocked doesn't delete the user's sessions, so a blocked account's
     // cached resolveToken() result (see authMiddleware.js) would otherwise
@@ -175,11 +185,17 @@ router.delete(
       'push_subscriptions',
       'feedback',
       'scheduled_scans',
+      'scheduled_scan_runs',
+      'scheduled_digest_runs',
+      'notification_outbox',
+      'notification_push_receipts',
+      'status_admin_sessions',
       'notifications',
       'chat_messages',
       'ai_usage',
       'scan_reservations',
       'whop_payment_entitlements',
+      'whop_checkout_authorizations',
     ].map((table) => ({ sql: `DELETE FROM ${table} WHERE user_id = ?`, args: [userId] }));
     statements.push(
       {

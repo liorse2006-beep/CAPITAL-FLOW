@@ -3,10 +3,13 @@
 // service replies 404/410) must be pruned automatically so we stop wasting
 // calls on it and it doesn't accumulate forever.
 require('./helpers/testEnv');
-const { test, before } = require('node:test');
+const { test, before, beforeEach } = require('node:test');
 const assert = require('node:assert');
 
 const webpushLib = require('web-push');
+const pushTransport = require('../server/services/pushTransport');
+const keys1 = { p256dh: webpushLib.generateVAPIDKeys().publicKey, auth: Buffer.alloc(16, 1).toString('base64url') };
+const keys2 = { p256dh: webpushLib.generateVAPIDKeys().publicKey, auth: Buffer.alloc(16, 2).toString('base64url') };
 
 // web-push validates VAPID key format at setVapidDetails() time, so fake
 // strings would throw at module load — generate a real key pair for tests.
@@ -20,6 +23,10 @@ delete require.cache[require.resolve('../server/services/webPush')];
 
 const db = require('../server/db');
 const webPush = require('../server/services/webPush');
+const dns = require('node:dns').promises;
+beforeEach((t) => {
+  t.mock.method(dns, 'lookup', async () => [{ address: '8.8.8.8', family: 4 }]);
+});
 
 before(async () => {
   await db.ready;
@@ -30,13 +37,57 @@ async function makeUser(email) {
   return result.lastInsertRowid;
 }
 
+test('a retry only sends to the device whose prior push was not accepted', async (t) => {
+  const userId = await makeUser('push-receipts@test.local');
+  await db.prepare("UPDATE users SET tier = 'elite' WHERE id = ?").run(userId);
+  const notificationId = await require('../server/services/notifications').addNotification(userId, {
+    title: 'test',
+    body: 'test',
+  });
+  await webPush.saveSubscription(userId, { endpoint: 'https://push.example/accepted', keys: keys1 });
+  await webPush.saveSubscription(userId, { endpoint: 'https://push.example/retry', keys: keys2 });
+  let fail = true;
+  const sender = t.mock.method(pushTransport, 'sendNotification', async (sub) => {
+    if (fail && sub.endpoint.endsWith('/retry')) throw new Error('Synthetic provider failure');
+    return { statusCode: 201 };
+  });
+  const options = { notificationId };
+  const first = await webPush.sendPushToUser(userId, { title: 'test' }, options);
+  assert.equal(first.delivered, 1);
+  assert.equal(first.devices, 2);
+  fail = false;
+  const second = await webPush.sendPushToUser(userId, { title: 'test' }, options);
+  assert.equal(second.devices, 1);
+  assert.equal(second.delivered, 1);
+  assert.equal(second.acceptedPreviously, 1);
+  assert.equal(sender.mock.callCount(), 3);
+  assert.equal(sender.mock.calls[2].arguments[0].endpoint, 'https://push.example/retry');
+  const third = await webPush.sendPushToUser(userId, { title: 'test' }, options);
+  assert.equal(third.devices, 0);
+  assert.equal(third.acceptedPreviously, 2);
+  assert.equal(sender.mock.callCount(), 3);
+});
+
+test('a downgrade during DNS prevents a deferred push at the last delivery boundary', async (t) => {
+  const userId = await makeUser('push-lastmile@test.local');
+  await db.prepare("UPDATE users SET tier = 'elite' WHERE id = ?").run(userId);
+  await webPush.saveSubscription(userId, { endpoint: 'https://push.example/lastmile', keys: keys1 });
+  t.mock.method(dns, 'lookup', async () => {
+    await db.prepare("UPDATE users SET tier = 'premium' WHERE id = ?").run(userId);
+    return [{ address: '8.8.8.8', family: 4 }];
+  });
+  const sender = t.mock.method(pushTransport, 'sendNotification', async () => ({ statusCode: 201 }));
+  await webPush.sendPushToUser(userId, { title: 'test' }, { notificationId: 123456 });
+  assert.equal(sender.mock.callCount(), 0);
+});
+
 test('saveSubscription upserts by endpoint, keeping only the latest keys', async () => {
   const u = await makeUser('push-a@test.local');
-  await webPush.saveSubscription(u, { endpoint: 'https://push.example/1', keys: { p256dh: 'p1', auth: 'a1' } });
-  await webPush.saveSubscription(u, { endpoint: 'https://push.example/1', keys: { p256dh: 'p2', auth: 'a2' } });
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/1', keys: keys1 });
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/1', keys: keys2 });
 
   const row = await db.prepare('SELECT * FROM push_subscriptions WHERE endpoint = ?').get('https://push.example/1');
-  assert.strictEqual(row.p256dh, 'p2');
+  assert.strictEqual(row.p256dh, keys2.p256dh);
   assert.strictEqual(row.user_id, u);
 });
 
@@ -44,26 +95,109 @@ test('push subscriptions reject non-HTTPS and private endpoints before any outbo
   assert.strictEqual(webPush.isValidPushEndpoint('http://push.example/1'), false);
   assert.strictEqual(webPush.isValidPushEndpoint('https://127.0.0.1/1'), false);
   assert.strictEqual(webPush.isValidPushEndpoint('https://[::1]/1'), false);
+  for (const endpoint of [
+    'https://localhost./1',
+    'https://[::ffff:7f00:1]/1',
+    'https://[::ffff:a00:1]/1',
+    'https://push.example:8443/1',
+    'https://[2002:7f00:1::]/1',
+  ])
+    assert.equal(webPush.isValidPushEndpoint(endpoint), false);
   assert.strictEqual(webPush.isValidPushEndpoint('https://push.example/1'), true);
-  assert.strictEqual(
-    webPush.isValidSubscription({ endpoint: 'https://push.example/1', keys: { p256dh: 'p', auth: 'a' } }),
-    true
+  assert.strictEqual(webPush.isValidSubscription({ endpoint: 'https://push.example/1', keys: keys1 }), true);
+});
+
+test('DNS resolution to private or mixed addresses never reaches the push sender', async (t) => {
+  const userId = await makeUser('push-dns-denied@test.local');
+  await webPush.saveSubscription(userId, { endpoint: 'https://push.example/dns', keys: keys1 });
+  const sender = t.mock.method(pushTransport, 'sendNotification', async () => ({ statusCode: 201 }));
+  for (const records of [
+    [{ address: '127.0.0.1', family: 4 }],
+    [
+      { address: '8.8.8.8', family: 4 },
+      { address: '10.0.0.1', family: 4 },
+    ],
+    [{ address: '::ffff:7f00:1', family: 6 }],
+  ]) {
+    dns.lookup = async () => records;
+    const result = await webPush.sendPushToUser(userId, { title: 'Synthetic test' });
+    assert.equal(result.delivered, 0);
+  }
+  assert.equal(sender.mock.callCount(), 0);
+});
+
+test('public DNS addresses are pinned in the HTTPS agent without a second lookup', async (t) => {
+  const userId = await makeUser('push-dns-pin@test.local');
+  await webPush.saveSubscription(userId, { endpoint: 'https://push.example/pin', keys: keys1 });
+  let queries = 0;
+  dns.lookup = async () => {
+    queries++;
+    return [{ address: queries === 1 ? '8.8.8.8' : '127.0.0.1', family: 4 }];
+  };
+  t.mock.method(pushTransport, 'sendNotification', async (_subscription, _body, options) => {
+    const address = await new Promise((resolve, reject) =>
+      options.agent.options.lookup('push.example', { family: 4 }, (error, value) =>
+        error ? reject(error) : resolve(value)
+      )
+    );
+    assert.equal(address, '8.8.8.8');
+    return { statusCode: 201 };
+  });
+  assert.equal((await webPush.sendPushToUser(userId, { title: 'Synthetic test' })).delivered, 1);
+  assert.equal(queries, 1);
+});
+
+test('concurrent device registrations respect the capacity and allow updates at capacity', async () => {
+  const userId = await makeUser('push-device-cap@test.local');
+  const subscription = (index) => ({ endpoint: `https://push.example/cap-${index}`, keys: keys1 });
+  const attempts = await Promise.allSettled(
+    Array.from({ length: 20 }, (_, index) => webPush.saveSubscription(userId, subscription(index)))
+  );
+  assert.equal(attempts.filter((item) => item.status === 'fulfilled').length, webPush.MAX_PUSH_DEVICES);
+  assert.equal(
+    (await db.prepare('SELECT COUNT(*) AS total FROM push_subscriptions WHERE user_id = ?').get(userId)).total,
+    webPush.MAX_PUSH_DEVICES
+  );
+  await webPush.saveSubscription(userId, { ...subscription(0), keys: keys2 });
+});
+
+test('overlapping push batches share a process-wide concurrency bound', async (t) => {
+  const ids = await Promise.all(
+    ['push-pool-a', 'push-pool-b', 'push-pool-c'].map((name) => makeUser(`${name}@test.local`))
+  );
+  for (const userId of ids)
+    for (let index = 0; index < 10; index++)
+      await webPush.saveSubscription(userId, { endpoint: `https://push.example/pool-${userId}-${index}`, keys: keys1 });
+  let active = 0;
+  let peak = 0;
+  t.mock.method(pushTransport, 'sendNotification', async () => {
+    active++;
+    peak = Math.max(peak, active);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    active--;
+    return { statusCode: 201 };
+  });
+  const results = await Promise.all(ids.map((id) => webPush.sendPushToUser(id, { title: 'Synthetic test' })));
+  assert.ok(peak <= 8);
+  assert.equal(
+    results.reduce((sum, result) => sum + result.delivered, 0),
+    30
   );
 });
 
 test('sendPushToUser calls sendNotification once per subscription owned by that user', async () => {
   const u = await makeUser('push-b@test.local');
-  await webPush.saveSubscription(u, { endpoint: 'https://push.example/2', keys: { p256dh: 'p', auth: 'a' } });
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/2', keys: keys1 });
 
   const calls = [];
-  const original = webpushLib.sendNotification;
-  webpushLib.sendNotification = async (sub, body) => {
+  const original = pushTransport.sendNotification;
+  pushTransport.sendNotification = async (sub, body) => {
     calls.push({ sub, body });
   };
   try {
     await webPush.sendPushToUser(u, { title: 'hi' });
   } finally {
-    webpushLib.sendNotification = original;
+    pushTransport.sendNotification = original;
   }
 
   assert.strictEqual(calls.length, 1);
@@ -72,15 +206,15 @@ test('sendPushToUser calls sendNotification once per subscription owned by that 
 
 test('sendPushToUser returns a delivery summary proving the push service accepted it (201)', async () => {
   const u = await makeUser('push-summary@test.local');
-  await webPush.saveSubscription(u, { endpoint: 'https://push.example/sum', keys: { p256dh: 'p', auth: 'a' } });
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/sum', keys: keys1 });
 
-  const original = webpushLib.sendNotification;
-  webpushLib.sendNotification = async () => ({ statusCode: 201 });
+  const original = pushTransport.sendNotification;
+  pushTransport.sendNotification = async () => ({ statusCode: 201 });
   let summary;
   try {
     summary = await webPush.sendPushToUser(u, { title: 'hi' });
   } finally {
-    webpushLib.sendNotification = original;
+    pushTransport.sendNotification = original;
   }
 
   assert.strictEqual(summary.configured, true);
@@ -91,10 +225,10 @@ test('sendPushToUser returns a delivery summary proving the push service accepte
 
 test('sendPushToUser prunes a subscription that the push service reports as gone (410)', async () => {
   const u = await makeUser('push-c@test.local');
-  await webPush.saveSubscription(u, { endpoint: 'https://push.example/3', keys: { p256dh: 'p', auth: 'a' } });
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/3', keys: keys1 });
 
-  const original = webpushLib.sendNotification;
-  webpushLib.sendNotification = async () => {
+  const original = pushTransport.sendNotification;
+  pushTransport.sendNotification = async () => {
     const err = new Error('gone');
     err.statusCode = 410;
     throw err;
@@ -102,7 +236,7 @@ test('sendPushToUser prunes a subscription that the push service reports as gone
   try {
     await webPush.sendPushToUser(u, { title: 'hi' });
   } finally {
-    webpushLib.sendNotification = original;
+    pushTransport.sendNotification = original;
   }
 
   const row = await db.prepare('SELECT * FROM push_subscriptions WHERE endpoint = ?').get('https://push.example/3');
@@ -112,17 +246,17 @@ test('sendPushToUser prunes a subscription that the push service reports as gone
 test("sendPushToUser never touches another user's subscriptions", async () => {
   const alice = await makeUser('push-alice@test.local');
   const bob = await makeUser('push-bob@test.local');
-  await webPush.saveSubscription(bob, { endpoint: 'https://push.example/bob', keys: { p256dh: 'p', auth: 'a' } });
+  await webPush.saveSubscription(bob, { endpoint: 'https://push.example/bob', keys: keys1 });
 
   const calls = [];
-  const original = webpushLib.sendNotification;
-  webpushLib.sendNotification = async (sub) => {
+  const original = pushTransport.sendNotification;
+  pushTransport.sendNotification = async (sub) => {
     calls.push(sub);
   };
   try {
     await webPush.sendPushToUser(alice, { title: 'hi' });
   } finally {
-    webpushLib.sendNotification = original;
+    pushTransport.sendNotification = original;
   }
 
   assert.strictEqual(calls.length, 0, "alice has no subscriptions — bob's must not be sent to");
@@ -134,12 +268,12 @@ test('sendPushToUser reaches every device the user is subscribed on — phone AN
   // keyed by their own unique endpoint — see the saveSubscription test
   // above) must ALL get the same push in parallel, not just the most recent.
   const u = await makeUser('push-multidevice@test.local');
-  await webPush.saveSubscription(u, { endpoint: 'https://push.example/phone', keys: { p256dh: 'p1', auth: 'a1' } });
-  await webPush.saveSubscription(u, { endpoint: 'https://push.example/laptop', keys: { p256dh: 'p2', auth: 'a2' } });
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/phone', keys: keys1 });
+  await webPush.saveSubscription(u, { endpoint: 'https://push.example/laptop', keys: keys2 });
 
   const calls = [];
-  const original = webpushLib.sendNotification;
-  webpushLib.sendNotification = async (sub) => {
+  const original = pushTransport.sendNotification;
+  pushTransport.sendNotification = async (sub) => {
     calls.push(sub.endpoint);
     return { statusCode: 201 };
   };
@@ -147,7 +281,7 @@ test('sendPushToUser reaches every device the user is subscribed on — phone AN
   try {
     summary = await webPush.sendPushToUser(u, { title: 'hi' });
   } finally {
-    webpushLib.sendNotification = original;
+    pushTransport.sendNotification = original;
   }
 
   assert.strictEqual(summary.devices, 2);

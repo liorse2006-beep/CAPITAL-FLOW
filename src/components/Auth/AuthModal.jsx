@@ -213,7 +213,9 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
     try {
       const path = screen === 'reset' ? 'reset-password' : 'verify-otp';
       const body =
-        screen === 'reset' ? { email: pendingEmail, code: otp, newPassword } : { email: pendingEmail, code: otp };
+        screen === 'reset'
+          ? { email: pendingEmail, code: otp, newPassword }
+          : { email: pendingEmail, code: otp, password };
       const data = await api(path, body);
       login(data.token, data.user);
       onClose();

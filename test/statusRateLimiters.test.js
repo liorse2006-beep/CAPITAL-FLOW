@@ -144,14 +144,75 @@ test('status pages and status data require an authenticated operator session', a
     const summary = await fetch(`${baseUrl}/status/api/summary`, { headers: { Cookie: cookie } });
     assert.equal(summary.status, 200);
 
+    const rotatedLogin = await fetch(`${baseUrl}/status/api/admin/session`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'x-admin-token': process.env.STATUS_ADMIN_TOKEN },
+    });
+    assert.equal(rotatedLogin.status, 200);
+    const rotatedCookie = rotatedLogin.headers.get('set-cookie').split(';', 1)[0];
+    assert.equal(
+      (await fetch(`${baseUrl}/status/api/summary`, { headers: { Cookie: cookie } })).status,
+      401,
+      'replaced status sessions must be revoked'
+    );
+    const forbidden = await fetch(`${baseUrl}/status/api/admin/check-now`, {
+      method: 'POST',
+      headers: { Cookie: rotatedCookie, Origin: 'https://sibling.untrusted.example' },
+    });
+    assert.equal(forbidden.status, 403);
+
     const logout = await fetch(`${baseUrl}/status/api/admin/session/logout`, {
       method: 'POST',
-      headers: { Cookie: cookie },
+      headers: { Cookie: rotatedCookie + '; cf_status_admin=junk' },
     });
     assert.equal(logout.status, 200);
     assert.match(logout.headers.get('set-cookie') || '', /Max-Age=0/);
     const afterLogout = await fetch(`${baseUrl}/status/api/summary`);
     assert.equal(afterLogout.status, 401);
+    const replay = await fetch(`${baseUrl}/status/api/summary`, { headers: { Cookie: cookie } });
+    assert.equal(replay.status, 401, 'a copied status cookie must also be revoked on logout');
+    assert.equal(
+      (await fetch(`${baseUrl}/status/api/summary`, { headers: { Cookie: rotatedCookie } })).status,
+      401,
+      'ambiguous cookies must not silently skip revocation'
+    );
+  } finally {
+    server.close();
+  }
+});
+
+test('bearer-created status cookie follows current admin login revocation and block state', async () => {
+  const db = require('../server/db');
+  const auth = require('../server/services/auth');
+  await db.ready;
+  const inserted = await db
+    .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
+    .run(process.env.ADMIN_EMAIL);
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(inserted.lastInsertRowid);
+  const app = express();
+  app.use('/', statusRouter);
+  const server = await new Promise((resolve) => {
+    const instance = app.listen(0, () => resolve(instance));
+  });
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const login = async (accessToken) => {
+      const response = await fetch(`${baseUrl}/status/api/admin/session`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + accessToken },
+      });
+      assert.equal(response.status, 200);
+      return response.headers.get('set-cookie').split(';', 1)[0];
+    };
+    const session = await auth.issueToken(user);
+    const cookie = await login(session.accessToken);
+    assert.equal((await fetch(`${baseUrl}/status/api/summary`, { headers: { Cookie: cookie } })).status, 200);
+    await auth.revokeSession(session.sessionId, user.id);
+    assert.equal((await fetch(`${baseUrl}/status/api/summary`, { headers: { Cookie: cookie } })).status, 401);
+    const another = await auth.issueToken(user);
+    const anotherCookie = await login(another.accessToken);
+    await db.prepare('UPDATE users SET is_blocked = 1 WHERE id = ?').run(user.id);
+    assert.equal((await fetch(`${baseUrl}/status/api/summary`, { headers: { Cookie: anotherCookie } })).status, 401);
   } finally {
     server.close();
   }

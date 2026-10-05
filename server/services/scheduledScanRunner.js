@@ -3,6 +3,8 @@ const { reportError } = require('../utils/reportError');
 const { isMarketOpen, isPreMarket } = require('./backgroundScan');
 const { MA_PERIODS, MA_DISTANCES, MA_INTERVALS, MA_DIRECTIONS, CONDITION_MODES } = require('./radarLogic');
 const { marketSignalNotificationFor } = require('./marketSignalNotification');
+const crypto = require('node:crypto');
+const { hasDeferredAccess } = require('./deferredAccess');
 
 // Runs `worker` over every item with at most `limit` in flight at once — a
 // bounded fan-out. Used so that when hundreds of users are all scheduled for
@@ -87,6 +89,7 @@ function israelToday(now = new Date()) {
 function hhmmToMinutes(hhmm) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
   if (!m) return null;
+  if (Number(m[1]) > 23 || Number(m[2]) > 59) return null;
   return Number(m[1]) * 60 + Number(m[2]);
 }
 
@@ -160,16 +163,42 @@ async function refreshScheduledScanCache(options = {}) {
 }
 
 function dueScheduledScanRows(now = new Date()) {
-  const nowMinutes = israelNowMinutes(now);
+  return schedulerCache.scans.filter((schedule) => isScheduledScanDue(schedule, now));
+}
+
+function isScheduledScanDue(schedule, now) {
+  if (Number(schedule.active) !== 1) return false;
+  const time = hhmmToMinutes(schedule.scan_time);
+  if (time === null) return false;
   const today = israelToday(now);
-  const oneHourAgo = Math.floor(now.getTime() / 1000) - 3600;
-  return schedulerCache.scans.filter(
-    (schedule) =>
-      Number(schedule.active) === 1 &&
-      (schedule.last_run_at == null || Number(schedule.last_run_at) < oneHourAgo) &&
-      (schedule.scan_date == null || schedule.scan_date === today) &&
-      isDue(schedule.scan_time, nowMinutes)
-  );
+  if (schedule.scan_date != null) {
+    return schedule.scan_date < today || (schedule.scan_date === today && time <= israelNowMinutes(now));
+  }
+  if (time > israelNowMinutes(now)) return false;
+  if (schedule.last_run_at != null) {
+    const last = new Date(Number(schedule.last_run_at) * 1000);
+    if (israelToday(last) === today && israelNowMinutes(last) >= time) return false;
+  }
+  return true;
+}
+
+async function claimScheduledScan(schedule, now) {
+  if (!(await hasDeferredAccess(schedule.user_id))) return null;
+  const key = `${schedule.id}:${schedule.scan_date || israelToday(now)}:${schedule.scan_time}`;
+  const token = crypto.randomUUID();
+  const nowSec = Math.floor(Date.now() / 1000);
+  const result = await db.transaction(async (tx) => {
+    await tx
+      .prepare('INSERT OR IGNORE INTO scheduled_scan_runs (run_key, schedule_id, user_id) VALUES (?, ?, ?)')
+      .run(key, schedule.id, schedule.user_id);
+    return tx
+      .prepare(
+        'UPDATE scheduled_scan_runs SET claim_token = ?, lease_until = ? WHERE run_key = ? AND completed_at IS NULL AND lease_until <= ?'
+      )
+      .run(token, nowSec + 15 * 60, key, nowSec);
+  });
+  if (Number(result.changes ?? result.rowsAffected) !== 1) return null;
+  return { ...schedule, runKey: key, claimToken: token };
 }
 
 function dueRadarSlotKeys(now = new Date()) {
@@ -223,6 +252,7 @@ async function radarRunRecoveryState(radarId, runDate, scheduledTime, nowSeconds
 
 async function claimRadarRun(radarId, runDate, scheduledTime, nowSeconds) {
   const leaseUntil = nowSeconds + RADAR_RUN_LEASE_SECONDS;
+  const claimToken = crypto.randomUUID();
   // A worker can disappear after claiming a slot but before persisting its
   // result. Reclaim only an expired pending row; a failed row gets one
   // bounded retry inside the same delivery window, while completed rows
@@ -231,7 +261,7 @@ async function claimRadarRun(radarId, runDate, scheduledTime, nowSeconds) {
     .prepare(
       `UPDATE radar_schedule_runs
           SET started_at = ?, completed_at = NULL, status = 'pending',
-              error_code = NULL, error_json = NULL, lease_until = ?,
+              error_code = NULL, error_json = NULL, lease_until = ?, claim_token = ?,
               attempts = COALESCE(attempts, 0) + 1
         WHERE radar_id = ? AND run_date = ? AND scheduled_time = ?
           AND (
@@ -242,6 +272,7 @@ async function claimRadarRun(radarId, runDate, scheduledTime, nowSeconds) {
     .run(
       nowSeconds,
       leaseUntil,
+      claimToken,
       radarId,
       runDate,
       scheduledTime,
@@ -249,16 +280,16 @@ async function claimRadarRun(radarId, runDate, scheduledTime, nowSeconds) {
       MAX_RADAR_RUN_ATTEMPTS,
       nowSeconds - RADAR_RECOVERY_WINDOW_MIN * 60
     );
-  if (Number(recovered && (recovered.rowsAffected ?? recovered.changes ?? 0)) > 0) return true;
+  if (Number(recovered && (recovered.rowsAffected ?? recovered.changes ?? 0)) > 0) return claimToken;
 
   const result = await db
     .prepare(
       `INSERT OR IGNORE INTO radar_schedule_runs
-        (radar_id, run_date, scheduled_time, started_at, status, attempts, lease_until)
-       VALUES (?, ?, ?, ?, 'pending', 1, ?)`
+        (radar_id, run_date, scheduled_time, started_at, status, attempts, lease_until, claim_token)
+       VALUES (?, ?, ?, ?, 'pending', 1, ?, ?)`
     )
-    .run(radarId, runDate, scheduledTime, nowSeconds, leaseUntil);
-  return Number(result && (result.rowsAffected ?? result.changes ?? 0)) > 0;
+    .run(radarId, runDate, scheduledTime, nowSeconds, leaseUntil, claimToken);
+  return Number(result && (result.rowsAffected ?? result.changes ?? 0)) > 0 ? claimToken : null;
 }
 
 async function finishRadarRuns(runs, status, resultCount, errorCode, metadata = {}) {
@@ -273,7 +304,7 @@ async function finishRadarRuns(runs, status, resultCount, errorCode, metadata = 
               SET status = ?, completed_at = ?, result_count = ?, error_code = ?,
                   error_json = ?, lease_until = NULL, scan_id = ?, data_status = ?,
                   data_as_of = ?, capital_flow_count = ?, ma_count = ?
-            WHERE radar_id = ? AND run_date = ? AND scheduled_time = ?`
+            WHERE radar_id = ? AND run_date = ? AND scheduled_time = ? AND claim_token = ? AND status = 'pending'`
         )
         .run(
           status,
@@ -288,7 +319,8 @@ async function finishRadarRuns(runs, status, resultCount, errorCode, metadata = 
           metadata.maCount == null ? null : metadata.maCount,
           run.radarId,
           run.runDate,
-          run.scheduledTime
+          run.scheduledTime,
+          run.claimToken
         )
     )
   );
@@ -396,12 +428,24 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
         }
       }
       try {
-        if (await claimRadarRun(row.id, runDate, scheduledTime, nowSeconds)) {
-          const recipe = normalizedRadarRecipe(row);
+        const current = await db
+          .prepare('SELECT * FROM capital_flow_radars WHERE id = ? AND active = 1 AND expires_on >= ?')
+          .get(row.id, runDate);
+        if (
+          !current ||
+          ![current.schedule_time_1, current.schedule_time_2].includes(scheduledTime) ||
+          !(await require('./deferredAccess').hasDeferredAccess(current.user_id))
+        )
+          continue;
+        const claimToken = await claimRadarRun(row.id, runDate, scheduledTime, nowSeconds);
+        if (claimToken) {
+          const recipe = normalizedRadarRecipe(current);
           dueRuns.push({
             radarId: Number(row.id),
             runDate,
             scheduledTime,
+            claimToken,
+            originalRecipe: require('./radar').rowToConfig(current),
             ...recipe,
           });
         } else {
@@ -600,7 +644,18 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
     const scanTime = new Date().toISOString();
 
     try {
-      await require('./radar').processRadarScan(compositeResults, scanTime, {
+      const runClaims = Object.fromEntries(
+        runs.map((run) => [
+          String(run.radarId),
+          {
+            runDate: run.runDate,
+            scheduledTime: run.scheduledTime,
+            claimToken: run.claimToken,
+            originalRecipe: run.originalRecipe,
+          },
+        ])
+      );
+      const processedEvents = await require('./radar').processRadarScan(compositeResults, scanTime, {
         errors,
         unavailableCapitalFlowSymbols: [...new Set([...capitalFlowErrors, ...capitalFlowStaleSymbols])],
         unavailableMovingAverageSymbols: [...new Set([...maErrors, ...maStaleSymbols])],
@@ -615,6 +670,7 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
         conditionVersion: first.conditionVersion,
         maDirection: 'all',
         conditionStatusByRadarId,
+        runClaims,
       });
       await saveRadarRunSnapshot({
         scanId,
@@ -632,8 +688,13 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
         checkedCount: checkedSymbols.length,
         errors,
       });
-      const unavailableRuns = runs.filter((run) => conditionStatusByRadarId[String(run.radarId)] === 'unavailable');
-      const completedRuns = runs.filter((run) => conditionStatusByRadarId[String(run.radarId)] !== 'unavailable');
+      const failures = new Set(processedEvents.failedRadarIds || []);
+      const unavailableRuns = runs.filter(
+        (run) => conditionStatusByRadarId[String(run.radarId)] === 'unavailable' || failures.has(run.radarId)
+      );
+      const completedRuns = runs.filter(
+        (run) => conditionStatusByRadarId[String(run.radarId)] !== 'unavailable' && !failures.has(run.radarId)
+      );
       if (unavailableRuns.length > 0) retryRequested = true;
       if (completedRuns.length > 0) {
         await finishRadarRuns(completedRuns, 'completed', compositeResults.length, null, {
@@ -662,6 +723,17 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
       retryRequested = true;
       try {
         await require('./radar').markRadarsUnavailable(groupIds, {
+          runClaims: Object.fromEntries(
+            runs.map((run) => [
+              String(run.radarId),
+              {
+                runDate: run.runDate,
+                scheduledTime: run.scheduledTime,
+                claimToken: run.claimToken,
+                originalRecipe: run.originalRecipe,
+              },
+            ])
+          ),
           scanId,
           errors: [err.code || 'PROCESSING_FAILED'],
           dataAsOf: capitalFlowAsOf || maAsOf || null,
@@ -765,17 +837,6 @@ async function notifyScheduledUser(sched, scan) {
   const results = Array.isArray(normalized.results) ? normalized.results : [];
   const rawResults = results;
 
-  // A one-time schedule (scan_date set) has done its one job — deactivate it
-  // the moment it fires so it can't run again. A recurring one (scan_date
-  // null) stays active for tomorrow.
-  await db
-    .prepare(
-      `UPDATE scheduled_scans
-       SET last_run_at = ?, last_result_count = ?, active = CASE WHEN scan_date IS NOT NULL THEN 0 ELSE active END
-       WHERE id = ?`
-    )
-    .run(Math.floor(Date.now() / 1000), results.length, sched.id);
-
   // Every fired schedule gets one short status notification. Any returned row
   // uses the normal signal copy; only a completely empty result set uses the
   // neutral retry message.
@@ -792,32 +853,54 @@ async function notifyScheduledUser(sched, scan) {
   // No `symbol` here — this is a digest of possibly many results (the body
   // says "N stocks moving right now"), so a single ticker would misrepresent
   // it as being about one stock. scanType is what the bell uses to label it.
-  var notifId = null;
-  try {
-    notifId = await require('./notifications').addNotification(sched.user_id, {
-      title,
-      body,
-      scanType: sched.scan_type,
-      results,
-    });
-  } catch (notifErr) {
-    reportError(notifErr, '[ScheduledScans] Persisting notification failed');
-  }
+  const notifId = await db.transaction(async (tx) => {
+    if (!(await hasDeferredAccess(sched.user_id, tx))) return null;
+    const current = await tx
+      .prepare('SELECT * FROM scheduled_scans WHERE id = ? AND user_id = ? AND active = 1')
+      .get(sched.id, sched.user_id);
+    if (!current || current.scan_time !== sched.scan_time || current.scan_date !== sched.scan_date) return null;
+    const completed = await tx
+      .prepare(
+        'UPDATE scheduled_scan_runs SET completed_at = ? WHERE run_key = ? AND claim_token = ? AND completed_at IS NULL AND lease_until > ?'
+      )
+      .run(Math.floor(Date.now() / 1000), sched.runKey, sched.claimToken, Math.floor(Date.now() / 1000));
+    if (Number(completed.changes ?? completed.rowsAffected) !== 1) return null;
+    const id = await require('./notifications').addNotification(
+      sched.user_id,
+      {
+        title,
+        body,
+        scanType: sched.scan_type,
+        results,
+        dataStatus: normalized.dataStatus,
+        dataAsOf: normalized.dataAsOf,
+        pushPayload: {
+          title,
+          body,
+          data: {
+            scanType: sched.scan_type,
+            resultCount: results.length,
+            url: SCAN_URL[sched.scan_type] || '/scanner',
+          },
+        },
+      },
+      tx
+    );
+    await tx
+      .prepare(
+        'UPDATE scheduled_scans SET last_run_at = ?, last_result_count = ?, active = CASE WHEN scan_date IS NOT NULL THEN 0 ELSE active END WHERE id = ?'
+      )
+      .run(Math.floor(Date.now() / 1000), results.length, sched.id);
+    await tx
+      .prepare('UPDATE scheduled_scan_runs SET notification_id = ? WHERE run_key = ? AND claim_token = ?')
+      .run(id, sched.runKey, sched.claimToken);
+    return id;
+  });
+  if (!notifId || !(await hasDeferredAccess(sched.user_id))) return;
 
   let pushSummary = null;
   try {
-    const { sendPushToUser } = require('./webPush');
-    var baseUrl = SCAN_URL[sched.scan_type] || '/scanner';
-    pushSummary = await sendPushToUser(sched.user_id, {
-      title,
-      body,
-      tag: 'scheduled-scan-' + sched.scan_type,
-      data: {
-        scanType: sched.scan_type,
-        resultCount: results.length,
-        url: notifId ? baseUrl + '?notif=' + notifId : baseUrl,
-      },
-    });
+    pushSummary = await require('./notificationOutbox').dispatchNotification(notifId);
   } catch (pushErr) {
     reportError(pushErr, '[ScheduledScans] Push failed');
   }
@@ -834,27 +917,20 @@ async function notifyScheduledUser(sched, scan) {
 }
 
 async function runScheduledScansCycle(now = new Date()) {
-  const nowMinutes = israelNowMinutes(now);
-  const oneHourAgo = Math.floor(now.getTime() / 1000) - 3600;
-
   let rows;
   try {
-    rows = await db
-      .prepare(
-        `SELECT * FROM scheduled_scans
-         WHERE active = 1
-           AND (last_run_at IS NULL OR last_run_at < ?)`
-      )
-      .all(oneHourAgo);
+    rows = await db.prepare('SELECT * FROM scheduled_scans WHERE active = 1').all();
   } catch (err) {
     reportError(err, '[ScheduledScans] DB error');
     return false;
   }
 
-  const today = israelToday(now);
-  const due = rows.filter(
-    (sched) => (sched.scan_date == null || sched.scan_date === today) && isDue(sched.scan_time, nowMinutes)
-  );
+  const due = [];
+  for (const schedule of rows) {
+    if (!isScheduledScanDue(schedule, now)) continue;
+    const claimed = await claimScheduledScan(schedule, now);
+    if (claimed) due.push(claimed);
+  }
   if (due.length === 0) return true;
 
   // Group by scan type → one scan each, fanned out to every subscriber.
@@ -884,7 +960,21 @@ async function runScheduledScansCycle(now = new Date()) {
     // shared by hundreds of users clears in a fraction of the time a
     // sequential loop would take — and one slow/failed push never blocks the
     // rest.
-    await mapWithConcurrency(scheds, 10, (sched) => notifyScheduledUser(sched, scan));
+    await mapWithConcurrency(scheds, 10, async (sched) => {
+      try {
+        await notifyScheduledUser(sched, scan);
+      } catch (error) {
+        // A rolled-back outcome remains runnable. If a commit actually
+        // succeeded despite a lost response, the completed guard prevents
+        // this release from reopening it or generating a duplicate.
+        await db
+          .prepare(
+            'UPDATE scheduled_scan_runs SET lease_until = 0 WHERE run_key = ? AND claim_token = ? AND completed_at IS NULL'
+          )
+          .run(sched.runKey, sched.claimToken);
+        throw error;
+      }
+    });
   }
   return true;
 }
@@ -977,6 +1067,8 @@ function startScheduledScanRunner() {
 module.exports = {
   startScheduledScanRunner,
   runScheduledScans,
+  runScheduledScansCycle,
+  isScheduledScanDue,
   refreshScheduledScanCache,
   runRadarScheduledScans,
   normalizedRadarRecipe,
