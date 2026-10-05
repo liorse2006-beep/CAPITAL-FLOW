@@ -53,6 +53,8 @@ test('GET /api/chart returns unavailable when no complete historical candle exis
     assert.equal(response.status, 503);
     const body = await response.json();
     assert.match(body.error, /not available right now/i);
+    assert.equal(body.dataStatus, 'unavailable');
+    assert.equal(body.quoteDataStatus, 'unavailable');
   } finally {
     server.close();
   }
@@ -385,6 +387,39 @@ test('warm chart cache cannot keep a current price after its provider timestamp 
     assert.equal(body.currentPrice, null);
     assert.equal(body.quotes.length, 1);
     assert.equal(quoteCalls, 2);
+  } finally {
+    server.close();
+  }
+});
+
+test('public chart keeps customer data-quality states when provider diagnostics are stripped', async (t) => {
+  const symbol = 'CHARTPUB';
+  const finnhub = require('../server/services/finnhub');
+  t.mock.method(finnhub, 'fetchFinnhubQuote', async () => null);
+  t.mock.method(yahoo, 'quote', async () => null);
+  t.mock.method(yahoo, 'chart', async () => ({
+    ...validChart(symbol),
+    quotes: [validCandle(), { ...validCandle(), high: null }],
+  }));
+  const app = express();
+  app.use(require('../server/middleware/publicResponseSanitizer').publicResponseSanitizer);
+  app.use('/api', freshChartRouter());
+  const token = await makeUser('chart-public@test.local');
+  const server = await new Promise((resolve) => {
+    const listener = app.listen(0, () => resolve(listener));
+  });
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await fetch(`http://127.0.0.1:${server.address().port}/api/chart/${symbol}`, {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+      const body = await response.json();
+      assert.equal(response.status, 200);
+      assert.equal(body.dataProvenance, undefined);
+      assert.equal(body.dataStatus, 'partial');
+      assert.equal(body.quoteDataStatus, 'unavailable');
+      assert.equal(body.currentPrice, null);
+    }
   } finally {
     server.close();
   }

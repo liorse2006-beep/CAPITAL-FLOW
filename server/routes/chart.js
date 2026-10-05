@@ -72,6 +72,8 @@ function validatedCurrentPrice(input) {
 function unavailableChart(res) {
   return res.status(503).json({
     error: 'Chart data is not available right now. Try again in a few minutes.',
+    dataStatus: 'unavailable',
+    quoteDataStatus: 'unavailable',
     dataProvenance: buildFinancialProvenance({
       status: 'unavailable',
       quoteStatus: 'unavailable',
@@ -225,6 +227,8 @@ router.get('/chart/:symbol', requirePremiumOrTrial, async (req, res) => {
       currency: 'USD',
       period,
       interval,
+      dataStatus: historicalStatus,
+      quoteDataStatus: currentPrice?.dataStatus || 'unavailable',
       dataAsOf: currentPrice?.dataAsOf || historicalAsOf || null,
       dataProvenance: buildFinancialProvenance({
         dataAsOf: currentPrice?.dataAsOf || historicalAsOf || null,
