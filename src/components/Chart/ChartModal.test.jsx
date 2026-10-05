@@ -64,6 +64,22 @@ async function openChart(data) {
 }
 
 describe('chart customer-facing data quality', () => {
+  it('provides an accessible close control with a long company name', async () => {
+    const onClose = vi.fn();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, json: async () => payload() }))
+    );
+    render(
+      <ChartModal
+        symbol="TEST"
+        name="A very long company name that must not push the close button outside the viewport"
+        onClose={onClose}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Close chart', exact: true }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
   it('keeps a verified current price and displays its provider observation time', async () => {
     await openChart(payload());
     expect(await screen.findByText(/price as of/i)).toBeInTheDocument();

@@ -126,3 +126,34 @@ test('oversized delivery closes the connection and frees its capacity', async ()
     connection.controller.abort();
   }
 });
+
+test('restart ends active event streams, refuses late admissions, and lets HTTP close cleanly', async () => {
+  const a = await owner('stream-shutdown');
+  const one = await open(a);
+  const two = await open(a);
+  try {
+    stream.closeAllStreams();
+    stream.closeAllStreams(); // Repeated shutdown signals must be harmless.
+    assert.equal(stream.clientCount(), 0);
+    assert.equal((await read(one.reader)).done, true, 'restart must end the stream, not destroy its transport');
+    assert.equal((await read(two.reader)).done, true);
+    const late = await fetch(`${base}/stream?ticket=${encodeURIComponent(issueSseTicket(a.user.id, a.sessionId))}`);
+    assert.equal(late.status, 503);
+    assert.equal(late.headers.get('Retry-After'), '5');
+    assert.match((await late.json()).error, /restarting/);
+    let timer;
+    try {
+      await Promise.race([
+        new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('HTTP close waited for an event stream')), 1000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  } finally {
+    one.controller.abort();
+    two.controller.abort();
+  }
+});

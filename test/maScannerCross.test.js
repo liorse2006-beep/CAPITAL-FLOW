@@ -8,6 +8,7 @@ const assert = require('node:assert');
 const db = require('../server/db');
 const yahoo = require('../server/services/yahoo');
 const quoteCache = require('../server/services/quoteCache');
+const { latestCompletedSessionDate } = require('../server/services/marketCalendar');
 const { scanMA } = require('../server/services/maScanner');
 
 const { before } = require('node:test');
@@ -30,7 +31,8 @@ function quotesMapFor(symbol, price) {
 }
 
 function closesToQuotes(closes) {
-  return closes.map((close, i) => ({ close, date: new Date(Date.now() - (closes.length - i) * 864e5) }));
+  const latest = Date.parse(latestCompletedSessionDate(new Date(Date.now())) + 'T14:30:00.000Z');
+  return closes.map((close, i) => ({ close, date: new Date(latest - (closes.length - 1 - i) * 864e5) }));
 }
 
 test('daysSinceCross finds a real crossing from a genuine V-shaped price history', async (t) => {
@@ -43,7 +45,10 @@ test('daysSinceCross finds a real crossing from a genuine V-shaped price history
   const closes = [...down, ...up];
 
   t.mock.method(quoteCache, 'getQuotes', async () => quotesMapFor('VSHAPE', closes[closes.length - 1]));
-  t.mock.method(yahoo, 'chart', async () => ({ quotes: closesToQuotes(closes) }));
+  t.mock.method(yahoo, 'chart', async (symbol) => ({
+    meta: { symbol, currency: 'USD' },
+    quotes: closesToQuotes(closes),
+  }));
 
   const { results } = await scanMA(['VSHAPE'], { ma: 20, distance: 100, interval: '1d' });
   assert.strictEqual(results.length, 1);
@@ -61,7 +66,10 @@ test('daysSinceCross is null (never a fabricated number) when the price never cr
   const closes = Array.from({ length: 40 }, (_, i) => 50 + i);
 
   t.mock.method(quoteCache, 'getQuotes', async () => quotesMapFor('NOCROSS', closes[closes.length - 1]));
-  t.mock.method(yahoo, 'chart', async () => ({ quotes: closesToQuotes(closes) }));
+  t.mock.method(yahoo, 'chart', async (symbol) => ({
+    meta: { symbol, currency: 'USD' },
+    quotes: closesToQuotes(closes),
+  }));
 
   const { results } = await scanMA(['NOCROSS'], { ma: 20, distance: 100, interval: '1d' });
   assert.strictEqual(results.length, 1);
@@ -74,7 +82,10 @@ test('daysSinceCross is null when there is not enough history to check the full 
   const closes = Array.from({ length: 20 }, () => 100);
 
   t.mock.method(quoteCache, 'getQuotes', async () => quotesMapFor('THIN', 100));
-  t.mock.method(yahoo, 'chart', async () => ({ quotes: closesToQuotes(closes) }));
+  t.mock.method(yahoo, 'chart', async (symbol) => ({
+    meta: { symbol, currency: 'USD' },
+    quotes: closesToQuotes(closes),
+  }));
 
   const { results } = await scanMA(['THIN'], { ma: 20, distance: 100, interval: '1d' });
   assert.strictEqual(results.length, 1);

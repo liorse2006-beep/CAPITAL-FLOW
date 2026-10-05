@@ -1,6 +1,7 @@
 const yahooFinance = require('./yahoo');
 const quoteCache = require('./quoteCache');
 const { buildFinancialProvenance, MOVING_AVERAGE_SOURCES } = require('./financialProvenance');
+const { latestCompletedSessionDate, sessionDateForTimestamp } = require('./marketCalendar');
 
 const CHART_BATCH_SIZE = 20;
 const CHART_DELAY_MS = 250;
@@ -11,32 +12,93 @@ const MIN_MKT_CAP = 300_000_000;
 // rather than a fabricated number.
 const CROSS_LOOKBACK_BARS = 10;
 
-// Daily closes cache — the expensive half of an MA scan is fetching a chart
-// per symbol (hundreds of HTTP calls per scan). Closing prices gain at most
-// one new bar per day, so within a 24h window the closes fetched for the
-// first scan are still correct for every later scan. Live price still comes
-// fresh from the Phase-1 quote — only the historical closes are reused.
+// Reuse verified historical closes, but never let the cache TTL hide a newly
+// completed exchange session. Cache/request time is not a bar observation.
 const CLOSES_TTL_MS = 24 * 60 * 60 * 1000;
-const closesCache = new Map(); // `${symbol}|${interval}` → { closes, fetchedAt }
+const closesCache = new Map(); // `${symbol}|${interval}` → { closes, asOf, fetchedAt }
+const YAHOO_ALIASES = { 'BRK.B': 'BRK-B', 'BF.B': 'BF-B' };
 
 function finiteOrNull(value) {
-  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && !/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())) return null;
   const number = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(number) ? number : null;
 }
 
-function getCachedCloses(symbol, interval, minBars) {
+function historyIsCurrent(asOf, interval, now = Date.now()) {
+  const timestamp = Date.parse(asOf);
+  if (!Number.isFinite(timestamp) || timestamp > now + 300000) return false;
+  const latestSession = latestCompletedSessionDate(new Date(now));
+  const startDate = sessionDateForTimestamp(timestamp);
+  if (!startDate) return false;
+  if (interval === '1d') return startDate >= latestSession;
+  if (interval !== '1wk') return false;
+  // A weekly candle is stamped at the start of its period, not Friday's
+  // close. Its seven-day period must cover the most recent completed session.
+  const end = new Date(startDate + 'T00:00:00.000Z');
+  end.setUTCDate(end.getUTCDate() + 6);
+  return end.toISOString().slice(0, 10) >= latestSession;
+}
+
+function invalidHistory(reason) {
+  const error = new Error('Moving average history could not be verified');
+  error.code = reason;
+  return error;
+}
+
+function verifiedHistory(chart, symbol, interval) {
+  const expected = YAHOO_ALIASES[symbol] || symbol;
+  if (typeof chart?.meta?.symbol !== 'string' || chart.meta.symbol.trim().toUpperCase() !== expected) {
+    throw invalidHistory('MA_HISTORY_SYMBOL');
+  }
+  if (chart.meta.currency !== 'USD') throw invalidHistory('MA_HISTORY_CURRENCY');
+  if (!Array.isArray(chart.quotes) || !chart.quotes.length) throw invalidHistory('MA_HISTORY_EMPTY');
+  const now = Date.now();
+  const seen = new Set();
+  const bars = chart.quotes
+    .map((bar) => {
+      const rawDate = bar?.date;
+      if (!(rawDate instanceof Date) && typeof rawDate !== 'string' && typeof rawDate !== 'number') {
+        throw invalidHistory('MA_HISTORY_TIMESTAMP');
+      }
+      if (rawDate === '') throw invalidHistory('MA_HISTORY_TIMESTAMP');
+      const date = rawDate instanceof Date ? rawDate : new Date(rawDate);
+      const timestamp = date.getTime();
+      const close = finiteOrNull(bar?.close);
+      if (!Number.isFinite(timestamp) || timestamp <= 0 || timestamp > now + 300000) {
+        throw invalidHistory('MA_HISTORY_TIMESTAMP');
+      }
+      if (seen.has(timestamp)) throw invalidHistory('MA_HISTORY_DUPLICATE');
+      if (close === null || close <= 0) throw invalidHistory('MA_HISTORY_CLOSE');
+      seen.add(timestamp);
+      return { timestamp, close };
+    })
+    .sort((a, b) => a.timestamp - b.timestamp);
+  // Do not drop malformed bars and compress a different sequence into SMA(n).
+  const asOf = new Date(bars.at(-1).timestamp).toISOString();
+  if (!historyIsCurrent(asOf, interval, now)) throw invalidHistory('MA_HISTORY_STALE');
+  return { closes: bars.map((bar) => bar.close), asOf };
+}
+
+function getCachedHistory(symbol, interval, minBars) {
   const e = closesCache.get(symbol + '|' + interval);
   if (!e) return null;
-  if (Date.now() - e.fetchedAt >= CLOSES_TTL_MS) return null;
+  if (
+    Date.now() - e.fetchedAt < 0 ||
+    Date.now() - e.fetchedAt >= CLOSES_TTL_MS ||
+    !historyIsCurrent(e.asOf, interval)
+  ) {
+    closesCache.delete(symbol + '|' + interval);
+    return null;
+  }
   // A cached window fetched for a small MA can't serve a larger one — e.g.
   // closes fetched for SMA20 don't have the 150 bars SMA150 needs.
   if (e.closes.length < minBars) return null;
-  return e.closes;
+  return e;
 }
 
-function setCachedCloses(symbol, interval, closes) {
-  closesCache.set(symbol + '|' + interval, { closes, fetchedAt: Date.now() });
+function setCachedHistory(symbol, interval, history) {
+  closesCache.set(symbol + '|' + interval, { ...history, fetchedAt: Date.now() });
 }
 
 function sleep(ms) {
@@ -136,18 +198,25 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
       addError(sym);
       return;
     }
-    const price = Number(q.regularMarketPrice);
-    const marketCap = Number(q.marketCap);
-    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(marketCap) || marketCap <= 0) {
+    const price = finiteOrNull(q.regularMarketPrice);
+    const marketCap = finiteOrNull(q.marketCap);
+    if (
+      price === null ||
+      price <= 0 ||
+      marketCap === null ||
+      marketCap <= 0 ||
+      String(q.symbol || '')
+        .trim()
+        .toUpperCase() !== sym ||
+      (q.currency != null && q.currency !== 'USD')
+    ) {
       addError(sym);
       return;
     }
-    checkedSymbols.add(
-      String(q.symbol || sym)
-        .trim()
-        .toUpperCase()
-    );
-    if (marketCap < MIN_MKT_CAP) return;
+    if (marketCap < MIN_MKT_CAP) {
+      checkedSymbols.add(sym);
+      return;
+    }
     qualified.push({ symbol: sym, q });
   });
 
@@ -165,28 +234,27 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
     const batchRes = await Promise.all(
       batch.map(async ({ symbol, q }) => {
         try {
-          let closes = getCachedCloses(symbol, interval, ma + CROSS_LOOKBACK_BARS + 1);
-          if (closes === null) {
+          let history = getCachedHistory(symbol, interval, ma + CROSS_LOOKBACK_BARS + 1);
+          if (history === null) {
             batchFetches++;
-            const chart = await yahooFinance.chart(symbol, {
+            const chart = await yahooFinance.chart(YAHOO_ALIASES[symbol] || symbol, {
               period1: new Date(Date.now() - lb),
               interval,
             });
-            closes = (chart?.quotes || [])
-              .filter((x) => x?.close != null && Number.isFinite(Number(x.close)))
-              .sort((a, b) => new Date(a.date) - new Date(b.date))
-              .map((x) => Number(x.close));
-            setCachedCloses(symbol, interval, closes);
+            history = verifiedHistory(chart, symbol, interval);
+            setCachedHistory(symbol, interval, history);
           }
           phase2Done++;
 
+          const closes = history.closes;
           const maValue = sma(closes, ma);
-          if (maValue === null) {
+          if (maValue === null || !Number.isFinite(maValue) || maValue <= 0) {
             addError(symbol);
             return null;
           }
 
-          const price = q.regularMarketPrice;
+          checkedSymbols.add(symbol);
+          const price = finiteOrNull(q.regularMarketPrice);
           const pctDist = ((price - maValue) / maValue) * 100;
           if (Math.abs(pctDist) > distance) return null;
           if (direction === 'above' && pctDist < 0) return null;
@@ -207,6 +275,7 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
             maInterval: interval,
             maDirection: pctDist >= 0 ? 'above' : 'below',
             dataQuality: 'complete',
+            historyAsOf: history.asOf,
             quoteDataStatus: staleQuoteSymbols.has(String(symbol).trim().toUpperCase()) ? 'stale' : 'complete',
             quoteAsOf:
               quoteCache.providerTimestampMs(q) === null
@@ -217,9 +286,14 @@ async function scanMA(tickers, { ma, distance, interval, direction = 'all', onPr
             // the lookback window — see daysSinceCross's own doc comment.
             daysSinceCross: daysSinceCross(closes, ma),
           };
-        } catch {
+        } catch (err) {
           addError(symbol);
           phase2Done++;
+          console.warn('[MA Scanner] History unavailable', {
+            symbol,
+            reason: /^MA_HISTORY_[A-Z_]+$/.test(err?.code || '') ? err.code : 'PROVIDER_FAILURE',
+            timestamp: new Date().toISOString(),
+          });
           return null;
         }
       })

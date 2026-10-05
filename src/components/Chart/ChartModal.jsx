@@ -418,7 +418,11 @@ export default function ChartModal({ symbol, name, onClose }) {
             React.createElement('span', { className: 'chart-ma-label' }, 'MA50')
           )
         ),
-        React.createElement('button', { className: 'chart-modal-close', onClick: onClose }, '✕')
+        React.createElement(
+          'button',
+          { className: 'chart-modal-close', 'aria-label': 'Close chart', onClick: onClose },
+          '✕'
+        )
       ),
 
       // ── Period Tabs ──────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ before(async () => {
 
 const yahoo = require('../server/services/yahoo');
 const quoteCache = require('../server/services/quoteCache');
+const { latestCompletedSessionDate } = require('../server/services/marketCalendar');
 const { scanMA } = require('../server/services/maScanner');
 
 function quotesMapFor(symbols) {
@@ -33,12 +34,18 @@ function quotesMapFor(symbols) {
 // 40 flat closes at 100 → SMA20 = 100, price 100 → distance 0%, matches.
 // (40, not 20, because the cache now also needs to cover
 // CROSS_LOOKBACK_BARS of history behind the MA window itself.)
-const CLOSES = Array.from({ length: 40 }, (_, i) => ({ close: 100, date: new Date(Date.now() - (40 - i) * 864e5) }));
+function currentCloses(count) {
+  const latest = Date.parse(latestCompletedSessionDate(new Date(Date.now())) + 'T14:30:00.000Z');
+  return Array.from({ length: count }, (_, i) => ({ close: 100, date: new Date(latest - (count - 1 - i) * 864e5) }));
+}
 
 test('a second same-day MA scan reuses cached closes instead of refetching charts', async (t) => {
   const symbols = ['CACH1', 'CACH2', 'CACH3'];
   t.mock.method(quoteCache, 'getQuotes', async () => quotesMapFor(symbols));
-  const chartMock = t.mock.method(yahoo, 'chart', async () => ({ quotes: CLOSES }));
+  const chartMock = t.mock.method(yahoo, 'chart', async (symbol) => ({
+    meta: { symbol, currency: 'USD' },
+    quotes: currentCloses(40),
+  }));
 
   const first = await scanMA(symbols, { ma: 20, distance: 2, interval: '1d' });
   assert.strictEqual(first.results.length, 3);
@@ -54,12 +61,12 @@ test('a larger MA than the cached window covers triggers a refetch for that symb
   t.mock.method(quoteCache, 'getQuotes', async () => quotesMapFor(symbols));
 
   // First scan: small window (40 bars) cached by the SMA20 scan above's pattern
-  const small = Array.from({ length: 40 }, (_, i) => ({ close: 100, date: new Date(Date.now() - (40 - i) * 864e5) }));
-  const big = Array.from({ length: 200 }, (_, i) => ({ close: 100, date: new Date(Date.now() - (200 - i) * 864e5) }));
+  const small = currentCloses(40);
+  const big = currentCloses(200);
   let calls = 0;
-  t.mock.method(yahoo, 'chart', async () => {
+  t.mock.method(yahoo, 'chart', async (symbol) => {
     calls++;
-    return { quotes: calls === 1 ? small : big };
+    return { meta: { symbol, currency: 'USD' }, quotes: calls === 1 ? small : big };
   });
 
   await scanMA(symbols, { ma: 20, distance: 2, interval: '1d' });

@@ -32,8 +32,9 @@ const runAccessCheck = require('../services/boundedQueue').createBoundedQueue({
 });
 let queuedBytes = 0;
 const accessChecks = new Map();
+let closing = false;
 
-function closeClient(client) {
+function closeClient(client, gracefully = false) {
   if (client.closed) return;
   client.closed = true;
   clearInterval(client.keepAlive);
@@ -43,7 +44,16 @@ function closeClient(client) {
   client.queue.length = 0;
   clients.delete(client);
   client.cancelDrain?.();
-  client.res.destroy();
+  if (gracefully) client.res.end();
+  else client.res.destroy();
+}
+
+// Event streams are deliberately long-lived; HTTP server.close() alone
+// cannot drain them. End existing streams and refuse late admissions while
+// the instance restarts. Stored notifications remain available on reconnect.
+function closeAllStreams() {
+  closing = true;
+  for (const client of clients) closeClient(client, true);
 }
 
 function checkAccess(client) {
@@ -169,6 +179,10 @@ router.get('/stream-ticket', requireEliteOrTrial, (req, res) => {
 });
 
 router.get('/stream', sseStreamLimiter, requirePremiumSSE, (req, res) => {
+  if (closing) {
+    res.setHeader('Retry-After', '5');
+    return res.status(503).json({ error: 'Capital Flow is restarting. Please try again shortly.' });
+  }
   const userStreams = [...clients].filter((client) => client.userId === req.user.id);
   if (
     clients.size >= MAX_STREAMS_PER_WORKER ||
@@ -303,4 +317,4 @@ function clientCount() {
   return clients.size;
 }
 
-module.exports = { router, broadcast, broadcastToUser, clientCount };
+module.exports = { router, broadcast, broadcastToUser, clientCount, closeAllStreams };
