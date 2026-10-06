@@ -1,0 +1,96 @@
+.seo-discovery-content {
+  width: min(1140px, calc(100% - 32px));
+  margin: 48px auto 32px;
+  padding: 28px clamp(16px, 3vw, 32px) 22px;
+  border-top: 1px solid var(--border-strong, rgba(255, 255, 255, 0.12));
+  color: var(--text-2, #a0a0a8);
+  font-family: var(--font, sans-serif);
+  line-height: 1.65;
+}
+
+.seo-discovery-content:empty {
+  display: none;
+}
+
+.seo-discovery-content h1,
+.seo-discovery-content h2 {
+  color: var(--text-1, #f5f5f5);
+  letter-spacing: -0.025em;
+}
+
+.seo-discovery-content h1 {
+  margin: 0 0 10px;
+  font-size: clamp(22px, 2.4vw, 30px);
+  line-height: 1.2;
+}
+
+.seo-discovery-intro {
+  max-width: 82ch;
+  margin: 0 0 22px;
+}
+
+.seo-discovery-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 12px;
+}
+
+.seo-discovery-section {
+  padding: 16px 18px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.seo-discovery-content h2 {
+  margin: 0 0 7px;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.seo-discovery-section p,
+.seo-discovery-disclaimer {
+  margin: 0;
+  font-size: 13px;
+}
+
+.seo-discovery-disclaimer {
+  margin-top: 16px;
+  max-width: 92ch;
+  color: var(--text-3, #888);
+}
+
+.seo-discovery-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 16px;
+  font-size: 12px;
+}
+
+.seo-discovery-links > span {
+  color: var(--text-3, #888);
+}
+
+.seo-discovery-links a {
+  color: var(--accent, #f59e0b);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.seo-discovery-links a:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+  .seo-discovery-content {
+    margin-top: 32px;
+    padding-top: 22px;
+  }
+
+  .seo-discovery-section {
+    padding: 14px;
+  }
+}

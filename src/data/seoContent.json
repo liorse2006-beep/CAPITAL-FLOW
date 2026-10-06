@@ -1,0 +1,129 @@
+{
+  "/": {
+    "id": "capital-flow-home",
+    "title": "סורק מניות וכלי מחקר לשוק ההון",
+    "intro": "Capital Flow הוא כלי חינוכי למחקר וסינון מניות: בדיקת נפח מסחר חריג, השוואה לממוצעים נעים, סקירת פעילות בסקטורים ועיון במדדים פיננסיים זמינים.",
+    "sections": [
+      {
+        "title": "סורק מניות לפי נפח מסחר חריג",
+        "body": "סורק הנפח משווה בין נפח המסחר המדווח לבין ממוצע ייחוס זמין, ומאפשר לסנן מניות לפי יחס נפח, שווי שוק ונפח מינימלי. אפשר לבחור מתוך קבוצות המניות הזמינות במערכת; כיסוי הנתונים משתנה לפי הסמל והמקור הזמין."
+      },
+      {
+        "title": "ממוצעים נעים, סקטורים ויסודות החברה",
+        "body": "כלים נוספים מאפשרים לסקור מרחק מממוצעים נעים, להשוות תנועת מחיר ונפח בין סקטורים ולעיין במדדים פיננסיים זמינים. תצוגת הסקטורים אינה מזהה בוודאות זרימת הון מוסדית, והמדדים אינם תחזית לביצועי מניה."
+      }
+    ],
+    "disclaimer": "נתוני שוק עשויים להיות מעוכבים, מוערכים או חלקיים. Capital Flow מיועד למטרות לימוד ומידע בלבד ואינו ייעוץ השקעות; יש לאמת מידע באופן עצמאי.",
+    "links": [
+      { "href": "/scanner", "label": "סורק נפח מסחר חריג" },
+      { "href": "/ma", "label": "סורק ממוצעים נעים" },
+      { "href": "/flow", "label": "פעילות בסקטורים" },
+      { "href": "/fundamentals", "label": "נתונים פיננסיים" }
+    ]
+  },
+  "/scanner": {
+    "id": "volume-scanner",
+    "title": "Unusual Volume Stock Scanner",
+    "intro": "Capital Flow compares reported trading volume with a recent average to help screen for unusual activity in selected U.S. stock universes. Choose all stocks, the S&P 500, NASDAQ 100 or sector groups, then narrow the list with volume-ratio, market-cap and minimum-volume filters.",
+    "sections": [
+      {
+        "title": "How volume screening works",
+        "body": "A volume ratio compares displayed trading volume with a recent average-volume baseline. Filters help you review symbols that meet the thresholds you choose; a high ratio alone does not explain why activity changed or predict what a stock will do next."
+      },
+      {
+        "title": "Choose a market universe and review results",
+        "body": "Run a scan across the available stock list, the S&P 500, NASDAQ 100 or selected sectors. Review the symbol, price, volume ratio, average volume and other available fields before deciding what to research further."
+      }
+    ],
+    "disclaimer": "Market data may be delayed, estimated or incomplete. Results are for educational and informational purposes only, are not investment advice, and should be independently verified.",
+    "links": [
+      { "href": "/ma", "label": "Moving Average Scanner" },
+      { "href": "/flow", "label": "Sector Performance" },
+      { "href": "/fundamentals", "label": "Stock Fundamentals" }
+    ]
+  },
+  "/ma": {
+    "id": "moving-average-scanner",
+    "title": "Moving Average Stock Scanner",
+    "intro": "Use the Capital Flow moving average scanner to review selected U.S. stocks by their distance from a simple moving average (SMA). Choose SMA 9, 20, 50 or 150, set a distance threshold, and scan on a daily or weekly timeframe.",
+    "sections": [
+      {
+        "title": "Screen stocks by moving-average distance",
+        "body": "The scanner organizes available symbols by the displayed price distance from the selected SMA. You can choose all stocks, the S&P 500, NASDAQ 100 or sector groups, then review the results and inspect individual symbols."
+      },
+      {
+        "title": "Use moving averages as one research input",
+        "body": "A moving average summarizes past prices over a chosen period. Proximity to an SMA is a screening condition, not a forecast or a buy or sell recommendation; consider it alongside other independently verified information."
+      }
+    ],
+    "disclaimer": "Market data may be delayed, estimated or incomplete. Capital Flow is an educational and informational tool, not investment advice. Verify data independently before relying on it.",
+    "links": [
+      { "href": "/scanner", "label": "Unusual Volume Scanner" },
+      { "href": "/flow", "label": "Sector Performance" },
+      { "href": "/fundamentals", "label": "Stock Fundamentals" }
+    ]
+  },
+  "/flow": {
+    "id": "sector-performance",
+    "title": "Stock Sector Performance and Market Activity",
+    "intro": "Capital Flow's sector view helps compare available price and volume movement across market sectors. Use the heatmap to see how the sectors represented in the app are changing, then review individual symbols or return to a stock scanner for more context.",
+    "sections": [
+      {
+        "title": "Compare market sectors",
+        "body": "The sector heatmap summarizes available sector-market information in one view. Color and displayed figures are a way to compare the presented data, not proof of institutional buying, selling or future performance."
+      },
+      {
+        "title": "Check the context behind a move",
+        "body": "Sector-level activity can help organize further research, but it does not explain the cause of a price or volume change. Review the underlying symbols and independently verify information before drawing conclusions."
+      }
+    ],
+    "disclaimer": "Market data may be delayed, estimated or incomplete. This educational view is not investment advice; verify information independently.",
+    "links": [
+      { "href": "/scanner", "label": "Unusual Volume Scanner" },
+      { "href": "/ma", "label": "Moving Average Scanner" },
+      { "href": "/fundamentals", "label": "Stock Fundamentals" }
+    ]
+  },
+  "/fundamentals": {
+    "id": "stock-fundamentals",
+    "title": "Stock Fundamentals Research",
+    "intro": "Review available company and valuation metrics in Capital Flow, including P/E, forward P/E, PEG, debt-to-equity, growth, float, short interest and earnings information. Metric availability can vary by symbol.",
+    "sections": [
+      {
+        "title": "Compare company metrics with context",
+        "body": "Valuation ratios, growth figures and balance-sheet measures describe different aspects of a company. They are not directly interchangeable, and any single metric is insufficient to establish whether a stock is attractive or fairly valued."
+      },
+      {
+        "title": "Verify missing or changing information",
+        "body": "Financial fields may be unavailable, delayed or reported for different periods. Check the date, definition and original company disclosures for information that matters to your research."
+      }
+    ],
+    "disclaimer": "Capital Flow provides educational and informational tools, not investment advice. Financial and market data may be delayed, estimated or incomplete; verify independently.",
+    "links": [
+      { "href": "/scanner", "label": "Unusual Volume Scanner" },
+      { "href": "/ma", "label": "Moving Average Scanner" },
+      { "href": "/flow", "label": "Sector Performance" }
+    ]
+  },
+  "/watchlist": {
+    "id": "stock-watchlist",
+    "title": "Stock Watchlist and Price Alerts",
+    "intro": "Use the Capital Flow watchlist to keep selected stock symbols together, review available quote information and manage supported price or volume alerts from one place.",
+    "sections": [
+      {
+        "title": "Organize symbols for follow-up",
+        "body": "A watchlist is a research aid for keeping track of symbols you want to revisit. It does not represent ownership, portfolio performance or a recommendation to trade."
+      },
+      {
+        "title": "Treat alerts as prompts to review",
+        "body": "Alerts can draw attention to a configured price or volume condition. Confirm the latest information in context; alert delivery and market data can be delayed or unavailable."
+      }
+    ],
+    "disclaimer": "Market data may be delayed, estimated or incomplete. Capital Flow is for educational and informational use, not investment advice.",
+    "links": [
+      { "href": "/scanner", "label": "Unusual Volume Scanner" },
+      { "href": "/ma", "label": "Moving Average Scanner" },
+      { "href": "/fundamentals", "label": "Stock Fundamentals" }
+    ]
+  }
+}

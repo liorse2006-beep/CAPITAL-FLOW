@@ -231,7 +231,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
   useSeo({
     title: 'Fundamental Stock Analysis | Capital Flow',
     description:
-      'Review P/E, forward P/E, PEG, debt-to-equity, growth, float, short interest, and earnings data for a stock.',
+      'Review available P/E, forward P/E, PEG, debt-to-equity, growth, float, short interest, and earnings data. Availability varies by symbol; data may be delayed or incomplete.',
     path: '/fundamentals',
   });
 

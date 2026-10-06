@@ -202,9 +202,9 @@ export default function ScannerPage({
   onEnablePush,
 }) {
   useSeo({
-    title: 'Capital Flow — סורק נפח מסחר בזמן אמת ל-S&P 500 ו-NASDAQ 100',
+    title: 'Unusual Volume Stock Scanner | Capital Flow',
     description:
-      'סרקו את כל שוק המניות בלחיצה אחת, מצאו תנועות נפח חריגות ופוטנציאל פריצה, ופתחו בדיקה מסודרת על כל מניה — בלי לעבור על עשרות טאבים. 7 ימי ניסיון חינם.',
+      'Screen selected stock universes for unusual trading volume with volume-ratio, market-cap and volume filters. Market data may be delayed or incomplete; educational use only.',
     path: '/scanner',
   });
   const [currentTime, setCurrentTime] = useState(null);

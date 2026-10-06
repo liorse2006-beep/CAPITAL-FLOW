@@ -49,8 +49,9 @@ export default function MAScannerPage({
   onEnablePush,
 }) {
   useSeo({
-    title: 'סורק ממוצעים נעים (Moving Average) למניות | Capital Flow',
-    description: 'סרקו מניות לפי חציות ממוצעים נעים ואיתותי מגמה, ומצאו הזדמנויות טכניות בשוק במהירות.',
+    title: 'Moving Average Stock Scanner | Capital Flow',
+    description:
+      'Scan selected U.S. stock universes for proximity to 9, 20, 50 and 150 simple moving averages on daily or weekly timeframes. Market data may be delayed or incomplete.',
     path: '/ma',
   });
   const { getToken, user } = useAuth();

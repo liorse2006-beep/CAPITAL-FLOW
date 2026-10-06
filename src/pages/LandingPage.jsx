@@ -49,9 +49,9 @@ function mountTopography(root) {
 function LandingPage({ onGetStarted }) {
   const rootRef = useRef(null);
   useSeo({
-    title: 'Capital Flow — מה שכל סוחר צריך, במקום אחד',
+    title: 'Capital Flow — סורק מניות, נפח מסחר ומגמות',
     description:
-      'Capital Flow עוזר לך לסרוק את השוק, למצוא מניות עם תנועה חריגה ולפתוח בדיקה מסודרת — בלי לעבור על עשרות טאבים. מתחילים ב־7 ימים בחינם.',
+      'כלי חינוכי לסריקת מניות לפי נפח מסחר חריג, ממוצעים נעים ופעילות בסקטורים. נתוני שוק עשויים להיות מעוכבים או חלקיים ויש לאמת מידע באופן עצמאי.',
     path: '/',
   });
 

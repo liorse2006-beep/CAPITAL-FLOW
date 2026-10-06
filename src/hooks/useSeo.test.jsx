@@ -7,6 +7,7 @@ const ORIGINAL_DESCRIPTION = 'Original description';
 const ORIGINAL_CANONICAL = 'https://capitalflow.vip/';
 
 function seedHead() {
+  document.body.innerHTML = '<div id="root"></div><section id="seo-route-content"></section>';
   document.head.innerHTML = `
     <title>${ORIGINAL_TITLE}</title>
     <meta name="description" content="${ORIGINAL_DESCRIPTION}" />
@@ -70,5 +71,22 @@ describe('useSeo', () => {
     unmount();
     expect(document.title).toBe(ORIGINAL_TITLE);
     expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', ORIGINAL_CANONICAL);
+  });
+
+  it('updates crawl copy on client navigation and clears it when the route unmounts', () => {
+    const { rerender, unmount } = renderHook((props) => useSeo(props), {
+      initialProps: { title: 'Scanner', description: 'Scanner description', path: '/scanner' },
+    });
+    const content = document.querySelector('#seo-route-content');
+
+    expect(content.textContent).toContain('Unusual Volume Stock Scanner');
+    expect(content.querySelector('a[href="/ma"]')).not.toBeNull();
+
+    rerender({ title: 'Moving Average', description: 'MA description', path: '/ma' });
+    expect(content.textContent).toContain('Moving Average Stock Scanner');
+    expect(content.textContent).not.toContain('Unusual Volume Stock Scanner');
+
+    unmount();
+    expect(content.innerHTML).toBe('');
   });
 });

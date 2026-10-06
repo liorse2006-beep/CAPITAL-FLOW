@@ -95,9 +95,9 @@ export default function WatchlistPage({
   onCreateAccount,
 }) {
   useSeo({
-    title: 'Stock Watchlist | Capital Flow',
+    title: 'Stock Watchlist & Alerts | Capital Flow',
     description:
-      'Track favorite stock symbols, review current quotes, and manage price alerts in one focused watchlist.',
+      'Track selected stock symbols, review available quote information, and manage supported price or volume alerts. Market data may be delayed or incomplete.',
     path: '/watchlist',
   });
 

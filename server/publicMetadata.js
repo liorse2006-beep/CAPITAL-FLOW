@@ -1,40 +1,41 @@
 const fs = require('fs');
+const SEO_CONTENT = require('../src/data/seoContent.json');
 
 const SITE_URL = 'https://capitalflow.vip';
 
-// Keep the public route metadata in one trusted server-side map. Client-side
-// useSeo still updates metadata after React mounts, but crawlers and social
-// link unfurlers often inspect the initial HTML without running the bundle.
-// These values are product copy, never request-controlled input.
+// Keep route metadata and crawlable route copy in trusted server-side maps.
+// Crawlers and link unfurlers may inspect the initial HTML before running the
+// client bundle. These values are product copy, never request-controlled input.
 const ROUTE_METADATA = Object.freeze({
   '/': {
-    title: 'Capital Flow — מה שכל סוחר צריך, במקום אחד',
+    title: 'Capital Flow — סורק מניות, נפח מסחר ומגמות',
     description:
-      'Capital Flow עוזר לך לסרוק את השוק, למצוא מניות עם תנועה חריגה ולפתוח בדיקה מסודרת — בלי לעבור על עשרות טאבים. מתחילים ב־7 ימים בחינם.',
+      'כלי חינוכי לסריקת מניות לפי נפח מסחר חריג, ממוצעים נעים ופעילות בסקטורים. נתוני שוק עשויים להיות מעוכבים או חלקיים ויש לאמת מידע באופן עצמאי.',
   },
   '/scanner': {
-    title: 'Capital Flow — סורק נפח מסחר בזמן אמת ל-S&P 500 ו-NASDAQ 100',
+    title: 'Unusual Volume Stock Scanner | Capital Flow',
     description:
-      'סרקו את כל שוק המניות בלחיצה אחת, מצאו תנועות נפח חריגות ופוטנציאל פריצה, ופתחו בדיקה מסודרת על כל מניה — בלי לעבור על עשרות טאבים. 7 ימי ניסיון חינם.',
+      'Screen selected stock universes for unusual trading volume with volume-ratio, market-cap and volume filters. Market data may be delayed or incomplete; educational use only.',
   },
   '/ma': {
-    title: 'סורק ממוצעים נעים (Moving Average) למניות | Capital Flow',
-    description: 'סרקו מניות לפי חציות ממוצעים נעים ואיתותי מגמה, ומצאו הזדמנויות טכניות בשוק במהירות.',
+    title: 'Moving Average Stock Scanner | Capital Flow',
+    description:
+      'Scan selected U.S. stock universes for proximity to 9, 20, 50 and 150 simple moving averages on daily or weekly timeframes. Market data may be delayed or incomplete.',
   },
   '/flow': {
-    title: 'מעקב תזרים הון לפי סקטורים בזמן אמת | Capital Flow',
+    title: 'Stock Sector Performance | Capital Flow',
     description:
-      'ראו לאן זורם הכסף בשוק המניות: מעקב אחר תזרים כניסות ויציאות לפי סקטור, בזמן אמת, כדי לזהות מגמות לפני כולם.',
+      'Review price and volume movement across market sectors with Capital Flow. Market data may be delayed or incomplete; verify information independently.',
   },
   '/fundamentals': {
     title: 'Fundamental Stock Analysis | Capital Flow',
     description:
-      'Review P/E, forward P/E, PEG, debt-to-equity, growth, float, short interest, and earnings data for a stock.',
+      'Review available P/E, forward P/E, PEG, debt-to-equity, growth, float, short interest, and earnings data. Availability varies by symbol; data may be delayed or incomplete.',
   },
   '/watchlist': {
-    title: 'Stock Watchlist | Capital Flow',
+    title: 'Stock Watchlist & Alerts | Capital Flow',
     description:
-      'Track favorite stock symbols, review current quotes, and manage price alerts in one focused watchlist.',
+      'Track selected stock symbols, review available quote information, and manage supported price or volume alerts. Market data may be delayed or incomplete.',
   },
   '/policy': {
     title: 'מדיניות פרטיות | Capital Flow',
@@ -76,6 +77,26 @@ function replaceHrefAttribute(html, selector, value) {
   return html.replace(expression, `$1${escapeHtml(value)}$2`);
 }
 
+function renderSeoContent(content) {
+  if (!content) return '';
+
+  const sections = content.sections
+    .map(
+      (section) =>
+        `<article class="seo-discovery-section"><h2>${escapeHtml(section.title)}</h2><p>${escapeHtml(section.body)}</p></article>`
+    )
+    .join('');
+  const links = content.links
+    .map((link) => {
+      const href = String(link.href || '');
+      if (!href.startsWith('/') || href.startsWith('//')) return '';
+      return `<a href="${escapeHtml(href)}">${escapeHtml(link.label)}</a>`;
+    })
+    .join('');
+
+  return `<h2 id="${escapeHtml(content.id)}-title">${escapeHtml(content.title)}</h2><p class="seo-discovery-intro">${escapeHtml(content.intro)}</p><div class="seo-discovery-sections">${sections}</div><p class="seo-discovery-disclaimer">${escapeHtml(content.disclaimer)}</p><nav class="seo-discovery-links" aria-label="Explore Capital Flow tools"><span>Explore other tools</span>${links}</nav>`;
+}
+
 function renderPublicMetadata(html, pathname) {
   const metadata = getPublicMetadata(pathname);
   if (!metadata) return html;
@@ -89,6 +110,11 @@ function renderPublicMetadata(html, pathname) {
   rendered = replaceContentAttribute(rendered, `meta\\s+name=["']twitter:title["']`, metadata.title);
   rendered = replaceContentAttribute(rendered, `meta\\s+name=["']twitter:description["']`, metadata.description);
   rendered = replaceHrefAttribute(rendered, `link\\s+rel=["']canonical["']`, canonical);
+  const contentMarkup = renderSeoContent(SEO_CONTENT[normalizePath(pathname)]);
+  rendered = rendered.replace(
+    /(<section\s+id=["']seo-route-content["'][^>]*>)[\s\S]*?(<\/section>)/i,
+    (_match, open, close) => `${open}${contentMarkup}${close}`
+  );
   return rendered;
 }
 

@@ -24,9 +24,9 @@ export default function MoneyFlow({
   onEnablePush,
 }) {
   useSeo({
-    title: 'מעקב תזרים הון לפי סקטורים בזמן אמת | Capital Flow',
+    title: 'Stock Sector Performance | Capital Flow',
     description:
-      'ראו לאן זורם הכסף בשוק המניות: מעקב אחר תזרים כניסות ויציאות לפי סקטור, בזמן אמת, כדי לזהות מגמות לפני כולם.',
+      'Review price and volume movement across market sectors with Capital Flow. Market data may be delayed or incomplete; verify information independently.',
     path: '/flow',
   });
   const { user, getToken } = useAuth();
