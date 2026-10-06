@@ -58,6 +58,7 @@ COPY --from=builder /app/dist         ./dist
 COPY --from=builder /app/public       ./public
 COPY server.js tickers.js scanner.js monitor.js backup.js ./
 COPY server ./server
+COPY --from=builder /app/src/data/seoContent.json ./src/data/seoContent.json
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 

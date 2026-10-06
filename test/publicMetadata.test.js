@@ -1,5 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const { getPublicMetadata, renderPublicMetadata } = require('../server/publicMetadata');
 
@@ -21,6 +23,11 @@ test('public route metadata is available for every indexable app route', () => {
   }
   assert.equal(getPublicMetadata('/fundamentals/').title, getPublicMetadata('/fundamentals').title);
   assert.equal(getPublicMetadata('/private-area'), null);
+});
+
+test('Docker runtime image includes the route content required by server-side rendering', () => {
+  const dockerfile = fs.readFileSync(path.join(__dirname, '..', 'Dockerfile'), 'utf8');
+  assert.match(dockerfile, /COPY --from=builder \/app\/src\/data\/seoContent\.json \.\/src\/data\/seoContent\.json/);
 });
 
 test('server-rendered route metadata replaces the SPA defaults without trusting the URL as content', () => {
