@@ -9213,6 +9213,22 @@ html.a11y-highlight-links a {
   padding: 4px;
 }
 
+.auth-verification {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+}
+.auth-verification p {
+  margin: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.auth-verification .auth-link-btn {
+  color: var(--accent);
+  min-height: 44px;
+}
+
 .auth-error {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);

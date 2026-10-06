@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import useModalA11y from '../../hooks/useModalA11y';
-
-const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'; // test key
+import Turnstile from './Turnstile';
+import { authRequest } from './authRequest';
 
 function OTPInput({ length = 6, value, onChange }) {
   const inputs = useRef([]);
@@ -54,59 +54,6 @@ function OTPInput({ length = 6, value, onChange }) {
   );
 }
 
-function Turnstile({ onVerify, onExpire }) {
-  const containerRef = useRef(null);
-  const widgetId = useRef(null);
-
-  const render = useCallback(() => {
-    if (!containerRef.current || !window.turnstile) return;
-    if (widgetId.current != null) return;
-    widgetId.current = window.turnstile.render(containerRef.current, {
-      sitekey: TURNSTILE_SITE_KEY,
-      callback: (token) => onVerify(token),
-      'expired-callback': () => {
-        onExpire();
-        widgetId.current = null;
-      },
-      theme: 'dark',
-    });
-  }, [onVerify, onExpire]);
-
-  useEffect(() => {
-    if (window.turnstile) {
-      render();
-      return;
-    }
-    if (document.getElementById('cf-turnstile-script')) {
-      const interval = setInterval(() => {
-        if (window.turnstile) {
-          clearInterval(interval);
-          render();
-        }
-      }, 100);
-      return () => clearInterval(interval);
-    }
-    const script = document.createElement('script');
-    script.id = 'cf-turnstile-script';
-    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
-    script.async = true;
-    script.defer = true;
-    script.onload = render;
-    document.head.appendChild(script);
-  }, [render]);
-
-  useEffect(() => {
-    return () => {
-      if (widgetId.current != null && window.turnstile) {
-        window.turnstile.remove(widgetId.current);
-        widgetId.current = null;
-      }
-    };
-  }, []);
-
-  return <div ref={containerRef} />;
-}
-
 function decodeJwtEmail(token) {
   try {
     const payload = token.split('.')[1];
@@ -134,13 +81,18 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
   const [newPassword, setNewPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
+  const resendTimer = useRef(null);
+
+  useEffect(() => () => clearInterval(resendTimer.current), []);
 
   function startResendCooldown() {
     setResendCooldown(60);
-    const t = setInterval(() => {
+    clearInterval(resendTimer.current);
+    resendTimer.current = setInterval(() => {
       setResendCooldown((c) => {
         if (c <= 1) {
-          clearInterval(t);
+          clearInterval(resendTimer.current);
           return 0;
         }
         return c - 1;
@@ -153,20 +105,11 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
     setLoading(false);
   }
 
-  async function api(path, body) {
-    const res = await fetch(`/api/auth/${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Request failed');
-    return data;
-  }
+  const api = authRequest;
 
   async function handleSignUp(e) {
     e.preventDefault();
+    if (!captchaToken) return handleErr('Complete verification before creating your account.');
     setLoading(true);
     setError('');
     try {
@@ -181,6 +124,7 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
     } catch (err) {
       handleErr(err.message);
       setCaptchaToken('');
+      setCaptchaResetKey((value) => value + 1);
     }
   }
 
@@ -194,7 +138,7 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
       onClose();
       setLoading(false);
     } catch (err) {
-      if (err.message.includes('not verified')) {
+      if (err.needsVerification) {
         setPendingEmail(email);
         setScreen('otp');
         startResendCooldown();
@@ -334,8 +278,11 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
 
             <form onSubmit={screen === 'signup' ? handleSignUp : handleLogin}>
               <div className="auth-field">
-                <label className="auth-label">Email</label>
+                <label className="auth-label" htmlFor="auth-email">
+                  Email
+                </label>
                 <input
+                  id="auth-email"
                   className="auth-input"
                   type="email"
                   placeholder="you@example.com"
@@ -346,27 +293,43 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
                 />
               </div>
               <div className="auth-field">
-                <label className="auth-label">Password</label>
+                <label className="auth-label" htmlFor="auth-password">
+                  Password
+                </label>
                 <input
+                  id="auth-password"
                   className="auth-input"
                   type="password"
                   placeholder={screen === 'signup' ? 'Min 8 characters' : 'Your password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  minLength={screen === 'signup' ? 8 : undefined}
                   autoComplete={screen === 'signup' ? 'new-password' : 'current-password'}
                 />
               </div>
 
               {screen === 'signup' && (
                 <div className="auth-captcha-wrap">
-                  <Turnstile onVerify={(token) => setCaptchaToken(token)} onExpire={() => setCaptchaToken('')} />
+                  <Turnstile
+                    onVerify={setCaptchaToken}
+                    onExpire={() => setCaptchaToken('')}
+                    resetKey={captchaResetKey}
+                  />
                 </div>
               )}
 
-              {error && <div className="auth-error">{error}</div>}
+              {error && (
+                <div className="auth-error" role="alert">
+                  {error}
+                </div>
+              )}
 
-              <button className="auth-submit-btn" type="submit" disabled={loading}>
+              <button
+                className="auth-submit-btn"
+                type="submit"
+                disabled={loading || (screen === 'signup' && !captchaToken)}
+              >
                 {loading ? 'Please wait…' : screen === 'signup' ? 'Create Account' : 'Log In'}
               </button>
 

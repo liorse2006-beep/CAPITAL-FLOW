@@ -187,20 +187,44 @@ function clearRefreshCookie(res) {
 /* ── Cloudflare Turnstile verification ── */
 async function verifyTurnstile(token) {
   const secret = TURNSTILE_SECRET || HCAPTCHA_SECRET; // fallback for legacy env
-  if (!secret) return true; // bypass when not configured
+  if (!secret) {
+    if (process.env.NODE_ENV !== 'production') return true;
+    reportError(new Error('Signup verification is not configured'), '[verifyTurnstile]');
+    return false;
+  }
   // Once a secret is configured, a missing token is a hard failure — the
   // old "degrade gracefully" path meant any bot could skip the CAPTCHA
   // entirely by simply not sending one, leaving the rate limiter as the
   // only signup protection.
-  if (!token) return false;
+  if (typeof token !== 'string' || !token.trim() || token.length > 2048) return false;
   const params = new URLSearchParams({ secret, response: token });
   try {
     const res = await fetchWithTimeout('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
       method: 'POST',
       body: params,
     });
+    if (!res.ok) {
+      reportError(new Error('Signup verification service is unavailable'), '[verifyTurnstile]');
+      return false;
+    }
     const data = await res.json();
-    return data.success === true;
+    if (data?.success === true) return true;
+    // Only allow-listed diagnostic codes reach operator logs. Never log the
+    // challenge token, secret, email, or the provider's complete response.
+    const knownCodes = new Set([
+      'missing-input-secret',
+      'invalid-input-secret',
+      'missing-input-response',
+      'invalid-input-response',
+      'bad-request',
+      'timeout-or-duplicate',
+      'internal-error',
+    ]);
+    const codes = Array.isArray(data?.['error-codes'])
+      ? data['error-codes'].filter((code) => knownCodes.has(code)).slice(0, 5)
+      : [];
+    console.warn('[verifyTurnstile] Verification rejected', { codes });
+    return false;
   } catch (err) {
     // A hung/failed Turnstile call must fail closed (reject the signup),
     // not hang the request forever — the old bare fetch() had no timeout.

@@ -7,8 +7,8 @@
 // Reproduced live (typed digits, clicked Verify, zero network request fired)
 // before the fix, then confirmed the fix by rebuilding and repeating the
 // same click-through against a real running server.
-import { it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, act, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AuthModal from './AuthModal';
 import { AuthProvider } from '../../context/AuthContext';
@@ -20,6 +20,7 @@ function mockFetchSequence(responses) {
     call++;
     return Promise.resolve({
       ok: res.ok !== false,
+      status: res.status || (res.ok === false ? 400 : 200),
       json: () => Promise.resolve(res.body),
     });
   });
@@ -27,6 +28,19 @@ function mockFetchSequence(responses) {
 
 beforeEach(() => {
   localStorage.clear();
+  window.turnstile = {
+    render: vi.fn((container, options) => {
+      queueMicrotask(() => options.callback('test-challenge-token'));
+      return 'test-widget';
+    }),
+    remove: vi.fn(),
+  };
+});
+
+afterEach(() => {
+  cleanup();
+  delete window.turnstile;
+  vi.unstubAllGlobals();
 });
 
 it('the OTP Verify button is enabled (not stuck on the signup loading state) once the code screen appears', async () => {
@@ -83,4 +97,65 @@ it('closes the authentication dialog from its close button', async () => {
   await user.click(screen.getByRole('button', { name: 'Close' }));
 
   expect(onClose).toHaveBeenCalledOnce();
+});
+
+it('does not submit signup until verification succeeds, including on Enter', async () => {
+  window.turnstile.render = vi.fn(() => 'test-widget');
+  mockFetchSequence([{ body: {} }]);
+  const user = userEvent.setup();
+  render(
+    <AuthProvider>
+      <AuthModal initialScreen="signup" onClose={() => {}} />
+    </AuthProvider>
+  );
+  await user.type(screen.getByLabelText('Email'), 'newuser@test.local');
+  await user.type(screen.getByLabelText('Password'), 'SomePassword123');
+  expect(screen.getByRole('button', { name: 'Create Account' })).toBeDisabled();
+  await user.keyboard('{Enter}');
+  expect(global.fetch.mock.calls.filter(([url]) => url === '/api/auth/signup')).toHaveLength(0);
+  await act(async () => window.turnstile.render.mock.calls[0][1].callback('fresh-token'));
+  expect(screen.getByRole('button', { name: 'Create Account' })).not.toBeDisabled();
+});
+
+it('requires a fresh challenge after a failed signup instead of reusing the consumed token', async () => {
+  const user = userEvent.setup();
+  mockFetchSequence([
+    { body: {} },
+    { ok: false, body: { error: 'CAPTCHA verification failed' } },
+    { body: { success: true } },
+  ]);
+  render(
+    <AuthProvider>
+      <AuthModal initialScreen="signup" onClose={() => {}} />
+    </AuthProvider>
+  );
+  await user.type(screen.getByLabelText('Email'), 'newuser@test.local');
+  await user.type(screen.getByLabelText('Password'), 'SomePassword123');
+  window.turnstile.render.mockImplementation(() => 'replacement-widget');
+  await user.click(screen.getByRole('button', { name: 'Create Account' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Please verify again');
+  expect(window.turnstile.remove).toHaveBeenCalledWith('test-widget');
+  expect(window.turnstile.render).toHaveBeenCalledTimes(2);
+  expect(screen.getByRole('button', { name: 'Create Account' })).toBeDisabled();
+  await act(async () => window.turnstile.render.mock.calls[1][1].callback('new-token'));
+  await user.click(screen.getByRole('button', { name: 'Create Account' }));
+  expect(await screen.findByRole('button', { name: 'Verify →' })).toBeInTheDocument();
+  const signupCalls = global.fetch.mock.calls.filter(([url]) => url === '/api/auth/signup');
+  expect(JSON.parse(signupCalls[1][1].body).captchaToken).toBe('new-token');
+});
+
+it('continues an unverified password login to the code screen using the structured response', async () => {
+  const user = userEvent.setup();
+  mockFetchSequence([{ body: {} }, { ok: false, body: { needsVerification: true }, status: 403 }]);
+  render(
+    <AuthProvider>
+      <AuthModal onClose={() => {}} />
+    </AuthProvider>
+  );
+  await user.type(screen.getByLabelText('Email'), 'pending@test.local');
+  await user.type(screen.getByLabelText('Password'), 'SomePassword123');
+  await user.click(
+    screen.getAllByRole('button', { name: 'Log In', exact: true }).find((button) => button.closest('form'))
+  );
+  expect(await screen.findByRole('heading', { name: 'Check your email' })).toBeInTheDocument();
 });
