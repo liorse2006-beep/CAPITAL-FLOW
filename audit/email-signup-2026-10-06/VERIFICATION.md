@@ -48,3 +48,13 @@ The route round-trip test covers signup, OTP generation via a mocked mail transp
 4. Verify signup, email receipt, OTP verification, logout/login and refresh with an isolated approved test account.
 
 Verdict: LOCAL CHECKS PASSED; LIVE FIX NOT YET VERIFIED. Do not describe the site as fixed or READY on this evidence alone.
+
+## Dependency gate addendum
+
+The auth patch `e53195b0433d01f1b5f3fda0bafe1c4043dbd1cd` was pushed to main. Both GitHub workflows passed their backend, frontend, worker, lint, format and build steps, but blocked deployment at `npm audit`: the existing lockfile contained 2 high and 1 critical dependency findings. Render therefore continued serving the previous release; the security gate was not bypassed.
+
+To unblock this auth release, only patch-level fixes were selected: compression 1.8.1 → 1.8.2, nodemailer 10.0.1 → 10.0.15 and proxy-addr 2.0.7 → 2.0.8. This does not resume the paused launch/capacity project or change application UX, billing, data or infrastructure.
+
+On 2026-10-06, the updated-lockfile production audit returned exit 0 with **0 high, 0 critical, 4 moderate and 2 low** findings. The lower-severity findings remain, so this is not an all-clear security audit. The shared local node_modules were deliberately left unchanged to preserve the paused project's installation; fresh CI installation and regression results are required for the updated dependency versions.
+
+Official fix references: [compression](https://github.com/advisories/GHSA-vc2v-76pw-4v95), [nodemailer address-parser fix](https://github.com/advisories/GHSA-v53p-9fqp-m79j), [proxy-addr](https://github.com/advisories/GHSA-jqcg-44mw-7w3h).
