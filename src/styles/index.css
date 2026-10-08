@@ -5072,6 +5072,16 @@ td {
   font-family: var(--mono);
   letter-spacing: 0.02em;
 }
+.watchlist-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.watchlist-page .active-price-btn {
+  min-height: 46px;
+}
 .watchlist-page .table-wrap thead th {
   padding-top: 18px;
   padding-bottom: 18px;
@@ -11033,8 +11043,16 @@ html.a11y-highlight-links a {
     padding: 18px;
     gap: 16px;
     align-items: flex-start;
+    flex-wrap: wrap;
   }
   .watchlist-page .add-ticker-btn {
+    min-width: 0;
+  }
+  .watchlist-page .watchlist-actions {
+    width: 100%;
+  }
+  .watchlist-page .watchlist-actions > button {
+    flex: 1 1 0;
     min-width: 0;
   }
 

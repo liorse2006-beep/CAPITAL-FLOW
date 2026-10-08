@@ -6,6 +6,7 @@ import useStreamTicket from './hooks/useStreamTicket';
 import useNotificationDeepLink from './hooks/useNotificationDeepLink';
 import useScanQuota from './hooks/useScanQuota';
 import usePushSubscription from './hooks/usePushSubscription';
+import useWatchlist from './hooks/useWatchlist';
 import { parseVolInput } from './utils/format';
 import { marketSignalNotificationFor } from './utils/marketSignalNotification';
 import { categoryQuota } from './utils/quota';
@@ -645,88 +646,18 @@ function App() {
      account across devices, not just the browser that starred them.
      localStorage is kept only as an instant-paint cache (same pattern as
      alertLevels above). ── */
-  const [watchlist, setWatchlist] = useState(function () {
-    try {
-      return JSON.parse(localStorage.getItem(scopedStorageKey('vs-watchlist'))) || [];
-    } catch (e) {
-      return [];
-    }
-  });
-  const [watchlistData, setWatchlistData] = useState(null);
-  const [watchlistLoading, setWatchlistLoading] = useState(false);
-  const [watchlistError, setWatchlistError] = useState(null);
-
-  useEffect(
-    function () {
-      if (!user) return;
-      fetch('/api/watchlist', { headers: { Authorization: 'Bearer ' + getToken() } })
-        .then(function (r) {
-          return r.ok ? r.json() : null;
-        })
-        .then(function (list) {
-          if (!Array.isArray(list)) return;
-          setWatchlist(list);
-          localStorage.setItem(scopedStorageKey('vs-watchlist'), JSON.stringify(list));
-        })
-        .catch(function () {});
-    },
-    [getToken, scopedStorageKey, user]
-  );
-
-  function toggleWatchlistTicker(symbol) {
-    var wasStarred = watchlist.indexOf(symbol) >= 0;
-    setWatchlist(function (prev) {
-      var idx = prev.indexOf(symbol);
-      var next;
-      if (idx >= 0) {
-        next = prev.filter(function (s) {
-          return s !== symbol;
-        });
-      } else {
-        next = [].concat(prev, [symbol]);
-      }
-      localStorage.setItem(scopedStorageKey('vs-watchlist'), JSON.stringify(next));
-      return next;
-    });
-    if (user) {
-      fetch('/api/watchlist/' + symbol, {
-        method: wasStarred ? 'DELETE' : 'POST',
-        headers: { Authorization: 'Bearer ' + getToken() },
-      }).catch(function () {});
-    }
-  }
-
-  function isInWatchlist(symbol) {
-    return watchlist.indexOf(symbol) >= 0;
-  }
-
-  function refreshWatchlist() {
-    if (watchlist.length === 0) {
-      setWatchlistData(null);
-      return;
-    }
-    setWatchlistLoading(true);
-    setWatchlistError(null);
-    fetch('/api/watchlist-quotes?symbols=' + watchlist.join(','), {
-      headers: { Authorization: 'Bearer ' + getToken() },
-    })
-      .then(function (r) {
-        if (!r.ok)
-          return r.json().then(function (d) {
-            throw new Error(d && d.error ? d.error : 'Fetch failed');
-          });
-        return r.json();
-      })
-      .then(function (d) {
-        setWatchlistData(d.results);
-      })
-      .catch(function (e) {
-        setWatchlistError(e.message || 'Failed to load quotes');
-      })
-      .finally(function () {
-        setWatchlistLoading(false);
-      });
-  }
+  const {
+    watchlist,
+    watchlistData,
+    watchlistDataAsOf,
+    watchlistQuoteStatus,
+    watchlistLoading,
+    watchlistError,
+    setWatchlistError,
+    refreshWatchlist,
+    toggleWatchlistTicker,
+    isInWatchlist,
+  } = useWatchlist({ user, getToken, storageKey: scopedStorageKey('vs-watchlist') });
 
   /* ── Upgrade modal ── */
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -1581,6 +1512,8 @@ function App() {
                 <WatchlistPage
                   watchlist={watchlist}
                   watchlistData={watchlistData}
+                  watchlistDataAsOf={watchlistDataAsOf}
+                  watchlistQuoteStatus={watchlistQuoteStatus}
                   watchlistLoading={watchlistLoading}
                   watchlistError={watchlistError}
                   refreshWatchlist={refreshWatchlist}

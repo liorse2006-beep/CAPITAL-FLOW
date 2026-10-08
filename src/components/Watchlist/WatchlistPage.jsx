@@ -4,7 +4,8 @@ import useSeo from '../../hooks/useSeo';
 import AddTickerModal from './AddTickerModal';
 
 function RatioPill({ ratio }) {
-  if (!(ratio > 0)) return '—';
+  if ((typeof ratio !== 'number' && typeof ratio !== 'string') || !Number.isFinite(Number(ratio)) || !(ratio > 0))
+    return '—';
   const cls = ratio >= 5 ? 'hot' : ratio >= 2 ? 'warm' : 'ok';
   return <span className={'ratio-pill ' + cls}>{ratio + 'x'}</span>;
 }
@@ -23,7 +24,7 @@ function ChartLink({ symbol }) {
   return (
     <a
       className="chart-open-btn"
-      href={'https://www.tradingview.com/chart/?symbol=' + symbol}
+      href={'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(symbol)}
       target="_blank"
       rel="noopener noreferrer"
       title="Open in TradingView"
@@ -75,6 +76,8 @@ function AlertButton({ symbol, price, alertLevels, promptCreateAlert }) {
 export default function WatchlistPage({
   watchlist,
   watchlistData,
+  watchlistDataAsOf,
+  watchlistQuoteStatus,
   watchlistLoading,
   watchlistError,
   refreshWatchlist,
@@ -102,9 +105,11 @@ export default function WatchlistPage({
   });
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const asOf = typeof watchlistDataAsOf === 'string' ? Date.parse(watchlistDataAsOf) : NaN;
+  const hasQuoteTime = Number.isFinite(asOf) && asOf > 0;
 
   function findQuote(sym) {
-    return watchlistData ? watchlistData.find((r) => r.symbol === sym) : null;
+    return Array.isArray(watchlistData) ? watchlistData.find((r) => r && r.symbol === sym) : null;
   }
 
   return (
@@ -113,19 +118,6 @@ export default function WatchlistPage({
         <div>
           <h2 className="flow-title">Watchlist</h2>
           <p className="flow-sub">Track your favorite tickers across sessions</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {watchlist.length > 0 && (
-            <button className="scan-btn" onClick={refreshWatchlist} disabled={watchlistLoading}>
-              {watchlistLoading ? (
-                <>
-                  <div className="spinner" /> Refreshing...
-                </>
-              ) : (
-                'Refresh'
-              )}
-            </button>
-          )}
         </div>
       </div>
 
@@ -282,26 +274,46 @@ export default function WatchlistPage({
             <div>
               <h2>{watchlist.length + ' Ticker' + (watchlist.length !== 1 ? 's' : '')}</h2>
               <span className="table-bar-sub">
-                {watchlistData
-                  ? 'Last refreshed ' + new Date().toLocaleTimeString()
-                  : 'Click Refresh to load latest quotes'}
+                {watchlistData ? (
+                  hasQuoteTime ? (
+                    <>
+                      {watchlistQuoteStatus === 'stale' ? 'Prices may be delayed · ' : 'Quotes as of '}
+                      <time dateTime={watchlistDataAsOf}>{new Date(asOf).toLocaleString()}</time>
+                    </>
+                  ) : (
+                    'Quote time unavailable'
+                  )
+                ) : (
+                  'Click Active Price to load quotes'
+                )}
               </span>
             </div>
-            <button className="scan-btn add-ticker-btn" onClick={() => setShowAddModal(true)}>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              Add Ticker
-            </button>
+            <div className="watchlist-actions">
+              <button className="scan-btn active-price-btn" onClick={refreshWatchlist} disabled={watchlistLoading}>
+                {watchlistLoading ? (
+                  <>
+                    <div className="spinner" /> Refreshing...
+                  </>
+                ) : (
+                  'Active Price'
+                )}
+              </button>
+              <button className="scan-btn add-ticker-btn" onClick={() => setShowAddModal(true)}>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Add Ticker
+              </button>
+            </div>
           </div>
           <div className="table-wrap">
             <table className="results-table watchlist-results-table">
@@ -369,7 +381,7 @@ export default function WatchlistPage({
                       ) : (
                         <>
                           <td className="col-name" style={{ color: 'var(--text-3)' }}>
-                            {watchlistData ? 'Not found' : '—'}
+                            {watchlistData ? 'Quote unavailable' : '—'}
                           </td>
                           <td>—</td>
                           <td>—</td>
@@ -467,6 +479,7 @@ export default function WatchlistPage({
                       <span className="skel skel-num" />
                     </div>
                   )}
+                  {!d && !watchlistLoading && watchlistData && <div className="mobile-card-mid">Quote unavailable</div>}
                   {d && (
                     <div className="mobile-result-card-grid">
                       <div className="mobile-result-card-stat">
