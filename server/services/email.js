@@ -56,7 +56,14 @@ function requireDevEmailFallback(label, email, detail) {
 // rejection, so every existing .catch() at the call sites actually fires.
 async function send(payload) {
   if (gmail) {
-    return gmail.sendMail({ ...payload, from: `"Capital Flow" <${GMAIL_USER}>` });
+    // The shared payload follows Resend's base64 attachment contract. SMTP
+    // must receive the decoded bytes, otherwise the downloadable gzip file
+    // contains base64 text instead of a usable database backup.
+    const attachments = payload.attachments?.map((attachment) => ({
+      ...attachment,
+      content: typeof attachment.content === 'string' ? Buffer.from(attachment.content, 'base64') : attachment.content,
+    }));
+    return gmail.sendMail({ ...payload, attachments, from: `"Capital Flow" <${GMAIL_USER}>` });
   }
   if (resend) {
     const result = await resend.emails.send(payload);
