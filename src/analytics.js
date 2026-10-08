@@ -9,32 +9,89 @@ const HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com';
 const enabled = !!KEY;
 
 const CONSENT_KEY = 'cf_analytics_consent';
+let suspended = false;
+let operationEpoch = 0;
+let loadedPosthog = null;
+let resetPending = false;
+
+function readConsent() {
+  try {
+    return localStorage.getItem(CONSENT_KEY);
+  } catch {
+    return null;
+  }
+}
 
 export function hasConsented() {
-  return localStorage.getItem(CONSENT_KEY) === 'true';
+  return !suspended && readConsent() === 'true';
 }
 
 export function hasAnswered() {
-  return localStorage.getItem(CONSENT_KEY) !== null;
+  return readConsent() !== null;
+}
+
+function safely(action) {
+  try {
+    action();
+  } catch {
+    // Optional statistics must never prevent authentication or navigation.
+  }
+}
+
+function stopCapturing() {
+  suspended = true;
+  operationEpoch += 1;
+  resetPending = true;
+  window.removeEventListener('storage', onConsentStorage);
+  if (loadedPosthog) {
+    safely(() => loadedPosthog.opt_out_capturing());
+    safely(() => loadedPosthog.reset());
+    resetPending = false;
+  }
+}
+
+function onConsentStorage(event) {
+  if ((event.key === CONSENT_KEY || event.key === null) && !hasConsented()) stopCapturing();
 }
 
 let posthogPromise = null;
 function loadPosthog() {
-  if (!enabled) return Promise.resolve(null);
+  if (!enabled || !hasConsented()) return Promise.resolve(null);
   if (!posthogPromise) {
-    posthogPromise = import('posthog-js').then((mod) => {
-      const posthog = mod.default;
-      posthog.init(KEY, {
-        api_host: HOST,
-        // Page views are tracked manually on route change (App.jsx watches
-        // location.pathname), not via posthog's own history-API patching —
-        // this app already has React Router doing that job and
-        // double-tracking would skew funnels.
-        capture_pageview: false,
-        capture_pageleave: true,
+    posthogPromise = import('posthog-js')
+      .then((mod) => {
+        // Consent may have been revoked while the optional bundle was loading.
+        if (!hasConsented()) return null;
+        const posthog = mod.default;
+        posthog.init(KEY, {
+          api_host: HOST,
+          // Page views are tracked manually on route change (App.jsx watches
+          // location.pathname), not via posthog's own history-API patching —
+          // this app already has React Router doing that job and
+          // double-tracking would skew funnels.
+          capture_pageview: false,
+          capture_pageleave: true,
+          opt_out_capturing_by_default: true,
+          opt_out_persistence_by_default: true,
+        });
+        loadedPosthog = posthog;
+        if (resetPending) {
+          posthog.reset();
+          resetPending = false;
+        }
+        if (!hasConsented()) {
+          stopCapturing();
+          return null;
+        }
+        posthog.opt_in_capturing({ captureEventName: false });
+        window.addEventListener('storage', onConsentStorage);
+        return posthog;
+      })
+      .catch(() => null)
+      .then((posthog) => {
+        if (!posthog) posthogPromise = null;
+        return posthog;
       });
-      return posthog;
-    });
   }
   return posthogPromise;
 }
@@ -43,12 +100,18 @@ function loadPosthog() {
 if (enabled && hasConsented()) loadPosthog();
 
 export function giveConsent() {
-  localStorage.setItem(CONSENT_KEY, 'true');
-  if (enabled) loadPosthog();
+  safely(() => localStorage.setItem(CONSENT_KEY, 'true'));
+  suspended = readConsent() !== 'true';
+  if (!enabled || !hasConsented()) return;
+  if (loadedPosthog) {
+    safely(() => loadedPosthog.opt_in_capturing({ captureEventName: false }));
+    window.addEventListener('storage', onConsentStorage);
+  } else loadPosthog();
 }
 
 export function revokeConsent() {
-  localStorage.setItem(CONSENT_KEY, 'false');
+  stopCapturing();
+  safely(() => localStorage.setItem(CONSENT_KEY, 'false'));
 }
 
 // Clears any prior answer so the consent banner reappears on next load —
@@ -56,19 +119,33 @@ export function revokeConsent() {
 // hasAnswered() gates the banner and there's otherwise no way back to it
 // after the first visit.
 export function resetConsent() {
-  localStorage.removeItem(CONSENT_KEY);
+  stopCapturing();
+  safely(() => localStorage.removeItem(CONSENT_KEY));
 }
 
 function track(event, props) {
-  if (enabled && hasConsented()) loadPosthog().then((posthog) => posthog && posthog.capture(event, props));
+  const epoch = operationEpoch;
+  if (enabled && hasConsented())
+    loadPosthog().then((posthog) => {
+      if (posthog && epoch === operationEpoch && hasConsented()) safely(() => posthog.capture(event, props));
+    });
 }
 
 function identify(userId, props) {
-  if (enabled && hasConsented()) loadPosthog().then((posthog) => posthog && posthog.identify(userId, props));
+  const epoch = operationEpoch;
+  if (enabled && hasConsented())
+    loadPosthog().then((posthog) => {
+      if (posthog && epoch === operationEpoch && hasConsented()) safely(() => posthog.identify(userId, props));
+    });
 }
 
 function reset() {
-  if (enabled) loadPosthog().then((posthog) => posthog && posthog.reset());
+  operationEpoch += 1;
+  resetPending = true;
+  if (loadedPosthog) {
+    safely(() => loadedPosthog.reset());
+    resetPending = false;
+  }
 }
 
 export { enabled, track, identify, reset };
