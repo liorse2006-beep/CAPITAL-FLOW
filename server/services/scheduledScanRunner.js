@@ -95,11 +95,11 @@ function hhmmToMinutes(hhmm) {
 }
 
 /** True when `hhmm` is due: now is 0..FIRE_WINDOW_MIN minutes past it (with midnight wrap). */
-function isDue(hhmm, nowMinutes) {
+function isDue(hhmm, nowMinutes, windowMinutes = FIRE_WINDOW_MIN) {
   const t = hhmmToMinutes(hhmm);
   if (t === null) return false;
   const sinceScheduled = (nowMinutes - t + 1440) % 1440;
-  return sinceScheduled <= FIRE_WINDOW_MIN;
+  return sinceScheduled <= windowMinutes;
 }
 
 function schedulerMinuteKey(now = new Date()) {
@@ -209,7 +209,10 @@ function dueRadarSlotKeys(now = new Date()) {
   for (const radar of schedulerCache.radars) {
     if (radar.expires_on < today) continue;
     for (const time of [radar.schedule_time_1, radar.schedule_time_2]) {
-      if (time && isDue(time, nowMinutes)) keys.push(`${today}:${radar.id}:${time}`);
+      // A short restart or an in-flight scan can miss the normal three-minute
+      // window before a claim exists. Admit that slot within the same bounded
+      // recovery window; the durable ledger still closes completed slots.
+      if (time && isDue(time, nowMinutes, RADAR_RECOVERY_WINDOW_MIN)) keys.push(`${today}:${radar.id}:${time}`);
     }
   }
   return keys;
@@ -230,7 +233,7 @@ function normalizedRadarRecipe(row) {
   };
 }
 
-async function radarRunRecoveryState(radarId, runDate, scheduledTime, nowSeconds) {
+async function radarRunRecoveryState(radarId, runDate, scheduledTime, nowSeconds, unclaimedSlotDue = false) {
   const run = await db
     .prepare(
       `SELECT status, attempts, started_at, completed_at, lease_until
@@ -238,7 +241,7 @@ async function radarRunRecoveryState(radarId, runDate, scheduledTime, nowSeconds
         WHERE radar_id = ? AND run_date = ? AND scheduled_time = ?`
     )
     .get(radarId, runDate, scheduledTime);
-  if (!run) return { relevant: false, claimable: false };
+  if (!run) return { relevant: unclaimedSlotDue, claimable: unclaimedSlotDue };
   const recentPending =
     run.status === 'pending' && Number(run.started_at || 0) >= nowSeconds - RADAR_RECOVERY_WINDOW_MIN * 60;
   const retryableFailure =
@@ -416,7 +419,13 @@ async function runRadarScheduledScans(now = new Date(), options = {}) {
       let recovery = { relevant: false, claimable: false };
       if (!scheduledNow) {
         try {
-          recovery = await radarRunRecoveryState(row.id, runDate, scheduledTime, nowSeconds);
+          recovery = await radarRunRecoveryState(
+            row.id,
+            runDate,
+            scheduledTime,
+            nowSeconds,
+            isDue(scheduledTime, nowMinutes, RADAR_RECOVERY_WINDOW_MIN)
+          );
         } catch (err) {
           reportError(err, `[Radar scheduler] recovery check failed for ${row.id}`);
           retryRequested = true;

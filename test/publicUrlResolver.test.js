@@ -4,6 +4,7 @@ const { EventEmitter } = require('node:events');
 const dns = require('node:dns').promises;
 const http = require('node:http');
 const https = require('node:https');
+const { performance } = require('node:perf_hooks');
 const { resolvePublicUrl, isPublicHttpUrl } = require('../server/utils/publicUrlResolver');
 
 function mockHeads(t, handler) {
@@ -162,6 +163,12 @@ test('slow DNS admits four resolutions and no unbounded queue', async (t) => {
 });
 
 test('a slow DNS deadline returns the original link and late DNS cannot open a socket', async (t) => {
+  // A wall-clock correction must not reopen work after its deadline fired.
+  const wallClock = Date.now();
+  t.mock.method(Date, 'now', () => wallClock);
+  // Also simulate the timer firing before the measured deadline. Once it
+  // fires, cancellation must be final regardless of either clock reading.
+  t.mock.method(performance, 'now', () => 100);
   let release;
   const gate = new Promise((resolve) => {
     release = resolve;
@@ -181,6 +188,39 @@ test('a slow DNS deadline returns the original link and late DNS cannot open a s
     assert.equal(calls.length, 0, 'DNS completing after the total deadline cannot start a request');
   } finally {
     release();
+    clearTimeout(keepAlive);
+  }
+});
+
+test('a timed-out pending HEAD is destroyed and its late redirect cannot start another request', async (t) => {
+  t.mock.method(dns, 'lookup', async () => [{ address: '1.1.1.1', family: 4 }]);
+  let calls = 0;
+  let destroyed = 0;
+  let lateResponse;
+  t.mock.method(https, 'request', (_url, _options, callback) => {
+    calls++;
+    const request = new EventEmitter();
+    request.destroy = () => {
+      destroyed++;
+    };
+    request.end = () => {
+      lateResponse = callback;
+    };
+    return request;
+  });
+  const original = 'https://article.fixture.test/pending';
+  const keepAlive = setTimeout(() => {}, 7000);
+  try {
+    assert.equal(await resolvePublicUrl(original), original);
+    assert.equal(destroyed, 1, 'the pending request is cancelled');
+    lateResponse({ statusCode: 302, headers: { location: '/late' }, destroy() {} });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.equal(calls, 1, 'a callback after cancellation cannot follow a redirect');
+    for (let index = 0; index < 5; index++) {
+      const malformed = 'javascript:late' + index;
+      assert.equal(await resolvePublicUrl(malformed), malformed);
+    }
+  } finally {
     clearTimeout(keepAlive);
   }
 });

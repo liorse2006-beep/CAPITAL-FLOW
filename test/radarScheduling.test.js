@@ -143,6 +143,48 @@ test('Radar rejects duplicate times and an expired schedule', async () => {
   );
 });
 
+test('a previously unclaimed Radar slot catches up within twenty minutes, once only', async (t) => {
+  const current = new Date();
+  const firstSlot = new Date(current.getTime() + ((11 * 60 - israelNowMinutes(current) + 1440) % 1440) * 60 * 1000);
+  const emptyScan = async () => ({
+    results: [],
+    errors: [],
+    checkedSymbols: ['AAPL'],
+    dataStatus: 'complete',
+    dataAsOf: firstSlot.toISOString(),
+  });
+  const capitalFlow = t.mock.method(scanner, 'scanTickers', emptyScan);
+  const movingAverage = t.mock.method(maScanner, 'scanMA', emptyScan);
+  t.mock.method(webPush, 'sendPushToUser', async () => {});
+  for (const delay of [5, 20, 21, -1]) {
+    const user = await db
+      .prepare("INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, 'elite', 1)")
+      .run(`radar-missed-slot-${delay}@test.local`);
+    const row = await radar.createRadar(user.lastInsertRowid, {
+      name: 'Missed Slot',
+      mode: 'all',
+      scheduleTime1: '11:00',
+      expiresOn: futureIsraelDate(),
+    });
+    const now = new Date(firstSlot.getTime() + delay * 60 * 1000);
+    const before = capitalFlow.mock.callCount();
+    const options = { ignoreMarketHours: true, radarRows: [row] };
+    await runRadarScheduledScans(now, options);
+    await runRadarScheduledScans(now, options);
+    const runs = await db.prepare('SELECT status, attempts FROM radar_schedule_runs WHERE radar_id = ?').all(row.id);
+    if (delay >= 0 && delay <= 20) {
+      assert.equal(capitalFlow.mock.callCount() - before, 1, `${delay}-minute missed slot must run once`);
+      assert.equal(runs.length, 1);
+      assert.equal(runs[0].status, 'completed');
+      assert.equal(Number(runs[0].attempts), 1);
+    } else {
+      assert.equal(capitalFlow.mock.callCount(), before, 'never run early or replay an old missed slot');
+      assert.equal(runs.length, 0);
+    }
+  }
+  assert.equal(movingAverage.mock.callCount(), 2, 'one combined scan per recovered slot');
+});
+
 test('Radar retries one failed slot inside its recovery window without creating a duplicate slot', async (t) => {
   const user = await db
     .prepare("INSERT INTO users (email, is_verified, tier, is_premium) VALUES (?, 1, 'elite', 1)")

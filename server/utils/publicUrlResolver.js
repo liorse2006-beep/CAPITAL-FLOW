@@ -2,6 +2,7 @@ const http = require('node:http');
 const https = require('node:https');
 const dns = require('node:dns').promises;
 const net = require('node:net');
+const { performance } = require('node:perf_hooks');
 const ipaddr = require('ipaddr.js');
 
 const MAX_HOPS = 4;
@@ -62,7 +63,7 @@ async function publicRecords(url) {
   return records;
 }
 
-function headAtValidatedAddress(url, record, timeoutMs) {
+function headAtValidatedAddress(url, record, timeoutMs, signal) {
   return new Promise((resolve, reject) => {
     let request;
     let finished = false;
@@ -70,12 +71,19 @@ function headAtValidatedAddress(url, record, timeoutMs) {
       if (finished) return;
       finished = true;
       clearTimeout(timer);
+      signal.removeEventListener('abort', abort);
       request?.destroy();
       if (error) reject(error);
       else resolve(result);
     };
+    const abort = () => finish(new Error('Article resolution timed out'));
     const timer = setTimeout(() => finish(new Error('Article resolution timed out')), timeoutMs);
     timer.unref();
+    signal.addEventListener('abort', abort, { once: true });
+    if (signal.aborted) {
+      abort();
+      return;
+    }
     try {
       request = (url.protocol === 'https:' ? https : http).request(
         url,
@@ -105,16 +113,18 @@ function headAtValidatedAddress(url, record, timeoutMs) {
   });
 }
 
-async function resolveChain(original, expiresAt) {
+async function resolveChain(original, expiresAt, signal) {
   let url = parsedPublicUrl(original);
   const visited = new Set();
   for (let hop = 0; hop <= MAX_HOPS; hop++) {
+    if (signal.aborted || performance.now() >= expiresAt) throw new Error('Article resolution timed out');
     if (visited.has(url.href)) throw new Error('Article redirect loop');
     visited.add(url.href);
     const records = await publicRecords(url);
-    const remaining = expiresAt - Date.now();
-    if (remaining <= 0) throw new Error('Article resolution timed out');
-    const response = await headAtValidatedAddress(url, records[0], remaining);
+    const remaining = expiresAt - performance.now();
+    if (signal.aborted || remaining <= 0) throw new Error('Article resolution timed out');
+    const response = await headAtValidatedAddress(url, records[0], Math.ceil(remaining), signal);
+    if (signal.aborted || performance.now() >= expiresAt) throw new Error('Article resolution timed out');
     if (!REDIRECTS.has(response.status)) {
       if (response.status < 200 || response.status >= 400) throw new Error('Article destination failed');
       return url.href;
@@ -129,15 +139,22 @@ async function resolveChain(original, expiresAt) {
 async function resolvePublicUrl(original) {
   if (active >= MAX_CONCURRENT) return original;
   active++;
+  const controller = new AbortController();
+  const expiresAt = performance.now() + TOTAL_TIMEOUT_MS;
   // Retain admission until the underlying DNS work finishes even if the
   // caller's deadline expires; a slow resolver cannot create an unbounded queue.
-  const task = resolveChain(original, Date.now() + TOTAL_TIMEOUT_MS).finally(() => {
+  const task = resolveChain(original, expiresAt, controller.signal).finally(() => {
     active--;
   });
   let timer;
   try {
     const timeout = new Promise((_resolve, reject) => {
-      timer = setTimeout(() => reject(new Error('Article resolution timed out')), TOTAL_TIMEOUT_MS);
+      timer = setTimeout(() => {
+        // A fired deadline is final even if a timer runs slightly early or
+        // the wall clock changes while DNS is pending.
+        controller.abort();
+        reject(new Error('Article resolution timed out'));
+      }, TOTAL_TIMEOUT_MS);
       timer.unref();
     });
     return await Promise.race([task, timeout]);
