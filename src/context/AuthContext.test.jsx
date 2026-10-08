@@ -5,8 +5,9 @@
 // token is read, via the Referer header. A URL fragment (#google_pending=)
 // never leaves the browser either way. See routes/auth.js for the redirect
 // side of this fix.
+import React from 'react';
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth } from './AuthContext';
 
 afterEach(() => {
@@ -43,7 +44,107 @@ function setUrl(pathname, hash) {
   window.history.replaceState({}, '', pathname + hash);
 }
 
+function StrictAuthProvider({ children }) {
+  return (
+    <React.StrictMode>
+      <AuthProvider>{children}</AuthProvider>
+    </React.StrictMode>
+  );
+}
+
 describe('AuthContext — Google OAuth pending-token handoff', () => {
+  it('restores the refresh-cookie session under the real StrictMode lifecycle', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url) =>
+        Promise.resolve(
+          url === '/api/auth/refresh'
+            ? { ok: true, json: async () => ({ token: 'synthetic-cookie-token' }) }
+            : { ok: true, json: async () => ({ user: { id: 7 } }) }
+        )
+      )
+    );
+    const view = renderHook(() => useAuth(), { wrapper: StrictAuthProvider, reactStrictMode: true });
+    await waitFor(() => expect(view.result.current.isLoading).toBe(false));
+    expect(view.result.current.user?.id).toBe(7);
+    expect(view.result.current.getToken()).toBe('synthetic-cookie-token');
+  });
+
+  it('migrates an existing browser token once under StrictMode without persisting it', async () => {
+    localStorage.setItem('vs_token', 'synthetic-legacy-token');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url) =>
+        Promise.resolve(
+          url === '/api/auth/refresh'
+            ? { ok: false, status: 401 }
+            : { ok: true, json: async () => ({ user: { id: 7 } }) }
+        )
+      )
+    );
+    const view = renderHook(() => useAuth(), { wrapper: StrictAuthProvider, reactStrictMode: true });
+    await waitFor(() => expect(view.result.current.isLoading).toBe(false));
+    expect(view.result.current.user?.id).toBe(7);
+    expect(view.result.current.getToken()).toBe('synthetic-legacy-token');
+    expect(localStorage.getItem('vs_token')).toBeNull();
+  });
+
+  it('does not replace a new login with an earlier refresh response', async () => {
+    let resolveRefresh;
+    const request = new Promise((resolve) => {
+      resolveRefresh = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url) =>
+        url === '/api/auth/refresh' ? request : Promise.resolve({ ok: true, json: async () => ({ user: { id: 1 } }) })
+      )
+    );
+    const view = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    act(() => view.result.current.login('synthetic-new-token', { id: 2 }));
+    await act(async () => resolveRefresh({ ok: true, json: async () => ({ token: 'synthetic-old-refresh-token' }) }));
+    expect(view.result.current.user?.id).toBe(2);
+    expect(view.result.current.getToken()).toBe('synthetic-new-token');
+  });
+
+  it.each([200, 401])('ignores an old /me response with status %s after a different login', async (status) => {
+    let resolveMe;
+    const request = new Promise((resolve) => {
+      resolveMe = resolve;
+    });
+    let delayMe = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url) => {
+        if (url === '/api/auth/refresh') return Promise.resolve({ ok: false, status: 401 });
+        return delayMe ? request : Promise.resolve({ ok: true, json: async () => ({ user: { id: 1 } }) });
+      })
+    );
+    const view = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(view.result.current.isLoading).toBe(false));
+    act(() => view.result.current.login('synthetic-old-token', { id: 1 }));
+    delayMe = true;
+    let refresh;
+    act(() => {
+      refresh = view.result.current.refreshUser();
+    });
+    act(() => view.result.current.login('synthetic-new-token', { id: 2 }));
+    await act(async () => {
+      resolveMe({ ok: status === 200, status, json: async () => ({ user: { id: 1 } }) });
+      await refresh;
+    });
+    expect(view.result.current.user?.id).toBe(2);
+    expect(view.result.current.getToken()).toBe('synthetic-new-token');
+  });
+
+  it('aborts the pending startup request when the provider unmounts', () => {
+    const fetchMock = vi.fn(() => new Promise(() => {}));
+    vi.stubGlobal('fetch', fetchMock);
+    const view = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    view.unmount();
+    expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(true);
+  });
+
   it('reads google_pending from the URL fragment, not the query string', async () => {
     setUrl('/', '#google_pending=fake-access-token-123');
     render(
@@ -89,7 +190,7 @@ describe('AuthContext — Google OAuth pending-token handoff', () => {
   });
 
   it('keeps the access token when /me has a temporary server failure', async () => {
-    setUrl('/?token=still-valid-token', '');
+    localStorage.setItem('vs_token', 'still-valid-token');
     const fetchMock = vi.fn((url) => {
       if (url === '/api/auth/refresh') return Promise.resolve({ ok: false, status: 401 });
       if (url === '/api/auth/me') return Promise.resolve({ ok: false, status: 503 });
@@ -112,6 +213,23 @@ describe('AuthContext — Google OAuth pending-token handoff', () => {
         credentials: 'include',
       })
     );
+  });
+
+  it('removes an untrusted legacy query token without using it or losing checkout deep links', async () => {
+    window.history.replaceState({}, '', '/flow?token=synthetic-untrusted-token&tier=elite');
+    const fetchMock = vi.fn((url) =>
+      url === '/api/auth/refresh'
+        ? Promise.resolve({ ok: false, status: 401 })
+        : Promise.resolve({ ok: true, json: async () => ({ user: { id: 99 } }) })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const view = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(view.result.current.isLoading).toBe(false));
+    expect(view.result.current.user).toBeNull();
+    expect(view.result.current.getToken()).toBeNull();
+    expect(fetchMock.mock.calls.every(([url]) => url === '/api/auth/refresh')).toBe(true);
+    expect(window.location.pathname).toBe('/flow');
+    expect(window.location.search).toBe('?tier=elite');
   });
 
   it('retries a transient refresh failure and restores the session without showing sign-in', async () => {

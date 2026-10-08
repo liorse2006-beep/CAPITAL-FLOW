@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { identify, reset as resetAnalytics } from '../analytics';
 
 const AuthContext = createContext(null);
@@ -20,6 +20,44 @@ export function AuthProvider({ children }) {
   // localStorage would be readable by any script that ever crossed the site's
   // XSS boundary. A page reload silently obtains a new access token instead.
   const accessTokenRef = useRef(null);
+  const legacyAccessTokenRef = useRef(undefined);
+  const sessionEpochRef = useRef(0);
+  const activeRef = useRef(false);
+  const requestsRef = useRef(new Set());
+
+  const invalidatePendingAuth = useCallback(() => {
+    sessionEpochRef.current += 1;
+    for (const request of requestsRef.current) {
+      clearTimeout(request.timeout);
+      request.controller.abort();
+    }
+    requestsRef.current.clear();
+    return sessionEpochRef.current;
+  }, []);
+
+  useLayoutEffect(() => {
+    activeRef.current = true;
+    invalidatePendingAuth();
+    return () => {
+      activeRef.current = false;
+      invalidatePendingAuth();
+    };
+  }, [invalidatePendingAuth]);
+
+  const isCurrentEpoch = useCallback((epoch) => activeRef.current && sessionEpochRef.current === epoch, []);
+
+  const startRequest = useCallback(() => {
+    const controller = new AbortController();
+    const request = { controller, timeout: setTimeout(() => controller.abort(), 30000) };
+    requestsRef.current.add(request);
+    return {
+      signal: controller.signal,
+      finish: () => {
+        clearTimeout(request.timeout);
+        requestsRef.current.delete(request);
+      },
+    };
+  }, []);
 
   const setAccessToken = useCallback((token) => {
     accessTokenRef.current = token || null;
@@ -35,21 +73,25 @@ export function AuthProvider({ children }) {
   const silentRefresh = useCallback(
     async ({ retryTransient = false } = {}) => {
       const maxAttempts = retryTransient ? 3 : 1;
+      const epoch = sessionEpochRef.current;
+      const startingToken = accessTokenRef.current;
+      const isCurrent = () => isCurrentEpoch(epoch) && accessTokenRef.current === startingToken;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 30000);
+        if (!isCurrent()) return { token: null, status: 'superseded' };
+        const request = startRequest();
         try {
           const res = await fetch('/api/auth/refresh', {
             method: 'POST',
             credentials: 'include',
-            signal: controller.signal,
+            signal: request.signal,
           });
-          clearTimeout(timeout);
+          if (!isCurrent()) return { token: null, status: 'superseded' };
 
           if (res.ok) {
             const data = await res.json();
-            if (!data.token) return { token: null, status: 'unavailable' };
+            if (!isCurrent() || request.signal.aborted) return { token: null, status: 'superseded' };
+            if (typeof data.token !== 'string' || !data.token) return { token: null, status: 'unavailable' };
             setAccessToken(data.token);
             return { token: data.token, status: 'authenticated' };
           }
@@ -67,22 +109,25 @@ export function AuthProvider({ children }) {
           }
           return { token: null, status: 'unavailable' };
         } catch {
-          clearTimeout(timeout);
+          if (!isCurrent()) return { token: null, status: 'superseded' };
           if (attempt < maxAttempts) {
             await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
             continue;
           }
           return { token: null, status: 'unavailable' };
+        } finally {
+          request.finish();
         }
       }
 
       return { token: null, status: 'unavailable' };
     },
-    [setAccessToken]
+    [setAccessToken, isCurrentEpoch, startRequest]
   );
 
   const fetchMe = useCallback(
-    async (token, isRevalidation) => {
+    async (token, isRevalidation, epoch = sessionEpochRef.current) => {
+      const isCurrent = () => isCurrentEpoch(epoch) && accessTokenRef.current === token;
       // A sleeping Render free instance can take 30-50s to answer the very
       // first request while it wakes up. The old 8s timeout aborted long
       // before that and then DELETED the token, silently logging the user out
@@ -92,17 +137,22 @@ export function AuthProvider({ children }) {
       // auth failure (a real 401/403 response) ever removes the token now.
       const MAX_ATTEMPTS = isRevalidation ? 1 : 3;
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 30000);
+        if (!isCurrent()) return;
+        const request = startRequest();
         try {
           const res = await fetch('/api/auth/me', {
             headers: { Authorization: `Bearer ${token}` },
             credentials: 'include',
-            signal: controller.signal,
+            signal: request.signal,
           });
-          clearTimeout(timeout);
+          if (!isCurrent()) return;
           if (res.ok) {
             const data = await res.json();
+            if (!isCurrent() || request.signal.aborted) return;
+            if (!Number.isSafeInteger(data.user?.id) || data.user.id <= 0) {
+              if (!isRevalidation) setAuthLoadError(true);
+              return;
+            }
             setAccessToken(token);
             setUser(data.user);
             setAuthLoadError(false);
@@ -123,7 +173,7 @@ export function AuthProvider({ children }) {
           }
           return;
         } catch {
-          clearTimeout(timeout);
+          if (!isCurrent()) return;
           // Network error or timeout — NOT an auth failure. Keep the token.
           // Retry the initial load a few times (the first request is what
           // wakes the server); a background revalidation just leaves the
@@ -136,20 +186,22 @@ export function AuthProvider({ children }) {
           // reload once the server is up) recovers cleanly. Don't wipe it.
           setAuthLoadError(true);
           return;
+        } finally {
+          request.finish();
         }
       }
     },
-    [setAccessToken]
+    [setAccessToken, isCurrentEpoch, startRequest]
   );
 
   useEffect(() => {
+    const epoch = sessionEpochRef.current;
     const params = new URLSearchParams(window.location.search);
     // google_pending travels as a URL fragment (#...), not a query string —
     // the browser never sends a fragment to any server or Referer header,
     // where a query string carrying the same access token would. See
     // routes/auth.js's /google/callback for the redirect side of this.
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-    const tokenFromUrl = params.get('token');
     const pendingFromUrl = hashParams.get('google_pending');
     const errorFromUrl = params.get('auth_error');
     const inviteFromUrl = params.get('invite');
@@ -158,9 +210,16 @@ export function AuthProvider({ children }) {
       localStorage.setItem('vs_pilot_invite', inviteFromUrl);
     }
 
-    if (tokenFromUrl) {
-      setAccessToken(tokenFromUrl);
-      window.history.replaceState({}, '', window.location.pathname);
+    if (params.has('token')) {
+      // A link must not choose an account for the visitor. Current OAuth
+      // uses an explicit fragment-based confirmation, never a query bearer.
+      params.delete('token');
+      const search = params.toString();
+      window.history.replaceState(
+        {},
+        '',
+        window.location.pathname + (search ? `?${search}` : '') + window.location.hash
+      );
     }
 
     if (pendingFromUrl) {
@@ -175,8 +234,18 @@ export function AuthProvider({ children }) {
     // Migrate old sessions once, without preserving the bearer token in
     // browser storage. The value is used only for this boot if the refresh
     // cookie is unavailable, then is removed immediately.
-    const stored = localStorage.getItem('vs_token');
-    if (stored) localStorage.removeItem('vs_token');
+    if (legacyAccessTokenRef.current === undefined) {
+      legacyAccessTokenRef.current = null;
+      try {
+        legacyAccessTokenRef.current = localStorage.getItem('vs_token');
+        if (legacyAccessTokenRef.current) localStorage.removeItem('vs_token');
+      } catch {
+        // Restricted browser storage must not prevent cookie authentication.
+      }
+    }
+    // Keep the one-time migration in memory across StrictMode's effect
+    // replay; only the still-current startup operation may consume it.
+    const stored = legacyAccessTokenRef.current;
     // Try the httpOnly refresh cookie first, even before looking at whatever
     // access token localStorage has — this is what makes a device stay
     // signed in across the 1h access token's expiry (including after the
@@ -186,8 +255,12 @@ export function AuthProvider({ children }) {
     // two, so this is a real, not just theoretical, recovery path).
     silentRefresh({ retryTransient: true })
       .then((refreshResult) => {
-        const tokenToUse = refreshResult.token || tokenFromUrl || stored;
-        if (tokenToUse) return fetchMe(tokenToUse);
+        if (!isCurrentEpoch(epoch) || refreshResult.status === 'superseded') return;
+        const tokenToUse = refreshResult.token || stored;
+        if (tokenToUse) {
+          setAccessToken(tokenToUse);
+          return fetchMe(tokenToUse, false, epoch);
+        }
 
         // A transient refresh failure means the existing httpOnly cookie may
         // still be valid. Keep the user out of a misleading guest state and
@@ -195,8 +268,13 @@ export function AuthProvider({ children }) {
         // password again.
         setAuthLoadError(refreshResult.status === 'unavailable');
       })
-      .finally(() => setIsLoading(false));
-  }, [fetchMe, setAccessToken, silentRefresh]);
+      .finally(() => {
+        if (isCurrentEpoch(epoch)) {
+          legacyAccessTokenRef.current = null;
+          setIsLoading(false);
+        }
+      });
+  }, [fetchMe, setAccessToken, silentRefresh, isCurrentEpoch]);
 
   // Tie analytics identity to whichever account is currently logged in —
   // fires on initial load, login, and logout alike since it just watches
@@ -224,11 +302,13 @@ export function AuthProvider({ children }) {
     // hour) means the 90s recheck above almost never has to discover an
     // actually-expired token, only a genuinely revoked one.
     async function refreshThenRecheck() {
+      const epoch = sessionEpochRef.current;
       const refreshResult = await silentRefresh();
       // If refresh is temporarily unavailable, keep the existing in-memory
       // account and let the next focus/interval retry. Only /me returning a
       // real 401/403 may clear an already-established session.
-      if (refreshResult.status === 'unavailable') return;
+      if (!isCurrentEpoch(epoch) || refreshResult.status === 'unavailable' || refreshResult.status === 'superseded')
+        return;
       recheck();
     }
     const interval = setInterval(recheck, 90000);
@@ -239,18 +319,25 @@ export function AuthProvider({ children }) {
       clearInterval(refreshInterval);
       document.removeEventListener('visibilitychange', refreshThenRecheck);
     };
-  }, [user, fetchMe, silentRefresh]);
+  }, [user, fetchMe, silentRefresh, isCurrentEpoch]);
 
   function login(token, userData) {
+    invalidatePendingAuth();
+    legacyAccessTokenRef.current = null;
     setAccessToken(token);
     setUser(userData);
+    setAuthLoadError(false);
+    setIsLoading(false);
   }
 
   async function logout() {
     const token = accessTokenRef.current;
+    invalidatePendingAuth();
+    legacyAccessTokenRef.current = null;
     setAccessToken(null);
     setAuthLoadError(false);
     setUser(null);
+    setIsLoading(false);
     // Revoke this device's session server-side (and its refresh cookie) so
     // "log out" actually ends the session. keepalive lets the request finish
     // while the browser navigates away, so logout never waits on a slow API
@@ -279,6 +366,7 @@ export function AuthProvider({ children }) {
   function confirmGoogleLogin() {
     if (!pendingGoogleToken) return Promise.resolve();
     const token = pendingGoogleToken;
+    const epoch = invalidatePendingAuth();
     setAccessToken(token);
     const invite = localStorage.getItem('vs_pilot_invite');
     const afterLogin = invite
@@ -291,22 +379,40 @@ export function AuthProvider({ children }) {
           .then(() => localStorage.removeItem('vs_pilot_invite'))
           .catch(() => {})
       : Promise.resolve();
-    return afterLogin.then(() => fetchMe(token)).finally(() => setPendingGoogleToken(null));
+    return afterLogin
+      .then(() => {
+        if (isCurrentEpoch(epoch)) return fetchMe(token, false, epoch);
+      })
+      .finally(() => {
+        if (isCurrentEpoch(epoch)) setPendingGoogleToken(null);
+      });
   }
 
   function cancelGoogleLogin() {
+    invalidatePendingAuth();
+    setAccessToken(null);
     setPendingGoogleToken(null);
+    setIsLoading(false);
   }
 
   async function acceptPilotTerms() {
     const token = getToken();
     if (!token) return;
-    const res = await fetch('/api/auth/accept-pilot-terms', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      credentials: 'include',
-    });
-    if (res.ok) await fetchMe(token);
+    const epoch = sessionEpochRef.current;
+    const request = startRequest();
+    try {
+      const res = await fetch('/api/auth/accept-pilot-terms', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        signal: request.signal,
+      });
+      if (res.ok && isCurrentEpoch(epoch) && accessTokenRef.current === token && !request.signal.aborted) {
+        await fetchMe(token, false, epoch);
+      }
+    } finally {
+      request.finish();
+    }
   }
 
   // Re-pulls /api/auth/me on demand — used after checkout completes, since

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import useModalA11y from '../../hooks/useModalA11y';
+import useAccountOperation from '../../hooks/useAccountOperation';
 import DeleteAccountModal from './DeleteAccountModal';
 import UserAvatar from './UserAvatar';
 
@@ -128,6 +129,7 @@ export default function ProfileModal({
   onUpgrade,
 }) {
   const panelRef = useModalA11y(onClose);
+  const beginOperation = useAccountOperation(getToken, user?.id);
   const requestedSection = LEGACY_SECTION_GROUP[initialSection] || initialSection;
   const firstSection = ACCOUNT_SECTIONS.some((section) => section.id === requestedSection)
     ? requestedSection
@@ -157,44 +159,58 @@ export default function ProfileModal({
   useEffect(() => {
     let cancelled = false;
     if (!getToken || !user) return undefined;
-    fetch('/api/account/summary', { headers: { Authorization: 'Bearer ' + getToken() } })
+    const operation = beginOperation('summary');
+    if (!operation) return undefined;
+    fetch('/api/account/summary', {
+      headers: { Authorization: 'Bearer ' + operation.token },
+      signal: operation.signal,
+    })
       .then(async (response) => {
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || 'Could not load profile data');
+        if (!response.ok) throw new Error('Could not load profile data');
         return data;
       })
       .then((data) => {
-        if (cancelled) return;
+        if (cancelled || !operation.canCommit()) return;
         setSummary(data);
         setSummaryState('ready');
       })
-      .catch((error) => {
-        if (cancelled) return;
+      .catch(() => {
+        if (cancelled || !operation.isCurrent()) return;
         setSummaryState('error');
-        setSummaryError(error.message || 'Could not load profile data');
-      });
+        setSummaryError('Could not load profile data. Try again.');
+      })
+      .finally(operation.finish);
     return () => {
       cancelled = true;
+      operation.cancel();
     };
-  }, [getToken, user]);
+  }, [getToken, user, beginOperation]);
 
   const loadScheduledScans = useCallback(async () => {
     if (!getToken || !user) return;
+    const operation = beginOperation('schedules');
+    if (!operation) return;
     setScheduledScansState('loading');
     setScheduledScansError('');
     try {
       const response = await fetch('/api/scheduled-scans', {
-        headers: { Authorization: 'Bearer ' + getToken() },
+        headers: { Authorization: 'Bearer ' + operation.token },
+        signal: operation.signal,
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || 'Could not load scheduled scans');
+      if (!operation.canCommit()) return;
+      if (!response.ok) throw new Error('Could not load scheduled scans');
       setScheduledScans(Array.isArray(data.schedules) ? data.schedules : []);
       setScheduledScansState('ready');
-    } catch (error) {
+    } catch {
+      if (!operation.isCurrent()) return;
       setScheduledScansState('error');
-      setScheduledScansError(error.message || 'Could not load scheduled scans');
+      setScheduledScansError('Could not load scheduled scans. Try again.');
+    } finally {
+      operation.finish();
     }
-  }, [getToken, user]);
+  }, [getToken, user, beginOperation]);
 
   useEffect(() => {
     if (activeSection !== 'automation') return undefined;
@@ -230,23 +246,33 @@ export default function ProfileModal({
       setPasswordState({ status: 'error', message: 'The new passwords do not match.' });
       return;
     }
+    const operation = beginOperation('password');
+    if (!operation) return;
     setPasswordState({ status: 'saving', message: '' });
     try {
       const response = await fetch('/api/account/change-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + operation.token },
+        signal: operation.signal,
         body: JSON.stringify({ currentPassword: password.current, newPassword: password.next }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || 'Could not update password');
+      if (!operation.canCommit()) return;
+      if (!response.ok) throw new Error('Could not update password');
+      if (typeof data.token !== 'string' || !data.token || String(data.user?.id) !== String(user?.id)) {
+        throw new Error('Could not confirm password update');
+      }
       onPasswordChanged?.(data.token, data.user);
       setPassword({ current: '', next: '', confirm: '' });
       setPasswordState({ status: 'success', message: 'Password updated. Other sessions were signed out.' });
       setSummary((previous) =>
         previous ? { ...previous, security: { ...previous.security, activeSessionCount: 1 } } : previous
       );
-    } catch (error) {
-      setPasswordState({ status: 'error', message: error.message || 'Could not update password' });
+    } catch {
+      if (!operation.isCurrent()) return;
+      setPasswordState({ status: 'error', message: 'Could not confirm the password update. Sign in again to check.' });
+    } finally {
+      operation.finish();
     }
   }
 
@@ -262,6 +288,8 @@ export default function ProfileModal({
 
   async function confirmSensitiveAction() {
     if (!confirmAction) return;
+    const operation = beginOperation('confirm-action');
+    if (!operation) return;
     setActionError('');
     try {
       if (confirmAction === 'enable-notifications') {
@@ -271,29 +299,39 @@ export default function ProfileModal({
       } else if (confirmAction === 'logout-all') {
         const response = await fetch('/api/account/logout-all', {
           method: 'POST',
-          headers: { Authorization: 'Bearer ' + getToken() },
+          headers: { Authorization: 'Bearer ' + operation.token },
+          signal: operation.signal,
         });
+        if (!operation.canCommit()) return;
         if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || 'Could not sign out other sessions');
+          throw new Error('Could not sign out other sessions');
         }
         onClose();
         window.location.reload();
         return;
       }
-      setConfirmAction(null);
-    } catch (error) {
-      setActionError(error.message || 'The action could not be completed');
+      if (operation.canCommit()) setConfirmAction(null);
+    } catch {
+      if (operation.isCurrent())
+        setActionError('The action could not be confirmed. Check your settings and try again.');
+    } finally {
+      operation.finish();
     }
   }
 
   async function downloadData() {
     if (!getToken) return;
+    const operation = beginOperation('export');
+    if (!operation) return;
     setDownloadState('loading');
     try {
-      const response = await fetch('/api/account/export', { headers: { Authorization: 'Bearer ' + getToken() } });
+      const response = await fetch('/api/account/export', {
+        headers: { Authorization: 'Bearer ' + operation.token },
+        signal: operation.signal,
+      });
       if (!response.ok) throw new Error('Could not prepare your data export');
       const blob = await response.blob();
+      if (!operation.canCommit()) return;
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -303,8 +341,10 @@ export default function ProfileModal({
       link.remove();
       URL.revokeObjectURL(url);
       setDownloadState('success');
-    } catch (error) {
-      setDownloadState('error');
+    } catch {
+      if (operation.isCurrent()) setDownloadState('error');
+    } finally {
+      operation.finish();
     }
   }
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import ProfileModal from './ProfileModal';
 
 const user = {
@@ -61,6 +61,96 @@ afterEach(() => {
 });
 
 describe('ProfileModal preferences', () => {
+  it('does not restore a session after token rotation even if the old screen remains mounted', async () => {
+    let resolvePassword;
+    let token = 'synthetic-old-token';
+    const request = new Promise((resolve) => {
+      resolvePassword = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url) => (url === '/api/account/change-password' ? request : Promise.resolve(summaryResponse())))
+    );
+    const { props } = renderProfile({ initialSection: 'security', getToken: () => token });
+    await screen.findByLabelText('Current password');
+    fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'synthetic-old-password' } });
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'synthetic-new-password' } });
+    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'synthetic-new-password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update password' }));
+    token = 'synthetic-other-token';
+    await act(async () =>
+      resolvePassword({ ok: true, json: async () => ({ token: 'synthetic-replacement-session', user }) })
+    );
+    expect(props.onPasswordChanged).not.toHaveBeenCalled();
+  });
+
+  it('accepts a successful password update only for the current account', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url) =>
+        Promise.resolve(
+          url === '/api/account/change-password'
+            ? { ok: true, json: async () => ({ token: 'synthetic-new-session', user }) }
+            : summaryResponse()
+        )
+      )
+    );
+    const { props } = renderProfile({ initialSection: 'security' });
+    await screen.findByLabelText('Current password');
+    fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'synthetic-old-password' } });
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'synthetic-new-password' } });
+    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'synthetic-new-password' } });
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Update password' })));
+    expect(props.onPasswordChanged).toHaveBeenCalledWith('synthetic-new-session', user);
+    expect(screen.getByText('Password updated. Other sessions were signed out.')).toBeInTheDocument();
+  });
+
+  it('does not restore an old account session from a password response after unmount', async () => {
+    let resolvePassword;
+    const pendingPassword = new Promise((resolve) => {
+      resolvePassword = resolve;
+    });
+    const fetchMock = vi.fn((url) =>
+      url === '/api/account/change-password' ? pendingPassword : Promise.resolve(summaryResponse())
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { unmount, props } = renderProfile({ initialSection: 'security' });
+    await screen.findByLabelText('Current password');
+    fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'synthetic-old-password' } });
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'synthetic-new-password' } });
+    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'synthetic-new-password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update password' }));
+    unmount();
+    await act(async () => resolvePassword({ ok: true, json: async () => ({ token: 'synthetic-new-session', user }) }));
+    expect(props.onPasswordChanged).not.toHaveBeenCalled();
+    const options = fetchMock.mock.calls.find(([url]) => url === '/api/account/change-password')[1];
+    expect(options.signal.aborted).toBe(true);
+  });
+
+  it('does not download the previous account export after unmount', async () => {
+    let resolveExport;
+    const pendingExport = new Promise((resolve) => {
+      resolveExport = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url) => (url === '/api/account/export' ? pendingExport : Promise.resolve(summaryResponse())))
+    );
+    const createObjectURL = vi.fn(() => 'blob:synthetic-export');
+    const original = URL.createObjectURL;
+    URL.createObjectURL = createObjectURL;
+    try {
+      const { unmount } = renderProfile({ initialSection: 'security' });
+      await screen.findByRole('button', { name: 'Download my data' });
+      fireEvent.click(screen.getByRole('button', { name: 'Download my data' }));
+      unmount();
+      await act(async () => resolveExport({ ok: true, blob: async () => new Blob(['synthetic-account-export']) }));
+      expect(createObjectURL).not.toHaveBeenCalled();
+    } finally {
+      URL.createObjectURL = original;
+    }
+  });
+
   it('uses the close control without rendering a redundant Done action', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(summaryResponse()));
     renderProfile();

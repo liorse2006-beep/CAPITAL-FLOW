@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import useModalA11y from '../../hooks/useModalA11y';
+import useAccountOperation from '../../hooks/useAccountOperation';
 
 const CONFIRM_WORD = 'DELETE';
 
@@ -10,20 +11,28 @@ export default function DeleteAccountModal({ getToken, onDeleted, onClose }) {
   const [input, setInput] = useState('');
   const [status, setStatus] = useState('idle'); // idle | deleting | error
   const panelRef = useModalA11y(onClose);
+  const beginOperation = useAccountOperation(getToken);
 
   function submit(e) {
     e.preventDefault();
     if (input.trim() !== CONFIRM_WORD) return;
+    const operation = beginOperation('delete-account');
+    if (!operation) return;
     setStatus('deleting');
     fetch('/api/auth/account', {
       method: 'DELETE',
-      headers: { Authorization: 'Bearer ' + getToken() },
+      headers: { Authorization: 'Bearer ' + operation.token },
+      signal: operation.signal,
     })
       .then((r) => {
+        if (!operation.canCommit()) return;
         if (!r.ok) throw new Error('Failed');
         onDeleted();
       })
-      .catch(() => setStatus('error'));
+      .catch(() => {
+        if (operation.isCurrent()) setStatus('error');
+      })
+      .finally(operation.finish);
   }
 
   return (
@@ -65,7 +74,7 @@ export default function DeleteAccountModal({ getToken, onDeleted, onClose }) {
           />
           {status === 'error' && (
             <p className="upgrade-desc" style={{ color: '#EF4444' }}>
-              Couldn&apos;t delete your account — please try again.
+              Couldn&apos;t confirm account deletion. Sign in again to check before retrying.
             </p>
           )}
           <button
