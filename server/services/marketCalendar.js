@@ -7,6 +7,18 @@
 
 const NEW_YORK = 'America/New_York';
 
+// Published cash-equity early closes, verified against NYSE on 2026-10-08:
+// https://www.nyse.com/trade/hours-calendars
+// These are regular-session closes, not the later options/bond sessions.
+// Keep the bounded published schedule current; do not guess future dates.
+const PUBLISHED_EARLY_CLOSES = [
+  ['2026-11-27', 780],
+  ['2026-12-24', 780],
+  ['2027-11-26', 780],
+  ['2028-07-03', 780],
+  ['2028-11-24', 780],
+];
+
 function newYorkParts(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: NEW_YORK,
@@ -89,6 +101,7 @@ function isTradingDateKey(dateKey) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return false;
   const date = new Date(`${dateKey}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime())) return false;
+  if (isoDate(date) !== dateKey) return false;
   const year = date.getUTCFullYear();
   const weekday = date.getUTCDay();
   return weekday !== 0 && weekday !== 6 && !holidayDates(year).has(dateKey) && !configuredClosedDates().has(dateKey);
@@ -112,7 +125,7 @@ function configuredClosedDates() {
 }
 
 function configuredEarlyCloseMinutes() {
-  const closes = new Map();
+  const closes = new Map(PUBLISHED_EARLY_CLOSES);
   String(process.env.MARKET_EARLY_CLOSES || '')
     .split(',')
     .map((value) => value.trim())
@@ -129,7 +142,9 @@ function holidayDates(year) {
   const dates = new Set();
   const add = (date) => dates.add(isoDate(date));
 
-  add(observedMonday(year, 1, 1)); // New Year's Day
+  // Unlike other holidays, a Saturday New Year is not observed on the
+  // preceding Friday. NYSE explicitly lists no observed holiday in 2028.
+  if (dateUtc(year, 1, 1).getUTCDay() !== 6) add(observedMonday(year, 1, 1));
   add(nthWeekday(year, 1, 1, 3)); // Martin Luther King Jr. Day
   add(nthWeekday(year, 2, 1, 3)); // Washington's Birthday / Presidents' Day
 
@@ -198,4 +213,6 @@ module.exports = {
   isPreMarket,
   latestCompletedSessionDate,
   sessionDateForTimestamp,
+  isTradingDateKey,
+  previousTradingDateKey,
 };

@@ -22,6 +22,7 @@ const yahooFinance = require('./yahoo');
 const quoteCache = require('./quoteCache');
 const finnhub = require('./finnhub');
 const { buildFinancialProvenance, FUNDAMENTALS_SOURCES } = require('./financialProvenance');
+const { createTTLCache } = require('../utils/ttlCache');
 
 // Finnhub's 24h-cached metric=all payload carries P/E, debt/equity, and 5yr
 // revenue growth (see finnhub.js's fetchFinnhubMetric) — no separate Yahoo
@@ -29,15 +30,14 @@ const { buildFinancialProvenance, FUNDAMENTALS_SOURCES } = require('./financialP
 // one combined Yahoo quoteSummary call instead (defaultKeyStatistics +
 // calendarEvents) — one request instead of two, same 24h cache.
 const METRIC_TTL_MS = 24 * 60 * 60 * 1000;
-const metricCache = new Map(); // symbol → { data, fetchedAt }
-const keyStatsCache = new Map(); // symbol → { data, fetchedAt }
+const metricCache = createTTLCache(METRIC_TTL_MS);
+const keyStatsCache = createTTLCache(METRIC_TTL_MS);
 
 function slowGet(cache, symbol) {
-  const e = cache.get(symbol);
-  return e && Date.now() - e.fetchedAt < METRIC_TTL_MS ? e.data : null;
+  return cache.get(symbol) ?? null;
 }
 function slowSet(cache, symbol, data) {
-  cache.set(symbol, { data, fetchedAt: Date.now() });
+  cache.set(symbol, data);
 }
 
 function numericValue(value) {

@@ -1,6 +1,32 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { holidayDates, isMarketOpen, isPreMarket } = require('../server/services/marketCalendar');
+const {
+  holidayDates,
+  isMarketOpen,
+  isPreMarket,
+  latestCompletedSessionDate,
+} = require('../server/services/marketCalendar');
+
+test('published early closes stop regular-session scans and complete the session at 13:00 New York time', () => {
+  for (const [date, utcHour] of [
+    ['2026-11-27', 18],
+    ['2026-12-24', 18],
+    ['2027-11-26', 18],
+    ['2028-07-03', 17],
+    ['2028-11-24', 18],
+  ]) {
+    const close = new Date(`${date}T${utcHour}:00:00.000Z`);
+    assert.equal(isMarketOpen(new Date(close.getTime() - 60000)), true, date + ' before close');
+    assert.equal(isMarketOpen(close), false, date + ' at close');
+    assert.equal(latestCompletedSessionDate(close), date);
+  }
+});
+
+test('Saturday New Year does not close the previous Friday', () => {
+  assert.equal(holidayDates(2028).has('2027-12-31'), false);
+  assert.equal(isMarketOpen(new Date('2027-12-31T18:30:00.000Z')), true);
+  assert.equal(isMarketOpen(new Date('2028-01-03T15:00:00.000Z')), true);
+});
 
 test('market calendar includes recurring US equity closures', () => {
   const holidays = holidayDates(2026);

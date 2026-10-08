@@ -4,14 +4,15 @@ const { scanLimiter } = require('../middleware/rateLimiters');
 const { scanFundamentals } = require('../services/fundamentalsScanner');
 const { reportError } = require('../utils/reportError');
 const { buildFinancialProvenance, FUNDAMENTALS_SOURCES } = require('../services/financialProvenance');
+const { createTTLCache } = require('../utils/ttlCache');
 
 const SYMBOL_RE = /^[A-Z0-9.-]{1,10}$/;
 
 // Short-lived per-symbol cache — a customer re-checking the same ticker a
 // few minutes later (or two customers looking up the same hot name) costs
 // nothing extra. Fundamentals don't move intraday, so this can be generous.
-const resultCache = new Map(); // symbol → { result, scanTime, expiresAt }
 const CACHE_TTL_MS = 10 * 60 * 1000;
+const resultCache = createTTLCache(CACHE_TTL_MS);
 
 // Fundamentals is a single-ticker lookup, by the customer's own choice —
 // not a universe scan. "on the whole market" was the first version of this

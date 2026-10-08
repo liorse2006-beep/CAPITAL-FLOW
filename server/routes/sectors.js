@@ -1,267 +1,262 @@
 const router = require('express').Router();
 const yahooFinance = require('../services/yahoo');
-const { finnhubFetch } = require('../services/finnhub');
+const finnhub = require('../services/finnhub');
 const { requireScanQuota } = require('../middleware/authMiddleware');
 const { refundScan, quotaFor } = require('../services/scanQuota');
 const { reportError } = require('../utils/reportError');
 const { buildFinancialProvenance, SECTOR_FLOW_SOURCES } = require('../services/financialProvenance');
+const { isProviderTimestampStale, providerTimestampMs } = require('../services/quoteCache');
+const {
+  latestCompletedSessionDate,
+  sessionDateForTimestamp,
+  isTradingDateKey,
+  previousTradingDateKey,
+} = require('../services/marketCalendar');
 
-// Sector-flow has no per-user params — every caller gets the same 15 ETFs —
-// so a short shared cache turns N concurrent requests into 1 upstream fetch.
-var flowCache = { results: null, fetchTime: null, dataStatus: null, dataAsOf: null, expiresAt: 0 };
+const ETFS = [
+  'XLK',
+  'XLF',
+  'XLV',
+  'XLY',
+  'XLP',
+  'XLE',
+  'XLI',
+  'XLB',
+  'XLRE',
+  'XLU',
+  'XLC',
+  'SOXX',
+  'XOP',
+  'XTL',
+  'IGV',
+];
 const CACHE_TTL_MS = 60 * 1000;
+let flowCache = null;
+let inFlight = null;
 
 function finiteOrNull(value) {
-  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && !/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())) return null;
   const number = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(number) ? number : null;
 }
-
-function roundOrNull(value, digits) {
+function positiveOrNull(value) {
   const number = finiteOrNull(value);
-  if (number === null) return null;
-  const factor = 10 ** digits;
-  return Math.round(number * factor) / factor;
+  return number !== null && number > 0 ? number : null;
 }
-
-function providerTimeOrNull(value) {
-  if (value == null || value === '') return null;
-  const numeric = Number(value);
-  if (Number.isFinite(numeric) && numeric > 0) {
-    const date = new Date(numeric < 1e12 ? numeric * 1000 : numeric);
-    return Number.isFinite(date.getTime()) ? date.toISOString() : null;
-  }
-  const date = new Date(value);
+function observationTime(value) {
+  const timestamp = providerTimestampMs({ regularMarketTime: value });
+  if (timestamp === null || !Number.isFinite(timestamp) || timestamp <= 0 || timestamp > Date.now() + 300000)
+    return null;
+  const date = new Date(timestamp);
   return Number.isFinite(date.getTime()) ? date.toISOString() : null;
 }
-
-function latestTimestamp(values) {
-  return values.reduce((latest, value) => {
-    const timestamp = providerTimeOrNull(value);
-    return timestamp && (!latest || timestamp > latest) ? timestamp : latest;
-  }, null);
+function roundOrNull(value, digits = 2) {
+  const number = finiteOrNull(value);
+  const rounded = number === null ? null : Math.round(number * 10 ** digits) / 10 ** digits;
+  return Number.isFinite(rounded) ? rounded : null;
 }
-
-function oldestTimestamp(values) {
-  return values.reduce((oldest, value) => {
-    const timestamp = providerTimeOrNull(value);
-    return timestamp && (!oldest || timestamp < oldest) ? timestamp : oldest;
-  }, null);
+function unavailable(symbol) {
+  return {
+    symbol,
+    price: null,
+    change: null,
+    volume: null,
+    avgVolume: null,
+    volRatio: null,
+    flow: 'unavailable',
+    dayHigh: null,
+    dayLow: null,
+    prevClose: null,
+    lastSession: false,
+    dataStatus: 'unavailable',
+    dataAsOf: null,
+    dataSource: null,
+  };
 }
-
-router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) => {
-  if (flowCache.results && flowCache.expiresAt > Date.now()) {
-    // Cache hit — free, same policy as the main scanner. requireScanQuota
-    // already reserved a slot before we knew this would be a cache hit —
-    // refund it.
-    await refundScan(req.user, req.scanReservation);
-    return res.json({
-      results: flowCache.results,
-      fetchTime: flowCache.fetchTime,
-      dataStatus: flowCache.dataStatus,
-      dataAsOf: flowCache.dataAsOf,
-      dataProvenance: buildFinancialProvenance({
-        dataAsOf: flowCache.dataAsOf,
-        capturedAt: flowCache.fetchTime,
-        status: flowCache.dataStatus,
-        quoteStatus: flowCache.dataStatus,
-        sources: SECTOR_FLOW_SOURCES.map((source) => ({
-          ...source,
-          asOf: source.provider === 'Yahoo Finance' ? flowCache.dataAsOf : null,
-          status: source.provider === 'Yahoo Finance' ? flowCache.dataStatus : 'unknown',
-        })),
-      }),
-      fromCache: true,
-      ...quotaFor(req.user),
-    });
-  }
-
-  const etfs = [
-    'XLK',
-    'XLF',
-    'XLV',
-    'XLY',
-    'XLP',
-    'XLE',
-    'XLI',
-    'XLB',
-    'XLRE',
-    'XLU',
-    'XLC',
-    'SOXX',
-    'XOP',
-    'XTL',
-    'IGV',
-  ];
+function completedBars(chart, symbol) {
+  if (chart?.meta?.symbol !== symbol || chart?.meta?.currency !== 'USD' || !Array.isArray(chart.quotes)) return [];
+  const lastSession = latestCompletedSessionDate();
+  const bars = chart.quotes
+    .map((bar) => {
+      const dataAsOf = observationTime(bar?.date);
+      const volume = positiveOrNull(bar?.volume);
+      const close = positiveOrNull(bar?.close);
+      const high = positiveOrNull(bar?.high);
+      const low = positiveOrNull(bar?.low);
+      if (!dataAsOf || volume === null || close === null) return null;
+      const session = sessionDateForTimestamp(Date.parse(dataAsOf));
+      if (!isTradingDateKey(session) || session > lastSession || Date.now() - Date.parse(dataAsOf) > 30 * 86400000)
+        return null;
+      if (
+        (high !== null && high < close) ||
+        (low !== null && low > close) ||
+        (high !== null && low !== null && high < low)
+      )
+        return null;
+      return { volume, close, high, low, dataAsOf, session };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.dataAsOf.localeCompare(a.dataAsOf));
+  if (bars.some((bar, index) => index > 0 && bar.session === bars[index - 1].session)) return [];
+  if (bars[0]?.session !== lastSession) return [];
+  return bars.slice(0, 10);
+}
+async function loadSymbol(symbol, quote) {
   try {
-    // One batched Yahoo call for all 15 ETFs instead of 15 individual quote
-    // calls — yahoo-finance2 supports array input the same way quoteCache.js
-    // already relies on elsewhere. Same data, same freshness (still fetched
-    // fresh on every cache-miss cycle), just one round-trip instead of 15. A
-    // symbol missing from the batch response (or the whole call failing)
-    // falls through to the existing "market closed / no quote" chart-based
-    // fallback below, unchanged from today's per-symbol failure handling.
-    const quoteMap = new Map();
-    try {
-      const batchQuotes = await yahooFinance.quote(etfs);
-      (Array.isArray(batchQuotes) ? batchQuotes : [batchQuotes]).forEach((q) => {
-        if (q && q.symbol) quoteMap.set(q.symbol, q);
-      });
-    } catch (e) {
-      // Leave quoteMap empty — each symbol's existing fallback path handles this.
+    const chart = await yahooFinance.chart(symbol, { period1: new Date(Date.now() - 25 * 86400000), interval: '1d' });
+    const bars = completedBars(chart, symbol);
+    if (bars.length < 3) return unavailable(symbol);
+    const avgVolume = Math.round(bars.reduce((sum, bar) => sum + bar.volume, 0) / bars.length);
+    if (!Number.isFinite(avgVolume) || avgVolume <= 0) return unavailable(symbol);
+    const quoteAsOf = observationTime(quote?.regularMarketTime);
+    const validQuote =
+      quote?.symbol === symbol &&
+      quote?.currency === 'USD' &&
+      quoteAsOf &&
+      !isProviderTimestampStale({ regularMarketTime: quoteAsOf }) &&
+      positiveOrNull(quote.regularMarketPrice) !== null &&
+      positiveOrNull(quote.regularMarketVolume) !== null;
+    const lastSession = !validQuote;
+    let price = validQuote ? positiveOrNull(quote.regularMarketPrice) : bars[0].close;
+    const volume = validQuote ? positiveOrNull(quote.regularMarketVolume) : bars[0].volume;
+    let change = validQuote
+      ? finiteOrNull(quote.regularMarketChangePercent)
+      : ((bars[0].close - bars[1].close) / bars[1].close) * 100;
+    let dayHigh = validQuote ? positiveOrNull(quote.regularMarketDayHigh) : bars[0].high;
+    let dayLow = validQuote ? positiveOrNull(quote.regularMarketDayLow) : bars[0].low;
+    let prevClose = validQuote ? positiveOrNull(quote.regularMarketPreviousClose) : bars[1].close;
+    let dataAsOf = validQuote ? quoteAsOf : bars[0].dataAsOf;
+    let dataSource = 'Yahoo Finance';
+    const completeBaseline =
+      bars.length === 10 &&
+      bars.every((bar, index) => index === 0 || bar.session === previousTradingDateKey(bars[index - 1].session));
+    let partial = lastSession || !completeBaseline;
+    // Do not give an undated price the timestamp of a different observation.
+    const current = await finnhub.fetchFinnhubQuote(symbol);
+    if (current && !lastSession && !isProviderTimestampStale({ regularMarketTime: current.dataAsOf })) {
+      if (sessionDateForTimestamp(Date.parse(current.dataAsOf)) !== sessionDateForTimestamp(Date.parse(quoteAsOf)))
+        return unavailable(symbol);
+      price = current.price;
+      change = current.change;
+      dayHigh = current.dayHigh;
+      dayLow = current.dayLow;
+      prevClose = current.prevClose;
+      dataAsOf = current.dataAsOf < quoteAsOf ? current.dataAsOf : quoteAsOf;
+      dataSource = 'Finnhub / Yahoo Finance';
+      partial = partial || current.dataStatus !== 'complete';
     }
-
-    const results = await Promise.all(
-      etfs.map(async (symbol) => {
-        try {
-          const quote = quoteMap.get(symbol) || {};
-          const chart = await yahooFinance.chart(symbol, {
-            period1: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000),
-            interval: '1d',
-          });
-          const quotes = chart && chart.quotes ? chart.quotes : [];
-          const recent = quotes
-            .filter(function (d) {
-              return finiteOrNull(d.volume) !== null && finiteOrNull(d.volume) > 0 && finiteOrNull(d.close) !== null;
-            })
-            .sort(function (a, b) {
-              return new Date(b.date) - new Date(a.date);
-            })
-            .slice(0, 10);
-          const historicalAsOf = latestTimestamp(recent.map((bar) => bar.date));
-          let sourceAsOf = providerTimeOrNull(quote.regularMarketTime);
-          let sourceProvider = sourceAsOf ? 'Yahoo Finance' : null;
-          const avgVol =
-            recent.length >= 3
-              ? Math.round(
-                  recent.reduce(function (s, d) {
-                    return s + Number(d.volume);
-                  }, 0) / recent.length
-                )
-              : null;
-
-          let vol = finiteOrNull(quote.regularMarketVolume);
-          let change = finiteOrNull(quote.regularMarketChangePercent);
-          let price = finiteOrNull(quote.regularMarketPrice);
-          let dayHigh = finiteOrNull(quote.regularMarketDayHigh);
-          let dayLow = finiteOrNull(quote.regularMarketDayLow);
-          let prevClose = finiteOrNull(quote.regularMarketPreviousClose);
-          let lastSession = false;
-
-          // If market is closed (no live volume), fall back to the most recent session's data
-          if ((!vol || vol <= 0) && recent.length > 0) {
-            const last = recent[0];
-            vol = finiteOrNull(last.volume);
-            price = finiteOrNull(last.close) ?? price;
-            dayHigh = finiteOrNull(last.high) ?? dayHigh;
-            dayLow = finiteOrNull(last.low) ?? dayLow;
-            // Compute change from last two sessions if Yahoo isn't providing it
-            if (change === null && recent.length >= 2) {
-              const previous = finiteOrNull(recent[1].close);
-              const close = finiteOrNull(last.close);
-              if (previous > 0 && close !== null) change = ((close - previous) / previous) * 100;
-            }
-            lastSession = true;
-          }
-
-          try {
-            const fRes = await finnhubFetch('https://finnhub.io/api/v1/quote?symbol=' + encodeURIComponent(symbol));
-            const fData = fRes ? await fRes.json() : null;
-            const finnhubPrice = finiteOrNull(fData && fData.c);
-            if (fData && finnhubPrice !== null && finnhubPrice > 0 && !fData.error) {
-              price = finnhubPrice;
-              change = finiteOrNull(fData.dp) ?? change;
-              dayHigh = finiteOrNull(fData.h) ?? dayHigh;
-              dayLow = finiteOrNull(fData.l) ?? dayLow;
-              prevClose = finiteOrNull(fData.pc) ?? prevClose;
-              const finnhubAsOf = providerTimeOrNull(fData.t);
-              if (finnhubAsOf) {
-                sourceAsOf = finnhubAsOf;
-                sourceProvider = 'Finnhub';
-              }
-            }
-          } catch (e) {}
-
-          const volRatio = avgVol > 0 && vol > 0 ? roundOrNull(vol / avgVol, 2) : null;
-          const dataStatus = price > 0 && vol > 0 && avgVol > 0 ? 'complete' : 'unavailable';
-          let flow = 'unavailable';
-          if (dataStatus === 'complete') {
-            flow = 'neutral';
-            if (change !== null && change > 0.3 && volRatio > 1.1) flow = 'inflow';
-            else if (change !== null && change < -0.3 && volRatio > 1.1) flow = 'outflow';
-          }
-
-          return {
-            symbol: symbol,
-            price: price,
-            change: roundOrNull(change, 2),
-            volume: vol,
-            avgVolume: avgVol,
-            volRatio: volRatio,
-            flow: flow,
-            dayHigh: dayHigh,
-            dayLow: dayLow,
-            prevClose: prevClose,
-            lastSession: lastSession,
-            dataStatus: dataStatus,
-            dataAsOf: sourceAsOf || historicalAsOf || null,
-            dataSource: sourceProvider || (historicalAsOf ? 'Yahoo Finance' : null),
-          };
-        } catch (e) {
-          return {
-            symbol: symbol,
-            price: null,
-            change: null,
-            volume: null,
-            avgVolume: null,
-            volRatio: null,
-            flow: 'unavailable',
-            dayHigh: null,
-            dayLow: null,
-            prevClose: null,
-            lastSession: false,
-            dataStatus: 'unavailable',
-            dataAsOf: null,
-            dataSource: null,
-          };
-        }
-      })
-    );
-    var fetchTime = new Date().toISOString();
-    const unavailableCount = results.filter((result) => result.dataStatus === 'unavailable').length;
-    const dataStatus =
-      unavailableCount === results.length ? 'unavailable' : unavailableCount > 0 ? 'partial' : 'complete';
-    const dataAsOf = oldestTimestamp(results.map((result) => result.dataAsOf));
-    flowCache = {
-      results: results,
-      fetchTime: fetchTime,
-      dataStatus: dataStatus,
+    if ([change, dayHigh, dayLow, prevClose].some((value) => value === null)) partial = true;
+    if (dayHigh !== null && dayLow !== null && dayHigh < dayLow) {
+      dayHigh = null;
+      dayLow = null;
+      partial = true;
+    }
+    const volRatio = roundOrNull(volume / avgVolume);
+    if (volRatio === null || !Number.isFinite(change === null ? 0 : change)) return unavailable(symbol);
+    let flow = 'neutral';
+    if (change !== null && change > 0.3 && volRatio > 1.1) flow = 'inflow';
+    else if (change !== null && change < -0.3 && volRatio > 1.1) flow = 'outflow';
+    return {
+      symbol,
+      price,
+      change: roundOrNull(change),
+      volume,
+      avgVolume,
+      volRatio,
+      flow,
+      dayHigh,
+      dayLow,
+      prevClose,
+      lastSession,
+      dataStatus: partial ? 'partial' : 'complete',
       dataAsOf,
-      expiresAt: Date.now() + CACHE_TTL_MS,
+      dataSource,
     };
+  } catch (error) {
+    reportError(error, '[sector-flow provider]');
+    return unavailable(symbol);
+  }
+}
+async function loadFlow() {
+  const quotes = new Map();
+  try {
+    const batch = await yahooFinance.quote(ETFS);
+    for (const quote of Array.isArray(batch) ? batch : [batch]) {
+      if (quote && ETFS.includes(quote.symbol)) quotes.set(quote.symbol, quotes.has(quote.symbol) ? null : quote);
+    }
+  } catch (error) {
+    reportError(error, '[sector-flow batch]');
+  }
+  const results = await Promise.all(ETFS.map((symbol) => loadSymbol(symbol, quotes.get(symbol))));
+  const available = results.filter((row) => row.dataStatus !== 'unavailable');
+  const dataStatus =
+    available.length === 0
+      ? 'unavailable'
+      : available.length !== results.length || available.some((row) => row.dataStatus !== 'complete')
+        ? 'partial'
+        : 'complete';
+  const times = available
+    .map((row) => row.dataAsOf)
+    .filter(Boolean)
+    .sort();
+  const payload = { results, fetchTime: new Date().toISOString(), dataStatus, dataAsOf: times[0] || null };
+  flowCache = { payload, expiresAt: Date.now() + CACHE_TTL_MS };
+  return payload;
+}
+function freshCache() {
+  if (!flowCache || flowCache.expiresAt <= Date.now()) return false;
+  return flowCache.payload.results.every(
+    (row) =>
+      row.dataStatus === 'unavailable' ||
+      (row.lastSession
+        ? sessionDateForTimestamp(Date.parse(row.dataAsOf)) === latestCompletedSessionDate()
+        : !isProviderTimestampStale({ regularMarketTime: row.dataAsOf }))
+  );
+}
+router.get('/sector-flow', requireScanQuota('sectorMoving'), async (req, res) => {
+  try {
+    let shared = false;
+    let payload;
+    if (freshCache()) {
+      shared = true;
+      payload = flowCache.payload;
+    } else if (inFlight) {
+      shared = true;
+      payload = await inFlight;
+    } else {
+      const work = loadFlow();
+      inFlight = work;
+      try {
+        payload = await work;
+      } finally {
+        if (inFlight === work) inFlight = null;
+      }
+    }
+    if (shared || payload.dataStatus === 'unavailable') await refundScan(req.user, req.scanReservation);
     res.json({
-      results: results,
-      fetchTime: fetchTime,
-      dataStatus,
-      dataAsOf,
+      ...payload,
+      ...(shared ? { fromCache: true } : {}),
       dataProvenance: buildFinancialProvenance({
-        dataAsOf,
-        capturedAt: fetchTime,
-        status: dataStatus,
-        quoteStatus: dataStatus,
+        dataAsOf: payload.dataAsOf,
+        capturedAt: payload.fetchTime,
+        status: payload.dataStatus,
+        quoteStatus: payload.dataStatus,
         sources: SECTOR_FLOW_SOURCES.map((source) => ({
           ...source,
-          asOf: source.provider === 'Yahoo Finance' ? dataAsOf : null,
-          status: source.provider === 'Yahoo Finance' ? dataStatus : 'unknown',
+          asOf: source.provider === 'Yahoo Finance' ? payload.dataAsOf : null,
+          status: source.provider === 'Yahoo Finance' ? payload.dataStatus : 'unknown',
         })),
       }),
       ...quotaFor(req.user),
     });
-  } catch (err) {
+  } catch (error) {
     await refundScan(req.user, req.scanReservation);
-    reportError(err, '[sectors]');
-    res.status(500).json({ error: 'Server error' });
+    reportError(error, '[sectors]');
+    res.status(503).json({
+      error: 'Market data is temporarily unavailable. Please try again in a few minutes.',
+      dataStatus: 'unavailable',
+    });
   }
 });
-
 module.exports = router;

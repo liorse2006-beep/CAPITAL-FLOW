@@ -1,4 +1,5 @@
 const yahooFinance = require('./yahoo');
+const { createTTLCache } = require('../utils/ttlCache');
 
 // This endpoint re-fetched the same 6-month daily chart from Yahoo on every
 // single call with no caching at all, even for the same symbol requested
@@ -11,7 +12,7 @@ const yahooFinance = require('./yahoo');
 // — the ratio-dependent spike computation below still runs fresh every call
 // on whatever quotes it gets, so accuracy for a given ratio is unaffected.
 const CHART_TTL_MS = 24 * 60 * 60 * 1000;
-const chartCache = new Map(); // symbol → { quotes, fetchedAt }
+const chartCache = createTTLCache(CHART_TTL_MS);
 
 function latestTimestamp(quotes) {
   return quotes.reduce(function (latest, quote) {
