@@ -2,6 +2,7 @@ const { finnhubFetch } = require('./finnhub');
 const { summarizeArticles } = require('./newsSummarizer');
 const { MASSIVE_API_KEY, MARKETAUX_API_KEY, NEWSDATA_API_KEY } = require('../config');
 const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
+const publicUrlResolver = require('../utils/publicUrlResolver');
 
 const newsCache = new Map();
 const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -186,7 +187,7 @@ async function fetchNewsForSymbol(symbol) {
     // it ever reaches a slot (or a Gemini summarization call).
     if (articles) {
       articles = articles.filter(function (a) {
-        return !!a.url;
+        return publicUrlResolver.isPublicHttpUrl(a.url);
       });
     }
     if (articles && articles.length > 0) {
@@ -279,26 +280,9 @@ async function probeNewsProviders(symbol) {
   return result;
 }
 
-// Blocks the server from ever HEAD-fetching a private/internal address.
-// Today the only caller (routes/news.js) already restricts `url` to one this
-// server itself returned from a real news provider, so this is defense in
-// depth — not the only guard — for the case a provider's article URL ever
-// points (accidentally or via a compromised feed) at localhost, a private
-// LAN range, or a cloud metadata endpoint like 169.254.169.254.
-var PRIVATE_HOSTNAME_RE =
-  /^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.0\.0\.0|::1$|f[cd][0-9a-f]{2}:|fe80:)/i;
-
-function isDisallowedUrl(url) {
-  try {
-    var parsed = new URL(url);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return true;
-    var host = parsed.hostname.replace(/^\[|\]$/g, ''); // strip IPv6 brackets
-    return PRIVATE_HOSTNAME_RE.test(host);
-  } catch (e) {
-    return true; // unparseable URL — never fetch it
-  }
-}
-
+// Article destinations and every redirect are checked by publicUrlResolver
+// before sending a request, including DNS answers and the connection address.
+// Cached URL membership is not itself a private-network safety boundary.
 // Known aliases for publisher domains whose bare hostname would otherwise
 // read oddly once title-cased generically below (e.g. "Finance.yahoo").
 var KNOWN_SOURCE_LABELS = {
@@ -353,17 +337,7 @@ function labelFromUrl(url) {
 // throws, falls back to the original url on any failure or timeout so a
 // slow/broken destination never leaves the user stuck.
 async function resolveFinalUrl(url) {
-  if (isDisallowedUrl(url)) return url;
-  try {
-    // Use the shared timeout wrapper so this outbound request cannot leave a
-    // timer behind or hang independently of the rest of the provider calls.
-    const res = await fetchWithTimeout(url, { method: 'HEAD', redirect: 'follow' }, 5000);
-    // The redirect chain itself could land on a private address even if the
-    // starting url didn't — re-check before trusting res.url.
-    return isDisallowedUrl(res.url) ? url : res.url || url;
-  } catch (e) {
-    return url;
-  }
+  return publicUrlResolver.resolvePublicUrl(url);
 }
 
 module.exports = {

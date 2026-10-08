@@ -15,8 +15,6 @@ const { issueToken } = require('../server/services/auth');
 const newsRouter = require('../server/routes/news');
 const { newsCache } = require('../server/services/newsService');
 
-const originalFetch = global.fetch;
-
 function startTestApp() {
   const app = express();
   app.use(express.json());
@@ -88,17 +86,16 @@ test('GET /api/news/:symbol/resolve rejects a url that was never actually return
   }
 });
 
-test('GET /api/news/:symbol/resolve follows a redirect for a url that was actually cached for that symbol', async () => {
+test('GET /api/news/:symbol/resolve follows a redirect for a url that was actually cached for that symbol', async (t) => {
   newsCache.set('RSLV2', {
     articles: [{ headline: 'h', url: 'https://finnhub.io/track/abc', datetime: 0 }],
     fetchTime: Date.now(),
     source: 'finnhub',
   });
-  global.fetch = async (url, opts) => {
-    if (url !== 'https://finnhub.io/track/abc') return originalFetch(url, opts);
-    assert.strictEqual(opts.method, 'HEAD');
-    return { url: 'https://real-publisher.example.com/article' };
-  };
+  t.mock.method(require('../server/utils/publicUrlResolver'), 'resolvePublicUrl', async (url) => {
+    assert.strictEqual(url, 'https://finnhub.io/track/abc');
+    return 'https://real-publisher.example.com/article';
+  });
 
   const user = await makeUser('news-resolve-known@test.local', { tier: 'elite' });
   const server = await startTestApp();
@@ -113,7 +110,6 @@ test('GET /api/news/:symbol/resolve follows a redirect for a url that was actual
     assert.strictEqual(body.url, 'https://real-publisher.example.com/article');
   } finally {
     server.close();
-    global.fetch = originalFetch;
     newsCache.delete('RSLV2');
   }
 });

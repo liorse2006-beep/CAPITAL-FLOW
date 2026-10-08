@@ -27,9 +27,15 @@ delete require.cache[require.resolve('../server/services/newsService')];
 const { fetchNewsForSymbol, probeNewsProviders, newsProbeCache } = require('../server/services/newsService');
 
 const originalFetch = global.fetch;
+const publicUrlResolver = require('../server/utils/publicUrlResolver');
+const originalResolver = publicUrlResolver.resolvePublicUrl;
+// Provider/enrichment fixtures do not perform DNS or actual HTTP requests.
+// The resolver's real transport and security policy have separate regressions.
+publicUrlResolver.resolvePublicUrl = async (url) => (await global.fetch(url, { method: 'HEAD' })).url || url;
 after(() => {
   global.fetch = originalFetch;
   finnhubModule.finnhubFetch = originalFinnhubFetch;
+  publicUrlResolver.resolvePublicUrl = originalResolver;
 });
 
 function jsonResponse(body, ok) {

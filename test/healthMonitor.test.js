@@ -114,3 +114,22 @@ test('counts a timeout and the error emitted by destroy as one failed check', as
 
   assert.strictEqual(sendMail.mock.callCount(), 0, 'two timed-out checks must not look like four failures');
 });
+
+test('a rejected alert delivery is retried instead of being marked sent', async (t) => {
+  healthStatus = 200;
+  await checkHealth();
+  const sendMail = mock.fn(async () => {
+    throw new Error('synthetic mail transport failure');
+  });
+  t.mock.method(nodemailer, 'createTransport', () => ({ sendMail }));
+  healthStatus = 503;
+  await checkHealth();
+  await checkHealth();
+  await checkHealth();
+  assert.strictEqual(sendMail.mock.callCount(), 1);
+  await checkHealth();
+  assert.strictEqual(sendMail.mock.callCount(), 2);
+  healthStatus = 200;
+  await checkHealth();
+  assert.strictEqual(sendMail.mock.callCount(), 2, 'an undelivered down alert does not create a recovery email');
+});

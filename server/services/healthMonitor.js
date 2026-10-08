@@ -17,6 +17,7 @@ const http = require('http');
 const nodemailer = require('nodemailer');
 const { PORT, ADMIN_EMAIL, GMAIL_USER, GMAIL_APP_PASSWORD } = require('../config');
 const { reportError } = require('../utils/reportError');
+const { backgroundTimeout, backgroundInterval } = require('./backgroundRuntime');
 
 const HEALTH_URL = `http://localhost:${PORT}/health`;
 const FAIL_THRESHOLD = 3;
@@ -24,6 +25,8 @@ const CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const STARTUP_DELAY_MS = 30 * 1000; // let the HTTP server finish binding first
 
 let state = { failCount: 0, alerted: false };
+let inFlight = null;
+let started = false;
 
 function createTransport() {
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD) return null;
@@ -33,78 +36,103 @@ function createTransport() {
   });
 }
 
-function sendAlert(subject, body) {
+async function sendAlert(subject, body) {
   const transport = createTransport();
   if (!transport || !ADMIN_EMAIL) {
     console.warn(
       '[health-monitor] Email not configured — set GMAIL_USER + GMAIL_APP_PASSWORD + ADMIN_EMAIL to receive downtime alerts'
     );
-    return;
+    return false;
   }
-  transport
-    .sendMail({
+  try {
+    await transport.sendMail({
       from: `"Capital Flow Monitor" <${GMAIL_USER}>`,
       to: ADMIN_EMAIL,
       subject,
       text: body,
-    })
-    .then(() => console.log('[health-monitor] Alert sent:', subject))
-    .catch((err) => reportError(err, '[health-monitor] Alert send failed'));
+    });
+    console.log('[health-monitor] Alert sent:', subject);
+    return true;
+  } catch (err) {
+    reportError(err, '[health-monitor] Alert send failed');
+    return false;
+  }
 }
 
-function onFail(reason) {
+async function onFail(reason) {
   state.failCount++;
   console.error(`[health-monitor] [FAIL] #${state.failCount} - ${reason}`);
 
   if (state.failCount >= FAIL_THRESHOLD && !state.alerted) {
-    state.alerted = true;
-    sendAlert(
+    state.alerted = await sendAlert(
       `[Capital Flow] SERVER DOWN (${state.failCount} consecutive failures)`,
       `Capital Flow's own /health check is failing.\n\nReason: ${reason}\nFail count: ${state.failCount}\nTime: ${new Date().toISOString()}`
     );
   }
 }
 
-function checkHealth() {
+function probeHealth() {
   // A timeout is followed by request.destroy(), which commonly emits an
   // additional `error` event. Count one network attempt once only, otherwise
   // a single outage can advance the consecutive-failure threshold twice.
-  let settled = false;
-  const failOnce = (reason) => {
-    if (settled) return;
-    settled = true;
-    onFail(reason);
-  };
-
-  const req = http.get(HEALTH_URL, { timeout: 5000 }, (res) => {
-    if (settled) return;
-    settled = true;
-    res.resume();
-    if (res.statusCode === 200) {
+  return new Promise((resolve) => {
+    let settled = false;
+    let req;
+    const finish = (reason) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      resolve(reason);
+    };
+    const timeout = () => {
+      finish('request timeout');
+      req?.destroy();
+    };
+    // A wall-clock deadline also bounds a response that trickles forever.
+    const deadline = setTimeout(timeout, 5000);
+    deadline.unref();
+    try {
+      req = http.get(HEALTH_URL, { timeout: 5000 }, (res) => {
+        res.on('end', () => finish(res.statusCode === 200 ? null : `HTTP ${res.statusCode}`));
+        res.on('error', (err) => finish(err.message));
+        res.on('aborted', () => finish('response aborted'));
+        res.resume();
+      });
+      req.on('timeout', timeout);
+      req.on('error', (err) => finish(err.message));
+    } catch (err) {
+      finish(err.message);
+    }
+  }).then(async (reason) => {
+    if (reason === null) {
       if (state.alerted) {
         console.log('[health-monitor] [OK] Recovered after', state.failCount, 'failures');
-        sendAlert(
+        await sendAlert(
           '[Capital Flow] Server recovered',
           `The server is back online.\n\nRecovered at: ${new Date().toISOString()}\nConsecutive failures before recovery: ${state.failCount}`
         );
       }
       state = { failCount: 0, alerted: false };
     } else {
-      onFail(`HTTP ${res.statusCode}`);
+      await onFail(reason);
     }
   });
+}
 
-  req.on('timeout', () => {
-    if (settled) return;
-    req.destroy();
-    failOnce('request timeout');
+function checkHealth() {
+  if (inFlight) return inFlight;
+  const work = probeHealth().finally(() => {
+    if (inFlight === work) inFlight = null;
   });
-  req.on('error', (err) => failOnce(err.message));
+  inFlight = work;
+  return work;
 }
 
 function startHealthMonitor() {
-  setTimeout(checkHealth, STARTUP_DELAY_MS).unref();
-  setInterval(checkHealth, CHECK_INTERVAL_MS).unref();
+  if (started) return;
+  started = true;
+  backgroundTimeout(checkHealth, STARTUP_DELAY_MS);
+  backgroundInterval(checkHealth, CHECK_INTERVAL_MS);
 }
 
 module.exports = { startHealthMonitor, checkHealth };
