@@ -46,11 +46,13 @@ test('israelNow returns HH:MM and YYYY-MM-DD shaped strings', () => {
   assert.match(now.date, /^\d{4}-\d{2}-\d{2}$/);
 });
 
-test('digest schedule matching keeps the catch-up window without polling the database each minute', () => {
+test('digest schedule matching catches up later on the same day but never runs a future slot', () => {
   assert.equal(isDigestTimeDue('09:30', '09:30'), true);
   assert.equal(isDigestTimeDue('09:30', '09:33'), true);
-  assert.equal(isDigestTimeDue('09:30', '09:34'), false);
-  assert.equal(isDigestTimeDue('23:59', '00:02'), true);
+  assert.equal(isDigestTimeDue('09:30', '09:34'), true);
+  assert.equal(isDigestTimeDue('09:30', '23:00'), true);
+  assert.equal(isDigestTimeDue('09:30', '09:29'), false);
+  assert.equal(isDigestTimeDue('23:59', '00:02'), false);
   assert.equal(isDigestTimeDue('24:00', '00:00'), false);
 });
 
@@ -109,7 +111,7 @@ test('runDigestTick persists the matching scan rows and deep-links the push to t
   assert.deepStrictEqual(JSON.parse(notification.results_json), results);
   assert.strictEqual(pushMock.mock.callCount(), 1);
   const pushPayload = JSON.parse(pushMock.mock.calls[0].arguments[1]);
-  assert.strictEqual(pushPayload.data.url, '/scanner?notif=' + notification.id);
+  assert.strictEqual(pushPayload.data.url, '/scanner?notif=srv-' + notification.id);
 });
 
 test('runDigestTick sends exactly one push per user per day, even if the tick fires twice', async () => {

@@ -451,6 +451,7 @@ if (isSingletonWorker()) {
       startBackgroundScheduler();
       startScheduledDigest();
       startScheduledScanRunner();
+      require('./services/notificationOutbox').startNotificationOutbox();
       startScheduledBackup();
       startStatusMonitor();
     })
@@ -481,6 +482,7 @@ function gracefulShutdown(signal) {
   if (shutdownPromise) return shutdownPromise;
   shuttingDown = true;
   console.log(`[shutdown] ${signal} received; draining HTTP requests and closing database`);
+  const backgroundDrain = require('./services/backgroundRuntime').stopBackgroundTasks();
   require('./routes/stream').closeAllStreams();
 
   shutdownPromise = new Promise((resolve) => {
@@ -493,6 +495,7 @@ function gracefulShutdown(signal) {
     server.close(async (serverError) => {
       try {
         if (serverError) throw serverError;
+        await backgroundDrain;
         await db.close();
         const { Sentry } = require('./sentry');
         await Sentry.flush(2000);

@@ -20,6 +20,7 @@ const { sendStatusIncidentAlert, sendStatusRecoveryAlert } = require('./email');
 const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
 const { reportError, safeErrorSummary } = require('../utils/reportError');
 const { getComponentDefinitions, getStatusTargetUrl } = require('./statusConfig');
+const { backgroundInterval, runBackgroundTask } = require('./backgroundRuntime');
 
 const FAILURE_CONFIRMATIONS = STATUS_FAILURE_CONFIRMATIONS;
 const RECOVERY_CONFIRMATIONS = STATUS_RECOVERY_CONFIRMATIONS;
@@ -942,12 +943,12 @@ function startStatusMonitor() {
   if (!STATUS_MONITOR_ENABLED || state.timer) return;
   state.monitorStartedAt = now();
   const run = () => runStatusCycle().catch(() => {});
-  state.timer = setInterval(run, STATUS_CHECK_INTERVAL_MS);
+  state.timer = backgroundInterval(run, STATUS_CHECK_INTERVAL_MS);
   state.timer.unref();
   // Run the first cycle immediately after the status service is ready. A
   // delayed first probe left the public page showing "Checking" for the
   // entire startup grace period, even when every dependency was healthy.
-  run();
+  runBackgroundTask(run);
 }
 
 async function getMeta() {

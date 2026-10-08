@@ -120,6 +120,7 @@ function shouldRunScheduledBackup(nowMs, lastBackupMs, isSunday) {
 }
 
 function startScheduledBackup() {
+  const { backgroundTimeout, backgroundInterval } = require('./backgroundRuntime');
   async function maybeRunBackup() {
     try {
       // Every redeploy restarts this process, so "run once on boot" (the old
@@ -138,8 +139,8 @@ function startScheduledBackup() {
     }
   }
 
-  setTimeout(maybeRunBackup, BACKUP_STARTUP_DELAY_MS);
-  setInterval(maybeRunBackup, BACKUP_CHECK_INTERVAL_MS);
+  backgroundTimeout(maybeRunBackup, BACKUP_STARTUP_DELAY_MS);
+  backgroundInterval(maybeRunBackup, BACKUP_CHECK_INTERVAL_MS);
 }
 
 module.exports = { dumpTables, runBackupTick, shouldRunScheduledBackup, startScheduledBackup, TABLES };

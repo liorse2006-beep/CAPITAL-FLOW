@@ -37,6 +37,49 @@ async function makeUser(email) {
   return result.lastInsertRowid;
 }
 
+test('a retry only sends to the device whose prior push was not accepted', async (t) => {
+  const userId = await makeUser('push-receipts@test.local');
+  await db.prepare("UPDATE users SET tier = 'elite' WHERE id = ?").run(userId);
+  const notificationId = await require('../server/services/notifications').addNotification(userId, {
+    title: 'test',
+    body: 'test',
+  });
+  await webPush.saveSubscription(userId, { endpoint: 'https://push.example/accepted', keys: keys1 });
+  await webPush.saveSubscription(userId, { endpoint: 'https://push.example/retry', keys: keys2 });
+  let fail = true;
+  const sender = t.mock.method(pushTransport, 'sendNotification', async (sub) => {
+    if (fail && sub.endpoint.endsWith('/retry')) throw new Error('Synthetic provider failure');
+    return { statusCode: 201 };
+  });
+  const first = await webPush.sendPushToUser(userId, { title: 'test' }, { notificationId });
+  assert.equal(first.delivered, 1);
+  assert.equal(first.devices, 2);
+  fail = false;
+  const second = await webPush.sendPushToUser(userId, { title: 'test' }, { notificationId });
+  assert.equal(second.devices, 1);
+  assert.equal(second.delivered, 1);
+  assert.equal(second.acceptedPreviously, 1);
+  assert.equal(sender.mock.callCount(), 3);
+  assert.equal(sender.mock.calls[2].arguments[0].endpoint, 'https://push.example/retry');
+  const third = await webPush.sendPushToUser(userId, { title: 'test' }, { notificationId });
+  assert.equal(third.devices, 0);
+  assert.equal(third.acceptedPreviously, 2);
+  assert.equal(sender.mock.callCount(), 3);
+});
+
+test('a downgrade during DNS prevents a deferred push at the last delivery boundary', async (t) => {
+  const userId = await makeUser('push-lastmile@test.local');
+  await db.prepare("UPDATE users SET tier = 'elite' WHERE id = ?").run(userId);
+  await webPush.saveSubscription(userId, { endpoint: 'https://push.example/lastmile', keys: keys1 });
+  t.mock.method(dns, 'lookup', async () => {
+    await db.prepare("UPDATE users SET tier = 'premium' WHERE id = ?").run(userId);
+    return [{ address: '8.8.8.8', family: 4 }];
+  });
+  const sender = t.mock.method(pushTransport, 'sendNotification', async () => ({ statusCode: 201 }));
+  await webPush.sendPushToUser(userId, { title: 'test' }, { notificationId: 123456 });
+  assert.equal(sender.mock.callCount(), 0);
+});
+
 test('saveSubscription upserts by endpoint, keeping only the latest keys', async () => {
   const u = await makeUser('push-a@test.local');
   await webPush.saveSubscription(u, { endpoint: 'https://push.example/1', keys: keys1 });

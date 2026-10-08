@@ -21,7 +21,7 @@ function percentile(values, fraction) {
 }
 
 function isLocalHost(hostname) {
-  return ['localhost', '127.0.0.1', '::1'].includes(hostname);
+  return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(hostname);
 }
 
 function assertSafeTarget(targetUrl) {
@@ -33,7 +33,10 @@ function assertSafeTarget(targetUrl) {
       'Refusing a non-local load test. Set LOAD_TEST_CONFIRM=staging only for an explicitly approved staging target.'
     );
   }
-  if (/(^|\.)capitalflow\.vip$/i.test(parsed.hostname)) {
+  if (
+    /(^|\.)capitalflow\.vip$/i.test(parsed.hostname) ||
+    parsed.hostname.toLowerCase() === 'capital-flow-3v59.onrender.com'
+  ) {
     throw new Error(
       'Production load testing is blocked by default. Run this harness against a staging host or use a dedicated capacity-test environment.'
     );
@@ -48,9 +51,12 @@ async function requestOnce(baseUrl, path, timeoutMs, fetchImpl) {
   try {
     const response = await fetchImpl(new URL(path, baseUrl), {
       method: 'GET',
+      redirect: 'error',
       headers: { accept: 'application/json, text/plain;q=0.9', 'user-agent': 'CapitalFlow-load-test/1.0' },
       signal: controller.signal,
     });
+    // Include response-body transfer, not just time until headers arrive.
+    if (typeof response.arrayBuffer === 'function') await response.arrayBuffer();
     return {
       ok: response.ok,
       status: response.status,
@@ -89,6 +95,19 @@ export async function runLoadTest({
   if (typeof fetchImpl !== 'function') throw new Error('This load-test harness requires a fetch implementation.');
   if (!paths.length) throw new Error('Configure at least one read-only path in LOAD_TEST_PATHS.');
   const baseUrl = assertSafeTarget(targetUrl);
+  if (!Number.isInteger(users) || users < 1 || users > 500)
+    throw new Error('Virtual users must be an integer from 1 to 500.');
+  for (const path of paths) {
+    if (
+      typeof path !== 'string' ||
+      !path.startsWith('/') ||
+      path.startsWith('//') ||
+      path.includes('\\') ||
+      new URL(path, baseUrl).origin !== baseUrl.origin
+    ) {
+      throw new Error('Load-test paths must stay on the approved origin.');
+    }
+  }
   const startedAt = new Date().toISOString();
   const started = performance.now();
   const results = await Promise.all(

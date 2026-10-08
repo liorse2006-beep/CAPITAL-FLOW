@@ -246,6 +246,7 @@ function createPostgresDatabase(databaseUrl) {
 
   async function transaction(statementsOrCallback) {
     const connection = await pool.connect();
+    const commitHooks = [];
     try {
       await connection.query('BEGIN');
       let result;
@@ -253,6 +254,10 @@ function createPostgresDatabase(databaseUrl) {
         result = await statementsOrCallback({
           prepare: (sql) => prepare(sql, connection),
           exec: (sql) => exec(sql, connection),
+          afterCommit: (callback) => {
+            if (typeof callback !== 'function') throw new TypeError('Commit callback must be a function');
+            commitHooks.push(callback);
+          },
         });
       } else {
         if (!Array.isArray(statementsOrCallback) || statementsOrCallback.length === 0) {
@@ -265,6 +270,13 @@ function createPostgresDatabase(databaseUrl) {
         }
       }
       await connection.query('COMMIT');
+      for (const callback of commitHooks) {
+        try {
+          Promise.resolve(callback()).catch(() => console.warn('[db afterCommit] notification wake-up failed'));
+        } catch (_) {
+          console.warn('[db afterCommit] notification wake-up failed');
+        }
+      }
       return result;
     } catch (error) {
       try {

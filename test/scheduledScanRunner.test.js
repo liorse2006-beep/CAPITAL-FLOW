@@ -173,7 +173,7 @@ test('a scheduled scan persists an in-app notification, so it is visible even wi
   // The push payload's deep link must point at this exact notification.
   assert.strictEqual(pushMock.mock.callCount(), 1);
   const pushPayload = pushMock.mock.calls[0].arguments[1];
-  assert.strictEqual(pushPayload.data.url, '/scanner?notif=' + notif.id);
+  assert.strictEqual(pushPayload.data.url, '/scanner?notif=srv-' + notif.id);
 });
 
 test('a completed scheduled scan with no matches still notifies the user', async (t) => {

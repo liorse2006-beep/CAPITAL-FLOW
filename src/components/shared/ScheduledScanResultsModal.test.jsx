@@ -47,4 +47,53 @@ describe('ScheduledScanResultsModal', () => {
     expect(screen.queryByText(/NaN/i)).not.toBeInTheDocument();
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });
+
+  it('keeps a normal signal for a partial scan with one row, while explaining quality in the saved results', () => {
+    render(
+      <ScheduledScanResultsModal
+        notification={{
+          ...notificationWithResults([{ symbol: 'ONE', price: 12, maDistance: null }]),
+          body: "We couldn't verify a market signal this time.",
+          dataStatus: 'partial',
+          dataAsOf: new Date(Date.now() - 30000).toISOString(),
+        }}
+        onClose={vi.fn()}
+      />
+    );
+    expect(screen.getByText('ONE')).toBeInTheDocument();
+    expect(screen.getByText('New market signal detected. Open Capital Flow to view it.')).toBeInTheDocument();
+    expect(screen.getByText('Showing available results. Some market data was unavailable.')).toBeInTheDocument();
+    expect(screen.getByText(/Market data as of/)).toBeInTheDocument();
+    expect(screen.queryByText(/couldn't verify/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/% from MA/)).not.toBeInTheDocument();
+  });
+
+  it.each([null, '', 'invalid', new Date(Date.now() + 300000).toISOString()])(
+    'never presents an absent or invalid observation time as current: %s',
+    (dataAsOf) => {
+      render(
+        <ScheduledScanResultsModal
+          notification={{
+            ...notificationWithResults([{ symbol: 'ONE', price: 12, maDistance: false }]),
+            dataStatus: 'complete',
+            dataAsOf,
+          }}
+          onClose={vi.fn()}
+        />
+      );
+      expect(screen.getByText('Market data time is unavailable.')).toBeInTheDocument();
+      expect(screen.queryByText(/% from MA/)).not.toBeInTheDocument();
+    }
+  );
+
+  it('uses the no-signal message only when the saved table has no rows', () => {
+    render(
+      <ScheduledScanResultsModal
+        notification={{ ...notificationWithResults([]), body: 'New market signal detected.' }}
+        onClose={vi.fn()}
+      />
+    );
+    expect(screen.getAllByText("We couldn't verify a market signal this time.")).toHaveLength(2);
+    expect(screen.queryByText(/New market signal/)).not.toBeInTheDocument();
+  });
 });

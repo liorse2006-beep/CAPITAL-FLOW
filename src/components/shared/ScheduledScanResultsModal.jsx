@@ -9,13 +9,26 @@ var SCAN_LABEL = {
 };
 
 function formatWhen(unixSec) {
-  if (!unixSec) return '';
+  if (typeof unixSec !== 'number' || !Number.isFinite(unixSec) || unixSec <= 0) return '';
   return new Date(unixSec * 1000).toLocaleString([], {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function hasNumber(value) {
+  return (
+    (typeof value === 'number' || (typeof value === 'string' && value.trim() !== '')) && Number.isFinite(Number(value))
+  );
+}
+
+function dataTime(value) {
+  if (typeof value !== 'string' || !value.trim()) return '';
+  var timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp) || timestamp <= 0 || timestamp > Date.now() + 60000) return '';
+  return formatWhen(timestamp / 1000);
 }
 
 /* Shown when a scheduled scan's push/bell notification is tapped — the exact
@@ -26,11 +39,17 @@ function formatWhen(unixSec) {
    the "why it showed up" signal. */
 export default function ScheduledScanResultsModal({ notification, onClose, isInWatchlist, toggleWatchlistTicker }) {
   if (!notification) return null;
-  var results = notification.results || [];
+  var results = Array.isArray(notification.results) ? notification.results : [];
   var label = SCAN_LABEL[notification.scanType] || 'Scheduled Scan';
-  var dataUnavailable = /temporarily unavailable|could not be verified|couldn't verify|no complete result set/i.test(
-    notification.body || ''
-  );
+  var observedAt = dataTime(notification.dataAsOf);
+  var qualityNotice =
+    notification.dataStatus === 'partial'
+      ? 'Showing available results. Some market data was unavailable.'
+      : notification.dataStatus === 'stale'
+        ? 'These saved results contain delayed market data.'
+        : notification.dataStatus !== 'complete'
+          ? 'These saved results could not be fully verified.'
+          : '';
 
   return (
     <div className="upgrade-overlay scheduled-results-overlay" onClick={onClose}>
@@ -46,7 +65,17 @@ export default function ScheduledScanResultsModal({ notification, onClose, isInW
             <h2 className="scheduled-results-title">
               {label} — {formatWhen(notification.createdAt)}
             </h2>
-            <p className="scheduled-results-sub">{notification.body}</p>
+            <p className="scheduled-results-sub">
+              {results.length > 0
+                ? 'New market signal detected. Open Capital Flow to view it.'
+                : "We couldn't verify a market signal this time."}
+            </p>
+            {results.length > 0 && (
+              <div className="scheduled-results-quality" role="note">
+                {qualityNotice && <p>{qualityNotice}</p>}
+                <p>{observedAt ? 'Market data as of ' + observedAt + '.' : 'Market data time is unavailable.'}</p>
+              </div>
+            )}
           </div>
           <button className="scheduled-results-close" onClick={onClose} aria-label="Close">
             &times;
@@ -54,9 +83,7 @@ export default function ScheduledScanResultsModal({ notification, onClose, isInW
         </div>
 
         {results.length === 0 ? (
-          <div className="scheduled-results-empty">
-            {dataUnavailable ? notification.body : 'No unusual activity was found on this run.'}
-          </div>
+          <div className="scheduled-results-empty">{"We couldn't verify a market signal this time."}</div>
         ) : (
           <div className="scheduled-results-list">
             <div className="scheduled-results-col-header">
@@ -68,8 +95,8 @@ export default function ScheduledScanResultsModal({ notification, onClose, isInW
               <span></span>
             </div>
             {results.map(function (r) {
-              var hasRatio = Number.isFinite(Number(r.volumeRatio)) && Number(r.volumeRatio) > 0;
-              var hasMaDistance = Number.isFinite(Number(r.maDistance));
+              var hasRatio = hasNumber(r.volumeRatio) && Number(r.volumeRatio) > 0;
+              var hasMaDistance = hasNumber(r.maDistance);
               return (
                 <div key={r.symbol} className="scheduled-results-row">
                   <div className="scheduled-results-row-main">
@@ -106,7 +133,7 @@ export default function ScheduledScanResultsModal({ notification, onClose, isInW
                   <div className="scheduled-results-row-actions">
                     <a
                       className="chart-open-btn"
-                      href={'https://www.tradingview.com/chart/?symbol=' + r.symbol}
+                      href={'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(r.symbol)}
                       target="_blank"
                       rel="noopener noreferrer"
                       title="Open in TradingView"

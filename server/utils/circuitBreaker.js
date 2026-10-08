@@ -19,6 +19,8 @@ function createCircuitBreaker(name, options) {
   let state = CLOSED;
   let consecutiveFailures = 0;
   let openedAt = 0;
+  let probeInFlight = false;
+  let generation = 0;
 
   // Lazily transitions OPEN -> HALF_OPEN once the cooldown has elapsed —
   // there is no timer running in the background, just a check on read.
@@ -40,6 +42,7 @@ function createCircuitBreaker(name, options) {
     // failed probe is enough evidence the provider isn't back yet.
     if (state === HALF_OPEN || consecutiveFailures >= failureThreshold) {
       state = OPEN;
+      generation += 1;
       openedAt = Date.now();
       console.warn(
         `[circuitBreaker:${name}] opened after ${consecutiveFailures} consecutive failures — rejecting calls for ${cooldownMs}ms`
@@ -53,18 +56,25 @@ function createCircuitBreaker(name, options) {
   // etc.) can treat this exactly like any other failure and fall back to
   // it, without the wasted network round-trip.
   async function execute(fn) {
-    if (currentState() === OPEN) {
+    const observedState = currentState();
+    if (observedState === OPEN || (observedState === HALF_OPEN && probeInFlight)) {
       const err = new Error(`[circuitBreaker:${name}] circuit open — call rejected without attempting`);
       err.circuitOpen = true;
       throw err;
     }
+    const isProbe = observedState === HALF_OPEN;
+    const startedGeneration = generation;
+    if (isProbe) probeInFlight = true;
     try {
       const result = await fn();
-      onSuccess();
+      // A slow call started before the outage must not close a newer circuit.
+      if (generation === startedGeneration) onSuccess();
       return result;
     } catch (err) {
-      onFailure();
+      if (generation === startedGeneration) onFailure();
       throw err;
+    } finally {
+      if (isProbe) probeInFlight = false;
     }
   }
 

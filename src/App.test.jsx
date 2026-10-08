@@ -53,6 +53,9 @@ function LiveAccessHarness() {
       <button onClick={() => login('local-test-token', { id: 81, tier: 'premium', is_premium: 1 })}>
         Test downgrade
       </button>
+      <button onClick={() => login('other-local-test-token', { id: 82, tier: 'elite', is_premium: 1 })}>
+        Test other account
+      </button>
     </>
   );
 }
@@ -73,6 +76,55 @@ function CheckoutRepeatHarness() {
 }
 
 describe('App routing', () => {
+  it('does not keep the previous account notification detail visible after account switching', async () => {
+    const streams = [];
+    vi.stubGlobal(
+      'EventSource',
+      class {
+        constructor() {
+          streams.push(this);
+        }
+        close() {}
+        addEventListener() {}
+      }
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        if (url === '/api/auth/refresh') return { ok: false, status: 401 };
+        if (url === '/api/notifications/7')
+          return {
+            ok: true,
+            json: async () => ({
+              id: 7,
+              scanType: 'capitalFlow',
+              createdAt: Math.floor(Date.now() / 1000),
+              dataStatus: 'partial',
+              results: [{ symbol: 'PRIVATEFIX', price: 12 }],
+            }),
+          };
+        if (url === '/api/stream-ticket')
+          return { ok: true, json: async () => ({ ticket: 'local-test-ticket', expiresIn: 600 }) };
+        return { ok: true, json: async () => ({ notifications: [], symbols: [], levels: [], tier: 'elite' }) };
+      })
+    );
+    render(
+      <AuthProvider>
+        <MemoryRouter initialEntries={['/scanner?notif=srv-7']}>
+          <LiveAccessHarness />
+          <App />
+        </MemoryRouter>
+      </AuthProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Test sign in' }));
+    expect(await screen.findByRole('dialog', { name: 'Capital Flow results' })).toBeInTheDocument();
+    expect(screen.getByText('PRIVATEFIX')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Test other account' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Capital Flow results' })).not.toBeInTheDocument());
+    expect(screen.queryByText('PRIVATEFIX')).not.toBeInTheDocument();
+    await waitFor(() => expect(streams).toHaveLength(2));
+  });
+
   it('starts live alerts after asynchronous login and closes them after access ends', async () => {
     const streams = [];
     vi.stubGlobal(

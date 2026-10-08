@@ -9,6 +9,29 @@ const quoteCache = require('../server/services/quoteCache');
 const yahoo = require('../server/services/yahoo');
 const fmp = require('../server/services/fmp');
 
+test('summary recovery rejects a different provider symbol and preserves unreported numbers', async (t) => {
+  t.mock.method(yahoo, 'quote', async () => []);
+  let mismatch = true;
+  t.mock.method(yahoo, 'quoteSummary', async (symbol) => ({
+    price: {
+      symbol: mismatch ? 'OTHER' : symbol,
+      regularMarketPrice: 100,
+      regularMarketTime: Math.floor(Date.now() / 1000),
+      regularMarketVolume: 1000,
+      averageDailyVolume10Day: 500,
+      marketCap: 1e9,
+      regularMarketChangePercent: null,
+    },
+    summaryDetail: {},
+  }));
+  assert.equal((await quoteCache.getQuotes(['SUMMARY_SYMBOL_BOUNDARY'])).size, 0);
+  mismatch = false;
+  const quote = (await quoteCache.getQuotes(['SUMMARY_NULL_BOUNDARY'])).get('SUMMARY_NULL_BOUNDARY');
+  assert.ok(quote);
+  assert.equal(quote.regularMarketChangePercent, null);
+  assert.equal(quote.regularMarketDayHigh, null);
+});
+
 test('quoteCache marks a provider failure separately when no stale quote exists', async (t) => {
   t.mock.method(yahoo, 'quote', async () => {
     throw new Error('simulated upstream outage');
@@ -51,7 +74,7 @@ test('quoteCache identifies the exact symbols served from a bounded stale fallba
   t.mock.method(Date, 'now', () => clock);
   t.mock.method(yahoo, 'quote', async () => {
     if (fail) throw new Error('simulated upstream outage');
-    return [{ symbol, regularMarketPrice: 100 }];
+    return [{ symbol, regularMarketPrice: 100, regularMarketTime: Math.floor(baseNow / 1000) }];
   });
 
   await quoteCache.getQuotes([symbol]);
@@ -66,13 +89,26 @@ test('quoteCache identifies the exact symbols served from a bounded stale fallba
   assert.equal(result.get(symbol).regularMarketPrice, 100);
 });
 
-test('quoteCache preserves product dot symbols and uses the freshest Yahoo session timestamp', async (t) => {
+test('quoteCache fails closed for missing or malformed provider timestamps', () => {
+  for (const regularMarketTime of [undefined, null, '', 'invalid-date', {}, -1, Infinity]) {
+    const rows = quoteCache.filterFreshProviderRows([
+      { symbol: 'INVALID_TIME', regularMarketPrice: 100, regularMarketTime },
+    ]);
+    assert.deepEqual(rows, [], `must reject timestamp ${String(regularMarketTime)}`);
+  }
+  const rows = quoteCache.filterFreshProviderRows([
+    { symbol: 'VALID_TIME', regularMarketPrice: 100, regularMarketTime: Math.floor(Date.now() / 1000) },
+  ]);
+  assert.equal(rows.length, 1);
+});
+
+test('quoteCache preserves dot symbols and the timestamp belonging to regular-session values', async (t) => {
   const nowSeconds = Math.floor(Date.now() / 1000);
   t.mock.method(yahoo, 'quote', async (symbols) =>
     symbols.map((symbol) => ({
       symbol,
       regularMarketPrice: 100,
-      regularMarketTime: nowSeconds - 60 * 60,
+      regularMarketTime: nowSeconds - 60,
       postMarketTime: nowSeconds,
     }))
   );
@@ -82,7 +118,7 @@ test('quoteCache preserves product dot symbols and uses the freshest Yahoo sessi
   assert.strictEqual(result.size, 1);
   assert.strictEqual(result.get('AUDIT.B').symbol, 'AUDIT.B');
   assert.match(result.dataAsOf, /^\d{4}-\d{2}-\d{2}T/);
-  assert.ok(Math.abs(Date.parse(result.dataAsOf) - Date.now()) < 5000);
+  assert.equal(Date.parse(result.dataAsOf), (nowSeconds - 60) * 1000);
 });
 
 test('quoteCache recovers a missing quote from a complete timestamped Yahoo summary', async (t) => {
@@ -268,4 +304,13 @@ test('quoteCache coalesces identical concurrent provider requests', async (t) =>
   assert.strictEqual(calls, 1);
   assert.strictEqual(firstResult.get(symbol).regularMarketPrice, 100);
   assert.strictEqual(secondResult.get(symbol).regularMarketPrice, 100);
+});
+test('a recent extended-hours timestamp cannot make stale regular-session fields fresh', () => {
+  assert.equal(
+    require('../server/services/quoteCache').isProviderTimestampStale({
+      regularMarketTime: Math.floor((Date.now() - 10 * 86400000) / 1000),
+      postMarketTime: Math.floor(Date.now() / 1000),
+    }),
+    true
+  );
 });

@@ -10,6 +10,42 @@ const fmp = require('../server/services/fmp');
 
 test.after(() => fmp.clearCache());
 
+test('supported concurrent batches receive their own requested symbols, not the probe batch rows', async (t) => {
+  fmp.clearCache();
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    calls++;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const symbols = new URL(url).searchParams.get('symbols').split(',');
+    return {
+      ok: true,
+      status: 200,
+      json: async () =>
+        symbols.map((symbol) => ({ symbol, price: 100, volume: 1000, timestamp: Math.floor(Date.now() / 1000) })),
+    };
+  });
+  const [first, second] = await Promise.all([fmp.fetchFmpQuotes(['BATCH_A']), fmp.fetchFmpQuotes(['BATCH_B'])]);
+  assert.deepEqual(
+    first.map((row) => row.symbol),
+    ['BATCH_A']
+  );
+  assert.deepEqual(
+    second.map((row) => row.symbol),
+    ['BATCH_B']
+  );
+  assert.equal(calls, 2);
+});
+
+test('FMP rejects malformed numeric fields, dates and explicit currency mismatches', () => {
+  const valid = { symbol: 'STRICT', price: 100, volume: 1000, timestamp: Math.floor(Date.now() / 1000) };
+  for (const value of [true, false, [], {}, '100%', ''])
+    assert.equal(fmp.normalizeFmpQuote({ ...valid, price: value }, 'STRICT'), null);
+  for (const value of [true, {}, [], -1, ''])
+    assert.equal(fmp.normalizeFmpQuote({ ...valid, timestamp: value }, 'STRICT'), null);
+  assert.equal(fmp.normalizeFmpQuote({ ...valid, currency: 'EUR' }, 'STRICT'), null);
+  assert.equal(fmp.normalizeFmpQuote(valid, 'STRICT').currency, null);
+});
+
 test('FMP quote requests use a server header and never put the key in the URL', async (t) => {
   const symbol = 'AUDIT_FMP_HEADER';
   let observedUrl = '';

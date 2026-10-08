@@ -6,6 +6,55 @@ const assert = require('node:assert');
 
 const { createCircuitBreaker } = require('../server/utils/circuitBreaker');
 
+test('allows only one half-open recovery probe under concurrent traffic', async () => {
+  const breaker = createCircuitBreaker('single-probe', { failureThreshold: 1, cooldownMs: 10 });
+  await assert.rejects(() =>
+    breaker.execute(async () => {
+      throw new Error('outage');
+    })
+  );
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  let release;
+  const probe = breaker.execute(
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      })
+  );
+  let called = 0;
+  const attempts = await Promise.allSettled(
+    Array.from({ length: 50 }, () =>
+      breaker.execute(async () => {
+        called++;
+      })
+    )
+  );
+  assert.equal(called, 0);
+  assert.ok(attempts.every((result) => result.status === 'rejected' && result.reason.circuitOpen === true));
+  release('recovered');
+  assert.equal(await probe, 'recovered');
+  assert.equal(breaker.getState(), 'closed');
+});
+
+test('a pre-outage slow success cannot close a newly opened circuit', async () => {
+  const breaker = createCircuitBreaker('old-call', { failureThreshold: 1, cooldownMs: 1000 });
+  let release;
+  const oldCall = breaker.execute(
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      })
+  );
+  await assert.rejects(() =>
+    breaker.execute(async () => {
+      throw new Error('outage');
+    })
+  );
+  release('old response');
+  await oldCall;
+  assert.equal(breaker.getState(), 'open');
+});
+
 test('stays closed and returns the wrapped result while calls succeed', async () => {
   const breaker = createCircuitBreaker('test', { failureThreshold: 3, cooldownMs: 1000 });
   const result = await breaker.execute(async () => 'ok');

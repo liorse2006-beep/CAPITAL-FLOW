@@ -218,7 +218,7 @@ async function removeSubscription(endpoint, userId) {
  * @returns {{ configured: boolean, devices: number, delivered: number,
  *             removed: number, results: Array<{statusCode?: number, error?: string}> }}
  */
-async function sendPushToUser(userId, payload) {
+async function sendPushToUser(userId, payload, { notificationId } = {}) {
   if (!configured) return { configured: false, devices: 0, delivered: 0, removed: 0, results: [] };
   const rows = await db
     .prepare(
@@ -234,7 +234,14 @@ async function sendPushToUser(userId, payload) {
   );
   await Promise.all(invalidRows.map((row) => removeSubscription(row.endpoint, userId)));
   const body = JSON.stringify(payload);
-  const selected = validRows.slice(0, MAX_PUSH_DEVICES);
+  const receipts =
+    notificationId == null
+      ? []
+      : await db
+          .prepare('SELECT endpoint FROM notification_push_receipts WHERE notification_id = ? AND user_id = ?')
+          .all(notificationId, userId);
+  const acknowledged = new Set(receipts.map((row) => row.endpoint));
+  const selected = validRows.slice(0, MAX_PUSH_DEVICES).filter((row) => !acknowledged.has(row.endpoint));
 
   const results = await Promise.all(
     selected.map((row) =>
@@ -256,10 +263,18 @@ async function sendPushToUser(userId, payload) {
             !current ||
             Number(current.user_id) !== Number(userId) ||
             current.p256dh !== row.p256dh ||
-            current.auth !== row.auth
+            current.auth !== row.auth ||
+            (notificationId != null && !(await require('./deferredAccess').hasDeferredAccess(userId)))
           )
             return { error: 'access-or-device-changed' };
           const res = await pushTransport.sendNotification(sub, body, { agent });
+          if (notificationId != null && res?.statusCode >= 200 && res.statusCode < 300) {
+            await db
+              .prepare(
+                'INSERT INTO notification_push_receipts (notification_id, user_id, endpoint, accepted_at) VALUES (?, ?, ?, ?) ON CONFLICT(notification_id, endpoint) DO NOTHING'
+              )
+              .run(notificationId, userId, row.endpoint, Math.floor(Date.now() / 1000));
+          }
           return { statusCode: res && res.statusCode };
         } catch (err) {
           // 404/410 mean the browser dropped this subscription — prune it so we
@@ -284,6 +299,7 @@ async function sendPushToUser(userId, payload) {
     configured: true,
     devices: selected.length,
     delivered,
+    acceptedPreviously: receipts.length,
     removed: removed + invalidRows.length,
     overflow,
     results,

@@ -24,11 +24,11 @@ const inFlightRequests = new Map();
 let batchRestrictedUntil = 0;
 let singleQuoteRequestTimes = [];
 let batchProbePromise = null;
+let batchCapabilityConfirmedUntil = 0;
+const inFlightBatches = new Map();
 
 function normalizeSymbol(value) {
-  return String(value || '')
-    .trim()
-    .toUpperCase();
+  return (typeof value === 'string' ? value : '').trim().toUpperCase();
 }
 
 function comparableSymbol(value) {
@@ -36,17 +36,25 @@ function comparableSymbol(value) {
 }
 
 function finiteOrNull(value) {
-  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
-  const number = typeof value === 'number' ? value : Number(String(value).replace(/%/g, '').trim());
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())) return null;
+  const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
 
+function positiveOrNull(value) {
+  const number = finiteOrNull(value);
+  return number !== null && number > 0 ? number : null;
+}
+
 function timestampMs(value) {
-  if (value == null || value === '') return null;
-  const number = Number(value);
-  if (Number.isFinite(number) && number > 0) return number < 1e12 ? number * 1000 : number;
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
+  const number = finiteOrNull(value);
+  if (number !== null) return number > 0 ? (number < 1e12 ? number * 1000 : number) : null;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value)) return null;
   const parsed = new Date(value);
-  return Number.isFinite(parsed.getTime()) ? parsed.getTime() : null;
+  return Number.isFinite(parsed.getTime()) && parsed.getTime() > 0 ? parsed.getTime() : null;
 }
 
 function extractQuoteRows(body) {
@@ -70,13 +78,24 @@ function normalizeFmpQuote(raw, requestedSymbol) {
   const providerSymbol = normalizeSymbol(raw.symbol || raw.ticker);
   if (!requested || !providerSymbol || comparableSymbol(providerSymbol) !== comparableSymbol(requested)) return null;
 
+  // These screens price US equities in dollars. Never erase a provider's
+  // explicit conflicting currency. Some FMP quote variants omit currency;
+  // keep that unknown rather than manufacturing USD at the adapter boundary.
+  const currency =
+    raw.currency == null
+      ? null
+      : typeof raw.currency === 'string'
+        ? raw.currency.trim().toUpperCase() || null
+        : 'INVALID';
+  if (currency !== null && currency !== 'USD') return null;
+
   const price = finiteOrNull(raw.price ?? raw.currentPrice);
   const volume = finiteOrNull(raw.volume ?? raw.dayVolume);
   const timestamp = timestampMs(raw.timestamp ?? raw.lastUpdated ?? raw.updatedAt);
   if (price === null || price <= 0 || volume === null || volume <= 0 || timestamp === null) return null;
 
-  const avgVolume = finiteOrNull(raw.avgVolume ?? raw.averageVolume ?? raw.averageDailyVolume10Day);
-  const marketCap = finiteOrNull(raw.marketCap ?? raw.marketCapitalization);
+  const avgVolume = positiveOrNull(raw.avgVolume ?? raw.averageVolume ?? raw.averageDailyVolume10Day);
+  const marketCap = positiveOrNull(raw.marketCap ?? raw.marketCapitalization);
   const changePercent = finiteOrNull(raw.changePercentage ?? raw.changesPercentage ?? raw.changePercent);
 
   return {
@@ -88,10 +107,11 @@ function normalizeFmpQuote(raw, requestedSymbol) {
     regularMarketVolume: volume,
     averageDailyVolume10Day: avgVolume,
     marketCap,
+    currency,
     regularMarketChangePercent: changePercent,
-    regularMarketDayHigh: finiteOrNull(raw.dayHigh ?? raw.high),
-    regularMarketDayLow: finiteOrNull(raw.dayLow ?? raw.low),
-    regularMarketPreviousClose: finiteOrNull(raw.previousClose ?? raw.prevClose),
+    regularMarketDayHigh: positiveOrNull(raw.dayHigh ?? raw.high),
+    regularMarketDayLow: positiveOrNull(raw.dayLow ?? raw.low),
+    regularMarketPreviousClose: positiveOrNull(raw.previousClose ?? raw.prevClose),
     exchange: raw.exchange || raw.exchangeShortName || null,
     quoteProvider: 'FMP',
   };
@@ -162,8 +182,10 @@ function reserveSingleQuoteSymbols(symbols) {
 
 async function requestBatchQuotes(symbols) {
   if (Date.now() < batchRestrictedUntil) return null;
-  if (!batchProbePromise) {
-    batchProbePromise = requestJson(`/batch-quote?symbols=${encodeURIComponent(symbols.join(','))}`, {
+  const key = [...symbols].sort().join('\u0000');
+  if (inFlightBatches.has(key)) return inFlightBatches.get(key);
+  const request = () =>
+    requestJson(`/batch-quote?symbols=${encodeURIComponent(symbols.join(','))}`, {
       // A 402/403 here means the account lacks batch entitlement. It is not a
       // provider outage and must not open the FMP circuit breaker.
       useBreaker: false,
@@ -174,11 +196,29 @@ async function requestBatchQuotes(symbols) {
         }
         return null;
       })
-      .finally(() => {
-        batchProbePromise = null;
+      .then((body) => {
+        if (body) batchCapabilityConfirmedUntil = Date.now() + BATCH_CAPABILITY_TTL_MS;
+        return body;
       });
-  }
-  return batchProbePromise;
+  const operation = (async () => {
+    // Share the initial entitlement decision, not another symbol set's rows.
+    // An unsupported account still makes one probe before bounded single
+    // fallback. Once supported, distinct batches must receive distinct data.
+    if (batchProbePromise) await batchProbePromise;
+    if (Date.now() < batchRestrictedUntil) return null;
+    if (Date.now() < batchCapabilityConfirmedUntil) return request();
+    const probe = request();
+    batchProbePromise = probe;
+    try {
+      return await probe;
+    } finally {
+      if (batchProbePromise === probe) batchProbePromise = null;
+    }
+  })().finally(() => {
+    if (inFlightBatches.get(key) === operation) inFlightBatches.delete(key);
+  });
+  inFlightBatches.set(key, operation);
+  return operation;
 }
 
 async function loadQuotes(symbols) {
@@ -251,6 +291,8 @@ function clearCache() {
   batchRestrictedUntil = 0;
   singleQuoteRequestTimes = [];
   batchProbePromise = null;
+  batchCapabilityConfirmedUntil = 0;
+  inFlightBatches.clear();
 }
 
 module.exports = {

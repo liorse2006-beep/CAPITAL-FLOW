@@ -12057,8 +12057,23 @@ html.a11y-highlight-links a {
   color: var(--text-2);
   margin: 0;
 }
+.scheduled-results-quality {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.scheduled-results-quality p {
+  margin: 0;
+}
 .scheduled-results-close {
   flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: none;
   color: var(--text-3);

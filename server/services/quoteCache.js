@@ -61,25 +61,24 @@ const inFlightRequests = new Map();
 function parseProviderTimestamp(value) {
   if (value == null || value === '') return null;
   if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.getTime() : null;
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && !value.trim()) return null;
   const numeric = Number(value);
   if (Number.isFinite(numeric) && numeric > 0) {
     // Yahoo normally returns epoch seconds; accept milliseconds as well so a
     // provider-shape change cannot silently turn a real timestamp into 1970.
     return numeric < 1e12 ? numeric * 1000 : numeric;
   }
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value)) return null;
   const parsed = new Date(value);
-  return Number.isFinite(parsed.getTime()) ? parsed.getTime() : null;
+  return Number.isFinite(parsed.getTime()) && parsed.getTime() > 0 ? parsed.getTime() : null;
 }
 
 function providerTimestampMs(quote) {
-  // During pre/post-market windows Yahoo can expose a newer pre/post quote
-  // alongside an older regular-session timestamp.  Taking the first field
-  // would report the old close and make a live quote look stale.  The latest
-  // provider timestamp is the truthful timestamp for the quote we received.
-  const timestamps = [quote?.regularMarketTime, quote?.postMarketTime, quote?.preMarketTime]
-    .map(parseProviderTimestamp)
-    .filter((value) => value !== null);
-  return timestamps.length > 0 ? Math.max(...timestamps) : null;
+  // All scanner prices and volumes use regularMarket* fields. A newer
+  // pre/post-market timestamp belongs to different values and must not make
+  // a stale regular-session observation look current.
+  return parseProviderTimestamp(quote?.regularMarketTime);
 }
 
 function maxProviderAgeMs(now = new Date()) {
@@ -90,7 +89,9 @@ function maxProviderAgeMs(now = new Date()) {
 
 function isProviderTimestampStale(quote, now = new Date()) {
   const timestamp = providerTimestampMs(quote);
-  if (timestamp === null) return false;
+  // Request/cache time cannot stand in for the provider's observation time.
+  // An undated quote is unverified, even when its numeric fields look valid.
+  if (timestamp === null) return true;
 
   const ageMs = now.getTime() - timestamp;
   if (ageMs < -MAX_FUTURE_PROVIDER_SKEW_MS) return true;
@@ -134,9 +135,11 @@ function normalizeProviderQuotes(rows, requestedSymbols) {
     .filter((quote) => quote && quote.symbol)
     .map((quote) => {
       const providerSymbol = normalizeSymbol(quote.symbol);
-      const requestedSymbol = requestedByYahooSymbol.get(providerSymbol) || providerSymbol;
+      const requestedSymbol = requestedByYahooSymbol.get(providerSymbol);
+      if (!requestedSymbol) return null;
       return requestedSymbol === quote.symbol ? quote : { ...quote, symbol: requestedSymbol };
-    });
+    })
+    .filter(Boolean);
 }
 
 function yahooValue(value) {
@@ -153,6 +156,11 @@ function normalizeSummaryQuote(summary, requestedSymbol) {
   const detail = summary?.summaryDetail || {};
   const value = (key) => yahooValue(price[key] ?? detail[key]);
   const symbol = normalizeSymbol(requestedSymbol);
+  if (normalizeSymbol(yahooValue(price.symbol)) !== symbol) return null;
+  const optionalNumber = (input) => {
+    const number = yahooValue(input);
+    return typeof number === 'number' && Number.isFinite(number) ? number : null;
+  };
   const regularMarketTime = value('regularMarketTime');
   const regularMarketPrice = value('regularMarketPrice');
   const regularMarketVolume = value('regularMarketVolume');
@@ -161,13 +169,17 @@ function normalizeSummaryQuote(summary, requestedSymbol) {
 
   if (
     !symbol ||
-    !Number.isFinite(Number(regularMarketPrice)) ||
+    typeof regularMarketPrice !== 'number' ||
+    !Number.isFinite(regularMarketPrice) ||
     Number(regularMarketPrice) <= 0 ||
-    !Number.isFinite(Number(regularMarketVolume)) ||
+    typeof regularMarketVolume !== 'number' ||
+    !Number.isFinite(regularMarketVolume) ||
     Number(regularMarketVolume) <= 0 ||
-    !Number.isFinite(Number(averageDailyVolume10Day)) ||
+    typeof averageDailyVolume10Day !== 'number' ||
+    !Number.isFinite(averageDailyVolume10Day) ||
     Number(averageDailyVolume10Day) <= 0 ||
-    !Number.isFinite(Number(marketCap)) ||
+    typeof marketCap !== 'number' ||
+    !Number.isFinite(marketCap) ||
     Number(marketCap) <= 0
   ) {
     return null;
@@ -184,15 +196,16 @@ function normalizeSummaryQuote(summary, requestedSymbol) {
     regularMarketVolume: Number(regularMarketVolume),
     averageDailyVolume10Day: Number(averageDailyVolume10Day),
     marketCap: Number(marketCap),
-    regularMarketChangePercent: Number(yahooValue(price.regularMarketChangePercent)),
-    regularMarketDayHigh: Number(yahooValue(price.regularMarketDayHigh)),
-    regularMarketDayLow: Number(yahooValue(price.regularMarketDayLow)),
-    regularMarketPreviousClose: Number(yahooValue(price.regularMarketPreviousClose)),
+    currency: yahooValue(price.currency) || null,
+    regularMarketChangePercent: optionalNumber(price.regularMarketChangePercent),
+    regularMarketDayHigh: optionalNumber(price.regularMarketDayHigh),
+    regularMarketDayLow: optionalNumber(price.regularMarketDayLow),
+    regularMarketPreviousClose: optionalNumber(price.regularMarketPreviousClose),
     exchange: yahooValue(price.exchange),
-    fiftyTwoWeekHigh: Number(yahooValue(detail.fiftyTwoWeekHigh)),
-    fiftyTwoWeekLow: Number(yahooValue(detail.fiftyTwoWeekLow)),
-    floatShares: Number(yahooValue(detail.floatShares)),
-    shortPercentOfFloat: Number(yahooValue(detail.shortPercentOfFloat)),
+    fiftyTwoWeekHigh: optionalNumber(detail.fiftyTwoWeekHigh),
+    fiftyTwoWeekLow: optionalNumber(detail.fiftyTwoWeekLow),
+    floatShares: optionalNumber(detail.floatShares),
+    shortPercentOfFloat: optionalNumber(detail.shortPercentOfFloat),
   };
 }
 
@@ -229,7 +242,7 @@ function sleep(ms) {
 }
 
 function isFresh(entry) {
-  return entry && Date.now() - entry.fetchedAt < CACHE_TTL_MS;
+  return entry && Date.now() - entry.fetchedAt < CACHE_TTL_MS && !isProviderTimestampStale(entry.data);
 }
 
 async function fmpRecovery(symbols, staleSymbols) {
@@ -597,4 +610,4 @@ async function getQuotes(symbols, onBatchDone) {
   }
 }
 
-module.exports = { getQuotes, filterFreshProviderRows, isProviderTimestampStale };
+module.exports = { getQuotes, filterFreshProviderRows, isProviderTimestampStale, providerTimestampMs };

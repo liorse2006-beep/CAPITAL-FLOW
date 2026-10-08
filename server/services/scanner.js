@@ -46,7 +46,8 @@ async function mapWithConcurrency(items, limit, worker) {
 }
 
 function finiteOrNull(value) {
-  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && !/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())) return null;
   const number = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(number) ? number : null;
 }
@@ -81,6 +82,14 @@ async function enrichSector(symbol) {
 }
 
 async function scanTickers(tickers, options) {
+  tickers = [
+    ...new Set(
+      tickers
+        .filter((symbol) => typeof symbol === 'string')
+        .map((symbol) => symbol.trim().toUpperCase())
+        .filter(Boolean)
+    ),
+  ];
   options = options || {};
   var minVolumeRatio = options.minVolumeRatio ?? 2.5;
   var minMarketCap = options.minMarketCap ?? 1000000000;
@@ -149,10 +158,10 @@ async function scanTickers(tickers, options) {
             .toUpperCase()
         );
         if (!quote) return false;
-        const price = Number(quote.regularMarketPrice);
-        const volume = Number(quote.regularMarketVolume);
-        const avgVolume = Number(quote.averageDailyVolume10Day);
-        const marketCap = Number(quote.marketCap);
+        const price = finiteOrNull(quote.regularMarketPrice);
+        const volume = finiteOrNull(quote.regularMarketVolume);
+        const avgVolume = finiteOrNull(quote.averageDailyVolume10Day);
+        const marketCap = finiteOrNull(quote.marketCap);
         return (
           Number.isFinite(price) &&
           price > 0 &&
@@ -204,13 +213,13 @@ async function scanTickers(tickers, options) {
     // the Capital Flow floor is present. This distinction is consumed by the
     // scheduled Radar evaluator: a missing quote must not be interpreted as a
     // real negative signal and must not re-arm an existing match.
-    var quotePrice = Number(quote.regularMarketPrice);
-    var quoteVolume = Number(quote.regularMarketVolume);
+    var quotePrice = finiteOrNull(quote.regularMarketPrice);
+    var quoteVolume = finiteOrNull(quote.regularMarketVolume);
     var metricFallback = metricFallbackBySymbol.get(normalizedInputSymbol) || null;
-    var rawAvgVolume = Number(quote.averageDailyVolume10Day);
-    var rawMarketCap = Number(quote.marketCap);
-    var avgVolume = rawAvgVolume > 0 ? rawAvgVolume : Number(metricFallback?.avgVol10d);
-    var quoteMarketCap = rawMarketCap > 0 ? rawMarketCap : Number(metricFallback?.marketCap);
+    var rawAvgVolume = finiteOrNull(quote.averageDailyVolume10Day);
+    var rawMarketCap = finiteOrNull(quote.marketCap);
+    var avgVolume = rawAvgVolume > 0 ? rawAvgVolume : finiteOrNull(metricFallback?.avgVol10d);
+    var quoteMarketCap = rawMarketCap > 0 ? rawMarketCap : finiteOrNull(metricFallback?.marketCap);
     if (
       !Number.isFinite(quotePrice) ||
       quotePrice <= 0 ||
@@ -219,7 +228,8 @@ async function scanTickers(tickers, options) {
       !Number.isFinite(avgVolume) ||
       avgVolume <= 0 ||
       !Number.isFinite(quoteMarketCap) ||
-      quoteMarketCap <= 0
+      quoteMarketCap <= 0 ||
+      (quote.currency != null && quote.currency !== 'USD')
     ) {
       addError(symbol);
       return;
@@ -255,6 +265,10 @@ async function scanTickers(tickers, options) {
       sector: 'Pending',
       exchange: quote.exchange || 'N/A',
       quoteProvider: quote.quoteProvider || 'Yahoo Finance',
+      quoteAsOf:
+        quoteCache.providerTimestampMs(quote) === null
+          ? null
+          : new Date(quoteCache.providerTimestampMs(quote)).toISOString(),
       dayHigh: finiteOrNull(quote.regularMarketDayHigh),
       dayLow: finiteOrNull(quote.regularMarketDayLow),
       prevClose: finiteOrNull(quote.regularMarketPreviousClose),
@@ -336,12 +350,18 @@ async function scanTickers(tickers, options) {
       var sparkline = resolved[2];
       var sector = resolved[3];
 
-      if (fQuote && fQuote.price > 0) {
+      if (
+        fQuote &&
+        fQuote.dataStatus === 'complete' &&
+        fQuote.price > 0 &&
+        !quoteCache.isProviderTimestampStale({ regularMarketTime: fQuote.dataAsOf }) &&
+        Date.parse(fQuote.dataAsOf) >= Date.parse(r.quoteAsOf)
+      ) {
         // Cross-validate Finnhub price against the Yahoo baseline. A >25%
         // divergence almost certainly means Finnhub handed back a stale close
         // or a bad feed value — in that case keep the Yahoo price and log the
-        // anomaly. Non-price fields (dayHigh/Low/prevClose) are still applied
-        // because they are less likely to be wildly wrong.
+        // anomaly. Keep the associated change/range fields from the same
+        // accepted observation instead of mixing a rejected feed into it.
         const yahooBasePrice = r.price;
         const priceDivergence = yahooBasePrice > 0 ? Math.abs(fQuote.price - yahooBasePrice) / yahooBasePrice : 0;
         if (priceDivergence > 0.25) {
@@ -352,23 +372,21 @@ async function scanTickers(tickers, options) {
           );
         } else {
           r.price = fQuote.price;
+          r.priceAsOf = fQuote.dataAsOf;
+          r.priceProvider = 'Finnhub';
+          if (fQuote.change !== null) r.change = fQuote.change;
+          if (fQuote.dayHigh !== null) r.dayHigh = fQuote.dayHigh;
+          if (fQuote.dayLow !== null) r.dayLow = fQuote.dayLow;
+          if (fQuote.prevClose !== null) r.prevClose = fQuote.prevClose;
         }
-        if (fQuote.change !== null) r.change = fQuote.change;
-        if (fQuote.dayHigh !== null) r.dayHigh = fQuote.dayHigh;
-        if (fQuote.dayLow !== null) r.dayLow = fQuote.dayLow;
-        if (fQuote.prevClose !== null) r.prevClose = fQuote.prevClose;
       }
 
       if (fMetric) {
         if (fMetric.weekHigh52 > 0) r.fiftyTwoWeekHigh = fMetric.weekHigh52;
         if (fMetric.weekLow52 > 0) r.fiftyTwoWeekLow = fMetric.weekLow52;
-        if (fMetric.marketCap > 0) r.marketCap = fMetric.marketCap;
-        if (fMetric.avgVol10d > 0) {
-          r.avgVolume = Math.round(fMetric.avgVol10d);
-          if (r.volume > 0 && r.avgVolume > 0) {
-            r.volumeRatio = Math.round((r.volume / r.avgVolume) * 100) / 100;
-          }
-        }
+        // Phase 1 already verified market cap and the matching volume
+        // baseline. Optional metrics must not replace those required inputs
+        // with a differently defined/undated average or change a valid hit.
       }
 
       r.sparkline = Array.isArray(sparkline) ? sparkline : [];
@@ -467,6 +485,14 @@ async function scanTickers(tickers, options) {
 }
 
 async function quickScan(symbols, options) {
+  symbols = [
+    ...new Set(
+      symbols
+        .filter((symbol) => typeof symbol === 'string')
+        .map((symbol) => symbol.trim().toUpperCase())
+        .filter(Boolean)
+    ),
+  ];
   options = options || {};
   var quotesMap = await quoteCache.getQuotes(symbols);
   var results = [];
@@ -476,7 +502,12 @@ async function quickScan(symbols, options) {
       .trim()
       .toUpperCase();
     var quote = quotesMap.get(normalizedSymbol);
-    if (!quote || !quote.regularMarketVolume) {
+    if (
+      !quote ||
+      finiteOrNull(quote.regularMarketVolume) <= 0 ||
+      finiteOrNull(quote.regularMarketPrice) <= 0 ||
+      (quote.currency != null && quote.currency !== 'USD')
+    ) {
       return;
     }
 
@@ -485,6 +516,15 @@ async function quickScan(symbols, options) {
 
     results.push({
       symbol: quote.symbol,
+      quoteAsOf:
+        quoteCache.providerTimestampMs(quote) === null
+          ? null
+          : new Date(quoteCache.providerTimestampMs(quote)).toISOString(),
+      quoteDataStatus: [...(quotesMap.staleSymbols || []), ...(quotesMap.providerStaleSymbols || [])].some(
+        (value) => String(value).trim().toUpperCase() === normalizedSymbol
+      )
+        ? 'stale'
+        : 'complete',
       name: quote.shortName || quote.longName || normalizedSymbol,
       price: finiteOrNull(quote.regularMarketPrice),
       change: finiteOrNull(quote.regularMarketChangePercent),

@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-
 import Toast from './components/shared/Toast';
 import useSSE from './hooks/useSSE';
 import useStreamTicket from './hooks/useStreamTicket';
+import useNotificationDeepLink from './hooks/useNotificationDeepLink';
 import useScanQuota from './hooks/useScanQuota';
 import usePushSubscription from './hooks/usePushSubscription';
 import { parseVolInput } from './utils/format';
@@ -41,6 +42,8 @@ const LandingPage = lazy(() => import('./pages/LandingPage?landing-preview-v2'))
 function App() {
   const {
     user,
+    isLoading,
+    authLoadError,
     logout,
     login,
     getToken,
@@ -863,7 +866,7 @@ function App() {
         return;
       }
     },
-    [location.pathname, location.search, navigate, refreshUser]
+    [location.pathname, location.search, location.hash, navigate, refreshUser]
   );
 
   // Poll independently from the callback URL cleanup above. Navigating from
@@ -898,37 +901,34 @@ function App() {
   // panel) lands here as ?notif=<id> — fetch that exact notification's own
   // scan results and show them in a dedicated modal, instead of silently
   // dropping the user on whatever the current page happens to show. Query
-  // param is always stripped so a refresh doesn't re-fetch/re-open it.
+  // param is consumed only after authentication and a successful detail load.
   const [scheduledScanNotif, setScheduledScanNotif] = useState(null);
+  const receiveScheduledNotification = useCallback(
+    (notification) => setScheduledScanNotif({ ownerId: user?.id, notification }),
+    [user?.id]
+  );
   const openScheduledNotification = useCallback(
     (rawId) => {
       // Local-only alert entries (a Date.now()+Math.random() id) never made it
       // to the server, so there's nothing to fetch — only 'srv-<id>' entries
       // (persisted via addNotification) can possibly have scan results.
-      if (typeof rawId !== 'string' || rawId.indexOf('srv-') !== 0) return;
-      var id = rawId.slice(4);
-      if (!id || !user) return;
-      fetch('/api/notifications/' + id, { headers: { Authorization: 'Bearer ' + getToken() } })
-        .then(function (r) {
-          return r.ok ? r.json() : null;
-        })
-        .then(function (data) {
-          if (data && data.scanType) setScheduledScanNotif(data);
-        })
-        .catch(function () {});
+      if (typeof rawId !== 'string' || !/^srv-[1-9]\d{0,14}$/.test(rawId) || !user?.id) return;
+      // Bell clicks use the same owner-scoped, abortable recovery path as a
+      // push deep link, rather than a second fetch that could outlive logout.
+      var params = new URLSearchParams(location.search);
+      params.set('notif', rawId);
+      navigate(location.pathname + '?' + params.toString() + (location.hash || ''));
     },
-    [getToken, user]
+    [user?.id, location.search, location.pathname, location.hash, navigate]
   );
-  useEffect(
-    function () {
-      var notifId = new URLSearchParams(location.search).get('notif');
-      if (!notifId) return;
-      navigate(location.pathname, { replace: true });
-      if (!user) return;
-      openScheduledNotification(notifId);
-    },
-    [location.pathname, location.search, navigate, openScheduledNotification, user]
-  );
+  useNotificationDeepLink({
+    userId: user?.id,
+    isLoading,
+    authLoadError,
+    getToken,
+    refreshSession,
+    onNotification: receiveScheduledNotification,
+  });
 
   // Open AuthModal automatically when Google OAuth returns (show consent screen)
   useEffect(
@@ -1460,10 +1460,10 @@ function App() {
         </Suspense>
       )}
 
-      {scheduledScanNotif && (
+      {scheduledScanNotif && scheduledScanNotif.ownerId === user?.id && (
         <Suspense fallback={null}>
           <ScheduledScanResultsModal
-            notification={scheduledScanNotif}
+            notification={scheduledScanNotif.notification}
             onClose={() => setScheduledScanNotif(null)}
             isInWatchlist={isInWatchlist}
             toggleWatchlistTicker={toggleWatchlistTicker}

@@ -136,7 +136,12 @@ async function executeTransaction(statementsOrCallback) {
         rollback: () => client.execute('ROLLBACK'),
       };
     } else tx = await client.transaction('write');
+    const commitHooks = [];
     const txDb = {
+      afterCommit(callback) {
+        if (typeof callback !== 'function') throw new TypeError('Commit callback must be a function');
+        commitHooks.push(callback);
+      },
       prepare(sql) {
         return {
           async get(...args) {
@@ -166,6 +171,13 @@ async function executeTransaction(statementsOrCallback) {
     try {
       const result = await statementsOrCallback(txDb);
       await tx.commit();
+      for (const callback of commitHooks) {
+        try {
+          Promise.resolve(callback()).catch((error) => console.warn('[db afterCommit]', safeErrorSummary(error)));
+        } catch (error) {
+          console.warn('[db afterCommit]', safeErrorSummary(error));
+        }
+      }
       return result;
     } catch (error) {
       try {
@@ -465,6 +477,44 @@ async function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_whop_payment_entitlements_user
       ON whop_payment_entitlements(user_id, status);
+
+    CREATE TABLE IF NOT EXISTS scheduled_scan_runs (
+      run_key TEXT PRIMARY KEY,
+      schedule_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      claim_token TEXT,
+      lease_until INTEGER NOT NULL DEFAULT 0,
+      completed_at INTEGER,
+      notification_id INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_scheduled_scan_runs_owner ON scheduled_scan_runs(user_id, schedule_id);
+    CREATE TABLE IF NOT EXISTS scheduled_digest_runs (
+      run_key TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      completed_at INTEGER NOT NULL,
+      notification_id INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS notification_push_receipts (
+      notification_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      endpoint TEXT NOT NULL,
+      accepted_at INTEGER NOT NULL,
+      PRIMARY KEY (notification_id, endpoint)
+    );
+    CREATE INDEX IF NOT EXISTS idx_notification_push_receipts_user ON notification_push_receipts(user_id);
+    CREATE TABLE IF NOT EXISTS notification_outbox (
+      notification_id INTEGER PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      payload_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at INTEGER NOT NULL DEFAULT 0,
+      lease_until INTEGER NOT NULL DEFAULT 0,
+      claim_token TEXT,
+      finished_at INTEGER,
+      outcome TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_notification_outbox_due ON notification_outbox(finished_at, next_attempt_at);
 
     CREATE TABLE IF NOT EXISTS admin_audit_log (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -844,6 +894,8 @@ async function initDb() {
     `ALTER TABLE radar_schedule_runs ADD COLUMN error_json TEXT`,
     `ALTER TABLE radar_schedule_runs ADD COLUMN attempts INTEGER NOT NULL DEFAULT 1`,
     `ALTER TABLE radar_schedule_runs ADD COLUMN lease_until INTEGER`,
+    `ALTER TABLE radar_schedule_runs ADD COLUMN claim_token TEXT`,
+    `ALTER TABLE radar_events ADD COLUMN notification_id INTEGER`,
     `ALTER TABLE radar_schedule_runs ADD COLUMN scan_id TEXT`,
     `ALTER TABLE radar_schedule_runs ADD COLUMN data_status TEXT`,
     `ALTER TABLE radar_schedule_runs ADD COLUMN data_as_of TEXT`,
@@ -852,6 +904,8 @@ async function initDb() {
     `ALTER TABLE ai_usage ADD COLUMN reservation_token TEXT`,
     `ALTER TABLE otp_codes ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE otp_codes ADD COLUMN locked_until INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE notifications ADD COLUMN data_status TEXT`,
+    `ALTER TABLE notifications ADD COLUMN data_as_of TEXT`,
   ];
 
   for (const sql of migrations) {

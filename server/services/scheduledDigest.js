@@ -1,9 +1,9 @@
 const db = require('../db');
 const { getAllAlertsGrouped } = require('./watchlistAlerts');
-const { sendPushToUser } = require('./webPush');
 const { addNotification } = require('./notifications');
 const { reportError } = require('../utils/reportError');
 const { marketSignalNotificationFor } = require('./marketSignalNotification');
+const { backgroundInterval, runBackgroundTask } = require('./backgroundRuntime');
 
 // How many users' push sends run concurrently per batch. A plain
 // sequential for-loop here would mean 10,000 users sharing a
@@ -12,7 +12,6 @@ const { marketSignalNotificationFor } = require('./marketSignalNotification');
 // so one slow push endpoint can't stall everyone behind it.
 const DIGEST_CONCURRENCY = 20;
 const DIGEST_SCHEDULE_POLL_MS = 15 * 1000;
-const DIGEST_FIRE_WINDOW_MIN = 3;
 const NOTIFICATION_TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 var notificationTimes = new Set();
 var notificationTimesLoaded = false;
@@ -46,14 +45,14 @@ function isDigestTimeDue(scheduleTime, currentTime) {
   }
   var scheduledMinutes = Number(scheduleTime.slice(0, 2)) * 60 + Number(scheduleTime.slice(3, 5));
   var currentMinutes = Number(currentTime.slice(0, 2)) * 60 + Number(currentTime.slice(3, 5));
-  var minutesLate = (currentMinutes - scheduledMinutes + 1440) % 1440;
-  return minutesLate <= DIGEST_FIRE_WINDOW_MIN;
+  return currentMinutes >= scheduledMinutes;
 }
 
 // Load schedule times once, then let the in-process timer compare the clock
 // against this small cache. The old minute poll queried the shared database
 // continuously, even when no customer had a digest configured.
 async function refreshScheduledDigestTimes(options = {}) {
+  if (options.force) processedScheduleSlots.clear();
   if (scheduleRefreshPromise) {
     if (options.force) {
       return scheduleRefreshPromise.then(function () {
@@ -69,11 +68,13 @@ async function refreshScheduledDigestTimes(options = {}) {
         .prepare('SELECT DISTINCT notification_time FROM users WHERE notification_time IS NOT NULL')
         .all();
       notificationTimes = new Set(
-        rows.map(function (row) {
-          return String(row.notification_time || '');
-        }).filter(function (time) {
-          return NOTIFICATION_TIME_RE.test(time);
-        })
+        rows
+          .map(function (row) {
+            return String(row.notification_time || '');
+          })
+          .filter(function (time) {
+            return NOTIFICATION_TIME_RE.test(time);
+          })
       );
       notificationTimesLoaded = true;
       scheduleRefreshRetryAt = 0;
@@ -91,11 +92,6 @@ async function refreshScheduledDigestTimes(options = {}) {
   }
 }
 
-// Tracks which users already got today's digest, so a restart or a slow tick
-// can never double-send. Cleared whenever the date rolls over.
-var sentToday = new Set();
-var sentDate = null;
-
 function buildDigestPayload(results) {
   return {
     ...marketSignalNotificationFor(results),
@@ -105,10 +101,6 @@ function buildDigestPayload(results) {
 
 async function runDigestTick(notificationTime) {
   var now = israelNow();
-  if (sentDate !== now.date) {
-    sentToday.clear();
-    sentDate = now.date;
-  }
 
   var scheduledTime = notificationTime || now.hm;
   var users = await db.prepare('SELECT id FROM users WHERE notification_time = ?').all(scheduledTime);
@@ -119,12 +111,8 @@ async function runDigestTick(notificationTime) {
 
   var allAlerts = await getAllAlertsGrouped();
 
-  var pending = users.filter(function (u) {
-    var dedupeKey = u.id + ':' + now.date;
-    if (sentToday.has(dedupeKey)) return false;
-    sentToday.add(dedupeKey);
-    return true;
-  });
+  var failed = false;
+  var pending = users;
 
   for (var i = 0; i < pending.length; i += DIGEST_CONCURRENCY) {
     var batch = pending.slice(i, i + DIGEST_CONCURRENCY);
@@ -136,21 +124,42 @@ async function runDigestTick(notificationTime) {
         return (async function () {
           var notificationId = null;
           try {
-            notificationId = await addNotification(u.id, {
-              title: payload.title,
-              body: payload.body,
-              scanType: 'capitalFlow',
-              results,
+            notificationId = await db.transaction(async function (tx) {
+              if (!(await require('./deferredAccess').hasDeferredAccess(u.id, tx))) return null;
+              var owner = await tx.prepare('SELECT notification_time FROM users WHERE id = ?').get(u.id);
+              if (owner?.notification_time !== scheduledTime) return null;
+              var key = u.id + ':' + now.date;
+              if (await tx.prepare('SELECT run_key FROM scheduled_digest_runs WHERE run_key = ?').get(key)) return null;
+              var id = await addNotification(
+                u.id,
+                {
+                  title: payload.title,
+                  body: payload.body,
+                  scanType: 'capitalFlow',
+                  results,
+                  dataStatus: backgroundCache.dataStatus,
+                  // Never replace the provider timestamp with the execution time.
+                  dataAsOf: backgroundCache.dataAsOf || null,
+                  pushPayload: { ...payload, data: { url: '/scanner' } },
+                },
+                tx
+              );
+              await tx
+                .prepare(
+                  'INSERT INTO scheduled_digest_runs (run_key, user_id, completed_at, notification_id) VALUES (?, ?, ?, ?)'
+                )
+                .run(key, u.id, Math.floor(Date.now() / 1000), id);
+              return id;
             });
           } catch (err) {
             reportError(err, '[scheduled digest notification]');
+            failed = true;
+            return;
           }
-
+          if (notificationId == null) return;
           try {
-            await sendPushToUser(u.id, {
-              ...payload,
-              data: { url: notificationId ? '/scanner?notif=' + notificationId : '/scanner' },
-            });
+            if (!(await require('./deferredAccess').hasDeferredAccess(u.id))) return;
+            await require('./notificationOutbox').dispatchNotification(notificationId);
           } catch (err) {
             reportError(err, '[scheduled digest push]');
           }
@@ -158,6 +167,7 @@ async function runDigestTick(notificationTime) {
       })
     );
   }
+  if (failed) throw new Error('A scheduled digest could not be persisted; retry required');
 }
 
 function startScheduledDigest() {
@@ -190,9 +200,11 @@ function startScheduledDigest() {
         }
       }
       if (processedScheduleSlots.size > 500) {
-        processedScheduleSlots = new Set(Array.from(processedScheduleSlots).filter(function (slot) {
-          return slot.startsWith(now.date + ':');
-        }));
+        processedScheduleSlots = new Set(
+          Array.from(processedScheduleSlots).filter(function (slot) {
+            return slot.startsWith(now.date + ':');
+          })
+        );
       }
     })();
     try {
@@ -202,18 +214,18 @@ function startScheduledDigest() {
     }
   }
 
-  digestSchedulerTimer = setInterval(function () {
-    checkScheduledDigests().catch(function (err) {
+  digestSchedulerTimer = backgroundInterval(function () {
+    return checkScheduledDigests().catch(function (err) {
       reportError(err, '[scheduled digest scheduler]');
     });
   }, DIGEST_SCHEDULE_POLL_MS);
   digestSchedulerTimer.unref();
 
-  refreshScheduledDigestTimes({ force: true })
-    .then(checkScheduledDigests)
-    .catch(function (err) {
+  runBackgroundTask(() => refreshScheduledDigestTimes({ force: true }).then(checkScheduledDigests)).catch(
+    function (err) {
       reportError(err, '[scheduled digest schedule refresh]');
-    });
+    }
+  );
 }
 
 module.exports = {
