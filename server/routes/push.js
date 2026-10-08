@@ -40,6 +40,28 @@ router.post('/push/subscribe', requireEliteOrTrial, async (req, res) => {
   }
 });
 
+// Read-only: check the exact device keys and owner, without transferring a
+// subscription or exposing another account's registration.
+router.post('/push/subscription-status', requireEliteOrTrial, async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    if (!isPushConfigured()) {
+      return res.status(503).json({ error: 'Push notifications are temporarily unavailable' });
+    }
+    if (!isValidSubscription(req.body)) {
+      return res.status(400).json({ error: 'Could not verify notification access' });
+    }
+    const { endpoint, keys } = req.body;
+    const row = await db
+      .prepare('SELECT id FROM push_subscriptions WHERE user_id = ? AND endpoint = ? AND p256dh = ? AND auth = ?')
+      .get(req.user.id, new URL(endpoint).href, keys.p256dh, keys.auth);
+    return res.json({ enabled: !!row });
+  } catch (err) {
+    reportError(err, '[push/subscription-status]');
+    return res.status(500).json({ error: 'Could not verify notification access' });
+  }
+});
+
 router.post('/push/unsubscribe', requireEliteOrTrial, async (req, res) => {
   try {
     const endpoint = req.body && req.body.endpoint;

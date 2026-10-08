@@ -48,6 +48,10 @@ process.env.ADMIN_EMAIL = 'admin@test.local';
 // exercise a mocked send can still set its own value before requiring
 // anything (dotenv never overrides a value already present in process.env).
 if (process.env.RESEND_API_KEY === undefined) process.env.RESEND_API_KEY = '';
+// Do not let dotenv enable real Gmail delivery in synthetic tests. Dedicated
+// transport tests explicitly supply fake credentials and mock the sender.
+if (process.env.GMAIL_USER === undefined) process.env.GMAIL_USER = '';
+if (process.env.GMAIL_APP_PASSWORD === undefined) process.env.GMAIL_APP_PASSWORD = '';
 // Market-data provider tests must never call the developer's configured
 // Massive key. Tests that explicitly exercise the news provider set their own
 // fake key after this helper loads and mock fetch.

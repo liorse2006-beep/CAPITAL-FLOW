@@ -21,6 +21,9 @@ function percentile(values, fraction) {
   return Number(sorted[Math.max(0, Math.ceil(sorted.length * fraction) - 1)].toFixed(2));
 }
 async function main() {
+  const backlogArgument = process.argv.find((argument) => argument.startsWith('--backlog='));
+  const requestedBacklog = backlogArgument ? Number(backlogArgument.slice('--backlog='.length)) : 511;
+  assert.ok([511, 2048].includes(requestedBacklog), 'Only the two bounded local backlog comparisons are allowed');
   await db.ready;
   const users = [];
   for (let index = 0; index < 500; index++) {
@@ -67,14 +70,23 @@ async function main() {
   for (const route of ['account', 'watchlist', 'notifications', 'scan'])
     app.use('/api', require('../server/routes/' + route));
   const server = await new Promise((resolve) => {
-    const handle = app.listen(0, '127.0.0.1', () => resolve(handle));
+    const handle = app.listen({ port: 0, host: '127.0.0.1', backlog: requestedBacklog }, () => resolve(handle));
   });
+  const transport = { open: 0, peakOpen: 0, accepted: 0, listenerErrors: 0 };
+  server.on('connection', (socket) => {
+    transport.open++;
+    transport.accepted++;
+    transport.peakOpen = Math.max(transport.peakOpen, transport.open);
+    socket.once('close', () => transport.open--);
+  });
+  server.on('error', () => transport.listenerErrors++);
   const origin = `http://127.0.0.1:${server.address().port}`;
   const report = {
     startedAt: new Date().toISOString(),
     scope:
       'Local authenticated production routes; temporary libSQL file; synthetic cached feed; no external service calls',
     productionCapacity: 'UNKNOWN',
+    localListenBacklog: requestedBacklog,
     stages: [],
   };
   try {
@@ -85,6 +97,7 @@ async function main() {
       const started = performance.now();
       const timings = [];
       const statuses = {};
+      const connectionErrors = [];
       let mismatches = 0;
       await Promise.all(
         users.slice(0, concurrency).map(async (user) => {
@@ -121,6 +134,14 @@ async function main() {
               } catch (error) {
                 const code = error.cause?.code || error.name || 'network_error';
                 statuses[code] = (statuses[code] || 0) + 1;
+                if (connectionErrors.length < 50)
+                  connectionErrors.push({
+                    code,
+                    address: error.cause?.address || null,
+                    port: error.cause?.port || null,
+                    listenerStillOpen: server.listening,
+                    acceptedOpenConnections: transport.open,
+                  });
                 timings.push(performance.now() - began);
               }
             }
@@ -140,6 +161,8 @@ async function main() {
         statuses,
         failures,
         identityOrDataMismatches: mismatches,
+        connectionErrors,
+        transport: { ...transport },
         durationMs: Number(duration.toFixed(2)),
         requestsPerSecond: Number(((timings.length / duration) * 1000).toFixed(2)),
         latencyMs: {
