@@ -223,20 +223,20 @@ export default function MoneyFlow({
               {user ? (
                 <>
                   <span className="empty-rich-kicker">SECTOR FLOW</span>
-                  <h3>See where capital is moving.</h3>
-                  <p>Refresh the flow to track real-time inflows and outflows across every major market sector.</p>
+                  <h3>Review sector market activity.</h3>
+                  <p>Refresh to review available price and volume movement across major market sectors.</p>
                   <button className="empty-rich-cta" onClick={fetchFlow}>
                     Refresh Flow <span aria-hidden="true">→</span>
                   </button>
                 </>
               ) : (
                 <>
-                  <span className="empty-rich-kicker">LIVE SECTOR INTELLIGENCE</span>
-                  <h3>See where capital is moving.</h3>
-                  <p>Sign in to track real-time inflows and outflows across every major market sector.</p>
+                  <span className="empty-rich-kicker">SECTOR MARKET ACTIVITY</span>
+                  <h3>Review sector market activity.</h3>
+                  <p>Sign in to review available price and volume movement across major market sectors.</p>
                   <div className="empty-rich-pills">
                     <span className="empty-rich-pill">ALL SECTORS</span>
-                    <span className="empty-rich-pill">LIVE DATA</span>
+                    <span className="empty-rich-pill">MARKET DATA</span>
                   </div>
                   <button className="empty-rich-cta" onClick={onCreateAccount || onSignIn}>
                     Create account <span aria-hidden="true">→</span>
@@ -256,12 +256,12 @@ export default function MoneyFlow({
 
       {loading && (
         <ScanLoader
-          label="SECTOR MONEY FLOW"
+          label="SECTOR MARKET ACTIVITY"
           statusMessages={[
-            'Pulling live sector ETF data…',
-            'Measuring volume against sector averages…',
-            'Checking inflows and outflows…',
-            'Ranking sectors by relative strength…',
+            'Loading sector market data…',
+            'Comparing available price and volume changes…',
+            'Summarizing activity across sectors…',
+            'Preparing sector results…',
           ]}
         />
       )}
