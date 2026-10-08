@@ -44,3 +44,14 @@ test('reportRateLimited takes a key out of rotation until it cools down', () => 
     assert.notStrictEqual(pool.getKey(), first, 'a rate-limited key must be skipped while cooling down');
   }
 });
+
+test('an exhausted pool sends no key during cooldown and recovers after the full cooldown', (t) => {
+  let clock = Date.now();
+  t.mock.method(Date, 'now', () => clock);
+  for (const key of ['key-a', 'key-b', 'key-c', 'key-d']) pool.reportRateLimited(key);
+  for (let index = 0; index < 500; index++) assert.strictEqual(pool.getKey(), '');
+  clock += 64999;
+  assert.strictEqual(pool.getKey(), '');
+  clock += 1;
+  assert.ok(['key-a', 'key-b', 'key-c', 'key-d'].includes(pool.getKey()));
+});

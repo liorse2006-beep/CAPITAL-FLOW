@@ -22,10 +22,10 @@ function getKey() {
       return k;
     }
   }
-  // Every key is cooling down — hand back the least-stale one rather than
-  // failing outright; Finnhub will just reject it and the caller no-ops.
-  cursor = (cursor + 1) % keys.length;
-  return keys[cursor];
+  // Every account is cooling down. Do not send more doomed requests during
+  // the provider's cooldown; callers preserve the unavailable/partial state
+  // and try again after a key is eligible.
+  return '';
 }
 
 /** Call when a request using `key` comes back rate-limited (HTTP 429). */

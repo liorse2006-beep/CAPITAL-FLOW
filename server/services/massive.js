@@ -13,23 +13,29 @@ const LOOKBACK_DAYS = 21;
 const REQUIRED_VOLUME_BARS = 10;
 const breaker = createCircuitBreaker('massive-market-data', { failureThreshold: 5, cooldownMs: 30_000 });
 const metricCache = new Map();
+const sessionDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/New_York',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
 
 function normalizeSymbol(value) {
-  return String(value || '')
-    .trim()
-    .toUpperCase();
+  return typeof value === 'string' ? value.trim().toUpperCase() : '';
 }
 
 function finiteOrNull(value) {
-  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && !/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())) return null;
   const number = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(number) ? number : null;
 }
 
 function isoOrNull(value) {
-  if (value == null || value === '') return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value)) return null;
+  const date = new Date(value);
+  const timestamp = date.getTime();
+  return Number.isFinite(timestamp) && timestamp > 0 && timestamp <= Date.now() + 60_000 ? date.toISOString() : null;
 }
 
 function dateOnly(date) {
@@ -48,11 +54,20 @@ function normalizeBar(row) {
   const close = finiteOrNull(row?.c);
   const volume = finiteOrNull(row?.v);
   const timestamp = finiteOrNull(row?.t);
-  if (close === null || close <= 0 || volume === null || volume <= 0 || timestamp === null || timestamp <= 0) {
+  if (
+    close === null ||
+    close <= 0 ||
+    volume === null ||
+    volume <= 0 ||
+    !Number.isSafeInteger(timestamp) ||
+    timestamp <= 0 ||
+    timestamp > Date.now() + 60_000
+  ) {
     return null;
   }
-  const asOf = isoOrNull(new Date(timestamp));
-  if (!asOf) return null;
+  const date = new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) return null;
+  const asOf = date.toISOString();
   return { close, volume, timestamp, asOf };
 }
 
@@ -61,7 +76,22 @@ function normalizeBar(row) {
  * the scanner is allowed to consume. This function intentionally requires
  * ten valid daily bars and a timestamp for both source payloads.
  */
-function normalizeMassiveMetrics(referenceBody, aggregatesBody) {
+function normalizeMassiveMetrics(referenceBody, aggregatesBody, expectedSymbol) {
+  const symbol = normalizeSymbol(expectedSymbol || referenceBody?.results?.ticker);
+  if (
+    !symbol ||
+    normalizeSymbol(referenceBody?.results?.ticker) !== symbol ||
+    normalizeSymbol(aggregatesBody?.ticker) !== symbol
+  )
+    return null;
+  const currency = normalizeSymbol(referenceBody?.results?.currency_name);
+  if (referenceBody?.results?.currency_name != null && !currency) return null;
+  if (currency && currency !== 'USD') return null;
+  const providerStatus = normalizeSymbol(aggregatesBody?.status);
+  if (!['OK', 'DELAYED'].includes(providerStatus)) return null;
+  const referenceStatus = normalizeSymbol(referenceBody?.status);
+  if (referenceBody?.status != null && !referenceStatus) return null;
+  if (referenceStatus && referenceStatus !== 'OK') return null;
   const marketCap = finiteOrNull(referenceBody?.results?.market_cap);
   const referenceAsOf = isoOrNull(referenceBody?.results?.last_updated_utc);
   const bars = (Array.isArray(aggregatesBody?.results) ? aggregatesBody.results : [])
@@ -70,6 +100,15 @@ function normalizeMassiveMetrics(referenceBody, aggregatesBody) {
     .sort((a, b) => a.timestamp - b.timestamp);
 
   if (marketCap === null || marketCap <= 0 || !referenceAsOf || bars.length < REQUIRED_VOLUME_BARS) return null;
+
+  // Each daily window contributes once. Reject duplicate session dates instead
+  // of letting one repeated bar impersonate a ten-session baseline.
+  const sessionDates = new Set();
+  for (const bar of bars) {
+    const sessionDate = sessionDateFormatter.format(new Date(bar.timestamp));
+    if (sessionDates.has(sessionDate)) return null;
+    sessionDates.add(sessionDate);
+  }
 
   const window = bars.slice(-REQUIRED_VOLUME_BARS);
   const latest = window[window.length - 1];
@@ -84,10 +123,7 @@ function normalizeMassiveMetrics(referenceBody, aggregatesBody) {
     dataAsOf: latest.asOf,
     dataWindowStart: window[0].asOf,
     referenceAsOf,
-    providerStatus:
-      String(aggregatesBody?.status || '')
-        .trim()
-        .toUpperCase() || 'UNKNOWN',
+    providerStatus,
     delayed: true,
   };
 }
@@ -121,7 +157,7 @@ async function fetchMassiveMetrics(symbol) {
       `/v2/aggs/ticker/${encodeURIComponent(normalized)}/range/1/day/${aggregateFromDate()}/${aggregateToDate()}?adjusted=true&sort=asc&limit=30`
     ),
   ]);
-  const data = normalizeMassiveMetrics(referenceBody, aggregatesBody);
+  const data = normalizeMassiveMetrics(referenceBody, aggregatesBody, normalized);
   if (data) metricCache.set(normalized, { data, fetchedAt: Date.now() });
   return data;
 }
