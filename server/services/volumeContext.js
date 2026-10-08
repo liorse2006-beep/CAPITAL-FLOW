@@ -1,18 +1,66 @@
 const yahooFinance = require('./yahoo');
 const { createTTLCache } = require('../utils/ttlCache');
+const {
+  latestCompletedSessionDate,
+  sessionDateForTimestamp,
+  isTradingDateKey,
+  previousTradingDateKey,
+} = require('./marketCalendar');
+const { reportError } = require('../utils/reportError');
 
-// This endpoint re-fetched the same 6-month daily chart from Yahoo on every
-// single call with no caching at all, even for the same symbol requested
-// seconds apart (e.g. two users expanding the same hot ticker's detail row,
-// or one user re-opening it). The analysis itself is about a spike from
-// weeks/months ago — a stale-by-up-to-a-day cache changes nothing the user
-// could perceive, same reasoning already applied to the sibling chart-fetch
-// caches in scanner.js (sparkline, 24h) and maScanner.js (closes, 24h).
-// Cached here is only the raw sorted/filtered quote series (symbol-only key)
-// — the ratio-dependent spike computation below still runs fresh every call
-// on whatever quotes it gets, so accuracy for a given ratio is unaffected.
+// Reuse a validated six-month series for the same completed market session,
+// within a bounded 24-hour TTL. A newly completed session invalidates the old
+// entry even before the TTL expires. Concurrent callers share the fetch, but
+// their requested ratio calculations remain independent.
 const CHART_TTL_MS = 24 * 60 * 60 * 1000;
 const chartCache = createTTLCache(CHART_TTL_MS);
+const inFlight = new Map();
+
+function positiveNumber(value) {
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && !/^[+]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())) return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function verifiedQuotes(chart, symbol) {
+  const normalized = (value) =>
+    String(value || '')
+      .trim()
+      .toUpperCase()
+      .replace(/\./g, '-');
+  if (
+    normalized(chart?.meta?.symbol) !== normalized(symbol) ||
+    chart?.meta?.currency !== 'USD' ||
+    !Array.isArray(chart?.quotes)
+  )
+    throw new Error('Historical chart identity or currency could not be verified');
+  if (chart.quotes.length > 512) throw new Error('Historical chart exceeded its bounded daily window');
+  const lastSession = latestCompletedSessionDate();
+  const quotes = [];
+  for (const bar of chart.quotes) {
+    const time =
+      bar?.date instanceof Date ? bar.date.getTime() : typeof bar?.date === 'string' ? Date.parse(bar.date) : NaN;
+    if (!Number.isFinite(time) || time <= 0 || time > Date.now() + 300000)
+      throw new Error('Historical chart contains an unverifiable observation time');
+    const session = sessionDateForTimestamp(time);
+    if (!isTradingDateKey(session)) throw new Error('Historical chart contains a non-trading session');
+    // A still-growing current daily bar is not a completed historical session.
+    if (session > lastSession) continue;
+    const close = positiveNumber(bar.close);
+    const volume = positiveNumber(bar.volume);
+    if (close === null || volume === null) throw new Error('Historical chart contains an invalid price or volume');
+    quotes.push({ date: new Date(time), close, volume, session });
+  }
+  quotes.sort((a, b) => a.date - b.date);
+  if (quotes.length < 12 || quotes.at(-1).session !== lastSession)
+    throw new Error('Historical chart is incomplete or stale');
+  for (let index = 1; index < quotes.length; index++) {
+    if (previousTradingDateKey(quotes[index].session) !== quotes[index - 1].session)
+      throw new Error('Historical chart has a duplicate or missing trading session');
+  }
+  return { quotes, lastSession };
+}
 
 function latestTimestamp(quotes) {
   return quotes.reduce(function (latest, quote) {
@@ -26,24 +74,28 @@ function latestTimestamp(quotes) {
 
 async function getCachedQuotes(symbol, sixMonthsAgo) {
   var cached = chartCache.get(symbol);
-  if (cached && Date.now() - cached.fetchedAt < CHART_TTL_MS) return cached;
-
-  var chart = await yahooFinance.chart(symbol, { period1: sixMonthsAgo, interval: '1d' });
-  var rawQuotes = chart && chart.quotes ? chart.quotes : [];
-  var quotes = rawQuotes
-    .filter(function (q) {
-      return q && q.volume && q.volume > 0 && q.close && q.close > 0 && q.date;
-    })
-    .sort(function (a, b) {
-      return new Date(a.date) - new Date(b.date);
-    });
-  const entry = { quotes: quotes, dataAsOf: latestTimestamp(quotes), fetchedAt: Date.now() };
-  chartCache.set(symbol, entry);
-  return entry;
+  if (cached && Date.now() - cached.fetchedAt < CHART_TTL_MS && cached.lastSession === latestCompletedSessionDate())
+    return cached;
+  if (inFlight.has(symbol)) return inFlight.get(symbol);
+  if (inFlight.size >= 32) throw new Error('Historical chart request capacity is temporarily unavailable');
+  const pending = (async () => {
+    const chart = await yahooFinance.chart(symbol, { period1: sixMonthsAgo, interval: '1d' });
+    const { quotes, lastSession } = verifiedQuotes(chart, symbol);
+    const entry = { quotes, lastSession, dataAsOf: latestTimestamp(quotes), fetchedAt: Date.now() };
+    chartCache.set(symbol, entry);
+    return entry;
+  })();
+  inFlight.set(symbol, pending);
+  try {
+    return await pending;
+  } finally {
+    if (inFlight.get(symbol) === pending) inFlight.delete(symbol);
+  }
 }
 
-async function getHistoricalVolumeContext(symbol, currentVolumeRatio) {
+async function getHistoricalVolumeContextResult(symbol, currentVolumeRatio) {
   try {
+    if (positiveNumber(currentVolumeRatio) === null) throw new Error('Historical comparison ratio is invalid');
     var sixMonthsAgo = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
     var quotes;
     try {
@@ -51,10 +103,11 @@ async function getHistoricalVolumeContext(symbol, currentVolumeRatio) {
       quotes = cachedChart.quotes;
       var dataAsOf = cachedChart.dataAsOf;
     } catch (e) {
-      return null;
+      reportError(e, '[volume-context/provider]');
+      return { status: 'unavailable', context: null };
     }
 
-    if (quotes.length < 12) return null;
+    if (quotes.length < 12) return { status: 'unavailable', context: null };
 
     // Calculate volume ratio for each day using prior 10 days average
     var ratios = [];
@@ -65,47 +118,39 @@ async function getHistoricalVolumeContext(symbol, currentVolumeRatio) {
       }, 0);
       var avgVol = sumVol / 10;
       var ratio = avgVol > 0 ? quotes[i].volume / avgVol : 0;
+      if (!Number.isFinite(avgVol) || !Number.isFinite(ratio))
+        throw new Error('Historical volume calculation is not finite');
       ratios.push({ index: i, ratio: ratio, date: quotes[i].date, close: quotes[i].close });
     }
 
-    if (ratios.length === 0) return null;
+    if (ratios.length === 0) return { status: 'unavailable', context: null };
 
     // Threshold: 80% of current ratio
     var threshold = currentVolumeRatio * 0.8;
 
-    // Find the most recent spike (before today) meeting the threshold
-    // Exclude the last entry as it may be today
-    var today = new Date();
-    today.setHours(0, 0, 0, 0);
-
+    // Only completed, consecutive exchange sessions reached this point.
     var spikeEntry = null;
     for (var j = ratios.length - 1; j >= 0; j--) {
-      var entryDate = new Date(ratios[j].date);
-      entryDate.setHours(0, 0, 0, 0);
-      if (entryDate < today && ratios[j].ratio >= threshold) {
+      if (ratios[j].ratio >= threshold) {
         spikeEntry = ratios[j];
         break;
       }
     }
 
-    if (!spikeEntry) return null;
+    if (!spikeEntry) return { status: 'complete', context: null, dataAsOf };
 
     // Find the closing price 5 trading days after the spike
     var spikeQuoteIndex = spikeEntry.index;
     var afterIndex = spikeQuoteIndex + 5;
-    if (afterIndex >= quotes.length) return null;
+    if (afterIndex >= quotes.length) return { status: 'complete', context: null, dataAsOf };
 
     var priceAtSpike = spikeEntry.close;
     var priceAfter5Days = quotes[afterIndex].close;
     var movePercent = Math.round(((priceAfter5Days - priceAtSpike) / priceAtSpike) * 10000) / 100;
     var direction = movePercent > 0 ? 'up' : movePercent < 0 ? 'down' : 'flat';
 
-    var spikeDateRaw = spikeEntry.date;
-    var lastSpikeDate =
-      spikeDateRaw instanceof Date ? spikeDateRaw.toISOString().slice(0, 10) : String(spikeDateRaw).slice(0, 10);
-
-    return {
-      lastSpikeDate: lastSpikeDate,
+    const context = {
+      lastSpikeDate: quotes[spikeQuoteIndex].session,
       lastSpikeRatio: Math.round(spikeEntry.ratio * 100) / 100,
       priceAtSpike: Math.round(priceAtSpike * 100) / 100,
       priceAfter5Days: Math.round(priceAfter5Days * 100) / 100,
@@ -113,9 +158,21 @@ async function getHistoricalVolumeContext(symbol, currentVolumeRatio) {
       direction: direction,
       dataAsOf: dataAsOf || null,
     };
+    if (
+      [context.lastSpikeRatio, context.priceAtSpike, context.priceAfter5Days, context.movePercent].some(
+        (value) => !Number.isFinite(value)
+      )
+    )
+      throw new Error('Historical price calculation is not finite');
+    return { status: 'complete', context, dataAsOf };
   } catch (e) {
-    return null;
+    reportError(e, '[volume-context]');
+    return { status: 'unavailable', context: null };
   }
 }
 
-module.exports = { getHistoricalVolumeContext };
+async function getHistoricalVolumeContext(symbol, currentVolumeRatio) {
+  return (await getHistoricalVolumeContextResult(symbol, currentVolumeRatio)).context;
+}
+
+module.exports = { getHistoricalVolumeContext, getHistoricalVolumeContextResult };

@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { getHistoricalVolumeContext } = require('../services/volumeContext');
+const { getHistoricalVolumeContextResult } = require('../services/volumeContext');
 const { scanLimiter } = require('../middleware/rateLimiters');
 const { requireAuth } = require('../middleware/authMiddleware');
 const { reportError } = require('../utils/reportError');
@@ -16,13 +16,23 @@ router.get('/volume-context/:symbol', requireAuth, scanLimiter, async function (
     return res.status(400).json({ error: 'symbol and valid ratio query param required' });
   }
   try {
-    var context = await getHistoricalVolumeContext(symbol, ratio);
+    const result = await getHistoricalVolumeContextResult(symbol, ratio);
+    var context = result.context;
+    if (result.status === 'unavailable') {
+      return res.status(503).json({
+        found: false,
+        context: null,
+        dataStatus: 'unavailable',
+        error: 'Historical data is temporarily unavailable. Please try again.',
+      });
+    }
     if (!context) {
-      return res.json({ found: false, context: null });
+      return res.json({ found: false, context: null, dataStatus: 'complete', dataAsOf: result.dataAsOf });
     }
     return res.json({
       found: true,
       context: context,
+      dataStatus: 'complete',
       dataAsOf: context.dataAsOf || null,
       dataProvenance: buildFinancialProvenance({
         dataAsOf: context.dataAsOf || null,
