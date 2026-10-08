@@ -331,6 +331,7 @@ export function AuthProvider({ children }) {
         login,
         logout,
         getToken,
+        refreshSession: silentRefresh,
         acceptPilotTerms,
         refreshUser,
       }}

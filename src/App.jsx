@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Toast from './components/shared/Toast';
 import useSSE from './hooks/useSSE';
+import useStreamTicket from './hooks/useStreamTicket';
 import useScanQuota from './hooks/useScanQuota';
 import usePushSubscription from './hooks/usePushSubscription';
 import { parseVolInput } from './utils/format';
@@ -43,6 +44,7 @@ function App() {
     logout,
     login,
     getToken,
+    refreshSession,
     authError,
     clearAuthError,
     pendingGoogleToken,
@@ -192,86 +194,6 @@ function App() {
   /* ── SSE — real-time background scan updates ── */
   const [liveAlert, setLiveAlert] = useState(null);
   const [radarEvent, setRadarEvent] = useState(null);
-
-  // EventSource cannot send Authorization headers. Exchange the normal bearer
-  // token for a short-lived opaque ticket instead of putting the user's JWT in
-  // the stream URL. Refresh before expiry so browser reconnects keep working.
-  const [sseTicket, setSseTicket] = useState(null);
-  useEffect(() => {
-    let cancelled = false;
-    let refreshTimer;
-    if (!eliteAccess) {
-      return undefined;
-    }
-    const fetchTicket = () => {
-      fetch('/api/stream-ticket', { headers: { Authorization: 'Bearer ' + (getToken() || '') } })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (cancelled || !d?.ticket) return;
-          setSseTicket(d.ticket);
-          refreshTimer = setTimeout(fetchTicket, Math.max(60_000, (d.expiresIn - 120) * 1000));
-        })
-        .catch(() => {
-          if (!cancelled) refreshTimer = setTimeout(fetchTicket, 30_000);
-        });
-    };
-    fetchTicket();
-    return () => {
-      cancelled = true;
-      clearTimeout(refreshTimer);
-    };
-  }, [eliteAccess, getToken]);
-  useSSE(
-    sseTicket ? '/api/stream?ticket=' + encodeURIComponent(sseTicket) : null,
-    {
-      connected: () => {},
-      ping: () => {},
-      'auth-error': () => {},
-      'scan-update': (d) => {
-        if (!Array.isArray(d.results)) return;
-
-        // The background worker scans the default floor universe. Show its
-        // fresh, complete snapshot only while the scanner is idle and still
-        // on its untouched defaults; never overwrite a user's in-progress or
-        // custom-filtered scan with a differently filtered dataset.
-        const canHydrateDefaultScanner =
-          page === 'scanner' &&
-          !scanning &&
-          results === null &&
-          scanMode === null &&
-          minRatio === '1.5' &&
-          minCap === '1' &&
-          !minPrice &&
-          !maxPrice &&
-          !minVol;
-        if (canHydrateDefaultScanner) {
-          setResults(d.results);
-          setScanTime(d.scanTime || null);
-          setScanDataStatus(d.dataStatus || null);
-          setScanDataAsOf(d.dataAsOf || null);
-          setFromCache(true);
-          setCacheAge(0);
-          setRestoredFromLastScan(false);
-        }
-      },
-      alert: (d) => {
-        addAlertToHistory(d.symbol, d.title, d.body);
-        setLiveAlert(d);
-        setTimeout(() => setLiveAlert(null), 6000);
-        // Server already cancelled the underlying threshold (one-shot alert)
-        // — mirror that locally so the bell/badge stops showing it as armed
-        // without waiting for a refetch.
-        clearAlertLevelLocal(d.symbol);
-      },
-      'radar-event': (d) => {
-        addAlertToHistory(d.symbol, d.title, d.body);
-        setRadarEvent(d);
-        setLiveAlert(d);
-        setTimeout(() => setLiveAlert(null), 6000);
-      },
-    },
-    eliteAccess
-  );
 
   /* ── Notification state ── */
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -453,6 +375,60 @@ function App() {
   var eliteAccess = hasEliteAccess(user, scanMeta);
   var premiumFeatureAccess = hasPremiumFeatureAccess(user, scanMeta);
   var canNotify = eliteAccess;
+
+  // Entitlement must be derived BEFORE it is used as an effect dependency.
+  // Previously the hoisted `var eliteAccess` was always undefined at the
+  // earlier hook call, so logging in never restarted ticket acquisition.
+  const { ticket: sseTicket, renewTicket } = useStreamTicket({
+    enabled: eliteAccess,
+    userId: user?.id,
+    getToken,
+    refreshSession,
+  });
+  useSSE(
+    sseTicket ? '/api/stream?ticket=' + encodeURIComponent(sseTicket) : null,
+    {
+      connected: () => {},
+      ping: () => {},
+      'auth-error': renewTicket,
+      'scan-update': (d) => {
+        if (!Array.isArray(d.results)) return;
+        // Never replace a custom/in-progress scan with the background default.
+        const canHydrateDefaultScanner =
+          page === 'scanner' &&
+          !scanning &&
+          results === null &&
+          scanMode === null &&
+          minRatio === '1.5' &&
+          minCap === '1' &&
+          !minPrice &&
+          !maxPrice &&
+          !minVol;
+        if (canHydrateDefaultScanner) {
+          setResults(d.results);
+          setScanTime(d.scanTime || null);
+          setScanDataStatus(d.dataStatus || null);
+          setScanDataAsOf(d.dataAsOf || null);
+          setFromCache(true);
+          setCacheAge(0);
+          setRestoredFromLastScan(false);
+        }
+      },
+      alert: (d) => {
+        addAlertToHistory(d.symbol, d.title, d.body);
+        setLiveAlert(d);
+        setTimeout(() => setLiveAlert(null), 6000);
+        clearAlertLevelLocal(d.symbol);
+      },
+      'radar-event': (d) => {
+        addAlertToHistory(d.symbol, d.title, d.body);
+        setRadarEvent(d);
+        setLiveAlert(d);
+        setTimeout(() => setLiveAlert(null), 6000);
+      },
+    },
+    eliteAccess
+  );
 
   /* ── Trial-ended popup — auto-shown once per site visit the first time a
         free-tier user's scanMeta confirms the 7-day trial has ended, and
@@ -860,10 +836,7 @@ function App() {
       var cleanedSearch = new URLSearchParams(location.search);
       cleanedSearch.delete('status');
       var cleanedSearchString = cleanedSearch.toString();
-      var cleanUrl =
-        location.pathname +
-        (cleanedSearchString ? '?' + cleanedSearchString : '') +
-        (location.hash || '');
+      var cleanUrl = location.pathname + (cleanedSearchString ? '?' + cleanedSearchString : '') + (location.hash || '');
       restoreWhopReturnScroll();
       navigate(cleanUrl, { replace: true });
       if (status !== 'success') {

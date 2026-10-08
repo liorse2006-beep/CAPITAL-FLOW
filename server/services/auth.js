@@ -107,15 +107,22 @@ async function createSession(userId) {
   // database as it stands the instant it runs, and SQLite/libsql serializes
   // writes to the same table, so concurrent calls still converge on exactly
   // MAX_ACTIVE_SESSIONS surviving rows once both have run.
-  await db
+  const evicted = await db
     .prepare(
       `DELETE FROM user_sessions
        WHERE user_id = ?
          AND id NOT IN (
-           SELECT id FROM user_sessions WHERE user_id = ? ORDER BY last_used_at DESC LIMIT ?
-         )`
+           SELECT id FROM user_sessions WHERE user_id = ? ORDER BY last_used_at DESC, id DESC LIMIT ?
+         )
+       RETURNING id`
     )
-    .run(userId, userId, MAX_ACTIVE_SESSIONS);
+    .all(userId, userId, MAX_ACTIVE_SESSIONS);
+
+  // Device eviction is revocation just like logout. Return the rows actually
+  // deleted (not a racy pre-delete SELECT), then invalidate only those devices'
+  // cached tokens and streams. Surviving devices remain signed in.
+  const { invalidateSession } = require('../middleware/authMiddleware');
+  for (const session of evicted) invalidateSession(userId, session.id);
 
   return { refreshToken, sessionId: result.lastInsertRowid };
 }

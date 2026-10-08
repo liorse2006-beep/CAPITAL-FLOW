@@ -31,6 +31,7 @@ const { publish, subscribe } = require('../services/clusterBus');
 const SSE_TICKET_TTL_MS = 10 * 60 * 1000;
 
 function signSseTicket(userId, sessionId, expiresAt) {
+  if (!SESSION_SECRET || SESSION_SECRET.length < 32) throw new Error('SSE signing is not configured');
   return crypto.createHmac('sha256', SESSION_SECRET).update(`${userId}.${sessionId}.${expiresAt}`).digest('base64url');
 }
 
@@ -43,6 +44,7 @@ function issueSseTicket(userId, sessionId) {
 }
 
 function resolveSseTicket(ticket) {
+  if (!SESSION_SECRET || SESSION_SECRET.length < 32) return null;
   if (!ticket || typeof ticket !== 'string') return null;
   const parts = ticket.split('.');
   if (parts.length !== 4) return null;
@@ -351,6 +353,15 @@ async function requireEliteOrTrial(req, res, next) {
  * Same as requireEliteOrTrial but reads the signed ticket from ?ticket=.
  * Used for SSE (EventSource cannot set Authorization headers).
  */
+async function resolveStreamAccess(userId, sessionId) {
+  const user = await db
+    .prepare('SELECT u.* FROM users u JOIN user_sessions s ON s.user_id = u.id WHERE u.id = ? AND s.id = ?')
+    .get(userId, sessionId);
+  if (!user || user.is_blocked) return null;
+  const effectiveUser = require('../services/auth').withEffectivePremium(user);
+  return require('../services/scanQuota').eliteAccess(effectiveUser) ? effectiveUser : null;
+}
+
 async function requirePremiumSSE(req, res, next) {
   const ticket = resolveSseTicket(req.query.ticket);
   const session = ticket
@@ -395,6 +406,8 @@ async function requirePremiumSSE(req, res, next) {
     return rejectSse('NOT_ELITE', 403);
   }
   req.user = effectiveUser;
+  req.streamSessionId = ticket.sessionId;
+  req.streamExpiresAt = Number(req.query.ticket.split('.')[2]);
   next();
 }
 
@@ -453,4 +466,5 @@ module.exports = {
   invalidateUserEntitlement,
   issueSseTicket,
   resolveSseTicket,
+  resolveStreamAccess,
 };

@@ -22,22 +22,10 @@
 // any change to server.js, clusterBus.js, routes/stream.js's broadcast
 // path, or the SSE ticket logic in middleware/authMiddleware.js.
 //
-// The whole scenario retries a few times on failure (fresh process, fresh
-// DB file, fresh port each attempt). That's not papering over a flaky
-// assertion — it's compensating for two specific, well-understood local-
-// only artifacts that have nothing to do with the code under test:
-//   1. Two worker PROCESSES sharing one local SQLite FILE (`file:` mode)
-//      can see a write-then-read gap across their separate OS file handles
-//      that a single remote Turso server (what production actually talks
-//      to — see server/db/index.js, no syncUrl/embedded-replica involved)
-//      never has, since every worker queries the same one source directly.
-//   2. Node's cluster module doesn't guarantee round-robin distribution on
-//      every platform (Windows defaults to SCHED_NONE) — occasionally every
-//      connection in one attempt lands on the same worker by chance, which
-//      would prove nothing either way about cross-worker delivery.
-// If the actual relay logic in server.js/clusterBus.js were broken, every
-// attempt would fail the same real assertion (a client not receiving the
-// broadcast) — retrying would not paper over that.
+// Retry only if socket assignment fails to put the two clients on distinct
+// workers. Delivery, authorization, admission and isolation failures must
+// fail immediately, not be hidden by a later successful attempt. This local
+// SQLite test is not evidence of remote Turso behavior or production capacity.
 require('./helpers/testEnv');
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -45,16 +33,18 @@ const { spawn } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
+const http = require('node:http');
 
 const ROOT = path.join(__dirname, '..');
 const JWT_SECRET = 'cluster-it-jwt-secret-'.padEnd(32, 'x');
 const SESSION_SECRET = 'cluster-it-session-secret-'.padEnd(32, 'x');
-const CONNECTION_COUNT = 30;
+// Realistic tabs/devices stay inside the production per-session limit.
+const CONNECTION_COUNT = 2;
 
 async function retryFetch(base, url, opts, attempts = 10) {
   let lastBody;
   for (let i = 0; i < attempts; i++) {
-    const res = await fetch(base + url, opts);
+    const res = await fetch(base + url, { ...opts, signal: AbortSignal.timeout(3000) });
     if (res.status === 200) return res;
     lastBody = await res.text().catch(() => '');
     await new Promise((r) => setTimeout(r, 100 * (i + 1)));
@@ -66,8 +56,11 @@ function waitForHealth(base, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   return new Promise((resolve, reject) => {
     (function poll() {
-      fetch(base + '/')
-        .then((r) => (r.ok ? resolve() : retry()))
+      fetch(base + '/health', { signal: AbortSignal.timeout(3000) })
+        .then(async (r) => {
+          await r.arrayBuffer();
+          return r.ok ? resolve() : retry();
+        })
         .catch(retry);
       function retry() {
         if (Date.now() > deadline) return reject(new Error('server did not become healthy in time'));
@@ -88,11 +81,16 @@ async function connectSse(base, ticket, attempt = 1) {
   return result;
 }
 
-async function waitForBothWorkers(base, timeoutMs = 20000) {
+async function waitForBothWorkers(base, timeoutMs = 10000) {
   const deadline = Date.now() + timeoutMs;
   const pids = new Set();
   while (Date.now() < deadline) {
-    const res = await fetch(base + '/api/stream/_test-worker-pid').catch(() => null);
+    // Probe worker ownership on fresh sockets, not one keep-alive connection
+    // that correctly remains attached to the same worker on Linux.
+    const res = await fetch(base + '/api/stream/_test-worker-pid', {
+      headers: { Connection: 'close' },
+      signal: AbortSignal.timeout(3000),
+    }).catch(() => null);
     if (res && res.ok) {
       const body = await res.json();
       if (body.pid) pids.add(body.pid);
@@ -105,8 +103,20 @@ async function waitForBothWorkers(base, timeoutMs = 20000) {
 
 async function connectSseOnce(base, ticket) {
   const controller = new AbortController();
-  const res = await fetch(`${base}/api/stream?ticket=${ticket}`, { signal: controller.signal });
-  const reader = res.body.getReader();
+  // Each client models an independent tab/device. A pooled fetch connection
+  // can reuse a socket already owned by one worker and invalidate that model.
+  const res = await new Promise((resolve, reject) => {
+    const request = http.get(
+      `${base}/api/stream?ticket=${ticket}`,
+      { agent: false, signal: controller.signal },
+      resolve
+    );
+    request.once('error', reject);
+  });
+  if (res.statusCode !== 200) {
+    controller.abort();
+    throw new Error(`SSE admission returned ${res.statusCode}`);
+  }
   const decoder = new TextDecoder();
   let buffer = '';
   const pending = [];
@@ -114,9 +124,7 @@ async function connectSseOnce(base, ticket) {
 
   (async function pump() {
     try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      for await (const value of res) {
         buffer += decoder.decode(value, { stream: true });
         let idx;
         while ((idx = buffer.indexOf('\n\n')) !== -1) {
@@ -159,7 +167,7 @@ async function connectSseOnce(base, ticket) {
   return { pid: first.data.pid, nextEvent, close };
 }
 
-async function runScenario(port) {
+async function runScenario(port, diagnostic) {
   const base = `http://127.0.0.1:${port}`;
   const dbFile = path.join(os.tmpdir(), `cluster-it-${Date.now()}-${port}.db`);
   const child = spawn(process.execPath, ['server.js'], {
@@ -183,13 +191,40 @@ async function runScenario(port) {
       GOOGLE_CLIENT_SECRET: '',
     }),
     stdio: ['ignore', 'pipe', 'pipe'],
+    // On POSIX, terminate this test-owned process group, including cluster
+    // workers. Killing only the primary leaves children holding the output
+    // pipes open and prevents node:test from finishing after the assertion.
+    detached: process.platform !== 'win32',
   });
   let childOutput = '';
   child.stdout.on('data', (d) => (childOutput += d));
   child.stderr.on('data', (d) => (childOutput += d));
 
-  const cleanup = () => {
-    child.kill();
+  const clientsToClose = new Set();
+  const cleanup = async () => {
+    for (const client of clientsToClose) client.close();
+    const stopped = new Promise((resolve) => child.once('close', resolve));
+    const signalOwnedProcesses = (signal) => {
+      try {
+        if (process.platform === 'win32') child.kill(signal);
+        else process.kill(-child.pid, signal);
+      } catch (err) {
+        if (err.code !== 'ESRCH') throw err;
+      }
+    };
+    signalOwnedProcesses('SIGTERM');
+    let stopTimer;
+    const closed = await Promise.race([
+      stopped.then(() => true),
+      new Promise((resolve) => {
+        stopTimer = setTimeout(() => resolve(false), 3000);
+      }),
+    ]);
+    clearTimeout(stopTimer);
+    if (!closed) {
+      signalOwnedProcesses('SIGKILL');
+      await stopped;
+    }
     for (const suffix of ['', '-wal', '-shm']) {
       try {
         fs.unlinkSync(dbFile + suffix);
@@ -198,8 +233,11 @@ async function runScenario(port) {
   };
 
   try {
-    await waitForHealth(base, 20000);
+    diagnostic('waiting for healthy application');
+    await waitForHealth(base, 15000);
+    diagnostic('waiting for two distinct worker processes');
     await waitForBothWorkers(base);
+    diagnostic('seeding isolated users and opening SSE clients');
 
     const seedRes = await retryFetch(base, '/api/stream/_test-seed-user', {
       method: 'POST',
@@ -215,21 +253,57 @@ async function runScenario(port) {
     });
     const { ticket } = await ticketRes.json();
 
-    const clients = await Promise.all(Array.from({ length: CONNECTION_COUNT }, () => connectSse(base, ticket)));
+    const clients = await Promise.all(
+      Array.from({ length: CONNECTION_COUNT }, async () => {
+        const client = await connectSse(base, ticket);
+        clientsToClose.add(client);
+        return client;
+      })
+    );
+    const peerSeed = await retryFetch(base, '/api/stream/_test-seed-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'cluster-it-peer@test.local' }),
+    });
+    const { userId: peerUserId } = await peerSeed.json();
+    const peerTicketResponse = await retryFetch(base, '/api/stream/_test-issue-ticket', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: peerUserId }),
+    });
+    const { ticket: peerTicket } = await peerTicketResponse.json();
+    const peer = await connectSse(base, peerTicket);
+    clientsToClose.add(peer);
     const pids = new Set(clients.map((c) => c.pid));
     if (pids.size < 2) {
       clients.forEach((c) => c.close());
-      throw new Error(
+      peer.close();
+      const err = new Error(
         `all ${CONNECTION_COUNT} connections landed on the same worker (pid ${[...pids]}) — can't verify cross-worker delivery this attempt`
       );
+      err.code = 'CLUSTER_DISTRIBUTION_UNOBSERVED';
+      throw err;
     }
 
+    diagnostic('verifying cross-worker delivery and cross-user isolation');
     const triggerRes = await fetch(base + '/api/stream/_test-broadcast', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, event: 'test-alert', data: { msg: 'hello from the cluster' } }),
     });
     assert.strictEqual(triggerRes.status, 200);
+    await triggerRes.arrayBuffer();
+    const peerTrigger = await fetch(base + '/api/stream/_test-broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: peerUserId, event: 'peer-only', data: { msg: 'private peer alert' } }),
+    });
+    assert.strictEqual(peerTrigger.status, 200);
+    await peerTrigger.arrayBuffer();
+    const peerEvent = await peer.nextEvent();
+    assert.equal(peerEvent.event, 'peer-only', "the peer must not receive the first account's alert");
+    assert.equal(peerEvent.data.msg, 'private peer alert');
+    peer.close();
 
     const results = await Promise.all(
       clients.map(async (c) => {
@@ -253,19 +327,22 @@ async function runScenario(port) {
     err.childOutput = childOutput;
     throw err;
   } finally {
-    cleanup();
+    diagnostic("closing this test's SSE clients and child processes");
+    await cleanup();
   }
 }
 
-test('a broadcast reaches SSE clients on every cluster worker, not just whichever one handled the trigger', async () => {
-  const ATTEMPTS = 4;
+test('a broadcast reaches SSE clients on every cluster worker, not just whichever one handled the trigger', async (t) => {
+  const ATTEMPTS = 2;
   let lastErr;
   for (let i = 0; i < ATTEMPTS; i++) {
     try {
-      await runScenario(4321 + i);
+      await runScenario(4321 + i, (message) => t.diagnostic(`attempt ${i + 1}: ${message}`));
       return; // success — proven for this run
     } catch (err) {
       lastErr = err;
+      t.diagnostic(`attempt ${i + 1} failed: ${err.message}`);
+      if (err.code !== 'CLUSTER_DISTRIBUTION_UNOBSERVED') break;
     }
   }
   console.error('--- last attempt cluster child process output ---\n' + (lastErr.childOutput || ''));

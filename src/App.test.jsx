@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import App from './App';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Keep this routing test focused on App's route selection. The real landing
 // page mounts canvas/effects and several nested React roots; loading that
@@ -41,8 +41,21 @@ window.matchMedia =
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   localStorage.clear();
 });
+
+function LiveAccessHarness() {
+  const { login } = useAuth();
+  return (
+    <>
+      <button onClick={() => login('local-test-token', { id: 81, tier: 'elite', is_premium: 1 })}>Test sign in</button>
+      <button onClick={() => login('local-test-token', { id: 81, tier: 'premium', is_premium: 1 })}>
+        Test downgrade
+      </button>
+    </>
+  );
+}
 
 function CheckoutRepeatHarness() {
   const navigate = useNavigate();
@@ -60,6 +73,43 @@ function CheckoutRepeatHarness() {
 }
 
 describe('App routing', () => {
+  it('starts live alerts after asynchronous login and closes them after access ends', async () => {
+    const streams = [];
+    vi.stubGlobal(
+      'EventSource',
+      class {
+        constructor(url) {
+          this.url = url;
+          this.close = vi.fn();
+          this.addEventListener = vi.fn();
+          streams.push(this);
+        }
+      }
+    );
+    const fetchMock = vi.fn(async (url) => {
+      if (url === '/api/auth/refresh') return { ok: false, status: 401 };
+      if (url === '/api/stream-ticket') {
+        return { ok: true, json: async () => ({ ticket: 'local-test-ticket', expiresIn: 600 }) };
+      }
+      return { ok: true, json: async () => ({ notifications: [], symbols: [], levels: [], tier: 'premium' }) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(
+      <AuthProvider>
+        <MemoryRouter initialEntries={['/watchlist']}>
+          <LiveAccessHarness />
+          <App />
+        </MemoryRouter>
+      </AuthProvider>
+    );
+    expect(streams).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Test sign in' }));
+    await waitFor(() => expect(streams).toHaveLength(1));
+    expect(streams[0].url).toBe('/api/stream?ticket=local-test-ticket');
+    fireEvent.click(screen.getByRole('button', { name: 'Test downgrade' }));
+    await waitFor(() => expect(streams[0].close).toHaveBeenCalled());
+  });
+
   it('renders the public landing page at the root path for a logged-out visitor', async () => {
     // "/" is the marketing page for guests (see App.jsx's isGuestLanding) —
     // only an authenticated user lands on the scanner at "/". LandingPage is

@@ -93,6 +93,34 @@ test('N concurrent logins on one account never leave more than MAX_ACTIVE_SESSIO
   );
 });
 
+test('logins created in the same second keep the newest device usable', async (t) => {
+  t.mock.method(Date, 'now', () => 1_750_000_000_000);
+  const user = await makeUser('same-second-login@test.local');
+  const first = await createSession(user.id);
+  const second = await createSession(user.id);
+  const newest = await createSession(user.id);
+
+  assert.ok(await refreshAccessToken(newest.refreshToken), 'the newly signed-in device must remain valid');
+  assert.ok(await refreshAccessToken(second.refreshToken), 'the newer existing device must survive the tie');
+  assert.strictEqual(await refreshAccessToken(first.refreshToken), null, 'the oldest tied device is evicted');
+});
+
+test('device eviction immediately invalidates a cached access token', async (t) => {
+  let now = 1_750_000_100_000;
+  t.mock.method(Date, 'now', () => now);
+  const user = await makeUser('cached-device-eviction@test.local');
+  const oldest = await issueToken(user);
+  assert.ok(await resolveToken(oldest.accessToken), 'prime the free-user resolution cache');
+  now += 1000;
+  await issueToken(user);
+  now += 1000;
+  const newest = await issueToken(user);
+
+  assert.strictEqual(await refreshAccessToken(oldest.refreshToken), null, 'eviction has removed the old DB session');
+  assert.strictEqual(await resolveToken(oldest.accessToken), null, 'cached bearer access must be revoked too');
+  assert.ok(await resolveToken(newest.accessToken), 'the new device remains authenticated');
+});
+
 test('POST /api/auth/refresh mints a new access token from the httpOnly cookie set at login', async () => {
   const user = await makeUser('refresh-route-a@test.local');
   const { refreshToken } = await issueToken(user);
