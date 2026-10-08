@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { safeErrorSummary } = require('../utils/reportError');
 const { retryUntilReady } = require('./startupRetry');
+const { createBoundedQueue } = require('../services/boundedQueue');
 
 function isExpectedDuplicateColumnError(error) {
   const message = String(error?.message || error || '');
@@ -25,6 +26,8 @@ function makeUrl() {
 
 const databaseUrl = makeUrl();
 const isPostgresDatabase = isPostgresUrl(databaseUrl);
+const isLocalSqlite = /^file:/i.test(databaseUrl);
+const runSqlite = createBoundedQueue({ concurrency: 1, maxWaiting: 500, waitTimeoutMs: 10000 });
 const postgresDb = isPostgresDatabase ? createPostgresDatabase(databaseUrl) : null;
 const client = isPostgresDatabase
   ? null
@@ -49,6 +52,7 @@ function sqliteResultShape(result) {
   return {
     rows: result.rows || [],
     rowsAffected: Number(result.rowsAffected || 0),
+    changes: Number(result.rowsAffected || 0),
     lastInsertRowid: result.lastInsertRowid != null ? Number(result.lastInsertRowid) : undefined,
   };
 }
@@ -58,22 +62,23 @@ async function executeSql(sql, args = [], target = client) {
     if (args.length) return postgresDb.prepare(sql).run(...args);
     return postgresDb.exec(sql);
   }
-  return target.execute(args.length ? { sql, args } : sql);
+  const operation = () => target.execute(args.length ? { sql, args } : sql);
+  return isLocalSqlite && target === client ? runSqlite(operation) : operation();
 }
 
 function prepare(sql) {
   if (isPostgresDatabase) return postgresDb.prepare(sql);
   return {
     async get(...args) {
-      const result = await client.execute({ sql, args });
+      const result = await executeSql(sql, args);
       return result.rows.length > 0 ? toPlainObject(result.rows[0]) : undefined;
     },
     async all(...args) {
-      const result = await client.execute({ sql, args });
+      const result = await executeSql(sql, args);
       return result.rows.map(toPlainObject);
     },
     async run(...args) {
-      const result = await client.execute({ sql, args });
+      const result = await executeSql(sql, args);
       return {
         changes: result.rowsAffected,
         lastInsertRowid: result.lastInsertRowid != null ? Number(result.lastInsertRowid) : undefined,
@@ -103,7 +108,7 @@ async function exec(sql) {
     .map((s) => s.trim())
     .filter(Boolean);
   for (const s of stmts) {
-    await client.execute(s);
+    await executeSql(s);
   }
 }
 
@@ -111,10 +116,26 @@ async function exec(sql) {
 // a small wrapper around libSQL's write transaction mode so routes that touch
 // multiple user-owned tables cannot leave a partial state after a transient
 // database failure.
-async function transaction(statementsOrCallback) {
+function transaction(statementsOrCallback) {
+  if (isPostgresDatabase) return postgresDb.transaction(statementsOrCallback);
+  // Local SQLite callbacks share a connection: keep concurrent asynchronous
+  // writes outside each other's BEGIN/COMMIT window. The bounded queue also
+  // makes registration capacity checks atomic without extra infrastructure.
+  return runSqlite(() => executeTransaction(statementsOrCallback));
+}
+
+async function executeTransaction(statementsOrCallback) {
   if (isPostgresDatabase) return postgresDb.transaction(statementsOrCallback);
   if (typeof statementsOrCallback === 'function') {
-    const tx = await client.transaction('write');
+    let tx;
+    if (isLocalSqlite) {
+      await client.execute('BEGIN IMMEDIATE');
+      tx = {
+        execute: (statement) => client.execute(statement),
+        commit: () => client.execute('COMMIT'),
+        rollback: () => client.execute('ROLLBACK'),
+      };
+    } else tx = await client.transaction('write');
     const txDb = {
       prepare(sql) {
         return {

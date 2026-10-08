@@ -35,6 +35,22 @@ Window: 2026-10-07T05:00:00Z through 2026-10-08T05:30:19Z. Render reported 12 HT
 
 Five-minute memory measurements stayed below the configured 512-MiB limit: old instance maximum 132,276,220 bytes; then-current signup instance maximum 90,025,980 bytes. This does not rule out a short spike, dependency outage or future failure.
 
-## Pending live verification and remaining audit
+## Actual live verification
 
-The new commit must pass CI/deployment and be observed at the public health endpoint; live signup must remain usable. Local fixture throughput and the 200-stream per-worker protection are not production concurrent-user capacity. Full launch/security review remains partial. Its independent baseline worker returned an account-usage-limit error without certified coverage; no paid upgrade was requested or performed.
+Remediation commit `0ce08b9279769cdd067eb0ee59f0a3c7f3ad0263` passed the GitHub deployment test job and Render deployment. A concurrent SEO-only descendant `6793c8b3aa283e1a1ded38148a980d1ada6d683b` then replaced it, changing only one robots.txt line. The earlier workflow's exact-commit wait was cancelled by that newer deployment, not a failed application build. Render deployment `dep-db3mjs79e2qs738cavmg` became live at 2026-10-08T10:02:54.001905Z; the public `/health` responded HTTP 200 with that exact `releaseCommit`.
+
+GitHub's Actions page showed the latest descendant's CI #424 (`37760341579`) and Deploy #413 (`37760341583`) both completed successfully.
+
+One private synthetic-mailbox account completed the live test from 2026-10-08T10:09:51.513Z to 10:10:17.299Z. Actual verification email delivery took 9,433 ms. Account fingerprint: `cba0ebe4973c630d` (no address, password, OTP, cookies or tokens retained in this report).
+
+- Signup accepted; real OTP received; verification created a free account; profile returned HTTP 200 without password_hash.
+- Password login on a second device connected its stream.
+- Third-device login closed the evicted first stream and immediately rejected its bearer with HTTP 401; the retained second device still returned HTTP 200.
+- New device stream, cookie refresh, profile and logout succeeded. Each logout closed its stream; refresh after logout returned HTTP 401.
+- No market scan, payment or push was triggered; no real customer account was used. The synthetic application account remains, with test sessions revoked.
+
+Two initial harness attempts stopped before creating any account: restricted-network EACCES, followed by checking `commit` instead of the endpoint's actual `releaseCommit` field. Correcting the test harness yielded the result above; neither was an application failure. Render's bounded error-log query after deployment returned no error entries, which does not establish future uptime.
+
+## Remaining audit and limitations
+
+Local fixture throughput and the 200-stream per-worker protection are not production concurrent-user capacity. Full launch/security review remains partial. Its independent baseline worker returned an account-usage-limit error without certified coverage; parent sequential review continues. No paid upgrade was requested or performed. A successful synthetic email flow does not establish universal inbox delivery, physical-device coverage or 100% future availability.
