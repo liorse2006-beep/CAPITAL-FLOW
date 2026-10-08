@@ -13,6 +13,21 @@ import userEvent from '@testing-library/user-event';
 import AuthModal from './AuthModal';
 import { AuthProvider } from '../../context/AuthContext';
 
+const verificationMock = vi.hoisted(() => ({ render: vi.fn(), remove: vi.fn() }));
+vi.mock('./SignupVerification', async () => {
+  const React = await import('react');
+  return {
+    default: function MockVerification({ onVerify, resetKey }) {
+      const container = React.useRef(null);
+      React.useEffect(() => {
+        const id = verificationMock.render(container.current, { callback: onVerify });
+        return () => verificationMock.remove(id);
+      }, [resetKey, onVerify]);
+      return <div ref={container} data-testid="signup-verification" />;
+    },
+  };
+});
+
 function mockFetchSequence(responses) {
   let call = 0;
   global.fetch = vi.fn(() => {
@@ -28,18 +43,15 @@ function mockFetchSequence(responses) {
 
 beforeEach(() => {
   localStorage.clear();
-  window.turnstile = {
-    render: vi.fn((container, options) => {
-      queueMicrotask(() => options.callback('test-challenge-token'));
-      return 'test-widget';
-    }),
-    remove: vi.fn(),
-  };
+  verificationMock.render = vi.fn((container, options) => {
+    queueMicrotask(() => options.callback('test-challenge-token'));
+    return 'test-widget';
+  });
+  verificationMock.remove = vi.fn();
 });
 
 afterEach(() => {
   cleanup();
-  delete window.turnstile;
   vi.unstubAllGlobals();
 });
 
@@ -100,7 +112,7 @@ it('closes the authentication dialog from its close button', async () => {
 });
 
 it('does not submit signup until verification succeeds, including on Enter', async () => {
-  window.turnstile.render = vi.fn(() => 'test-widget');
+  verificationMock.render = vi.fn(() => 'test-widget');
   mockFetchSequence([{ body: {} }]);
   const user = userEvent.setup();
   render(
@@ -113,7 +125,7 @@ it('does not submit signup until verification succeeds, including on Enter', asy
   expect(screen.getByRole('button', { name: 'Create Account' })).toBeDisabled();
   await user.keyboard('{Enter}');
   expect(global.fetch.mock.calls.filter(([url]) => url === '/api/auth/signup')).toHaveLength(0);
-  await act(async () => window.turnstile.render.mock.calls[0][1].callback('fresh-token'));
+  await act(async () => verificationMock.render.mock.calls[0][1].callback('fresh-token'));
   expect(screen.getByRole('button', { name: 'Create Account' })).not.toBeDisabled();
 });
 
@@ -131,13 +143,13 @@ it('requires a fresh challenge after a failed signup instead of reusing the cons
   );
   await user.type(screen.getByLabelText('Email'), 'newuser@test.local');
   await user.type(screen.getByLabelText('Password'), 'SomePassword123');
-  window.turnstile.render.mockImplementation(() => 'replacement-widget');
+  verificationMock.render.mockImplementation(() => 'replacement-widget');
   await user.click(screen.getByRole('button', { name: 'Create Account' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Please verify again');
-  expect(window.turnstile.remove).toHaveBeenCalledWith('test-widget');
-  expect(window.turnstile.render).toHaveBeenCalledTimes(2);
+  expect(verificationMock.remove).toHaveBeenCalledWith('test-widget');
+  expect(verificationMock.render).toHaveBeenCalledTimes(2);
   expect(screen.getByRole('button', { name: 'Create Account' })).toBeDisabled();
-  await act(async () => window.turnstile.render.mock.calls[1][1].callback('new-token'));
+  await act(async () => verificationMock.render.mock.calls[1][1].callback('new-token'));
   await user.click(screen.getByRole('button', { name: 'Create Account' }));
   expect(await screen.findByRole('button', { name: 'Verify →' })).toBeInTheDocument();
   const signupCalls = global.fetch.mock.calls.filter(([url]) => url === '/api/auth/signup');

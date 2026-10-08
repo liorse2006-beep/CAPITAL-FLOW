@@ -67,6 +67,8 @@ const spaCsp = helmet.contentSecurityPolicy({
   useDefaults: false,
   directives: {
     defaultSrc: ["'self'"],
+    // Self-hosted signup verification uses a bundled same-origin Web Worker.
+    workerSrc: ["'self'"],
     // Whop Elements loads its hosted SDK and checkout frame from this CDN.
     // Keep the origin explicitly allow-listed or CSP silently blocks checkout.
     // Both the bare domain AND *.whop.com are listed deliberately — a

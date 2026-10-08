@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import useModalA11y from '../../hooks/useModalA11y';
-import Turnstile from './Turnstile';
+import SignupVerification from './SignupVerification';
 import { authRequest } from './authRequest';
 
 function OTPInput({ length = 6, value, onChange }) {
@@ -311,7 +311,7 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
 
               {screen === 'signup' && (
                 <div className="auth-captcha-wrap">
-                  <Turnstile
+                  <SignupVerification
                     onVerify={setCaptchaToken}
                     onExpire={() => setCaptchaToken('')}
                     resetKey={captchaResetKey}

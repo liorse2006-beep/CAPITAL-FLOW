@@ -72,6 +72,18 @@ const authLimiter = rateLimit({
   message: { error: 'Too many attempts. Please wait a few minutes and try again.' },
 });
 
+// A separate budget keeps loading/retrying verification from consuming the
+// credential-attempt budget. The challenge service also caps global storage
+// and concurrent generation, and never performs external provider work.
+const signupChallengeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(realIp(req)),
+  message: { error: 'Too many verification attempts. Please wait a minute and try again.' },
+});
+
 // Extra-tight limiter specifically for OTP verification — a 6-digit code
 // must never be brute-forceable. Small window, few tries.
 const otpLimiter = rateLimit({
@@ -207,6 +219,7 @@ const checkoutLimiter = rateLimit({
 
 module.exports = {
   authLimiter,
+  signupChallengeLimiter,
   otpLimiter,
   webhookLimiter,
   scanLimiter,

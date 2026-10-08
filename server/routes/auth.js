@@ -31,7 +31,8 @@ const {
 } = require('../services/email');
 const { requireAuth, invalidateUserSessions, invalidateUserEntitlement } = require('../middleware/authMiddleware');
 const { eliteAccess } = require('../services/scanQuota');
-const { authLimiter, otpLimiter, sessionLimiter } = require('../middleware/rateLimiters');
+const { authLimiter, otpLimiter, sessionLimiter, signupChallengeLimiter } = require('../middleware/rateLimiters');
+const { signupVerification, COOKIE_NAME, COOKIE_RE, TOKEN_PREFIX, TTL_MS } = require('../services/signupVerification');
 const crypto = require('crypto');
 const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
 const pilotAllowlist = require('../services/pilotAllowlist');
@@ -338,6 +339,29 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
 }
 
 /* ── Sign Up ── */
+router.get('/signup-challenge', signupChallengeLimiter, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    let cookie = req.cookies?.[COOKIE_NAME];
+    if (!COOKIE_RE.test(cookie || '')) {
+      cookie = crypto.randomBytes(32).toString('hex');
+      res.cookie(COOKIE_NAME, cookie, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/api/auth',
+        maxAge: TTL_MS,
+      });
+    }
+    const challenge = await signupVerification.issue(cookie);
+    if (!challenge) return res.status(503).json({ error: 'Verification is busy. Please try again shortly.' });
+    res.json(challenge);
+  } catch (err) {
+    reportError(new Error('Signup verification challenge could not be created'), '[signup-challenge]');
+    res.status(503).json({ error: 'Verification is temporarily unavailable. Please try again.' });
+  }
+});
+
 router.post('/signup', authLimiter, async (req, res) => {
   try {
     const { password, captchaToken, inviteCode } = req.body;
@@ -349,7 +373,12 @@ router.post('/signup', authLimiter, async (req, res) => {
     if (Buffer.byteLength(password, 'utf8') > MAX_PASSWORD_BYTES)
       return res.status(400).json({ error: `Password must be at most ${MAX_PASSWORD_BYTES} UTF-8 bytes` });
 
-    const captchaOk = await verifyTurnstile(captchaToken);
+    // Retain validation of old Turnstile tokens for an already-open browser
+    // during deployment. New clients always use the self-hosted challenge.
+    const captchaOk =
+      typeof captchaToken === 'string' && captchaToken.startsWith(TOKEN_PREFIX)
+        ? await signupVerification.consume(captchaToken, req.cookies?.[COOKIE_NAME])
+        : await verifyTurnstile(captchaToken);
     if (!captchaOk) return res.status(400).json({ error: 'CAPTCHA verification failed' });
 
     const existing = await db.prepare('SELECT id, is_verified FROM users WHERE email = ?').get(email);
