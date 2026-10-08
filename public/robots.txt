@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
+Allow: /api/auth/refresh
 Disallow: /admin
 Disallow: /api/
 
