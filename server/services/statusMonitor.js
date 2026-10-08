@@ -20,7 +20,7 @@ const { sendStatusIncidentAlert, sendStatusRecoveryAlert } = require('./email');
 const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
 const { reportError, safeErrorSummary } = require('../utils/reportError');
 const { getComponentDefinitions, getStatusTargetUrl } = require('./statusConfig');
-const { backgroundInterval, runBackgroundTask } = require('./backgroundRuntime');
+const { backgroundInterval, backgroundTimeout, runBackgroundTask } = require('./backgroundRuntime');
 
 const FAILURE_CONFIRMATIONS = STATUS_FAILURE_CONFIRMATIONS;
 const RECOVERY_CONFIRMATIONS = STATUS_RECOVERY_CONFIRMATIONS;
@@ -130,7 +130,10 @@ async function readHttpCheck(component) {
   if (component.requiresStatusToken && STATUS_INTERNAL_TOKEN) headers['x-status-check-token'] = STATUS_INTERNAL_TOKEN;
   const request = {
     headers,
-    redirect: component.redirect || 'follow',
+    // A custom probe credential is not stripped by fetch on cross-origin
+    // redirects. Fail the protected check at the original target instead of
+    // forwarding its credential or trusting another server's health response.
+    redirect: component.requiresStatusToken ? 'manual' : component.redirect || 'follow',
     method: component.method || 'GET',
   };
   if (component.body != null) {
@@ -491,10 +494,8 @@ async function runHeartbeatWatchdog() {
 function startStatusWatchdog() {
   if (!STATUS_MONITOR_ENABLED || state.watchdogTimer) return;
   const run = () => runHeartbeatWatchdog().catch((err) => reportError(err, '[status heartbeat watchdog]'));
-  const startup = setTimeout(run, Math.min(30 * 1000, STATUS_WATCHDOG_INTERVAL_MS));
-  startup.unref();
-  state.watchdogTimer = setInterval(run, STATUS_WATCHDOG_INTERVAL_MS);
-  state.watchdogTimer.unref();
+  backgroundTimeout(run, Math.min(30 * 1000, STATUS_WATCHDOG_INTERVAL_MS));
+  state.watchdogTimer = backgroundInterval(run, STATUS_WATCHDOG_INTERVAL_MS);
 }
 
 function titleFor(component, result) {
@@ -895,11 +896,14 @@ async function runStatusCycle() {
       state.startedAt = null;
       return { skipped: true, reason: 'Another status worker owns the monitoring lease.' };
     }
-    await setMeta('cycle_started_at', Math.floor(started / 1000));
     let results = [];
     try {
+      await setMeta('cycle_started_at', Math.floor(started / 1000));
       const components = await getComponentDefinitionsFromDb();
-      results = await Promise.all(
+      // A failed storage write must not release the worker lease while sibling
+      // checks are still recording outcomes or reconciling incident delivery.
+      // Shutdown draining must also wait for every admitted component.
+      const settled = await Promise.allSettled(
         components.map(async (component) => {
           const first = await checkComponent(component);
           const firstId = await recordCheck(component, cycleId, 1, first, first.success);
@@ -914,6 +918,9 @@ async function runStatusCycle() {
           return { component, final, ...outcome };
         })
       );
+      const failed = settled.find((entry) => entry.status === 'rejected');
+      if (failed) throw failed.reason;
+      results = settled.map((entry) => entry.value);
       await setMeta('last_cycle_at', now());
       await setMeta('last_cycle_status', 'success');
       await setMeta('last_cycle_duration_ms', Date.now() - started);
@@ -944,7 +951,6 @@ function startStatusMonitor() {
   state.monitorStartedAt = now();
   const run = () => runStatusCycle().catch(() => {});
   state.timer = backgroundInterval(run, STATUS_CHECK_INTERVAL_MS);
-  state.timer.unref();
   // Run the first cycle immediately after the status service is ready. A
   // delayed first probe left the public page showing "Checking" for the
   // entire startup grace period, even when every dependency was healthy.

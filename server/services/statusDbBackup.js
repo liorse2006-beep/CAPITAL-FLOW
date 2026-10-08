@@ -12,6 +12,7 @@ const {
 } = require('../config');
 const { sendStatusBackupEmail } = require('./email');
 const { reportError, safeErrorSummary } = require('../utils/reportError');
+const { backgroundInterval, backgroundTimeout } = require('./backgroundRuntime');
 
 // This list is deliberately limited to the independent status database. It
 // avoids copying application credentials or user data into an operations
@@ -144,10 +145,8 @@ async function maybeRunStatusBackup() {
 function startScheduledStatusBackup() {
   if (!STATUS_BACKUP_ENABLED) return null;
   const run = () => maybeRunStatusBackup().catch((err) => reportError(err, '[status database backup]'));
-  const startup = setTimeout(run, 30 * 1000);
-  startup.unref();
-  const interval = setInterval(run, Math.min(60 * 60 * 1000, STATUS_BACKUP_INTERVAL_MS));
-  interval.unref();
+  const startup = backgroundTimeout(run, 30 * 1000);
+  const interval = backgroundInterval(run, Math.min(60 * 60 * 1000, STATUS_BACKUP_INTERVAL_MS));
   return { startup, interval };
 }
 
