@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const { performance, monitorEventLoopDelay } = require('node:perf_hooks');
 const { CAPACITY_STAGES, MAX_P95_MS, assertSuccessfulAudit } = require('./capacity-audit-contract.cjs');
 const { counterDelta } = require('./capacity-audit-diagnostics.cjs');
+const { installClientRequestTrace } = require('./capacity-client-trace.cjs');
 const ORIGIN = 'http://127.0.0.1:3001';
 const PREFIX = '/__isolated-capacity-fixture';
 const ROUTES = Object.freeze(['/api/account/summary', '/api/watchlist', '/api/notifications', '/api/scan']);
@@ -77,8 +78,10 @@ async function main() {
     loadGenerator: { node: process.version, platform: process.platform, architecture: process.arch },
     stages: [],
   };
+  const clientTrace = installClientRequestTrace();
   try {
     for (const concurrency of CAPACITY_STAGES) {
+      clientTrace.reset();
       const before = await fixtureJson(PREFIX + '/stats?reset=1');
       const generatorDelay = monitorEventLoopDelay({ resolution: 10 });
       generatorDelay.enable();
@@ -167,7 +170,10 @@ async function main() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids: failureSamples.map((sample) => sample.requestId) }),
         });
-        for (const sample of failureSamples) sample.serverTrace = trace.requests[sample.requestId];
+        for (const sample of failureSamples) {
+          sample.serverTrace = trace.requests[sample.requestId];
+          sample.clientTrace = clientTrace.get(sample.requestId);
+        }
       }
       report.runtime = after.runtime;
       report.providerOperations = after.providerOperations;
@@ -224,6 +230,7 @@ async function main() {
     report.failureReason = error.message;
     throw error;
   } finally {
+    clientTrace.stop();
     report.finishedAt = new Date().toISOString();
     console.log(JSON.stringify(report, null, 2));
   }

@@ -70,19 +70,11 @@ function resolveSseTicket(ticket) {
   return { userId, sessionId };
 }
 
-// Every call to resolveToken() was two sequential round trips to the remote
-// Turso DB (session lookup, then user lookup) — on every single authenticated
-// request: every scan, every page load, every poll. Under concurrent load
-// that's exactly the "I/O-bound, not CPU-bound" ceiling described in
-// PRODUCTION_AUDIT.md — the event loop itself is free while waiting, but the
-// request sits open for the full remote round trip before it can respond and
-// free up. Caching a successful resolution for a short window turns N
-// requests from the same logged-in user within that window into 1 DB round
-// trip instead of 2N, without weakening the actual check: a revoked session,
-// a block, or a tier change is still re-verified against the DB within
-// RESOLVE_CACHE_TTL_MS of the change taking effect — never indefinitely
-// stale, just briefly (worst case) trailing reality by a few seconds, which
-// is already true of the JWT's own 1h validity window today.
+// Session ownership and current user access are resolved in one joined DB
+// snapshot instead of two sequential round trips. Paid access is never
+// served from this cache (see resolveToken): every paid request still checks
+// its active session, block status and live tier. Free-only caching retains
+// the existing short window and immediate local revocation invalidation.
 const RESOLVE_CACHE_TTL_MS = 20 * 1000;
 const resolveCache = new Map(); // token → { user, cachedAt, sessionKey }
 // A session (device) can be revoked at any moment — logout, a password
@@ -203,22 +195,15 @@ async function resolveToken(token) {
     // MAX_ACTIVE_SESSIONS cap (see auth.createSession). A short-lived access
     // token that outlives its session this way is rejected immediately
     // rather than waiting out its own natural 1h expiry.
-    const session = await db
-      .prepare('SELECT id FROM user_sessions WHERE id = ? AND user_id = ?')
-      .get(payload.sid, payload.id);
-    if (!session) {
-      dropCachedToken(token);
-      return null;
-    }
     const user = await db
       .prepare(
-        `SELECT id, email, is_verified, is_premium, is_blocked, free_scan_count,
-                is_pilot, pilot_terms_accepted_at, tier, created_at,
-                free_scan_used_capital_flow, free_scan_used_ma_scanner, free_scan_used_sector_moving,
-                premium_scan_count, premium_scan_window_start, avatar_url
-         FROM users WHERE id = ?`
+        `SELECT u.id, u.email, u.is_verified, u.is_premium, u.is_blocked, u.free_scan_count,
+                u.is_pilot, u.pilot_terms_accepted_at, u.tier, u.created_at,
+                u.free_scan_used_capital_flow, u.free_scan_used_ma_scanner, u.free_scan_used_sector_moving,
+                u.premium_scan_count, u.premium_scan_window_start, u.avatar_url
+         FROM users u JOIN user_sessions s ON s.user_id = u.id WHERE s.id = ? AND u.id = ?`
       )
-      .get(payload.id);
+      .get(payload.sid, payload.id);
     if (!user || user.is_blocked) {
       dropCachedToken(token);
       return null;
