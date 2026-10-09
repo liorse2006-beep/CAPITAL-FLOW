@@ -15,8 +15,17 @@ function createBoundedQueue({ concurrency, maxWaiting, waitTimeoutMs }) {
       .then(entry.task)
       .then(entry.resolve, entry.reject)
       .finally(() => {
-        active--;
-        if (waiting.length) start(waiting.shift());
+        if (!waiting.length) {
+          active--;
+          return;
+        }
+        // Retain the slot until the handoff so a new caller cannot bypass
+        // queued work. Yield between tasks: a chain of immediately resolved
+        // database operations must not starve incoming sockets and timers.
+        setImmediate(() => {
+          active--;
+          if (waiting.length) start(waiting.shift());
+        });
       });
   }
   return function run(task) {
