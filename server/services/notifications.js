@@ -128,6 +128,30 @@ async function getNotifications(userId, limit) {
     .all(userId, limit || 100);
 }
 
+// Fetch the page and the full unread count in one owner-scoped snapshot.
+// Separate parallel queries double queue occupancy during bursts. The LEFT
+// JOIN retains the count even when the user's notification page is empty.
+async function getNotificationFeed(userId, limit) {
+  const rows = await db
+    .prepare(
+      `SELECT feed.id, feed.symbol, feed.title, feed.body, feed.scan_type,
+              feed.is_read, feed.created_at, unread.unread_count
+       FROM (SELECT COUNT(*) AS unread_count FROM notifications WHERE user_id = ? AND is_read = 0) unread
+       LEFT JOIN (
+         SELECT id, symbol, title, body, scan_type, is_read, created_at
+         FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?
+       ) feed ON 1 = 1
+       ORDER BY feed.created_at DESC`
+    )
+    .all(userId, userId, limit || 100);
+  return {
+    notifications: rows
+      .filter((row) => row.id != null)
+      .map(({ unread_count: _unreadCount, ...notification }) => notification),
+    unreadCount: Number(rows[0]?.unread_count || 0),
+  };
+}
+
 /** One notification's full detail, including its scan results if it has any
  * — scoped to the owning user, and marks it read since opening it is the
  * clearest possible "I saw this" signal. Returns undefined if it doesn't
@@ -190,6 +214,7 @@ module.exports = {
   addNotification,
   consumeWatchlistAlert,
   getNotifications,
+  getNotificationFeed,
   getNotificationDetail,
   getUnreadCount,
   markAllRead,

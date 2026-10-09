@@ -2,9 +2,8 @@ const router = require('express').Router();
 const { requireAuth } = require('../middleware/authMiddleware');
 const { reportError } = require('../utils/reportError');
 const {
-  getNotifications,
+  getNotificationFeed,
   getNotificationDetail,
-  getUnreadCount,
   markAllRead,
   removeNotification,
   clearAll,
@@ -36,11 +35,7 @@ router.get('/notifications/:id', requireAuth, async (req, res) => {
 
 router.get('/notifications', requireAuth, async (req, res) => {
   try {
-    const [notifications, unreadCount] = await Promise.all([
-      getNotifications(req.user.id),
-      getUnreadCount(req.user.id),
-    ]);
-    res.json({ notifications, unreadCount });
+    res.json(await getNotificationFeed(req.user.id));
   } catch (err) {
     reportError(err, '[notifications GET]');
     res.status(500).json({ error: 'Server error' });
