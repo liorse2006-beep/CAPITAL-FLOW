@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const { performance, monitorEventLoopDelay } = require('node:perf_hooks');
 const { readFileSync } = require('node:fs');
 const { CAPACITY_STAGES, MAX_P95_MS, assertSuccessfulAudit } = require('./capacity-audit-contract.cjs');
+const { readTcpCounters, validRequestId } = require('./capacity-audit-diagnostics.cjs');
 const express = require('express');
 const db = require('../server/db');
 const { issueToken } = require('../server/services/auth');
@@ -82,15 +83,27 @@ async function main() {
     architecture: process.arch,
     memoryMax: cgroupValue('/sys/fs/cgroup/memory.max'),
     cpuMax: cgroupValue('/sys/fs/cgroup/cpu.max'),
+    networkLimits: {
+      requestedBacklog,
+      somaxconn: cgroupValue('/proc/sys/net/core/somaxconn'),
+      tcpMaxSynBacklog: cgroupValue('/proc/sys/net/ipv4/tcp_max_syn_backlog'),
+    },
   };
   const fixtureDelay = serveFixture ? monitorEventLoopDelay({ resolution: 10 }) : null;
   const requestMetrics = {};
   const activeRequests = new Set();
+  const requestTrace = new Map();
   app.use('/api', (req, res, next) => {
     const route = req.path;
     const metrics = (requestMetrics[route] ||= { received: 0, finished: 0, closedBeforeFinish: 0, maxMs: 0 });
     const began = performance.now();
     const marker = {};
+    const requestId = req.get('X-Isolated-Request-Id');
+    const trace =
+      serveFixture && validRequestId(requestId) && requestTrace.size < 6000
+        ? { path: req.path, receivedAt: Date.now(), finishedAt: null, handlingMs: null, outcome: 'active' }
+        : null;
+    if (trace) requestTrace.set(requestId, trace);
     metrics.received++;
     activeRequests.add(marker);
     let settled = false;
@@ -100,6 +113,11 @@ async function main() {
       activeRequests.delete(marker);
       metrics[finished ? 'finished' : 'closedBeforeFinish']++;
       metrics.maxMs = Math.max(metrics.maxMs, Number((performance.now() - began).toFixed(2)));
+      if (trace) {
+        trace.finishedAt = Date.now();
+        trace.handlingMs = Number((performance.now() - began).toFixed(2));
+        trace.outcome = finished ? 'finished' : 'closed_before_finish';
+      }
     };
     res.once('finish', () => settle(true));
     res.once('close', () => settle(res.writableFinished));
@@ -116,6 +134,7 @@ async function main() {
       if (req.query.reset === '1') {
         assert.equal(activeRequests.size, 0, 'Cannot reset metrics during an active request');
         for (const key of Object.keys(requestMetrics)) delete requestMetrics[key];
+        requestTrace.clear();
       }
       const spent = process.cpuUsage();
       res.json({
@@ -127,8 +146,18 @@ async function main() {
         eventLoopP99Ms: Number((fixtureDelay.percentile(99) / 1e6).toFixed(2)),
         transport: { ...transport },
         requests: { active: activeRequests.size, routes: requestMetrics },
+        tcpCounters: readTcpCounters(),
       });
       if (req.query.reset === '1') fixtureDelay.reset();
+    });
+    app.post('/__isolated-capacity-fixture/requests', express.json({ limit: '8kb' }), (req, res) => {
+      const ids = req.body?.ids;
+      if (!Array.isArray(ids) || ids.length > 50 || !ids.every(validRequestId))
+        return res.status(400).json({ error: 'Invalid isolated trace selection' });
+      res.json({
+        fixture: 'synthetic-local-only-v1',
+        requests: Object.fromEntries(ids.map((id) => [id, requestTrace.get(id) || null])),
+      });
     });
   }
   app.use('/api', apiLimiter);

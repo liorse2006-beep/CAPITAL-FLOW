@@ -1,8 +1,9 @@
 // Separate load generator: never imports the application, its database or secrets.
 // The only permitted destination is the fixed offline synthetic fixture loopback.
 const assert = require('node:assert/strict');
-const { performance } = require('node:perf_hooks');
+const { performance, monitorEventLoopDelay } = require('node:perf_hooks');
 const { CAPACITY_STAGES, MAX_P95_MS, assertSuccessfulAudit } = require('./capacity-audit-contract.cjs');
+const { counterDelta } = require('./capacity-audit-diagnostics.cjs');
 const ORIGIN = 'http://127.0.0.1:3001';
 const PREFIX = '/__isolated-capacity-fixture';
 const ROUTES = Object.freeze(['/api/account/summary', '/api/watchlist', '/api/notifications', '/api/scan']);
@@ -24,12 +25,15 @@ function assertFixture(payload, includeUsers = false) {
 }
 
 async function fixtureFetch(path, options) {
-  assert.ok(ROUTES.includes(path) || [PREFIX + '/users', PREFIX + '/stats', PREFIX + '/stats?reset=1'].includes(path));
+  assert.ok(
+    ROUTES.includes(path) ||
+      [PREFIX + '/users', PREFIX + '/stats', PREFIX + '/stats?reset=1', PREFIX + '/requests'].includes(path)
+  );
   return fetch(ORIGIN + path, { ...options, signal: AbortSignal.timeout(10000), redirect: 'error' });
 }
 
-async function fixtureJson(path) {
-  const response = await fixtureFetch(path);
+async function fixtureJson(path, options) {
+  const response = await fixtureFetch(path, options);
   assert.equal(response.status, 200, 'Fixture endpoint failed');
   const payload = await response.json();
   assertFixture(payload, path.endsWith('/users'));
@@ -76,17 +80,23 @@ async function main() {
   try {
     for (const concurrency of CAPACITY_STAGES) {
       const before = await fixtureJson(PREFIX + '/stats?reset=1');
+      const generatorDelay = monitorEventLoopDelay({ resolution: 10 });
+      generatorDelay.enable();
+      const generatorCpu = process.cpuUsage();
       const beganStage = performance.now();
       const timings = [];
       const statuses = {};
       const failureSamples = [];
       const routeTimings = Object.fromEntries(ROUTES.map((path) => [path, { timings: [], statuses: {} }]));
       let mismatches = 0;
+      let requestSequence = 0;
       await Promise.all(
         fixture.users.slice(0, concurrency).map(async (user) => {
           for (let cycle = 0; cycle < 3; cycle++) {
             for (const path of ROUTES) {
               const began = performance.now();
+              const beganAt = Date.now();
+              const requestId = `${concurrency}.${++requestSequence}`;
               let headersAt = null;
               let responseStatus = null;
               let outcome;
@@ -95,6 +105,7 @@ async function main() {
                   headers: {
                     Authorization: 'Bearer ' + user.token,
                     'X-Forwarded-For': `10.1.${Math.floor(user.index / 250)}.${(user.index % 250) + 1}`,
+                    'X-Isolated-Request-Id': requestId,
                   },
                 });
                 headersAt = performance.now();
@@ -123,9 +134,19 @@ async function main() {
                 outcome = code;
                 statuses[code] = (statuses[code] || 0) + 1;
                 if (failureSamples.length < 50)
-                  failureSamples.push(
-                    failureSample(error, { path, cycle, began, headersAt, responseStatus, ended: performance.now() })
-                  );
+                  failureSamples.push({
+                    ...failureSample(error, {
+                      path,
+                      cycle,
+                      began,
+                      headersAt,
+                      responseStatus,
+                      ended: performance.now(),
+                    }),
+                    requestId,
+                    beganAt,
+                    endedAt: Date.now(),
+                  });
               } finally {
                 const elapsed = performance.now() - began;
                 timings.push(elapsed);
@@ -137,7 +158,17 @@ async function main() {
         })
       );
       const duration = performance.now() - beganStage;
+      const generatorSpent = process.cpuUsage(generatorCpu);
+      generatorDelay.disable();
       const after = await fixtureJson(PREFIX + '/stats');
+      if (failureSamples.length > 0) {
+        const trace = await fixtureJson(PREFIX + '/requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: failureSamples.map((sample) => sample.requestId) }),
+        });
+        for (const sample of failureSamples) sample.serverTrace = trace.requests[sample.requestId];
+      }
       report.runtime = after.runtime;
       report.providerOperations = after.providerOperations;
       const stage = {
@@ -151,6 +182,13 @@ async function main() {
         identityOrDataMismatches: mismatches,
         transport: after.transport,
         serverRequests: after.requests,
+        tcpCounterDelta: counterDelta(before.tcpCounters, after.tcpCounters),
+        generator: {
+          cpuMs: Number(((generatorSpent.user + generatorSpent.system) / 1000).toFixed(2)),
+          rssMiB: Number((process.memoryUsage().rss / 1048576).toFixed(2)),
+          eventLoopP99Ms: Number((generatorDelay.percentile(99) / 1e6).toFixed(2)),
+          eventLoopMaxMs: Number((generatorDelay.max / 1e6).toFixed(2)),
+        },
         failureSamples,
         routes: Object.fromEntries(
           ROUTES.map((path) => [

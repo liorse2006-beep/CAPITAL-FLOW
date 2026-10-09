@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { CAPACITY_STAGES, assertSuccessfulAudit } = require('../scripts/capacity-audit-contract.cjs');
 const { assertFixture, fixtureFetch, failureSample } = require('../scripts/capacity-audit-load.cjs');
+const { parseTcpCounters, counterDelta, validRequestId } = require('../scripts/capacity-audit-diagnostics.cjs');
 
 function fixture() {
   return {
@@ -121,4 +122,29 @@ test('capacity diagnostics distinguish header deadlines from body failures witho
   assert.equal(body.responseStatus, 200);
   assert.doesNotMatch(JSON.stringify(body), /sensitive|token|Bearer/);
   assert.throws(() => failureSample(error, { ...context, path: 'https://capitalflow.vip' }));
+});
+
+test('Linux transport counters are allowlisted and malformed or unavailable evidence is not zero', () => {
+  const source = 'TcpExt: ListenOverflows ListenDrops Secret TCPSynRetrans\nTcpExt: 4 5 999 6\n';
+  assert.deepEqual(parseTcpCounters(source), { ListenOverflows: 4, ListenDrops: 5, TCPSynRetrans: 6 });
+  assert.equal(parseTcpCounters('unavailable'), null);
+  assert.equal(parseTcpCounters('TcpExt: ListenDrops Other\nTcpExt: 5'), null);
+  assert.deepEqual(parseTcpCounters('TcpExt: ListenDrops\nTcpExt: not-a-number'), {});
+  assert.equal(counterDelta(null, { ListenDrops: 5 }), null);
+  assert.deepEqual(counterDelta({ ListenDrops: 5, TCPSynRetrans: 6 }, { ListenDrops: 8, TCPSynRetrans: 4 }), {
+    ListenDrops: 3,
+  });
+});
+
+test('isolated request correlation is bounded and does not accept identities or tokens', () => {
+  for (const id of ['1.1', '200.2400', '500.6000']) assert.equal(validRequestId(id), true);
+  for (const id of ['500.6001', '500.0', '500.0001', '2.1', 'user@example.com', 'Bearer token', null])
+    assert.equal(validRequestId(id), false);
+  const fixtureScript = readFileSync(require.resolve('../scripts/isolated-capacity-audit.cjs'), 'utf8');
+  assert.match(fixtureScript, /requestTrace\.size < 6000/);
+  assert.match(fixtureScript, /ids\.length > 50/);
+  assert.match(fixtureScript, /requestTrace\.clear\(\)/);
+  const generator = readFileSync(require.resolve('../scripts/capacity-audit-load.cjs'), 'utf8');
+  assert.match(generator, /sample\.serverTrace = trace\.requests\[sample\.requestId\]/);
+  assert.match(generator, /generatorDelay\.disable\(\)/);
 });
