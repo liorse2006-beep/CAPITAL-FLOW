@@ -3,6 +3,8 @@
 require('../test/helpers/testEnv');
 const assert = require('node:assert/strict');
 const { performance, monitorEventLoopDelay } = require('node:perf_hooks');
+const { readFileSync } = require('node:fs');
+const { CAPACITY_STAGES, MAX_P95_MS, assertSuccessfulAudit } = require('./capacity-audit-contract.cjs');
 const express = require('express');
 const db = require('../server/db');
 const { issueToken } = require('../server/services/auth');
@@ -19,6 +21,13 @@ globalThis.fetch = (input, options) => {
 function percentile(values, fraction) {
   const sorted = [...values].sort((a, b) => a - b);
   return Number(sorted[Math.max(0, Math.ceil(sorted.length * fraction) - 1)].toFixed(2));
+}
+function cgroupValue(path) {
+  try {
+    return readFileSync(path, 'utf8').trim();
+  } catch {
+    return 'unavailable';
+  }
 }
 async function main() {
   const backlogArgument = process.argv.find((argument) => argument.startsWith('--backlog='));
@@ -86,11 +95,18 @@ async function main() {
     scope:
       'Local authenticated production routes; temporary libSQL file; synthetic cached feed; no external service calls',
     productionCapacity: 'UNKNOWN',
+    runtime: {
+      node: process.version,
+      platform: process.platform,
+      architecture: process.arch,
+      memoryMax: cgroupValue('/sys/fs/cgroup/memory.max'),
+      cpuMax: cgroupValue('/sys/fs/cgroup/cpu.max'),
+    },
     localListenBacklog: requestedBacklog,
     stages: [],
   };
   try {
-    for (const concurrency of [1, 5, 25, 50, 100, 200, 500]) {
+    for (const concurrency of CAPACITY_STAGES) {
       const delay = monitorEventLoopDelay({ resolution: 10 });
       delay.enable();
       const cpu = process.cpuUsage();
@@ -178,12 +194,20 @@ async function main() {
       report.stages.push(stage);
       console.log('CAPACITY_STAGE ' + JSON.stringify(stage));
       assert.equal(mismatches, 0, 'Cross-user or scan-result mismatch');
-      if (failures > 0 || stage.latencyMs.p95 > 2000) break;
+      if (failures > 0 || stage.latencyMs.p95 > MAX_P95_MS) break;
     }
     report.providerOperations = providerOperations;
     report.finishedAt = new Date().toISOString();
-    console.log(JSON.stringify(report, null, 2));
-    assert.ok(report.stages.every((stage) => stage.failures === 0));
+    try {
+      assertSuccessfulAudit(report);
+      report.fixtureVerdict = 'PASS';
+    } catch (error) {
+      report.fixtureVerdict = 'FAIL';
+      report.failureReason = error.message;
+      throw error;
+    } finally {
+      console.log(JSON.stringify(report, null, 2));
+    }
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await db.close();

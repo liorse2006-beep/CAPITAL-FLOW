@@ -66,3 +66,32 @@ jobs:
             sleep $((attempt * 10))
           done
           exit 1
+
+  isolated-capacity:
+    # This bounded synthetic test has no production URL, customer data or secrets.
+    # Never run it on paid/larger runners or if the repository becomes private.
+    if: github.event.repository.private == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install Linux dependencies without production secrets
+        run: npm ci --omit=dev
+
+      - name: Measure isolated warm routes under the Starter resource envelope
+        run: |
+          docker run --rm --network none --read-only \
+            --cpus 0.5 --memory 512m --memory-swap 512m \
+            --tmpfs /tmp:rw,nosuid,nodev,size=96m \
+            --volume "$PWD:/workspace:ro" --workdir /workspace \
+            node:22-bookworm-slim node scripts/isolated-capacity-audit.cjs
