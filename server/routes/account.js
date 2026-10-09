@@ -37,22 +37,22 @@ router.get('/account/summary', requireAuth, async (req, res) => {
     const user = withEffectivePremium(await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id));
     if (!user) return res.status(401).json({ error: 'Account not found' });
 
-    const [watchlist, alerts, schedules, radars, pushDevices, sessions] = await Promise.all([
-      db.prepare('SELECT COUNT(*) AS count FROM watchlist WHERE user_id = ?').get(user.id),
-      db.prepare('SELECT COUNT(*) AS count FROM watchlist_alerts WHERE user_id = ?').get(user.id),
-      db
-        .prepare(
-          'SELECT COUNT(*) AS count, SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) AS active FROM scheduled_scans WHERE user_id = ?'
-        )
-        .get(user.id),
-      db
-        .prepare(
-          'SELECT COUNT(*) AS count, SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) AS active FROM capital_flow_radars WHERE user_id = ?'
-        )
-        .get(user.id),
-      db.prepare('SELECT COUNT(*) AS count FROM push_subscriptions WHERE user_id = ?').get(user.id),
-      db.prepare('SELECT COUNT(*) AS count FROM user_sessions WHERE user_id = ?').get(user.id),
-    ]);
+    // One aggregate round trip avoids multiplying concurrent profile callers
+    // into six waiting database operations. Every subquery stays owner-scoped;
+    // scalar counts also preserve zero values for an empty account.
+    const counts = await db
+      .prepare(
+        `SELECT
+        (SELECT COUNT(*) FROM watchlist WHERE user_id = ?) AS watchlist_count,
+        (SELECT COUNT(*) FROM watchlist_alerts WHERE user_id = ?) AS alert_count,
+        (SELECT COUNT(*) FROM scheduled_scans WHERE user_id = ?) AS schedule_count,
+        (SELECT COUNT(*) FROM scheduled_scans WHERE user_id = ? AND active = 1) AS active_schedule_count,
+        (SELECT COUNT(*) FROM capital_flow_radars WHERE user_id = ?) AS radar_count,
+        (SELECT COUNT(*) FROM capital_flow_radars WHERE user_id = ? AND active = 1) AS active_radar_count,
+        (SELECT COUNT(*) FROM push_subscriptions WHERE user_id = ?) AS push_device_count,
+        (SELECT COUNT(*) FROM user_sessions WHERE user_id = ?) AS session_count`
+      )
+      .get(...Array(8).fill(user.id));
 
     const quota = quotaFor(user);
     res.set('Cache-Control', 'no-store');
@@ -66,19 +66,19 @@ router.get('/account/summary', requireAuth, async (req, res) => {
           user.tier === 'elite' || (user.tier === 'free' && freeTrialActive(user)) ? 'Full access' : 'Limited access',
       },
       usage: {
-        watchlistCount: Number(watchlist?.count || 0),
-        alertCount: Number(alerts?.count || 0),
-        scheduleCount: Number(schedules?.count || 0),
-        activeScheduleCount: Number(schedules?.active || 0),
-        radarCount: Number(radars?.count || 0),
-        activeRadarCount: Number(radars?.active || 0),
-        pushDeviceCount: Number(pushDevices?.count || 0),
+        watchlistCount: Number(counts?.watchlist_count || 0),
+        alertCount: Number(counts?.alert_count || 0),
+        scheduleCount: Number(counts?.schedule_count || 0),
+        activeScheduleCount: Number(counts?.active_schedule_count || 0),
+        radarCount: Number(counts?.radar_count || 0),
+        activeRadarCount: Number(counts?.active_radar_count || 0),
+        pushDeviceCount: Number(counts?.push_device_count || 0),
         quota,
       },
       security: {
         authProvider: user.google_id ? 'Google' : user.password_hash ? 'Email and password' : 'Unknown',
         verified: !!user.is_verified,
-        activeSessionCount: Number(sessions?.count || 0),
+        activeSessionCount: Number(counts?.session_count || 0),
       },
       preferences: { notificationTime: user.notification_time || null },
     });

@@ -34,7 +34,7 @@ async function makeUser(email, password = 'correct horse battery staple') {
   return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
 }
 
-test('GET /api/account/summary returns current counts without sensitive fields', async () => {
+test('GET /api/account/summary returns current counts without sensitive fields in one aggregate round trip', async (t) => {
   const user = await makeUser('profile-summary@test.local');
   const token = (await issueToken(user)).accessToken;
   await db.prepare('INSERT INTO watchlist (user_id, symbol) VALUES (?, ?)').run(user.id, 'AAPL');
@@ -44,6 +44,21 @@ test('GET /api/account/summary returns current counts without sensitive fields',
   await db
     .prepare('INSERT INTO scheduled_scans (user_id, scan_type, scan_time) VALUES (?, ?, ?)')
     .run(user.id, 'capitalFlow', '09:00');
+  await db
+    .prepare('INSERT INTO scheduled_scans (user_id, scan_type, scan_time, active) VALUES (?, ?, ?, 0)')
+    .run(user.id, 'capitalFlow', '10:00');
+  for (const active of [0, 1]) {
+    await db
+      .prepare(
+        'INSERT INTO capital_flow_radars (user_id, name, mode, min_volume_ratio, min_market_cap, active) VALUES (?, ?, ?, ?, ?, ?)'
+      )
+      .run(user.id, 'Synthetic profile radar', 'all', 2, 1e9, active);
+  }
+  await db
+    .prepare('INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)')
+    .run(user.id, 'https://push.test.local/profile-summary', 'synthetic', 'synthetic');
+  const prepare = db.prepare;
+  const spy = t.mock.method(db, 'prepare', (...args) => prepare(...args));
 
   const server = await startTestApp();
   const port = server.address().port;
@@ -55,10 +70,16 @@ test('GET /api/account/summary returns current counts without sensitive fields',
     const data = await response.json();
     assert.strictEqual(data.usage.watchlistCount, 1);
     assert.strictEqual(data.usage.alertCount, 1);
-    assert.strictEqual(data.usage.scheduleCount, 1);
+    assert.strictEqual(data.usage.scheduleCount, 2);
+    assert.strictEqual(data.usage.activeScheduleCount, 1);
+    assert.strictEqual(data.usage.radarCount, 2);
+    assert.strictEqual(data.usage.activeRadarCount, 1);
+    assert.strictEqual(data.usage.pushDeviceCount, 1);
     assert.strictEqual(data.security.activeSessionCount, 1);
     assert.strictEqual('password_hash' in data.user, false);
     assert.strictEqual('google_id' in data.user, false);
+    const aggregates = spy.mock.calls.filter((call) => /COUNT\(\*\)/i.test(call.arguments[0]));
+    assert.strictEqual(aggregates.length, 1, 'one request must not fan out into six queued database operations');
   } finally {
     server.close();
   }
