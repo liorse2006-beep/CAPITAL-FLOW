@@ -147,6 +147,35 @@ const mockRow = {
   sector: 'Technology',
 };
 
+describe('ScannerPage optional browser storage', () => {
+  it('still opens the scanner when the browser blocks reading local storage', () => {
+    const blockedRead = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('Storage is blocked', 'SecurityError');
+    });
+    try {
+      render(<ScannerPage {...baseProps({ scanMode: null })} />);
+      expect(screen.getByText('Full Scan')).toBeInTheDocument();
+    } finally {
+      blockedRead.mockRestore();
+    }
+  });
+
+  it('dismisses the result-action hint even when the browser cannot save the preference', async () => {
+    const blockedWrite = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Storage is full', 'QuotaExceededError');
+    });
+    try {
+      const user = userEvent.setup();
+      render(<ScannerPage {...baseProps({ results: [mockRow], sorted: [mockRow] })} />);
+      await user.click(screen.getByRole('button', { name: /^dismiss$/i }));
+      expect(screen.queryByRole('button', { name: /^dismiss$/i })).not.toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: '1 Result' })).toBeInTheDocument();
+    } finally {
+      blockedWrite.mockRestore();
+    }
+  });
+});
+
 describe('ScannerPage restored-last-scan label', () => {
   // A plain page refresh auto-restores the customer's last scan (see
   // App.jsx's /api/last-results effect) instead of a blank screen — without

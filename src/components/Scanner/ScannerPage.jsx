@@ -243,11 +243,19 @@ export default function ScannerPage({
   // the first time a table is ever shown, then never appears again
   // (localStorage flag, not per-session).
   const [showActionHint, setShowActionHint] = useState(function () {
-    return !localStorage.getItem('vs_action_hint_seen');
+    try {
+      return !localStorage.getItem('vs_action_hint_seen');
+    } catch {
+      return true;
+    }
   });
   function dismissActionHint() {
-    localStorage.setItem('vs_action_hint_seen', '1');
     setShowActionHint(false);
+    try {
+      localStorage.setItem('vs_action_hint_seen', '1');
+    } catch {
+      // This optional preference must never block the scanner or its controls.
+    }
   }
 
   return (
