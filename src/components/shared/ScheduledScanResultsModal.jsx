@@ -1,5 +1,6 @@
 import React from 'react';
 import { fmt, formatPrice, formatRatio, formatSignedPercent } from '../../utils/format';
+import useModalA11y from '../../hooks/useModalA11y';
 
 var SCAN_LABEL = {
   capitalFlow: 'Capital Flow',
@@ -37,8 +38,13 @@ function dataTime(value) {
    (scanTickers) and maScanner (scanMA) share enough of a shape: symbol,
    name, price, change, marketCap, plus either volumeRatio or maDistance as
    the "why it showed up" signal. */
-export default function ScheduledScanResultsModal({ notification, onClose, isInWatchlist, toggleWatchlistTicker }) {
-  if (!notification) return null;
+export default function ScheduledScanResultsModal(props) {
+  if (!props.notification) return null;
+  return <ScheduledScanResultsPanel {...props} />;
+}
+
+function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggleWatchlistTicker }) {
+  const panelRef = useModalA11y(onClose);
   var results = Array.isArray(notification.results) ? notification.results : [];
   var label = SCAN_LABEL[notification.scanType] || 'Scheduled Scan';
   var observedAt = dataTime(notification.dataAsOf);
@@ -54,6 +60,8 @@ export default function ScheduledScanResultsModal({ notification, onClose, isInW
   return (
     <div className="upgrade-overlay scheduled-results-overlay" onClick={onClose}>
       <div
+        ref={panelRef}
+        tabIndex={-1}
         className="scheduled-results-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
