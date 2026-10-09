@@ -41,6 +41,19 @@ function percentile(values, fraction) {
   return Number(sorted[Math.max(0, Math.ceil(sorted.length * fraction) - 1)].toFixed(2));
 }
 
+function failureSample(error, { path, cycle, began, headersAt, responseStatus, ended }) {
+  assert.ok(ROUTES.includes(path));
+  return {
+    path,
+    cycle: cycle + 1,
+    phase: headersAt === null ? 'awaiting_headers' : 'reading_body',
+    code: error.cause?.code || error.name || 'network_error',
+    responseStatus,
+    elapsedMs: Number((ended - began).toFixed(2)),
+    headersMs: headersAt === null ? null : Number((headersAt - began).toFixed(2)),
+  };
+}
+
 async function main() {
   // Fixed bounded readiness wait. No URL/env override or fallback to production.
   let fixture;
@@ -66,12 +79,17 @@ async function main() {
       const beganStage = performance.now();
       const timings = [];
       const statuses = {};
+      const failureSamples = [];
+      const routeTimings = Object.fromEntries(ROUTES.map((path) => [path, { timings: [], statuses: {} }]));
       let mismatches = 0;
       await Promise.all(
         fixture.users.slice(0, concurrency).map(async (user) => {
           for (let cycle = 0; cycle < 3; cycle++) {
             for (const path of ROUTES) {
               const began = performance.now();
+              let headersAt = null;
+              let responseStatus = null;
+              let outcome;
               try {
                 const response = await fixtureFetch(path, {
                   headers: {
@@ -79,7 +97,10 @@ async function main() {
                     'X-Forwarded-For': `10.1.${Math.floor(user.index / 250)}.${(user.index % 250) + 1}`,
                   },
                 });
+                headersAt = performance.now();
+                responseStatus = response.status;
                 const data = await response.json();
+                outcome = String(response.status);
                 statuses[response.status] = (statuses[response.status] || 0) + 1;
                 if (response.ok) {
                   if (path.endsWith('/summary') && data.user?.id !== user.id) mismatches++;
@@ -99,9 +120,17 @@ async function main() {
                 }
               } catch (error) {
                 const code = error.cause?.code || error.name || 'network_error';
+                outcome = code;
                 statuses[code] = (statuses[code] || 0) + 1;
+                if (failureSamples.length < 50)
+                  failureSamples.push(
+                    failureSample(error, { path, cycle, began, headersAt, responseStatus, ended: performance.now() })
+                  );
               } finally {
-                timings.push(performance.now() - began);
+                const elapsed = performance.now() - began;
+                timings.push(elapsed);
+                routeTimings[path].timings.push(elapsed);
+                routeTimings[path].statuses[outcome] = (routeTimings[path].statuses[outcome] || 0) + 1;
               }
             }
           }
@@ -121,6 +150,19 @@ async function main() {
           .reduce((sum, [, count]) => sum + count, 0),
         identityOrDataMismatches: mismatches,
         transport: after.transport,
+        serverRequests: after.requests,
+        failureSamples,
+        routes: Object.fromEntries(
+          ROUTES.map((path) => [
+            path,
+            {
+              requests: routeTimings[path].timings.length,
+              statuses: routeTimings[path].statuses,
+              p95Ms: percentile(routeTimings[path].timings, 0.95),
+              maxMs: percentile(routeTimings[path].timings, 1),
+            },
+          ])
+        ),
         durationMs: Number(duration.toFixed(2)),
         requestsPerSecond: Number(((timings.length / duration) * 1000).toFixed(2)),
         latencyMs: {
@@ -155,4 +197,4 @@ if (require.main === module)
     process.exitCode = 1;
   });
 
-module.exports = { assertFixture, fixtureFetch, main };
+module.exports = { assertFixture, fixtureFetch, failureSample, main };

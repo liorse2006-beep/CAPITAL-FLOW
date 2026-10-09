@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { CAPACITY_STAGES, assertSuccessfulAudit } = require('../scripts/capacity-audit-contract.cjs');
-const { assertFixture, fixtureFetch } = require('../scripts/capacity-audit-load.cjs');
+const { assertFixture, fixtureFetch, failureSample } = require('../scripts/capacity-audit-load.cjs');
 
 function fixture() {
   return {
@@ -101,4 +101,24 @@ test('fixture-only credentials endpoints cannot be included in the production Do
   const fixtureScript = readFileSync(require.resolve('../scripts/isolated-capacity-audit.cjs'), 'utf8');
   assert.match(fixtureScript, /host: '127\.0\.0\.1'/);
   assert.match(fixtureScript, /process\.once\('SIGTERM', resolve\)/);
+});
+
+test('capacity diagnostics distinguish header deadlines from body failures without recording credentials', () => {
+  const error = Object.assign(new Error('sensitive text must not be included'), { name: 'TimeoutError' });
+  const context = { path: '/api/scan', cycle: 0, began: 1, headersAt: null, responseStatus: null, ended: 10001 };
+  assert.deepEqual(failureSample(error, context), {
+    path: '/api/scan',
+    cycle: 1,
+    phase: 'awaiting_headers',
+    code: 'TimeoutError',
+    responseStatus: null,
+    elapsedMs: 10000,
+    headersMs: null,
+  });
+  const body = failureSample(error, { ...context, headersAt: 12, responseStatus: 200 });
+  assert.equal(body.phase, 'reading_body');
+  assert.equal(body.headersMs, 11);
+  assert.equal(body.responseStatus, 200);
+  assert.doesNotMatch(JSON.stringify(body), /sensitive|token|Bearer/);
+  assert.throws(() => failureSample(error, { ...context, path: 'https://capitalflow.vip' }));
 });

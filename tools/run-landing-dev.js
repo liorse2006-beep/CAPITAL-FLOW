@@ -5,7 +5,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const root = path.join(__dirname, '..', 'LANDING PAGE');
+const defaultRoot = path.join(__dirname, '..', 'LANDING PAGE');
 const port = 4173;
 
 const MIME = {
@@ -23,32 +23,58 @@ const MIME = {
   '.ico': 'image/x-icon',
 };
 
-const server = http.createServer((req, res) => {
-  let urlPath = decodeURIComponent(req.url.split('?')[0]);
-  if (urlPath === '/') urlPath = '/index.html';
-  const filePath = path.join(root, urlPath);
+function isInside(root, filePath) {
+  const relative = path.relative(root, filePath);
+  return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..' + path.sep));
+}
 
-  if (!filePath.startsWith(root)) {
-    res.writeHead(403);
-    res.end('Forbidden');
-    return;
-  }
-
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Not found: ' + urlPath);
+function createLandingServer({ root = defaultRoot } = {}) {
+  const resolvedRoot = path.resolve(root);
+  return http.createServer(async (req, res) => {
+    let urlPath;
+    try {
+      urlPath = decodeURIComponent(req.url.split('?')[0]);
+      if (urlPath.includes('\0')) throw new Error('Invalid path');
+    } catch {
+      res.writeHead(400);
+      res.end('Bad request');
       return;
     }
-    const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, {
-      'Content-Type': MIME[ext] || 'application/octet-stream',
-      'Cache-Control': 'no-store, no-cache, must-revalidate',
-    });
-    res.end(data);
+    if (urlPath === '/') urlPath = '/index.html';
+    // Normalize both separator representations before applying the boundary.
+    const filePath = path.join(resolvedRoot, urlPath.replaceAll('\\', '/'));
+    if (!isInside(resolvedRoot, filePath)) {
+      res.writeHead(403);
+      res.end('Forbidden');
+      return;
+    }
+    try {
+      const [canonicalRoot, canonicalFile] = await Promise.all([
+        fs.promises.realpath(resolvedRoot),
+        fs.promises.realpath(filePath),
+      ]);
+      if (!isInside(canonicalRoot, canonicalFile)) {
+        res.writeHead(403);
+        res.end('Forbidden');
+        return;
+      }
+      const data = await fs.promises.readFile(canonicalFile);
+      res.writeHead(200, {
+        'Content-Type': MIME[path.extname(canonicalFile).toLowerCase()] || 'application/octet-stream',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      });
+      res.end(data);
+    } catch {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Not found');
+    }
   });
-});
+}
 
-server.listen(port, () => {
-  console.log(`Landing page dev server: http://localhost:${port}`);
-});
+if (require.main === module) {
+  createLandingServer().listen(port, '127.0.0.1', () => {
+    console.log(`Landing page dev server: http://localhost:${port}`);
+  });
+}
+
+module.exports = { createLandingServer };

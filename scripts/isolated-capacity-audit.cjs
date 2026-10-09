@@ -84,6 +84,27 @@ async function main() {
     cpuMax: cgroupValue('/sys/fs/cgroup/cpu.max'),
   };
   const fixtureDelay = serveFixture ? monitorEventLoopDelay({ resolution: 10 }) : null;
+  const requestMetrics = {};
+  const activeRequests = new Set();
+  app.use('/api', (req, res, next) => {
+    const route = req.path;
+    const metrics = (requestMetrics[route] ||= { received: 0, finished: 0, closedBeforeFinish: 0, maxMs: 0 });
+    const began = performance.now();
+    const marker = {};
+    metrics.received++;
+    activeRequests.add(marker);
+    let settled = false;
+    const settle = (finished) => {
+      if (settled) return;
+      settled = true;
+      activeRequests.delete(marker);
+      metrics[finished ? 'finished' : 'closedBeforeFinish']++;
+      metrics.maxMs = Math.max(metrics.maxMs, Number((performance.now() - began).toFixed(2)));
+    };
+    res.once('finish', () => settle(true));
+    res.once('close', () => settle(res.writableFinished));
+    next();
+  });
   fixtureDelay?.enable();
   if (serveFixture) {
     // This fixture exists only in the offline test script, never in server/index.js.
@@ -92,6 +113,10 @@ async function main() {
       res.json({ fixture: 'synthetic-local-only-v1', productionCapacity: 'UNKNOWN', users });
     });
     app.get('/__isolated-capacity-fixture/stats', (req, res) => {
+      if (req.query.reset === '1') {
+        assert.equal(activeRequests.size, 0, 'Cannot reset metrics during an active request');
+        for (const key of Object.keys(requestMetrics)) delete requestMetrics[key];
+      }
       const spent = process.cpuUsage();
       res.json({
         fixture: 'synthetic-local-only-v1',
@@ -101,6 +126,7 @@ async function main() {
         cpuMs: Number(((spent.user + spent.system) / 1000).toFixed(2)),
         eventLoopP99Ms: Number((fixtureDelay.percentile(99) / 1e6).toFixed(2)),
         transport: { ...transport },
+        requests: { active: activeRequests.size, routes: requestMetrics },
       });
       if (req.query.reset === '1') fixtureDelay.reset();
     });
