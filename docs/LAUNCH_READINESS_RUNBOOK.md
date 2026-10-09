@@ -2,14 +2,18 @@
 
 This runbook is the operational handoff for the nine launch-readiness gaps addressed in the current implementation. It intentionally separates code-level evidence from checks that require an external account, device, or hosting console.
 
+## Current authorization and evidence override (2026-10-09)
+
+The topology below is a design reference, not proof of a provisioned independent service. Keep the existing single Render Starter service and existing database; do not create resources, change plans or incur additional charges. All status access is administrator-only, not a customer navigation destination. The explicitly declined external email/GitHub-issue watchdog remains disabled and must not be enabled as part of this runbook. No production outage, real payment or customer notification may be induced for testing. Use disposable isolated fixtures for load, failure and restore tests. Consult `LAUNCH_RETEST_20261008.md` for measured results and limitations: a successful deploy or synthetic test is not a production-capacity, backup-custody or physical-device delivery certificate.
+
 ## Independent status topology
 
-Run the status service as a separate Render service with a separate status database:
+Optional architecture reference only (not authorization to provision): a status service can run separately with a separate status database:
 
 ```text
 main app + main DB  ── monitored by ──>  independent status service + status DB
                                           │
-                                          ├─ public /status
+                                          ├─ administrator-only /status
                                           ├─ private /status/admin
                                           ├─ five-minute checks
                                           ├─ heartbeat watchdog
@@ -32,7 +36,7 @@ The status service must have its own `STATUS_TURSO_DB_URL` and `STATUS_TURSO_AUT
 
 ## Worker heartbeat
 
-Every successful cycle writes `last_cycle_at`, `last_cycle_status`, duration, and the next expected cycle to `status_meta`. The watchdog reads those values and creates a `monitoring-worker` incident when the heartbeat becomes stale. `status_worker_leases` prevents duplicate cycle/watchdog work when more than one instance is accidentally running. The GitHub Actions watchdog is the second boundary: it detects a completely unreachable status process, which an in-process watchdog cannot detect by definition.
+Every successful cycle writes `last_cycle_at`, `last_cycle_status`, duration, and the next expected cycle to `status_meta`. The watchdog reads those values and creates a `monitoring-worker` incident when the heartbeat becomes stale. `status_worker_leases` prevents duplicate cycle/watchdog work when more than one instance is accidentally running. An external watchdog could detect a completely unreachable status process, which an in-process watchdog cannot detect by definition. The proposed external email/GitHub-issue mechanism is currently declined and disabled.
 
 ## Independent status backup and restore
 

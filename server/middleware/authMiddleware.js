@@ -1,4 +1,4 @@
-const { verifyToken } = require('../services/auth');
+const { verifyRequestToken } = require('../services/requestAuthVerification');
 const db = require('../db');
 const { reserveScanWithToken, quotaFor, freeTrialActive } = require('../services/scanQuota');
 const { ADMIN_EMAIL, SESSION_SECRET } = require('../config');
@@ -175,9 +175,9 @@ class AuthLookupUnavailableError extends Error {
 
 // A dependency outage is not an invalid credential. Never translate it into
 // 401 (which can clear a valid client's session), or return cached paid access.
-async function resolveRequestToken(token, res) {
+async function resolveRequestToken(token, res, request) {
   try {
-    return await resolveToken(token);
+    return await resolveToken(token, request);
   } catch (error) {
     if (!(error instanceof AuthLookupUnavailableError)) throw error;
     res.setHeader('Retry-After', '5');
@@ -187,7 +187,7 @@ async function resolveRequestToken(token, res) {
 }
 
 /** Resolve a JWT to a current DB user, null for invalid access; throw on outage. */
-async function resolveToken(token) {
+async function resolveToken(token, request) {
   if (!token) return null;
 
   const cached = resolveCache.get(token);
@@ -199,7 +199,7 @@ async function resolveToken(token) {
   // by a cache hit.
   if (cached && cached.user.tier === 'free' && Date.now() - cached.cachedAt < RESOLVE_CACHE_TTL_MS) {
     try {
-      verifyToken(token);
+      verifyRequestToken(request, token);
       return cached.user;
     } catch {
       dropCachedToken(token);
@@ -209,7 +209,7 @@ async function resolveToken(token) {
 
   let payload;
   try {
-    payload = verifyToken(token);
+    payload = verifyRequestToken(request, token);
   } catch {
     dropCachedToken(token);
     return null;
@@ -275,7 +275,7 @@ async function requireAuth(req, res, next) {
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const user = await resolveRequestToken(header.slice(7), res);
+  const user = await resolveRequestToken(header.slice(7), res, req);
   if (res.headersSent) return;
   if (!user) return res.status(401).json({ error: 'Invalid or expired token' });
   req.user = user;
@@ -293,7 +293,7 @@ async function requirePremium(req, res, next) {
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized', code: 'NOT_AUTHENTICATED' });
   }
-  const user = await resolveRequestToken(header.slice(7), res);
+  const user = await resolveRequestToken(header.slice(7), res, req);
   if (res.headersSent) return;
   if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
   if (!user.is_premium) {
@@ -314,7 +314,7 @@ async function requirePremiumOrTrial(req, res, next) {
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized', code: 'NOT_AUTHENTICATED' });
   }
-  const user = await resolveRequestToken(header.slice(7), res);
+  const user = await resolveRequestToken(header.slice(7), res, req);
   if (res.headersSent) return;
   if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
   const allowed = user.is_premium || (user.tier === 'free' && freeTrialActive(user));
@@ -334,7 +334,7 @@ async function requireElite(req, res, next) {
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized', code: 'NOT_AUTHENTICATED' });
   }
-  const user = await resolveRequestToken(header.slice(7), res);
+  const user = await resolveRequestToken(header.slice(7), res, req);
   if (res.headersSent) return;
   if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
   if (user.tier !== 'elite') {
@@ -354,7 +354,7 @@ async function requireEliteOrTrial(req, res, next) {
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized', code: 'NOT_AUTHENTICATED' });
   }
-  const user = await resolveRequestToken(header.slice(7), res);
+  const user = await resolveRequestToken(header.slice(7), res, req);
   if (res.headersSent) return;
   if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
   const allowed = user.tier === 'elite' || (user.tier === 'free' && freeTrialActive(user));
@@ -452,7 +452,7 @@ function requireScanQuota(category) {
     if (!header || !header.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Sign in to run a scan', code: 'NOT_AUTHENTICATED' });
     }
-    const user = await resolveRequestToken(header.slice(7), res);
+    const user = await resolveRequestToken(header.slice(7), res, req);
     if (res.headersSent) return;
     if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
     const reservation = await reserveScanWithToken(user, category);

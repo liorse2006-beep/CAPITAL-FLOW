@@ -56,7 +56,7 @@ async function checkToken(req, res) {
   const auth = req.headers.authorization || '';
   const jwt = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   if (jwt && ADMIN_EMAIL) {
-    const user = await resolveRequestToken(jwt, res);
+    const user = await resolveRequestToken(jwt, res, req);
     if (res.headersSent) return false;
     if (user && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return user.email;
   }

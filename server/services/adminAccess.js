@@ -22,7 +22,7 @@ async function checkAdminToken(req, res) {
     // Lazy-load the application's JWT/session stack only on the main app.
     // The independent status host intentionally has no user-auth database.
     const { resolveRequestToken } = require('../middleware/authMiddleware');
-    const user = await resolveRequestToken(authorization.slice(7), res);
+    const user = await resolveRequestToken(authorization.slice(7), res, req);
     if (res.headersSent) return false;
     if (user && String(user.email).toLowerCase() === ADMIN_EMAIL.toLowerCase()) return user.email;
   }

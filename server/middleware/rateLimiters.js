@@ -1,5 +1,5 @@
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
-const { verifyToken } = require('../services/auth');
+const { verifyRequestToken } = require('../services/requestAuthVerification');
 const { resolveSseTicket } = require('./authMiddleware');
 
 // Use Express' resolved client address instead of trusting a client-supplied
@@ -30,7 +30,7 @@ function userOrIpKey(req, _res) {
   const header = req.headers.authorization;
   if (header && header.startsWith('Bearer ')) {
     try {
-      const payload = verifyToken(header.slice(7));
+      const payload = verifyRequestToken(req, header.slice(7));
       if (payload && payload.id) return 'user:' + payload.id;
     } catch (err) {
       // invalid/expired token — fall through to the IP key below
