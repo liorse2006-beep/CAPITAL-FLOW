@@ -92,11 +92,14 @@ jobs:
         run: |
           fixture=capital-flow-capacity-fixture
           trap 'docker logs "$fixture"; docker stop --time 10 "$fixture" >/dev/null; docker rm "$fixture" >/dev/null' EXIT
-          docker run --detach --name "$fixture" --init --network none --read-only \
-            --cpus 0.5 --memory 512m --memory-swap 512m \
-            --tmpfs /tmp:rw,nosuid,nodev,size=96m \
-            --volume "$PWD:/workspace:ro" --workdir /workspace \
-            node:22-bookworm-slim node scripts/isolated-capacity-audit.cjs --serve-fixture
+          start_fixture() {
+            docker run --detach --name "$fixture" --init --network none --read-only \
+              --cpus 0.5 --memory 512m --memory-swap 512m \
+              --tmpfs /tmp:rw,nosuid,nodev,size=96m \
+              --volume "$PWD:/workspace:ro" --workdir /workspace \
+              node:22-bookworm-slim node scripts/isolated-capacity-audit.cjs --serve-fixture
+          }
+          start_fixture
           # Sharing the offline loopback namespace permits only local fixture traffic.
           # The generator has a separate CPU budget; application measurements exclude it.
           set +e
@@ -106,6 +109,12 @@ jobs:
             node:22-bookworm-slim node scripts/capacity-audit-load.cjs
           burst_status=$?
           set -e
+          # Recreate only this ephemeral offline fixture so earlier burst
+          # requests cannot consume the independent soak's account budgets.
+          docker logs "$fixture"
+          docker stop --time 10 "$fixture" >/dev/null
+          docker rm "$fixture" >/dev/null
+          start_fixture
           # Run the independent bounded soak even if the burst failed.
           # The final exit retains that burst failure; neither gate is hidden.
           docker run --rm --init --network "container:$fixture" --read-only \

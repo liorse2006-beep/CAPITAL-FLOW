@@ -1,16 +1,16 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
-const { assertSuccessfulSoak, matchesOwner } = require('../scripts/capacity-audit-soak.cjs');
+const { assertSuccessfulSoak, matchesOwner, SOAK_PERIOD_MS } = require('../scripts/capacity-audit-soak.cjs');
 function fixture() {
   return {
     productionCapacity: 'UNKNOWN',
     virtualUsers: 100,
     providerOperations: 0,
     durationMs: 300000,
-    rounds: 150,
-    requests: 60000,
-    statuses: { 200: 60000 },
+    rounds: 120,
+    requests: 48000,
+    statuses: { 200: 48000 },
     failures: 0,
     identityOrDataMismatches: 0,
     latencyMs: { p95: 100 },
@@ -28,11 +28,11 @@ test('only a completed bounded offline soak passes; it never certifies productio
     { durationMs: Infinity },
     { virtualUsers: 500 },
     { providerOperations: 1 },
-    { rounds: 151 },
-    { requests: 59999 },
+    { rounds: 121 },
+    { requests: 47999 },
     { failures: 1 },
     { identityOrDataMismatches: 1 },
-    { statuses: { 200: 59999, 503: 1 } },
+    { statuses: { 200: 47999, 503: 1 } },
     { latencyMs: { p95: NaN } },
     { latencyMs: { p95: 2001 } },
   ])
@@ -67,8 +67,17 @@ test('soak validates every owner route and is fixed, offline and secret-free in 
   );
   const source = readFileSync(require.resolve('../scripts/capacity-audit-soak.cjs'), 'utf8');
   assert.match(source, /const DURATION_MS = 300000/);
-  assert.match(source, /const PERIOD_MS = 2000/);
+  assert.match(source, /const PERIOD_MS = 2500/);
   assert.doesNotMatch(source, /process\.env|capitalflow\.vip|console\.log[^\n]*(token|Authorization|users)/);
   const workflow = readFileSync(require.resolve('../.github/workflows/ci.yml'), 'utf8');
   assert.match(workflow, /scripts\/capacity-audit-soak\.cjs/);
+});
+
+test('the soak starts with an independent limiter window and leaves account rate-limit headroom', () => {
+  assert.equal((60000 / SOAK_PERIOD_MS) * 4, 96);
+  const workflow = readFileSync(require.resolve('../.github/workflows/ci.yml'), 'utf8');
+  assert.match(
+    workflow,
+    /burst_status=\$\?[\s\S]*docker stop --time 10 "\$fixture"[\s\S]*docker rm "\$fixture"[\s\S]*start_fixture[\s\S]*capacity-audit-soak\.cjs[\s\S]*exit "\$burst_status"/
+  );
 });

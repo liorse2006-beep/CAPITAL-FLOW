@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const db = require('../db');
-const { resolveToken } = require('../middleware/authMiddleware');
+const { resolveRequestToken } = require('../middleware/authMiddleware');
 const { publicWriteLimiter } = require('../middleware/rateLimiters');
 const { reportError } = require('../utils/reportError');
 
@@ -17,7 +17,8 @@ router.post('/feedback', publicWriteLimiter, async (req, res) => {
     if (message.length > MAX_MESSAGE_LEN) return res.status(400).json({ error: 'Message is too long' });
 
     const header = req.headers.authorization;
-    const user = header && header.startsWith('Bearer ') ? await resolveToken(header.slice(7)) : null;
+    const user = header && header.startsWith('Bearer ') ? await resolveRequestToken(header.slice(7), res) : null;
+    if (res.headersSent) return;
 
     const email = user
       ? user.email

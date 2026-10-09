@@ -18,7 +18,11 @@ function parsePositiveUserId(value) {
 }
 
 const DB_ENV = DATABASE_URL ? 'PRODUCTION (PostgreSQL)' : TURSO_DB_URL ? 'PRODUCTION (Turso)' : 'LOCAL (SQLite)';
-const { resolveToken, invalidateUserSessions, invalidateUserEntitlement } = require('../middleware/authMiddleware');
+const {
+  resolveRequestToken,
+  invalidateUserSessions,
+  invalidateUserEntitlement,
+} = require('../middleware/authMiddleware');
 
 // Catches unhandled promise rejections in async route handlers (Express 4 doesn't do this natively)
 function asyncRoute(fn) {
@@ -52,7 +56,8 @@ async function checkToken(req, res) {
   const auth = req.headers.authorization || '';
   const jwt = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   if (jwt && ADMIN_EMAIL) {
-    const user = await resolveToken(jwt);
+    const user = await resolveRequestToken(jwt, res);
+    if (res.headersSent) return false;
     if (user && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return user.email;
   }
 

@@ -166,7 +166,27 @@ function invalidateUserEntitlement(userId) {
   publish('auth:user-entitlement-changed', { userId });
 }
 
-/** Resolve a JWT string → verified DB user, or null on failure */
+class AuthLookupUnavailableError extends Error {
+  constructor() {
+    super('Sign-in is temporarily unavailable. Please try again shortly.');
+    this.name = 'AuthLookupUnavailableError';
+  }
+}
+
+// A dependency outage is not an invalid credential. Never translate it into
+// 401 (which can clear a valid client's session), or return cached paid access.
+async function resolveRequestToken(token, res) {
+  try {
+    return await resolveToken(token);
+  } catch (error) {
+    if (!(error instanceof AuthLookupUnavailableError)) throw error;
+    res.setHeader('Retry-After', '5');
+    res.status(503).json({ error: error.message, code: 'AUTH_UNAVAILABLE' });
+    return null;
+  }
+}
+
+/** Resolve a JWT to a current DB user, null for invalid access; throw on outage. */
 async function resolveToken(token) {
   if (!token) return null;
 
@@ -187,8 +207,14 @@ async function resolveToken(token) {
     }
   }
 
+  let payload;
   try {
-    const payload = verifyToken(token);
+    payload = verifyToken(token);
+  } catch {
+    dropCachedToken(token);
+    return null;
+  }
+  try {
     // The token's session (sid) must still exist — it's deleted the moment
     // that device logs out, or the instant it's evicted for being the
     // least-recently-used device once the account is already at its
@@ -227,7 +253,7 @@ async function resolveToken(token) {
     return user;
   } catch {
     dropCachedToken(token);
-    return null;
+    throw new AuthLookupUnavailableError();
   }
 }
 
@@ -249,7 +275,8 @@ async function requireAuth(req, res, next) {
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const user = await resolveToken(header.slice(7));
+  const user = await resolveRequestToken(header.slice(7), res);
+  if (res.headersSent) return;
   if (!user) return res.status(401).json({ error: 'Invalid or expired token' });
   req.user = user;
   next();
@@ -266,7 +293,8 @@ async function requirePremium(req, res, next) {
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized', code: 'NOT_AUTHENTICATED' });
   }
-  const user = await resolveToken(header.slice(7));
+  const user = await resolveRequestToken(header.slice(7), res);
+  if (res.headersSent) return;
   if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
   if (!user.is_premium) {
     return res.status(403).json({ error: 'Premium subscription required', code: 'NOT_PREMIUM' });
@@ -286,7 +314,8 @@ async function requirePremiumOrTrial(req, res, next) {
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized', code: 'NOT_AUTHENTICATED' });
   }
-  const user = await resolveToken(header.slice(7));
+  const user = await resolveRequestToken(header.slice(7), res);
+  if (res.headersSent) return;
   if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
   const allowed = user.is_premium || (user.tier === 'free' && freeTrialActive(user));
   if (!allowed) {
@@ -305,7 +334,8 @@ async function requireElite(req, res, next) {
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized', code: 'NOT_AUTHENTICATED' });
   }
-  const user = await resolveToken(header.slice(7));
+  const user = await resolveRequestToken(header.slice(7), res);
+  if (res.headersSent) return;
   if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
   if (user.tier !== 'elite') {
     return res.status(403).json({ error: 'Elite subscription required', code: 'NOT_ELITE' });
@@ -324,7 +354,8 @@ async function requireEliteOrTrial(req, res, next) {
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized', code: 'NOT_AUTHENTICATED' });
   }
-  const user = await resolveToken(header.slice(7));
+  const user = await resolveRequestToken(header.slice(7), res);
+  if (res.headersSent) return;
   if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
   const allowed = user.tier === 'elite' || (user.tier === 'free' && freeTrialActive(user));
   if (!allowed) {
@@ -421,7 +452,8 @@ function requireScanQuota(category) {
     if (!header || !header.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Sign in to run a scan', code: 'NOT_AUTHENTICATED' });
     }
-    const user = await resolveToken(header.slice(7));
+    const user = await resolveRequestToken(header.slice(7), res);
+    if (res.headersSent) return;
     if (!user) return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
     const reservation = await reserveScanWithToken(user, category);
     if (!reservation.reserved) {
@@ -446,6 +478,7 @@ module.exports = {
   requirePremiumSSE,
   requireScanQuota,
   resolveToken,
+  resolveRequestToken,
   invalidateSession,
   invalidateUserSessions,
   invalidateUserEntitlement,

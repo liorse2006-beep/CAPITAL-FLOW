@@ -5,7 +5,9 @@ const { performance } = require('node:perf_hooks');
 const { fixtureFetch, fixtureJson } = require('./capacity-audit-load.cjs');
 const PREFIX = '/__isolated-capacity-fixture';
 const DURATION_MS = 300000;
-const PERIOD_MS = 2000;
+// Four reads per cycle: 96 requests/minute, below the unchanged 120/minute
+// account floor. Keep 20% timing headroom; a soak is not an abuse-limit test.
+const PERIOD_MS = 2500;
 const VIRTUAL_USERS = 100;
 const ROUTES = ['/api/account/summary', '/api/watchlist', '/api/notifications', '/api/scan'];
 
@@ -169,4 +171,4 @@ if (require.main === module)
     process.exitCode = 1;
   });
 
-module.exports = { assertSuccessfulSoak, matchesOwner };
+module.exports = { assertSuccessfulSoak, matchesOwner, SOAK_PERIOD_MS: PERIOD_MS };
