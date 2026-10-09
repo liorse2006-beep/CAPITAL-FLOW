@@ -235,4 +235,4 @@ if (require.main === module)
     process.exitCode = 1;
   });
 
-module.exports = { assertFixture, fixtureFetch, failureSample, main };
+module.exports = { assertFixture, fixtureFetch, fixtureJson, failureSample, main };

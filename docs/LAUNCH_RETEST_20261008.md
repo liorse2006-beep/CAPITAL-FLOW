@@ -276,3 +276,21 @@ Prior live release `554cb56def6f1285613ee41771b70e2dace54531` was verified in Re
 - A second verified queue-amplification defect affected notification history: every request launched the page lookup and unread-count lookup concurrently. The new regression reproduced **2 database statements instead of 1** before repair. The feed now uses one prepared, owner-scoped statement, preserving the full unread count beyond the displayed 100 rows, read-state fields, ordering and empty-list behavior. A count-only LEFT JOIN row is never exposed as a notification. Existing separate service helpers remain available to other callers.
 - After the repair, the focused account/queue/backup/feed subset passed **13/13**, **2398.7735 ms**. Full backend passed **679/679**, zero failures/cancellations/skips, **106103.2528 ms**. A subsequent additional read-only-page regression joined the two feed tests: **3/3**, **691.9564 ms**. Changed-source formatting, lint and diff checks passed. The next full CI will include that added test; no full-suite count of 680 is claimed until it runs.
 - This optimization is not assumed to make 500 users safe. Its Linux resource-limited result, exact live hash and post-deploy checks are still pending here. Physical iPhone delivery and current real production backup custody remain UNKNOWN, not replaced by synthetic evidence. No extra billing, production load, customer communication or declined watchdog activation occurred.
+
+## All seven isolated stages pass after feed repair (2026-10-09)
+
+- Feed release `7587df9ed845149cad20876f45272e660c57b89e`: CI `37939774045` **success**, standard job `113850875819` and capacity job `113850875411` **success**; Deploy `37939774210` **success**. Render `dep-db4f3p59fdbs73boog90` reached live at **13:54:46.691201Z**. One public health read returned `status=ok` and this exact hash at **13:58:13.015Z**.
+- Actual isolated Linux application: Node **v22.23.3**, x64, cgroup **0.5 CPU / 536870912 bytes**; the generator had a separate CPU/RAM budget. All stages had **zero mismatches**, **zero failed requests** and **zero external provider operations**. Limits/deadlines/p95 gates are unchanged.
+
+| Virtual users | Requests | HTTP 200 | p50 ms | p95 ms | p99 ms | Maximum ms | App RSS MiB |
+| ------------- | -------- | -------- | ------ | ------ | ------ | ---------- | ----------- |
+| 1             | 12       | 12       | 2.17   | 4.51   | 4.51   | 4.51       | 135.90      |
+| 5             | 60       | 60       | 5.28   | 72.42  | 80.26  | 80.26      | 136.65      |
+| 25            | 300      | 300      | 10.96  | 80.97  | 309.77 | 406.51     | 140.90      |
+| 50            | 600      | 600      | 90.87  | 109.56 | 177.38 | 372.01     | 145.19      |
+| 100           | 1200     | 1200     | 176.48 | 279.83 | 291.74 | 458.43     | 145.49      |
+| 200           | 2400     | 2400     | 281.83 | 472.88 | 516.95 | 3760.84    | 144.15      |
+| 500           | 6000     | 6000     | 687.88 | 869.25 | 904.34 | 5834.81    | 150.03      |
+
+- The 500-VU stage took **8662.51 ms**; application CPU **4303.45 ms**, event-loop p99 **899.68 ms**. Generator event-loop p99 **11.33 ms**, maximum **13.62 ms**. This is the first passing full bounded warm-route fixture, **not a production-safe 500-user certificate**, not cold scans or remote-database/provider capacity, and not a long soak.
+- A fixed **five-minute / 100-VU** warm-route soak is now added after the unchanged full stage gate, reusing only the same offline container and public free runner. It validates owner identity and data on every response, samples memory/CPU/listener activity, fails on any error or p95 above two seconds, and explicitly retains `productionCapacity=UNKNOWN`. Contract checks **11/11**, **86.1886 ms**; the additional timer-bound refinement checks **2/2**, **69.6269 ms**. The real five-minute result is pending, not inferred from those contract tests.

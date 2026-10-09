@@ -103,3 +103,8 @@ jobs:
             --cpus 1 --memory 512m --memory-swap 512m \
             --volume "$PWD:/workspace:ro" --workdir /workspace \
             node:22-bookworm-slim node scripts/capacity-audit-load.cjs
+          # Fixed five-minute soak reuses only the same offline fixture.
+          docker run --rm --init --network "container:$fixture" --read-only \
+            --cpus 1 --memory 512m --memory-swap 512m \
+            --volume "$PWD:/workspace:ro" --workdir /workspace \
+            node:22-bookworm-slim node scripts/capacity-audit-soak.cjs
