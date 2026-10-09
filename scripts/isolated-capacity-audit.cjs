@@ -30,6 +30,7 @@ function cgroupValue(path) {
   }
 }
 async function main() {
+  const serveFixture = process.argv.includes('--serve-fixture');
   const backlogArgument = process.argv.find((argument) => argument.startsWith('--backlog='));
   const requestedBacklog = backlogArgument ? Number(backlogArgument.slice('--backlog='.length)) : 511;
   assert.ok([511, 2048].includes(requestedBacklog), 'Only the two bounded local backlog comparisons are allowed');
@@ -75,11 +76,43 @@ async function main() {
   backgroundCache.dataAsOf = asOf;
   const app = express();
   app.set('trust proxy', 'loopback');
+  const runtime = {
+    node: process.version,
+    platform: process.platform,
+    architecture: process.arch,
+    memoryMax: cgroupValue('/sys/fs/cgroup/memory.max'),
+    cpuMax: cgroupValue('/sys/fs/cgroup/cpu.max'),
+  };
+  const fixtureDelay = serveFixture ? monitorEventLoopDelay({ resolution: 10 }) : null;
+  fixtureDelay?.enable();
+  if (serveFixture) {
+    // This fixture exists only in the offline test script, never in server/index.js.
+    // Its synthetic tokens stay inside a network namespace with no external interface.
+    app.get('/__isolated-capacity-fixture/users', (_req, res) => {
+      res.json({ fixture: 'synthetic-local-only-v1', productionCapacity: 'UNKNOWN', users });
+    });
+    app.get('/__isolated-capacity-fixture/stats', (req, res) => {
+      const spent = process.cpuUsage();
+      res.json({
+        fixture: 'synthetic-local-only-v1',
+        runtime,
+        providerOperations,
+        rssMiB: Number((process.memoryUsage().rss / 1048576).toFixed(2)),
+        cpuMs: Number(((spent.user + spent.system) / 1000).toFixed(2)),
+        eventLoopP99Ms: Number((fixtureDelay.percentile(99) / 1e6).toFixed(2)),
+        transport: { ...transport },
+      });
+      if (req.query.reset === '1') fixtureDelay.reset();
+    });
+  }
   app.use('/api', apiLimiter);
   for (const route of ['account', 'watchlist', 'notifications', 'scan'])
     app.use('/api', require('../server/routes/' + route));
-  const server = await new Promise((resolve) => {
-    const handle = app.listen({ port: 0, host: '127.0.0.1', backlog: requestedBacklog }, () => resolve(handle));
+  const server = await new Promise((resolve, reject) => {
+    const handle = app.listen({ port: serveFixture ? 3001 : 0, host: '127.0.0.1', backlog: requestedBacklog }, () =>
+      resolve(handle)
+    );
+    handle.once('error', reject);
   });
   const transport = { open: 0, peakOpen: 0, accepted: 0, listenerErrors: 0 };
   server.on('connection', (socket) => {
@@ -95,17 +128,19 @@ async function main() {
     scope:
       'Local authenticated production routes; temporary libSQL file; synthetic cached feed; no external service calls',
     productionCapacity: 'UNKNOWN',
-    runtime: {
-      node: process.version,
-      platform: process.platform,
-      architecture: process.arch,
-      memoryMax: cgroupValue('/sys/fs/cgroup/memory.max'),
-      cpuMax: cgroupValue('/sys/fs/cgroup/cpu.max'),
-    },
+    runtime,
     localListenBacklog: requestedBacklog,
     stages: [],
   };
   try {
+    if (serveFixture) {
+      console.log('ISOLATED_CAPACITY_FIXTURE_READY ' + JSON.stringify({ runtime, productionCapacity: 'UNKNOWN' }));
+      await new Promise((resolve) => {
+        process.once('SIGTERM', resolve);
+        process.once('SIGINT', resolve);
+      });
+      return;
+    }
     for (const concurrency of CAPACITY_STAGES) {
       const delay = monitorEventLoopDelay({ resolution: 10 });
       delay.enable();
@@ -209,6 +244,7 @@ async function main() {
       console.log(JSON.stringify(report, null, 2));
     }
   } finally {
+    fixtureDelay?.disable();
     await new Promise((resolve) => server.close(resolve));
     await db.close();
   }

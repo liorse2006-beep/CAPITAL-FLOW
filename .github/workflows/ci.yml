@@ -90,8 +90,16 @@ jobs:
 
       - name: Measure isolated warm routes under the Starter resource envelope
         run: |
-          docker run --rm --network none --read-only \
+          fixture=capital-flow-capacity-fixture
+          trap 'docker logs "$fixture"; docker stop --time 10 "$fixture" >/dev/null; docker rm "$fixture" >/dev/null' EXIT
+          docker run --detach --name "$fixture" --init --network none --read-only \
             --cpus 0.5 --memory 512m --memory-swap 512m \
             --tmpfs /tmp:rw,nosuid,nodev,size=96m \
             --volume "$PWD:/workspace:ro" --workdir /workspace \
-            node:22-bookworm-slim node scripts/isolated-capacity-audit.cjs
+            node:22-bookworm-slim node scripts/isolated-capacity-audit.cjs --serve-fixture
+          # Sharing the offline loopback namespace permits only local fixture traffic.
+          # The generator has a separate CPU budget; application measurements exclude it.
+          docker run --rm --init --network "container:$fixture" --read-only \
+            --cpus 1 --memory 512m --memory-swap 512m \
+            --volume "$PWD:/workspace:ro" --workdir /workspace \
+            node:22-bookworm-slim node scripts/capacity-audit-load.cjs

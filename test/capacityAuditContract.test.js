@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { CAPACITY_STAGES, assertSuccessfulAudit } = require('../scripts/capacity-audit-contract.cjs');
+const { assertFixture, fixtureFetch } = require('../scripts/capacity-audit-load.cjs');
 
 function fixture() {
   return {
@@ -72,5 +73,32 @@ test('Linux capacity job is public-runner-only, offline and within the existing 
   assert.match(job, /--memory 512m --memory-swap 512m/);
   assert.match(job, /--read-only/);
   assert.match(job, /node:22-bookworm-slim/);
+  assert.match(job, /--serve-fixture/);
+  assert.match(job, /--network "container:\$fixture"/);
+  assert.match(job, /--cpus 1/);
+  assert.match(job, /scripts\/capacity-audit-load\.cjs/);
   assert.doesNotMatch(job, /secrets\.|continue-on-error|issues: write|schedule:|upload-artifact/);
+});
+
+test('separate generator rejects arbitrary URLs and refuses non-synthetic or duplicate user fixtures', async () => {
+  for (const path of ['https://capitalflow.vip/api/scan', '//example.com', '/api/scan?external=1', '/api/auth/signup'])
+    await assert.rejects(fixtureFetch(path));
+  assert.throws(() => assertFixture({ fixture: 'production' }), /Not the isolated/);
+  const payload = {
+    fixture: 'synthetic-local-only-v1',
+    productionCapacity: 'UNKNOWN',
+    users: Array.from({ length: 500 }, (_, index) => ({ index, id: index + 1, token: 'synthetic-token' })),
+  };
+  assert.doesNotThrow(() => assertFixture(payload, true));
+  payload.users[499].id = 1;
+  assert.throws(() => assertFixture(payload, true), /distinct identities/);
+});
+
+test('fixture-only credentials endpoints cannot be included in the production Docker runtime', () => {
+  const docker = readFileSync(require.resolve('../Dockerfile'), 'utf8');
+  const runtime = docker.slice(docker.indexOf('FROM node:22-bookworm-slim AS runtime'));
+  assert.doesNotMatch(runtime, /COPY[^\n]*(scripts|test|\/app \.|\. \.)/);
+  const fixtureScript = readFileSync(require.resolve('../scripts/isolated-capacity-audit.cjs'), 'utf8');
+  assert.match(fixtureScript, /host: '127\.0\.0\.1'/);
+  assert.match(fixtureScript, /process\.once\('SIGTERM', resolve\)/);
 });
