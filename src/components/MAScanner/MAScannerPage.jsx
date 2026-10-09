@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import useScanQuota from '../../hooks/useScanQuota';
+import useMovingAverageScan from '../../hooks/useMovingAverageScan';
 import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
 import MobileResultSort from '../shared/MobileResultSort';
@@ -65,29 +66,28 @@ export default function MAScannerPage({
   const [market, setMarket] = useState('all');
   const [selectedSectors, setSelectedSectors] = useState([]);
 
-  const [results, setResults] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState(null);
-  const [error, setError] = useState(null);
-  const [dataStatus, setDataStatus] = useState(null);
-
   const [sortField, setSort] = useState('maDistance');
   const [sortDir, setSortDir] = useState('asc');
   const [dirFilter, setDirFilter] = useState('all');
 
   const { scanMeta, setScanMeta, refreshQuota } = useScanQuota();
 
-  const pollRef = useRef(null);
-  const authH = () => ({ Authorization: 'Bearer ' + getToken() });
-
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
-  }, []);
+  const {
+    results,
+    loading,
+    progress,
+    error,
+    setError,
+    dataStatus,
+    startScan: runScan,
+  } = useMovingAverageScan({
+    user,
+    getToken,
+    setScanMeta,
+    refreshQuota,
+    onTrialEnded,
+    isPremium,
+  });
 
   useEffect(() => {
     refreshQuota();
@@ -102,146 +102,7 @@ export default function MAScannerPage({
   }
 
   function startScan() {
-    if (loading) return;
-    if (scanLimitReached) {
-      onTrialEnded();
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setResults(null);
-    setProgress({ processed: 0, total: 0, found: 0, phase: 1 });
-
-    let activeScanId = null;
-    let resolvingAsyncResult = false;
-    let scanSettled = false;
-    const scanUiTimeout = window.setTimeout(
-      () => {
-        if (!activeScanId || scanSettled) return;
-        scanSettled = true;
-        activeScanId = null;
-        resolvingAsyncResult = false;
-        if (pollRef.current) {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-        }
-        setLoading(false);
-        setProgress(null);
-        setError('The scan took too long to return a verified result. Please try again.');
-      },
-      10 * 60 * 1000
-    );
-
-    const clearScanPolling = () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-      window.clearTimeout(scanUiTimeout);
-    };
-
-    const applyCompletedScan = (d) => {
-      if (!d || !Array.isArray(d.results))
-        throw new Error('The scan returned no complete result set. Please try again.');
-      setResults(d.results);
-      setDataStatus(d.dataStatus || null);
-      setScanMeta({ tier: d.tier, isPremium: d.isPremium, premium: d.premium, free: d.free });
-    };
-
-    const finishAsyncError = (message) => {
-      if (scanSettled) return;
-      scanSettled = true;
-      activeScanId = null;
-      resolvingAsyncResult = false;
-      clearScanPolling();
-      setLoading(false);
-      setProgress(null);
-      setError(message || 'The scan could not return a verified result. Please try again.');
-    };
-
-    const fetchCompletedAsyncResult = () => {
-      if (!activeScanId || resolvingAsyncResult || scanSettled) return;
-      resolvingAsyncResult = true;
-      fetch(`/api/ma-last-results?scanId=${encodeURIComponent(activeScanId)}`, { headers: authH() })
-        .then((r) => {
-          if (r.status === 409) return null;
-          if (!r.ok)
-            return r.json().then((d) => {
-              throw new Error(d.error || 'The completed scan could not be loaded.');
-            });
-          return r.json();
-        })
-        .then((d) => {
-          resolvingAsyncResult = false;
-          if (!d || scanSettled) return;
-          if (d.scanId !== activeScanId) return;
-          applyCompletedScan(d);
-          scanSettled = true;
-          activeScanId = null;
-          clearScanPolling();
-          setLoading(false);
-          setProgress(null);
-        })
-        .catch((e) => finishAsyncError(e.message));
-    };
-
-    const params = new URLSearchParams({ ma, distance, interval: timeframe, market });
-    if (market === 'sectors' && selectedSectors.length > 0) {
-      params.set('sectors', selectedSectors.join(','));
-    }
-
-    fetch(`/api/scan-ma?${params}&async=1`, { headers: authH() })
-      .then((r) => {
-        if (r.status === 403)
-          return r.json().then((d) => {
-            throw Object.assign(new Error(d.error || 'Limit reached'), { code: d.code });
-          });
-        if (!r.ok)
-          return r.json().then((d) => {
-            throw new Error(d.error || 'Scan failed');
-          });
-        if (r.status === 202)
-          return r.json().then((d) => {
-            if (!d.queued || !d.scanId) throw new Error('The scan could not be queued. Please try again.');
-            activeScanId = d.scanId;
-            if (d.progress) setProgress(d.progress);
-            return null;
-          });
-        return r.json();
-      })
-      .then((d) => {
-        if (!d) return;
-        applyCompletedScan(d);
-        scanSettled = true;
-        clearScanPolling();
-        setLoading(false);
-      })
-      .catch((e) => {
-        if (activeScanId) {
-          finishAsyncError(e.message);
-          return;
-        }
-        if (e.code === 'SCAN_LIMIT') {
-          refreshQuota();
-          if (!isPremium) onTrialEnded();
-        }
-        setError(e.message);
-        setLoading(false);
-        clearScanPolling();
-      });
-
-    pollRef.current = setInterval(() => {
-      fetch('/api/ma-progress', { headers: authH() })
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.running) setProgress(d);
-          else if (activeScanId && d.scanId === activeScanId) {
-            if (d.error) finishAsyncError(d.error.message);
-            else fetchCompletedAsyncResult();
-          }
-        })
-        .catch(() => {});
-    }, 1500);
+    runScan({ ma, distance, timeframe, market, selectedSectors }, scanLimitReached);
   }
 
   function handleSort(f) {
@@ -296,7 +157,7 @@ export default function MAScannerPage({
       'a',
       {
         className: 'chart-open-btn',
-        href: 'https://www.tradingview.com/chart/?symbol=' + symbol,
+        href: 'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(symbol),
         target: '_blank',
         rel: 'noopener noreferrer',
         title: 'Open in TradingView',
