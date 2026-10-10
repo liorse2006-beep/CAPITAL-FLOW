@@ -170,6 +170,7 @@ test('quoteCache asks FMP first and uses Yahoo only for symbols FMP did not veri
     return [
       {
         symbol: fmpSymbol,
+        currency: 'USD',
         shortName: 'FMP Recovery',
         regularMarketPrice: 100,
         regularMarketVolume: 5000,
@@ -202,6 +203,7 @@ test('quoteCache skips Yahoo when FMP verifies the complete batch', async (t) =>
     assert.deepStrictEqual(requested, symbols);
     return symbols.map((symbol, index) => ({
       symbol,
+      currency: 'USD',
       shortName: symbol,
       regularMarketPrice: 100 + index,
       regularMarketVolume: 5000,

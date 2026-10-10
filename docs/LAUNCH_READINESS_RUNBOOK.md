@@ -4,9 +4,11 @@ This runbook is the operational handoff for the nine launch-readiness gaps addre
 
 ## Current authorization and evidence override (2026-10-09)
 
-The topology below is a design reference, not proof of a provisioned independent service. Keep the existing single Render Starter service and existing database; do not create resources, change plans or incur additional charges. All status access is administrator-only, not a customer navigation destination. The explicitly declined external email/GitHub-issue watchdog remains disabled and must not be enabled as part of this runbook. No production outage, real payment or customer notification may be induced for testing. Use disposable isolated fixtures for load, failure and restore tests. Consult `LAUNCH_RETEST_20261008.md` for measured results and limitations: a successful deploy or synthetic test is not a production-capacity, backup-custody or physical-device delivery certificate.
+The topology below is a design reference, not proof of a functioning independent monitor. Keep the existing Render Starter application service and existing database; do not create resources, change plans or incur additional charges. A read-only inventory on 2026-10-10 also found the pre-existing free `status-capital-flow` service, last deployed from `a0f82cc` on September 23. Its existence is not proof of current independent checks, matching credentials, database isolation or successful outage delivery. Do not silently enable, redeploy or replace it. All status access is administrator-only, not a customer navigation destination. The explicitly declined external email/GitHub-issue watchdog remains disabled and must not be enabled as part of this runbook. No production outage, real payment or customer notification may be induced for testing. Use disposable isolated fixtures for load, failure and restore tests. Consult `LAUNCH_RETEST_20261008.md` and `LAUNCH_FINAL_CHECKPOINT_20261009.md` for measured results and limitations: a successful deploy or synthetic test is not a production-capacity, backup-custody or physical-device delivery certificate.
 
 ## Independent status topology
+
+Runtime observation on 2026-10-10: the main production monitor reported `intervalMs=1800000` (30 minutes), not five minutes. Any shorter interval mentioned in the design below is a proposal, not the current runtime configuration or measured failure-detection time.
 
 Optional architecture reference only (not authorization to provision): a status service can run separately with a separate status database:
 

@@ -249,7 +249,15 @@ async function fmpRecovery(symbols, staleSymbols) {
   if (!fmp.isConfigured() || !symbols.length) return [];
   try {
     const rows = await fmp.fetchFmpQuotes(symbols.slice(0, MAX_FMP_FALLBACK_SYMBOLS));
-    return filterFreshProviderRows(rows, staleSymbols);
+    // FMP's single-quote response may omit currency. Its adapter deliberately
+    // preserves that uncertainty; do not count the row as a verified USD
+    // quote and thereby suppress Yahoo/Chart recovery for the same instrument.
+    // The complementary path must provide its own explicitly denominated,
+    // timestamped values. Never stamp USD onto an unknown FMP price.
+    return filterFreshProviderRows(
+      rows.filter((row) => row?.currency === 'USD'),
+      staleSymbols
+    );
   } catch (_) {
     return [];
   }
