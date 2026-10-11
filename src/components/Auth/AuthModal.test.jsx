@@ -68,12 +68,12 @@ it('the OTP Verify button is enabled (not stuck on the signup loading state) onc
     </AuthProvider>
   );
 
-  await user.click(screen.getByRole('button', { name: /sign up/i }));
+  await user.click(screen.getByRole('button', { name: /הרשמה/ }));
   await user.type(screen.getByPlaceholderText('you@example.com'), 'newuser@test.local');
-  await user.type(screen.getByPlaceholderText('Min 8 characters'), 'SomePassword123');
-  await user.click(screen.getByRole('button', { name: /create account/i }));
+  await user.type(screen.getByPlaceholderText('לפחות 15 תווים'), 'SomePassword12345');
+  await user.click(screen.getByRole('button', { name: /יצירת חשבון/ }));
 
-  const verifyBtn = await waitFor(() => screen.getByRole('button', { name: /verify/i }));
+  const verifyBtn = await waitFor(() => screen.getByRole('button', { name: /אימות הקוד/ }));
   // Not asserting otp.length >= 6 here (no code typed yet) — asserting
   // specifically that it isn't stuck disabled by the signup call's loading
   // flag, which is the actual bug: fill the code and confirm it becomes
@@ -106,7 +106,7 @@ it('closes the authentication dialog from its close button', async () => {
     </AuthProvider>
   );
 
-  await user.click(screen.getByRole('button', { name: 'Close' }));
+  await user.click(screen.getByRole('button', { name: 'סגירה' }));
 
   expect(onClose).toHaveBeenCalledOnce();
 });
@@ -120,13 +120,13 @@ it('does not submit signup until verification succeeds, including on Enter', asy
       <AuthModal initialScreen="signup" onClose={() => {}} />
     </AuthProvider>
   );
-  await user.type(screen.getByLabelText('Email'), 'newuser@test.local');
-  await user.type(screen.getByLabelText('Password'), 'SomePassword123');
-  expect(screen.getByRole('button', { name: 'Create Account' })).toBeDisabled();
+  await user.type(screen.getByLabelText('כתובת אימייל'), 'newuser@test.local');
+  await user.type(screen.getByLabelText('סיסמה'), 'SomePassword12345');
+  expect(screen.getByRole('button', { name: 'יצירת חשבון' })).toBeDisabled();
   await user.keyboard('{Enter}');
   expect(global.fetch.mock.calls.filter(([url]) => url === '/api/auth/signup')).toHaveLength(0);
   await act(async () => verificationMock.render.mock.calls[0][1].callback('fresh-token'));
-  expect(screen.getByRole('button', { name: 'Create Account' })).not.toBeDisabled();
+  expect(screen.getByRole('button', { name: 'יצירת חשבון' })).not.toBeDisabled();
 });
 
 it('requires a fresh challenge after a failed signup instead of reusing the consumed token', async () => {
@@ -141,17 +141,17 @@ it('requires a fresh challenge after a failed signup instead of reusing the cons
       <AuthModal initialScreen="signup" onClose={() => {}} />
     </AuthProvider>
   );
-  await user.type(screen.getByLabelText('Email'), 'newuser@test.local');
-  await user.type(screen.getByLabelText('Password'), 'SomePassword123');
+  await user.type(screen.getByLabelText('כתובת אימייל'), 'newuser@test.local');
+  await user.type(screen.getByLabelText('סיסמה'), 'SomePassword12345');
   verificationMock.render.mockImplementation(() => 'replacement-widget');
-  await user.click(screen.getByRole('button', { name: 'Create Account' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('Please verify again');
+  await user.click(screen.getByRole('button', { name: 'יצירת חשבון' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('יש לבצע אימות מחדש');
   expect(verificationMock.remove).toHaveBeenCalledWith('test-widget');
   expect(verificationMock.render).toHaveBeenCalledTimes(2);
-  expect(screen.getByRole('button', { name: 'Create Account' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'יצירת חשבון' })).toBeDisabled();
   await act(async () => verificationMock.render.mock.calls[1][1].callback('new-token'));
-  await user.click(screen.getByRole('button', { name: 'Create Account' }));
-  expect(await screen.findByRole('button', { name: 'Verify →' })).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'יצירת חשבון' }));
+  expect(await screen.findByRole('button', { name: 'אימות הקוד' })).toBeInTheDocument();
   const signupCalls = global.fetch.mock.calls.filter(([url]) => url === '/api/auth/signup');
   expect(JSON.parse(signupCalls[1][1].body).captchaToken).toBe('new-token');
 });
@@ -164,10 +164,10 @@ it('continues an unverified password login to the code screen using the structur
       <AuthModal onClose={() => {}} />
     </AuthProvider>
   );
-  await user.type(screen.getByLabelText('Email'), 'pending@test.local');
-  await user.type(screen.getByLabelText('Password'), 'SomePassword123');
+  await user.type(screen.getByLabelText('כתובת אימייל'), 'pending@test.local');
+  await user.type(screen.getByLabelText('סיסמה'), 'SomePassword12345');
   await user.click(
-    screen.getAllByRole('button', { name: 'Log In', exact: true }).find((button) => button.closest('form'))
+    screen.getAllByRole('button', { name: 'התחברות', exact: true }).find((button) => button.closest('form'))
   );
-  expect(await screen.findByRole('heading', { name: 'Check your email' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: 'בדיקת האימייל' })).toBeInTheDocument();
 });

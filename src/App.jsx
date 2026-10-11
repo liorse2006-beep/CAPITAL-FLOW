@@ -23,6 +23,9 @@ import AlertThresholdModal from './components/shared/AlertThresholdModal';
 import Topbar from './components/shared/Topbar';
 import WatchlistPage from './components/Watchlist/WatchlistPage';
 import ScannerPage from './components/Scanner/ScannerPage';
+import PolicyPage from './pages/PolicyPage';
+import AccessibilityStatementPage from './pages/AccessibilityStatementPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 /* Code-split: none of these are needed for the very first paint (the default
    "scanner" tab). Splitting them into their own chunks means a user who
@@ -32,8 +35,6 @@ const MoneyFlow = lazy(() => import('./components/MoneyFlow/MoneyFlow'));
 const ChartModal = lazy(() => import('./components/Chart/ChartModal'));
 const MAScannerPage = lazy(() => import('./components/MAScanner/MAScannerPage'));
 const FundamentalsPage = lazy(() => import('./components/Fundamentals/FundamentalsPage'));
-const PolicyPage = lazy(() => import('./pages/PolicyPage'));
-const AccessibilityStatementPage = lazy(() => import('./pages/AccessibilityStatementPage'));
 const AuthModal = lazy(() => import('./components/Auth/AuthModal'));
 const WelcomeTierModal = lazy(() => import('./components/shared/WelcomeTierModal'));
 const ScheduledScanResultsModal = lazy(() => import('./components/shared/ScheduledScanResultsModal'));
@@ -136,10 +137,8 @@ function App() {
       if (prev.length >= limit) {
         showToast(
           isPremium
-            ? 'Premium lets you scan up to ' +
-                MAX_PREMIUM_SECTORS +
-                ' sectors at once — upgrade to Elite for unlimited.'
-            : 'Free lets you scan up to ' + MAX_FREE_SECTORS + ' sectors at once — upgrade for more.'
+            ? 'ב־Premium ניתן לסרוק עד ' + MAX_PREMIUM_SECTORS + ' סקטורים יחד. ב־Elite אין הגבלה.'
+            : 'במסלול החינמי ניתן לסרוק עד ' + MAX_FREE_SECTORS + ' סקטורים יחד. ניתן לשדרג לבחירת סקטורים נוספים.'
         );
         return prev;
       }
@@ -434,24 +433,9 @@ function App() {
     eliteAccess
   );
 
-  /* ── Trial-ended popup — auto-shown once per site visit the first time a
-        free-tier user's scanMeta confirms the 7-day trial has ended, and
-        again on demand every time a scan is attempted afterward (see
-        onTrialEnded below, threaded into startScan / MoneyFlow /
-        MAScannerPage). The ref guards against re-popping on every internal
-        page navigation, which also calls refreshQuota(). ── */
+  // A plan prompt belongs to an explicit attempt to use a paid feature,
+  // never to opening a page (especially privacy/accessibility documents).
   const [showTrialEndedModal, setShowTrialEndedModal] = useState(false);
-  const trialEndedAutoShownRef = useRef(false);
-  useEffect(
-    function () {
-      if (trialEndedAutoShownRef.current) return;
-      if (!user || userTier !== 'free' || !scanMeta || !scanMeta.free) return;
-      if (scanMeta.free.trialActive) return;
-      trialEndedAutoShownRef.current = true;
-      queueMicrotask(() => setShowTrialEndedModal(true));
-    },
-    [user, userTier, scanMeta]
-  );
   function onTrialEnded() {
     setShowTrialEndedModal(true);
   }
@@ -559,7 +543,7 @@ function App() {
       } else if (data.type === 'volume' && Number.isFinite(Number(data.minRatio)) && Number(data.minRatio) > 0) {
         savedAlert = { type: 'volume', minRatio: Number(data.minRatio) };
       } else {
-        throw new Error('The alert could not be verified. Please try again.');
+        throw new Error('לא הצלחנו לאשר את ההתראה. אפשר לנסות שוב.');
       }
       setAlertLevels(function (prev) {
         const updated = Object.assign({}, prev, { [symbol]: savedAlert });
@@ -568,7 +552,7 @@ function App() {
       });
       return true;
     } catch (error) {
-      showToast(error && error.message ? error.message : 'Could not save alert');
+      showToast('לא הצלחנו לשמור את ההתראה. אפשר לנסות שוב.');
       return false;
     }
   }
@@ -587,7 +571,7 @@ function App() {
       clearAlertLevelLocal(symbol);
       return true;
     } catch (error) {
-      showToast(error && error.message ? error.message : 'Could not remove alert');
+      showToast('לא הצלחנו להסיר את ההתראה. אפשר לנסות שוב.');
       return false;
     }
   }
@@ -700,7 +684,7 @@ function App() {
         var wasGoogleAuth = sessionStorage.getItem('google_auth_pending');
         if (wasGoogleAuth) {
           sessionStorage.removeItem('google_auth_pending');
-          showToast('Signed in as ' + user.email);
+          showToast('התחברת בתור ' + user.email);
         }
       }
       prevUserRef.current = user;
@@ -714,10 +698,10 @@ function App() {
   useEffect(
     function () {
       if (authError === 'session_replaced') {
-        showToast('You were signed out because this account logged in on another device.');
+        showToast('החשבון התחבר במכשיר אחר. יש להתחבר מחדש.');
         clearAuthError();
       } else if (authError) {
-        showToast('Google sign-in failed — please try again.');
+        showToast('ההתחברות באמצעות Google לא הצליחה. אפשר לנסות שוב.');
         clearAuthError();
       }
     },
@@ -778,7 +762,7 @@ function App() {
         // this browser. Otherwise a later, unrelated success callback could
         // open the wrong welcome screen.
         localStorage.removeItem('vs_pending_tier');
-        showToast('Checkout was not completed. Please try again.');
+        showToast('התשלום לא הושלם. אפשר לנסות שוב.');
         return;
       }
       if (handledStatusRef.current) return;
@@ -792,7 +776,7 @@ function App() {
         // checkout was completed in another tab. Refresh once, but do not
         // start a long tier-specific polling loop when there is no tier to
         // verify.
-        showToast('Payment status received. Refreshing your access…');
+        showToast('התשלום התקבל. מעדכנים את הגישה שלך…');
         refreshUser().catch(() => {});
         return;
       }
@@ -1094,7 +1078,7 @@ function App() {
           }
           setScanning(false);
           setProgress(null);
-          setError('The scan took too long to return a verified result. Please try again.');
+          setError('הסריקה ארכה יותר מהצפוי. אפשר לנסות שוב.');
         },
         10 * 60 * 1000
       );
@@ -1108,8 +1092,7 @@ function App() {
       }
 
       function applyCompletedScan(d) {
-        if (!d || !Array.isArray(d.results))
-          throw new Error('The scan returned no complete result set. Please try again.');
+        if (!d || !Array.isArray(d.results)) throw new Error('לא הצלחנו להשלים את הסריקה. אפשר לנסות שוב.');
         setResults(d.results);
         setScanTime(d.scanTime);
         setScanDataStatus(d.dataStatus || null);
@@ -1129,7 +1112,7 @@ function App() {
         clearScanPolling();
         setScanning(false);
         setProgress(null);
-        setError(message || 'The scan could not return a verified result. Please try again.');
+        setError(message || 'לא הצלחנו לאמת את תוצאות הסריקה. אפשר לנסות שוב.');
       }
 
       function fetchCompletedAsyncResult() {
@@ -1142,7 +1125,7 @@ function App() {
             if (r.status === 409) return null; // completion state and result write are adjacent; retry on the next poll
             if (!r.ok)
               return r.json().then(function (d) {
-                throw new Error(d.error || 'The completed scan could not be loaded.');
+                throw new Error(d.error || 'לא הצלחנו לטעון את תוצאות הסריקה.');
               });
             return r.json();
           })
@@ -1403,7 +1386,7 @@ function App() {
       )}
 
       {isGuestLanding ? (
-        <Suspense fallback={<div className="page-loading">Loading…</div>}>
+        <Suspense fallback={<div className="page-loading">טוענים…</div>}>
           <LandingPage onGetStarted={landingGetStarted} />
         </Suspense>
       ) : (
@@ -1452,7 +1435,7 @@ function App() {
             <Route
               path="/ma"
               element={
-                <Suspense fallback={<div className="page-loading">Loading…</div>}>
+                <Suspense fallback={<div className="page-loading">טוענים…</div>}>
                   <MAScannerPage
                     onSignIn={() => openAuthModal('login')}
                     onCreateAccount={() => openAuthModal('signup')}
@@ -1475,7 +1458,7 @@ function App() {
             <Route
               path="/flow"
               element={
-                <Suspense fallback={<div className="page-loading">Loading…</div>}>
+                <Suspense fallback={<div className="page-loading">טוענים…</div>}>
                   <MoneyFlow
                     setShowUpgradeModal={setShowUpgradeModal}
                     onSignIn={() => openAuthModal('login')}
@@ -1496,7 +1479,7 @@ function App() {
             <Route
               path="/fundamentals"
               element={
-                <Suspense fallback={<div className="page-loading">Loading…</div>}>
+                <Suspense fallback={<div className="page-loading">טוענים…</div>}>
                   <FundamentalsPage
                     onUpgrade={() => openUpgradeModal()}
                     onSignIn={() => openAuthModal('login')}
@@ -1610,7 +1593,7 @@ function App() {
             <Route
               path="/policy"
               element={
-                <Suspense fallback={<div className="page-loading">Loading…</div>}>
+                <Suspense fallback={<div className="page-loading">טוענים…</div>}>
                   <PolicyPage />
                 </Suspense>
               }
@@ -1619,22 +1602,22 @@ function App() {
             <Route
               path="/accessibility"
               element={
-                <Suspense fallback={<div className="page-loading">Loading…</div>}>
+                <Suspense fallback={<div className="page-loading">טוענים…</div>}>
                   <AccessibilityStatementPage />
                 </Suspense>
               }
             />
 
-            <Route path="*" element={<Navigate to="/scanner" replace />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
 
           <footer className="site-footer">
             <div className="site-footer-col">
               <button className="site-footer-link" onClick={() => setPage('policy')}>
-                Privacy Policy
+                תנאי שימוש ופרטיות
               </button>
               <p className="site-footer-disclaimer">
-                Info & Education Only. Not intended as investment advice. Market data may be delayed or estimated.
+                מידע למטרות לימוד ומחקר בלבד, ולא ייעוץ השקעות. נתוני השוק עשויים להיות מעוכבים או מוערכים.
               </p>
             </div>
           </footer>
@@ -1665,14 +1648,14 @@ function App() {
             </svg>
           </span>
           <div className="live-alert-body">
-            <span className="live-alert-kicker">LIVE ALERT</span>
+            <span className="live-alert-kicker">התראה חדשה</span>
             <strong>{liveAlert.title}</strong>
             <span>{liveAlert.body}</span>
           </div>
           <button
             className="live-alert-close"
             type="button"
-            aria-label="Dismiss live alert"
+            aria-label="סגירת ההתראה"
             onClick={() => setLiveAlert(null)}
           >
             ✕

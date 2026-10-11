@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { loadWhop } from '@whop/elements';
 import { WhopElements, Checkout, CheckoutElement } from '@whop/elements-react';
 import { createWhopReturnUrl, redirectToWhopReturn } from '../../utils/checkoutReturn';
+import { BILLING_COUNTRIES } from '../../utils/billingCountries';
 
 const APPEARANCE = { theme: { appearance: 'dark', accentColor: 'amber', grayColor: 'slate' } };
 
@@ -14,6 +15,8 @@ export default function EmbeddedCheckout({ planId, metadata, promoCode, buyerEma
   const [loadFailure, setLoadFailure] = useState(false);
   const [retryLoad, setRetryLoad] = useState(null);
   const [paymentReceived, setPaymentReceived] = useState(false);
+  const [billingCountry, setBillingCountry] = useState('');
+  const [countryConfirmed, setCountryConfirmed] = useState(false);
   const returnUrl = typeof window === 'undefined' ? undefined : createWhopReturnUrl();
 
   function handleLoadError(_error, retry) {
@@ -39,14 +42,45 @@ export default function EmbeddedCheckout({ planId, metadata, promoCode, buyerEma
     onError?.(new Error('Secure checkout is temporarily unavailable.'));
   }
 
-  return (
-    <div className="embedded-checkout">
-      <WhopElements
-        elements={elements}
-        locale="en"
-        appearance={APPEARANCE}
-        onLoadError={handleLoadError}
+  if (!countryConfirmed) {
+    return (
+      <form
+        className="embedded-checkout"
+        lang="he"
+        dir="rtl"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (billingCountry) setCountryConfirmed(true);
+        }}
       >
+        <label className="auth-label" htmlFor="checkout-billing-country">
+          מדינת כתובת החיוב
+        </label>
+        <select
+          id="checkout-billing-country"
+          className="auth-input"
+          required
+          value={billingCountry}
+          onChange={(event) => setBillingCountry(event.target.value)}
+        >
+          <option value="">בחירת מדינה</option>
+          {BILLING_COUNTRIES.map(({ code, name }) => (
+            <option key={code} value={code}>
+              {name}
+            </option>
+          ))}
+        </select>
+        <p className="policy-paragraph">יש לבחור את המדינה של כתובת החיוב שלך.</p>
+        <button className="upgrade-cta" type="submit" disabled={!billingCountry}>
+          המשך לתשלום מאובטח
+        </button>
+      </form>
+    );
+  }
+
+  return (
+    <div className="embedded-checkout" dir="ltr">
+      <WhopElements elements={elements} locale="en" appearance={APPEARANCE} onLoadError={handleLoadError}>
         <Checkout
           plan={planId}
           metadata={metadata}
@@ -60,11 +94,12 @@ export default function EmbeddedCheckout({ planId, metadata, promoCode, buyerEma
           <CheckoutElement
             buyerEmail={buyerEmail || ''}
             lockBuyerEmail={Boolean(buyerEmail)}
+            defaultValues={{ billingDetails: { address: { country: billingCountry } } }}
             onError={handleElementError}
             fallback={
               <div className="embedded-checkout-loading" role="status" aria-live="polite">
                 <div className="spinner" />
-                Loading secure checkout…
+                טוענים את התשלום המאובטח…
               </div>
             }
           />
@@ -72,7 +107,7 @@ export default function EmbeddedCheckout({ planId, metadata, promoCode, buyerEma
       </WhopElements>
       {loadFailure && (
         <div className="embedded-checkout-error" role="alert">
-          <p>We couldn’t load secure checkout. Check your connection and try again.</p>
+          <p>לא הצלחנו לטעון את התשלום. יש לבדוק את החיבור ולנסות שוב.</p>
           <button
             type="button"
             onClick={() => {
@@ -81,17 +116,17 @@ export default function EmbeddedCheckout({ planId, metadata, promoCode, buyerEma
               retryLoad();
             }}
           >
-            Try again
+            ניסיון נוסף
           </button>
         </div>
       )}
       {paymentReceived && (
         <p className="embedded-checkout-confirmation" role="status" aria-live="polite">
-          Payment received. We’re confirming your access now…
+          התשלום התקבל. מפעילים את הגישה שלך…
         </p>
       )}
       <div className="embedded-checkout-powered-by">
-        Powered by <span className="embedded-checkout-whop-mark">Whop</span>
+        תשלום מאובטח באמצעות <span className="embedded-checkout-whop-mark">Whop</span>
       </div>
     </div>
   );

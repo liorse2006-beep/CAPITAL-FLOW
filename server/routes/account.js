@@ -8,17 +8,13 @@ const {
   issueToken,
   revokeAllSessions,
   withEffectivePremium,
-  MAX_PASSWORD_BYTES,
 } = require('../services/auth');
+const { passwordPolicyError } = require('../services/passwordPolicy');
 const { quotaFor, freeTrialActive } = require('../services/scanQuota');
 const { reportError } = require('../utils/reportError');
 const { setRefreshCookie, clearRefreshCookie, serializePublicUser } = require('./auth');
 
 const MAX_EXPORT_ROWS = 5000;
-
-function validPassword(value) {
-  return typeof value === 'string' && value.length >= 8 && Buffer.byteLength(value, 'utf8') <= MAX_PASSWORD_BYTES;
-}
 
 function jsonOrNull(value) {
   if (value == null || value === '') return null;
@@ -97,9 +93,8 @@ router.post('/account/change-password', authLimiter, requireAuth, async (req, re
     if (typeof currentPassword !== 'string' || !currentPassword) {
       return res.status(400).json({ error: 'Enter your current password' });
     }
-    if (!validPassword(newPassword)) {
-      return res.status(400).json({ error: `New password must be 8–${MAX_PASSWORD_BYTES} UTF-8 bytes` });
-    }
+    const policyError = passwordPolicyError(newPassword);
+    if (policyError) return res.status(400).json({ error: policyError });
 
     const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
     if (!user) return res.status(401).json({ error: 'Account not found' });

@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { friendlyError } from '../utils/format';
 
 function urlBase64ToUint8Array(value) {
   const padding = '='.repeat((4 - (value.length % 4)) % 4);
@@ -125,7 +126,7 @@ export default function usePushSubscription() {
 
   const enablePush = useCallback(async () => {
     if (!pushSupported || !notificationApiSupported)
-      throw new Error('Push notifications are not supported in this browser.');
+      throw new Error(friendlyError('Push notifications are not supported in this browser.'));
     let operation;
     try {
       operation = beginOperation(true, 30000);
@@ -165,12 +166,14 @@ export default function usePushSubscription() {
       if (!saved.ok) throw new Error('Could not save notification access. Please try again.');
       operation.update({ enabled: true });
     } catch (error) {
-      const message =
-        error?.message?.startsWith('Allow notifications') ||
-        error?.message?.startsWith('Push notifications') ||
-        error?.message?.startsWith('Could not save')
-          ? error.message
-          : 'Could not enable notifications. Please try again.';
+      const known = [
+        'Allow notifications in your browser settings to enable push.',
+        'Push notifications are temporarily unavailable.',
+        'Could not save notification access. Please try again.',
+      ];
+      const message = friendlyError(
+        known.includes(error?.message) ? error.message : 'Could not enable notifications. Please try again.'
+      );
       operation?.update({ enabled: false, error: message });
       throw new Error(message);
     } finally {
@@ -206,7 +209,7 @@ export default function usePushSubscription() {
       operation.assertCurrent();
       operation.update({ enabled: false });
     } catch {
-      const message = 'Could not disable notifications. Please try again.';
+      const message = friendlyError('Could not disable notifications. Please try again.');
       operation?.update({ error: message });
       throw new Error(message);
     } finally {

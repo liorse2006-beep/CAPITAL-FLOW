@@ -5,6 +5,7 @@ const { GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_EMAIL, RESEND_API_KEY } = require(
 const { reportError } = require('../utils/reportError');
 const { sendApplicationBackupEmail, sendApplicationBackupFailureEmail } = require('./email');
 const { BACKUP_TABLES: TABLES } = require('./backupTables');
+const { encryptBackup, encryptionKey } = require('./backupEncryption');
 const BACKUP_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const BACKUP_STARTUP_DELAY_MS = 2 * 60 * 1000;
 const BACKUP_MIN_GAP_MS = 6 * 24 * 60 * 60 * 1000;
@@ -13,7 +14,7 @@ const BACKUP_OVERDUE_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
 // Render's filesystem is ephemeral — anything written to disk there is gone
 // on the next deploy or restart, so a backup can only be useful if it leaves
 // the container. There's no cloud-storage account configured for this app,
-// so the weekly backup is gzipped and emailed to the admin's own inbox as an
+// so the weekly backup is compressed, encrypted and emailed to the admin's own inbox as an
 // attachment. Gmail SMTP is preferred when configured; the transactional
 // Resend sender is a safe fallback, so backup delivery does not silently
 // disappear just because the operator did not create a second mail account.
@@ -53,6 +54,9 @@ async function runBackupTick() {
   const to = ADMIN_EMAIL;
   if ((!transport && !RESEND_API_KEY) || !to) return; // not configured — nothing to send to
 
+  // Fail closed before querying sensitive tables if the separate recovery key
+  // is absent. Never silently fall back to an unencrypted email attachment.
+  encryptionKey();
   const dump = await dumpTables();
   const json = JSON.stringify(dump, null, 2);
   const gzipped = zlib.gzipSync(json);
@@ -80,20 +84,21 @@ async function runBackupTick() {
     throw new Error(`Backup too large to email: ${gzipped.length} bytes`);
   }
 
-  const filename = `capital-flow-backup-${dateStr}.json.gz`;
+  const content = encryptBackup(gzipped);
+  const filename = `capital-flow-backup-${dateStr}.json.gz.enc`;
   if (transport) {
     await transport.sendMail({
       from: `"Capital Flow" <${GMAIL_USER}>`,
       to,
       subject: `Capital Flow — DB backup ${dateStr}`,
-      text: `Automated weekly backup. ${TABLES.length} tables, ${gzipped.length} bytes gzipped. Restore with: node restoreDb.js ${filename} --confirm`,
-      attachments: [{ filename, content: gzipped }],
+      text: `Encrypted weekly backup. ${TABLES.length} tables, ${content.length} bytes. The recovery key is stored separately and is not attached. Set BACKUP_ENCRYPTION_KEY and first run: node restoreDb.js ${filename}. Confirm the target and dry-run summary before adding --confirm.`,
+      attachments: [{ filename, content }],
     });
   } else {
     await sendApplicationBackupEmail({
       recipient: to,
       filename,
-      content: gzipped,
+      content,
       tableCount: TABLES.length,
       createdAt: dump.createdAt,
     });

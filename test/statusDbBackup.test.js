@@ -90,7 +90,7 @@ test('status backup sends one independent database attachment and records succes
   assert.equal(result.status, 'success');
   assert.equal(deliveries.length, 2);
   assert.deepEqual(deliveries.map((delivery) => delivery.recipient).sort(), ['admin@test.local', 'ops@test.local']);
-  assert.match(deliveries[0].filename, /capital-flow-status-backup-\d{4}-\d{2}-\d{2}\.json\.gz/);
+  assert.match(deliveries[0].filename, /capital-flow-status-backup-\d{4}-\d{2}-\d{2}\.json\.gz\.enc/);
   assert.ok(Buffer.isBuffer(deliveries[0].content));
   const status = await db.prepare("SELECT value FROM status_meta WHERE key = 'status_backup_status'").get();
   assert.equal(status.value, 'success');

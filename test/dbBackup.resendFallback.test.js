@@ -38,7 +38,7 @@ test('application backup falls back to Resend when Gmail is not configured', asy
   assert.equal(resendRequests[0].body.to, 'admin@test.local');
   assert.match(resendRequests[0].body.subject, /Application database backup/);
   assert.equal(resendRequests[0].body.attachments.length, 1);
-  assert.match(resendRequests[0].body.attachments[0].filename, /capital-flow-backup-\d{4}-\d{2}-\d{2}\.json\.gz/);
+  assert.match(resendRequests[0].body.attachments[0].filename, /capital-flow-backup-\d{4}-\d{2}-\d{2}\.json\.gz\.enc/);
 
   const marker = await db.prepare("SELECT value FROM app_meta WHERE key = 'last_backup_at'").get();
   assert.ok(marker && Number(marker.value) > 0, 'successful fallback delivery must update backup freshness');

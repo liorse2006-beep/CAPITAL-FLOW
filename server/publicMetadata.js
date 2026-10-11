@@ -13,38 +13,36 @@ const ROUTE_METADATA = Object.freeze({
       'כלי חינוכי לסריקת מניות לפי נפח מסחר חריג, ממוצעים נעים ופעילות בסקטורים. נתוני שוק עשויים להיות מעוכבים או חלקיים ויש לאמת מידע באופן עצמאי.',
   },
   '/scanner': {
-    title: 'Unusual Volume Stock Scanner | Capital Flow',
+    title: 'סורק נפח מסחר חריג | Capital Flow',
     description:
-      'Screen selected stock universes for unusual trading volume with volume-ratio, market-cap and volume filters. Market data may be delayed or incomplete; educational use only.',
+      'סריקת מניות לפי יחס נפח מסחר, שווי שוק ונפח מינימלי. נתוני שוק עשויים להיות מעוכבים או חלקיים; המידע למטרות לימוד בלבד.',
   },
   '/ma': {
-    title: 'Moving Average Stock Scanner | Capital Flow',
+    title: 'סורק ממוצעים נעים | Capital Flow',
     description:
-      'Scan selected U.S. stock universes for proximity to 9, 20, 50 and 150 simple moving averages on daily or weekly timeframes. Market data may be delayed or incomplete.',
+      'סריקת מניות בארה״ב לפי מרחק מממוצעים נעים 9, 20, 50 ו־150, בטווח יומי או שבועי. נתוני השוק עשויים להיות מעוכבים או חלקיים.',
   },
   '/flow': {
-    title: 'Stock Sector Performance | Capital Flow',
+    title: 'פעילות בסקטורים | Capital Flow',
     description:
-      'Review price and volume movement across market sectors with Capital Flow. Market data may be delayed or incomplete; verify information independently.',
+      'סקירת שינויי מחיר ונפח מסחר בסקטורים. נתוני השוק עשויים להיות מעוכבים או חלקיים; יש לאמת מידע באופן עצמאי.',
   },
   '/fundamentals': {
-    title: 'Fundamental Stock Analysis | Capital Flow',
+    title: 'נתונים פיננסיים למניות | Capital Flow',
     description:
-      'Review available P/E, forward P/E, PEG, debt-to-equity, growth, float, short interest, and earnings data. Availability varies by symbol; data may be delayed or incomplete.',
+      'סקירת מכפילי רווח, צמיחה, חוב, מניות סחירות ונתונים פיננסיים זמינים. זמינות הנתונים משתנה בין מניות והמידע עשוי להיות מעוכב או חלקי.',
   },
   '/watchlist': {
-    title: 'Stock Watchlist & Alerts | Capital Flow',
-    description:
-      'Track selected stock symbols, review available quote information, and manage supported price or volume alerts. Market data may be delayed or incomplete.',
+    title: 'רשימת מעקב והתראות | Capital Flow',
+    description: 'מעקב אחר מניות נבחרות וניהול התראות מחיר או נפח מסחר. נתוני השוק עשויים להיות מעוכבים או חלקיים.',
   },
   '/policy': {
-    title: 'מדיניות פרטיות | Capital Flow',
-    description: 'מדיניות הפרטיות של Capital Flow — כיצד אנו אוספים, משתמשים ומגנים על המידע שלך.',
+    title: 'תנאי שימוש ומדיניות פרטיות | Capital Flow',
+    description: 'תנאי השימוש, פרטיות, תשלומים, החזרים ודרכי יצירת קשר עם Capital Flow.',
   },
   '/accessibility': {
-    title: 'Accessibility Statement | Capital Flow',
-    description:
-      "Read Capital Flow's accessibility statement, available features, known limitations, and contact details.",
+    title: 'הצהרת נגישות | Capital Flow',
+    description: 'תכונות הנגישות ב־Capital Flow, מגבלות ידועות ודרכי יצירת קשר.',
   },
 });
 
@@ -94,7 +92,7 @@ function renderSeoContent(content) {
     })
     .join('');
 
-  return `<h2 id="${escapeHtml(content.id)}-title">${escapeHtml(content.title)}</h2><p class="seo-discovery-intro">${escapeHtml(content.intro)}</p><div class="seo-discovery-sections">${sections}</div><p class="seo-discovery-disclaimer">${escapeHtml(content.disclaimer)}</p><nav class="seo-discovery-links" aria-label="Explore Capital Flow tools"><span>Explore other tools</span>${links}</nav>`;
+  return `<h2 id="${escapeHtml(content.id)}-title">${escapeHtml(content.title)}</h2><p class="seo-discovery-intro">${escapeHtml(content.intro)}</p><div class="seo-discovery-sections">${sections}</div><p class="seo-discovery-disclaimer">${escapeHtml(content.disclaimer)}</p><nav class="seo-discovery-links" aria-label="כלי מחקר נוספים"><span>כלים נוספים</span>${links}</nav>`;
 }
 
 function renderPublicMetadata(html, pathname) {
@@ -110,6 +108,13 @@ function renderPublicMetadata(html, pathname) {
   rendered = replaceContentAttribute(rendered, `meta\\s+name=["']twitter:title["']`, metadata.title);
   rendered = replaceContentAttribute(rendered, `meta\\s+name=["']twitter:description["']`, metadata.description);
   rendered = replaceHrefAttribute(rendered, `link\\s+rel=["']canonical["']`, canonical);
+  for (const language of ['he', 'x-default']) {
+    rendered = replaceHrefAttribute(
+      rendered,
+      `link\\s+rel=["']alternate["']\\s+hreflang=["']${language}["']`,
+      canonical
+    );
+  }
   const contentMarkup = renderSeoContent(SEO_CONTENT[normalizePath(pathname)]);
   rendered = rendered.replace(
     /(<section\s+id=["']seo-route-content["'][^>]*>)[\s\S]*?(<\/section>)/i,
@@ -120,10 +125,19 @@ function renderPublicMetadata(html, pathname) {
 
 function servePublicApp(req, res, serveDir) {
   const indexPath = `${serveDir}/index.html`;
-  if (!getPublicMetadata(req.path)) return res.sendFile(indexPath);
+  const isKnownRoute = !!getPublicMetadata(req.path);
 
   fs.readFile(indexPath, 'utf8', (error, html) => {
-    if (error) return res.sendFile(indexPath);
+    if (error) return res.status(isKnownRoute ? 200 : 404).sendFile(indexPath);
+    if (!isKnownRoute) {
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+      const notFoundHtml = html
+        .replace(/<title>[\s\S]*?<\/title>/i, '<title>העמוד לא נמצא | Capital Flow</title>')
+        .replace(/<link\s+[^>]*rel=["']canonical["'][^>]*>/gi, '')
+        .replace(/<link\s+[^>]*rel=["']alternate["'][^>]*>/gi, '')
+        .replace(/(<meta\s+name=["']robots["'][^>]*content=["'])[^"']*/i, '$1noindex, nofollow');
+      return res.status(404).type('html').send(notFoundHtml);
+    }
     res.type('html').send(renderPublicMetadata(html, req.path));
   });
 }

@@ -45,16 +45,14 @@ class ErrorBoundary extends React.Component {
           <div className="logo-bar" />
           <div className="logo-bar" />
         </div>
-        <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Something went wrong</h1>
-        <p style={{ fontSize: 13, color: '#A0A0A8', maxWidth: 360, margin: 0 }}>
-          This screen hit an unexpected error. Reloading usually fixes it — your data is safe.
-        </p>
+        <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>לא הצלחנו להציג את המסך</h1>
+        <p style={{ fontSize: 13, color: '#A0A0A8', maxWidth: 360, margin: 0 }}>אפשר לנסות לטעון את העמוד מחדש.</p>
         <button
           className="upgrade-cta"
           style={{ width: 'auto', padding: '10px 24px' }}
           onClick={() => window.location.reload()}
         >
-          Reload
+          טעינה מחדש
         </button>
       </div>
     );

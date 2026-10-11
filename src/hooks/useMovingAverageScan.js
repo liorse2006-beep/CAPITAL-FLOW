@@ -1,8 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import useAccountOperation from './useAccountOperation';
 
-const SCAN_ERROR = 'The scan could not return a result. Please try again.';
-const TIMEOUT_ERROR = 'The scan took too long to return a result. Please try again.';
+const SCAN_ERROR = 'לא הצלחנו לקבל תוצאות לסריקה. אפשר לנסות שוב.';
+const TIMEOUT_ERROR = 'הסריקה מתעכבת. אפשר לנסות שוב.';
 
 function stopRun(run) {
   if (!run) return;

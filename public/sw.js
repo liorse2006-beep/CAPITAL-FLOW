@@ -1,4 +1,4 @@
-var CACHE_NAME = 'vs-v5-brand-assets';
+var CACHE_NAME = 'vs-v6-private-pages-excluded';
 // Only precache paths guaranteed to exist and stay stable across builds.
 // Vite fingerprints every JS/CSS bundle with a content hash that changes on
 // every build, so those can't be precached by name — they're picked up by
@@ -38,11 +38,18 @@ self.addEventListener('activate', function (event) {
 
 self.addEventListener('fetch', function (event) {
   if (event.request.method !== 'GET') return;
-  if (event.request.url.indexOf('/api/') !== -1) return;
+  var url = new URL(event.request.url);
+  // Never retain or replay authenticated pages, even while offline. Express
+  // routes are case-insensitive, so the exclusion must be case-insensitive too.
+  if (url.origin !== self.location.origin || /^\/(?:api|admin|status)(?:\/|$)/i.test(url.pathname)) return;
   event.respondWith(
     fetch(event.request)
       .then(function (response) {
-        if (response && response.status === 200) {
+        if (
+          response &&
+          response.status === 200 &&
+          !/no-store|private/i.test(response.headers.get('Cache-Control') || '')
+        ) {
           var clone = response.clone();
           caches.open(CACHE_NAME).then(function (cache) {
             cache.put(event.request, clone);

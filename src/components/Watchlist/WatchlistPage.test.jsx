@@ -29,10 +29,10 @@ describe('Watchlist quote freshness and controls', () => {
   it('keeps Active Price beside Add Ticker and calls the existing refresh action', () => {
     const p = props();
     render(<WatchlistPage {...p} />);
-    const refresh = screen.getByRole('button', { name: 'Active Price' });
-    const add = screen.getByRole('button', { name: 'Add Ticker' });
+    const refresh = screen.getByRole('button', { name: 'מחיר עדכני' });
+    const add = screen.getByRole('button', { name: 'הוספת מניה' });
     expect(refresh.parentElement).toBe(add.parentElement);
-    expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'עדכון' })).toBeNull();
     fireEvent.click(refresh);
     expect(p.refreshWatchlist).toHaveBeenCalledTimes(1);
   });
@@ -54,22 +54,22 @@ describe('Watchlist quote freshness and controls', () => {
   it('marks undated and stale quotes without inventing a current timestamp', () => {
     const p = props();
     const view = render(<WatchlistPage {...p} />);
-    expect(screen.getByText('Quote time unavailable')).toBeTruthy();
+    expect(screen.getByText('מועד המחיר אינו זמין')).toBeTruthy();
     expect(view.container.querySelector('time')).toBeNull();
     view.rerender(<WatchlistPage {...p} watchlistDataAsOf="2026-10-08T18:00:00Z" watchlistQuoteStatus="stale" />);
-    expect(screen.getByText(/Prices may be delayed/)).toBeTruthy();
+    expect(screen.getByText(/המחירים עשויים להיות מעוכבים/)).toBeTruthy();
   });
 
   it('does not turn a missing provider quote into a nonexistent ticker', () => {
     render(<WatchlistPage {...props({ watchlistData: [] })} />);
     expect(screen.queryByText('Not found')).toBeNull();
-    expect(screen.getAllByText('Quote unavailable')).toHaveLength(2);
+    expect(screen.getAllByText('מחיר אינו זמין')).toHaveLength(2);
   });
 
   it('does not crash on an invalid result container or render a non-finite ratio', () => {
     const p = props({ watchlistData: {} });
     const view = render(<WatchlistPage {...p} />);
-    expect(screen.getAllByText('Quote unavailable')).toHaveLength(2);
+    expect(screen.getAllByText('מחיר אינו זמין')).toHaveLength(2);
     view.rerender(<WatchlistPage {...props({ watchlistData: [{ ...quote, volumeRatio: Infinity }] })} />);
     expect(screen.queryByText('Infinityx')).toBeNull();
   });

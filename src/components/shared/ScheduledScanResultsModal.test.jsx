@@ -40,8 +40,8 @@ describe('ScheduledScanResultsModal', () => {
         />
       );
       const dialog = screen.getByRole('dialog');
-      const close = screen.getByRole('button', { name: 'Close' });
-      const lastLink = screen.getByRole('link', { name: 'Open ONE in TradingView' });
+      const close = screen.getByRole('button', { name: 'סגירה' });
+      const lastLink = screen.getByRole('link', { name: 'פתיחת ONE ב־TradingView' });
       expect(dialog).toHaveFocus();
       expect(document.body.style.overflow).toBe('hidden');
 
@@ -128,10 +128,10 @@ describe('ScheduledScanResultsModal', () => {
     );
     expect(screen.getByText('ONE')).toBeInTheDocument();
     expect(screen.getByText('New market signal detected. Open Capital Flow to view it.')).toBeInTheDocument();
-    expect(screen.getByText('Showing available results. Some market data was unavailable.')).toBeInTheDocument();
-    expect(screen.getByText(/Market data as of/)).toBeInTheDocument();
+    expect(screen.getByText('מוצגות התוצאות הזמינות. חלק מנתוני השוק חסרים.')).toBeInTheDocument();
+    expect(screen.getByText(/נתוני שוק נכון ל־/)).toBeInTheDocument();
     expect(screen.queryByText(/couldn't verify/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/% from MA/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/% מהממוצע/)).not.toBeInTheDocument();
   });
 
   it.each([null, '', 'invalid', new Date(Date.now() + 300000).toISOString()])(
@@ -147,8 +147,8 @@ describe('ScheduledScanResultsModal', () => {
           onClose={vi.fn()}
         />
       );
-      expect(screen.getByText('Market data time is unavailable.')).toBeInTheDocument();
-      expect(screen.queryByText(/% from MA/)).not.toBeInTheDocument();
+      expect(screen.getByText('מועד נתוני השוק אינו זמין.')).toBeInTheDocument();
+      expect(screen.queryByText(/% מהממוצע/)).not.toBeInTheDocument();
     }
   );
 

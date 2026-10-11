@@ -66,25 +66,25 @@ describe('ScannerPage sector limit', () => {
   // every case here has to click into the modal first, same as a real user.
   async function openSectorModal(user, props) {
     render(<ScannerPage {...baseProps(props)} />);
-    await user.click(screen.getByText('By Sector').closest('button'));
+    await user.click(screen.getByText('לפי סקטור').closest('button'));
   }
 
   it('shows the free-tier sector hint and limit', async () => {
     const user = userEvent.setup();
     await openSectorModal(user, { isPremium: false, isElite: false, sectorLimit: () => 2 });
-    expect(screen.getByText(/free tier: up to 2 sectors/i)).toBeInTheDocument();
+    expect(screen.getByText(/במסלול החינמי ניתן לבחור עד 2 סקטורים/)).toBeInTheDocument();
   });
 
   it('shows the premium-tier sector hint and limit', async () => {
     const user = userEvent.setup();
     await openSectorModal(user, { isPremium: true, isElite: false, maxPremiumSectors: 5, sectorLimit: () => 5 });
-    expect(screen.getByText(/premium: up to 5 sectors/i)).toBeInTheDocument();
+    expect(screen.getByText(/ב־Premium ניתן לבחור עד 5 סקטורים/)).toBeInTheDocument();
   });
 
   it('shows no sector-count hint for elite (unlimited) users', async () => {
     const user = userEvent.setup();
     await openSectorModal(user, { isPremium: true, isElite: true, sectorLimit: () => Infinity });
-    expect(screen.queryByText(/up to .* sectors/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/עד 5 סקטורים/i)).not.toBeInTheDocument();
   });
 
   it('shows the "N/limit sectors selected" badge once the limit is reached', async () => {
@@ -95,7 +95,7 @@ describe('ScannerPage sector limit', () => {
       selectedSectors: ['Technology', 'Financials'],
       sectorLimit: () => 2,
     });
-    expect(screen.getByText('2/2 sectors selected')).toBeInTheDocument();
+    expect(screen.getByText('2/2 סקטורים נבחרו')).toBeInTheDocument();
   });
 
   it('calls toggleSector with the sector name when a sector card is clicked', async () => {
@@ -105,26 +105,26 @@ describe('ScannerPage sector limit', () => {
     // Scope to the sector-grid card specifically — the logged-out demo preview
     // also renders a "Technology" sector chip, so an unscoped text query is
     // ambiguous. The card's name lives in .sector-card-name.
-    await user.click(screen.getByText('Technology', { selector: '.sector-card-name' }).closest('button'));
+    await user.click(screen.getByText('טכנולוגיה', { selector: '.sector-card-name' }).closest('button'));
     expect(toggleSector).toHaveBeenCalledWith('Technology');
   });
 
   it('Done closes the modal and returns to the main screen', async () => {
     const user = userEvent.setup();
     await openSectorModal(user, {});
-    expect(screen.getByRole('dialog', { name: /select sectors/i })).toBeInTheDocument();
-    await user.click(screen.getByText(/^Done/));
-    expect(screen.queryByRole('dialog', { name: /select sectors/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /בחירת סקטורים/i })).toBeInTheDocument();
+    await user.click(screen.getByText(/^סיום/));
+    expect(screen.queryByRole('dialog', { name: /בחירת סקטורים/i })).not.toBeInTheDocument();
   });
 });
 
 describe('ScannerPage universe selector', () => {
   it('renders the four scan mode cards', () => {
     render(<ScannerPage {...baseProps({ scanMode: null })} />);
-    expect(screen.getByText('Full Scan')).toBeInTheDocument();
+    expect(screen.getByText('סריקה מלאה')).toBeInTheDocument();
     expect(screen.getByText('S&P 500')).toBeInTheDocument();
     expect(screen.getByText('NASDAQ 100')).toBeInTheDocument();
-    expect(screen.getByText('By Sector')).toBeInTheDocument();
+    expect(screen.getByText('לפי סקטור')).toBeInTheDocument();
   });
 
   it('switches to sector mode and clears selected sectors when "By Sector" is clicked', async () => {
@@ -132,7 +132,7 @@ describe('ScannerPage universe selector', () => {
     const setScanMode = vi.fn();
     const setSelectedSectors = vi.fn();
     render(<ScannerPage {...baseProps({ scanMode: null, setScanMode, setSelectedSectors })} />);
-    await user.click(screen.getByText('By Sector').closest('button'));
+    await user.click(screen.getByText('לפי סקטור').closest('button'));
     expect(setScanMode).toHaveBeenCalledWith('sectors');
   });
 });
@@ -154,7 +154,7 @@ describe('ScannerPage optional browser storage', () => {
     });
     try {
       render(<ScannerPage {...baseProps({ scanMode: null })} />);
-      expect(screen.getByText('Full Scan')).toBeInTheDocument();
+      expect(screen.getByText('סריקה מלאה')).toBeInTheDocument();
     } finally {
       blockedRead.mockRestore();
     }
@@ -167,9 +167,9 @@ describe('ScannerPage optional browser storage', () => {
     try {
       const user = userEvent.setup();
       render(<ScannerPage {...baseProps({ results: [mockRow], sorted: [mockRow] })} />);
-      await user.click(screen.getByRole('button', { name: /^dismiss$/i }));
-      expect(screen.queryByRole('button', { name: /^dismiss$/i })).not.toBeInTheDocument();
-      expect(screen.getByRole('heading', { name: '1 Result' })).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /סגירה/i }));
+      expect(screen.queryByRole('button', { name: /סגירה/i })).not.toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'תוצאה אחת' })).toBeInTheDocument();
     } finally {
       blockedWrite.mockRestore();
     }
@@ -191,7 +191,7 @@ describe('ScannerPage restored-last-scan label', () => {
         })}
       />
     );
-    expect(screen.getByText(/Last scan from .* — click Run Scan to refresh/)).toBeInTheDocument();
+    expect(screen.getByText(/הסריקה האחרונה: .* — לסריקה עדכנית יש להתחיל סריקה חדשה/)).toBeInTheDocument();
   });
 
   it('does not show the restored label after an actual scan', () => {
@@ -205,7 +205,7 @@ describe('ScannerPage restored-last-scan label', () => {
         })}
       />
     );
-    expect(screen.queryByText(/click Run Scan to refresh/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/לסריקה עדכנית יש להתחיל סריקה חדשה/)).not.toBeInTheDocument();
   });
 });
 
@@ -221,7 +221,7 @@ describe('ScannerPage Radar placement', () => {
       />
     );
 
-    expect(screen.getAllByRole('heading', { name: /capital radar.*ultimate scan/i })).toHaveLength(1);
+    expect(screen.getAllByRole('heading', { name: /רדאר Capital Flow/i })).toHaveLength(1);
   });
 });
 
@@ -247,10 +247,10 @@ describe('ScannerPage mobile result surface', () => {
         />
       );
 
-      expect(screen.getByText('MKT CAP')).toBeInTheDocument();
-      expect(screen.getByText('AVG VOLUME')).toBeInTheDocument();
-      expect(screen.getByText('CURRENT VOLUME')).toBeInTheDocument();
-      expect(screen.getByText('SECTOR')).toBeInTheDocument();
+      expect(screen.getAllByText('שווי שוק')[0]).toBeInTheDocument();
+      expect(screen.getByText('נפח ממוצע')).toBeInTheDocument();
+      expect(screen.getByText('נפח נוכחי')).toBeInTheDocument();
+      expect(screen.getAllByText('סקטור')[0]).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /read market news/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /ask the assistant/i })).not.toBeInTheDocument();
 
@@ -280,7 +280,7 @@ describe('ScannerPage mobile result surface', () => {
       />
     );
 
-    expect(screen.getByRole('heading', { name: '51 Results' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '51 תוצאות' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /load .* more/i })).not.toBeInTheDocument();
   });
 });
@@ -298,10 +298,8 @@ describe('ScannerPage result table integrity', () => {
       />
     );
 
-    expect(
-      screen.getByText(/No matching rows are available from the market data returned for this scan/i)
-    ).toBeInTheDocument();
-    expect(screen.queryByText('No stocks matched your filters.')).not.toBeInTheDocument();
+    expect(screen.getByText(/לא נמצאו תוצאות מתאימות בנתונים הזמינים\. אפשר לנסות שוב בהמשך\./i)).toBeInTheDocument();
+    expect(screen.queryByText('לא נמצאו מניות שמתאימות למסננים שלך.')).not.toBeInTheDocument();
   });
 
   it('keeps the action rail inside the table and explains delayed data plainly', () => {
@@ -317,7 +315,7 @@ describe('ScannerPage result table integrity', () => {
     );
 
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Market data may be delayed or incomplete; verify independently.'
+      'הנתונים עשויים להיות מעוכבים או חלקיים. יש לבדוק אותם באופן עצמאי.'
     );
 
     const table = screen.getByRole('table');

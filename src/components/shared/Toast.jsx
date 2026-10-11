@@ -25,7 +25,7 @@ export default function Toast({ message, show, onClose }) {
         </svg>
       </div>
       <span className="toast-msg">{message}</span>
-      <button className="toast-close" type="button" onClick={onClose} aria-label="Close notification">
+      <button className="toast-close" type="button" onClick={onClose} aria-label="סגירת הודעה">
         <svg
           width="14"
           height="14"

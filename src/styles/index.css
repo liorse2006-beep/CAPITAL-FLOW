@@ -53,8 +53,8 @@
   --border-strong: rgba(255, 255, 255, 0.1);
   --text-0: #e4e4e7;
   --text-1: #a0a0a8;
-  --text-2: #71717a;
-  --text-3: #444444;
+  --text-2: #a0a0a8;
+  --text-3: #94949e;
   --accent: #f59e0b;
   --accent-2: #fbbf24;
   --accent-dim: rgba(245, 158, 11, 0.06);
@@ -120,8 +120,8 @@
   --border-strong: rgba(0, 0, 0, 0.28);
   --text-0: #18181b;
   --text-1: #52525b;
-  --text-2: #71717a;
-  --text-3: #b4b4bd;
+  --text-2: #5d5d66;
+  --text-3: #62626b;
   --accent: #92400e;
   --accent-2: #b45309;
   --accent-dim: rgba(146, 64, 14, 0.08);
@@ -203,8 +203,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 10px 0;
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 100;
   background: var(--bg-0);
   border-bottom: 1px solid var(--border);
@@ -15717,8 +15716,8 @@ html.a11y-highlight-links a {
     padding: 3px 4px;
   }
   .tier-matrix-feature-name {
-    font-size: 7.8px;
-    line-height: 1.1;
+    font-size: 11px;
+    line-height: 1.4;
   }
   .tier-matrix-access {
     width: 10px;
@@ -15737,36 +15736,57 @@ html.a11y-highlight-links a {
     font-size: 0.86em;
   }
   .tier-matrix-plan-name {
-    font-size: 9px;
+    font-size: 13px;
   }
   .tier-matrix-plan-price {
-    font-size: 18px;
+    font-size: 24px;
   }
   .tier-matrix-plan-details {
     max-width: 100%;
     padding: 3px 4px;
-    font-size: 6.2px;
+    font-size: 11px;
     white-space: normal;
     text-align: center;
   }
   .tier-matrix-popular {
     margin-bottom: 3px;
     padding: 2px 4px;
-    font-size: 5.7px;
+    font-size: 10px;
   }
   .tier-matrix-plan-footer {
     min-height: 38px;
     padding: 5px 5px 6px;
   }
   .tier-matrix-cta {
-    min-height: 25px;
-    padding: 4px 3px;
-    font-size: 7px;
+    min-height: 44px;
+    padding: 8px 5px;
+    font-size: 12px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .tier-matrix-cta {
     transition: none;
+  }
+}
+
+/* Hebrew UI keeps prices, signs and compact financial values in their
+   original left-to-right order; translated labels remain right-to-left. */
+.fund-tile-value,
+.fund-result-change,
+.ratio-pill {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+@media (max-width: 760px) {
+  .nav-tab {
+    font-size: 12px;
+    padding-inline: 8px;
+  }
+  .mobile-result-card-label {
+    font-size: 11px;
+    line-height: 1.4;
+    letter-spacing: 0;
   }
 }

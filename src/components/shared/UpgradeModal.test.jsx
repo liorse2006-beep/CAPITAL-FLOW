@@ -22,10 +22,7 @@ vi.mock('@whop/elements', () => ({ loadWhop: () => Promise.resolve(() => ({})) }
 vi.mock('@whop/elements-react', () => ({
   WhopElements: (props) => (
     <div data-testid="whop-elements">
-      <button
-        type="button"
-        onClick={() => props.onLoadError(new Error('raw loader detail'), vi.fn())}
-      >
+      <button type="button" onClick={() => props.onLoadError(new Error('raw loader detail'), vi.fn())}>
         Simulate loader failure
       </button>
       {props.children}
@@ -53,6 +50,7 @@ vi.mock('@whop/elements-react', () => ({
       data-testid="whop-checkout-element"
       data-buyer-email={props.buyerEmail}
       data-lock-buyer-email={String(props.lockBuyerEmail)}
+      data-billing-country={props.defaultValues?.billingDetails?.address?.country}
     >
       <button type="button" onClick={() => props.onError({ message: 'raw processor detail' })}>
         Simulate checkout error
@@ -85,6 +83,16 @@ function renderWithProviders(ui) {
   );
 }
 
+async function chooseBillingCountry(user, country = 'IL') {
+  const select = await screen.findByRole('combobox', { name: 'מדינת כתובת החיוב' });
+  expect(select).toHaveValue('');
+  expect(screen.queryByTestId('whop-elements-checkout')).not.toBeInTheDocument();
+  const continueButton = screen.getByRole('button', { name: 'המשך לתשלום מאובטח' });
+  expect(continueButton).toBeDisabled();
+  await user.selectOptions(select, country);
+  await user.click(continueButton);
+}
+
 describe('UpgradeModal', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -96,9 +104,9 @@ describe('UpgradeModal', () => {
 
   it('shows Your plan under the users current tier and a CTA for tiers above it', () => {
     renderWithProviders(<UpgradeModal userTier="premium" onClose={vi.fn()} />);
-    expect(screen.getByText('Your plan')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /get elite/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /get premium/i })).not.toBeInTheDocument();
+    expect(screen.getByText('המסלול שלך')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /בחירת Elite/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /בחירת Premium/i })).not.toBeInTheDocument();
   });
 
   it('shows the base prices', () => {
@@ -108,27 +116,27 @@ describe('UpgradeModal', () => {
     expect(screen.queryByText('Free', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText(/promo code/i)).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText('PROMO CODE')).not.toBeInTheDocument();
-    expect(screen.getAllByText('One-time purchase · Lifetime access')).toHaveLength(2);
+    expect(screen.getAllByText('תשלום חד־פעמי · גישה ללא הגבלת זמן')).toHaveLength(2);
     expect(container.querySelector('.tier-matrix')).toBeInTheDocument();
     expect(container.querySelector('.upgrade-plan-options')).toBeNull();
-    expect(screen.getAllByText(/Full market scans/)).toHaveLength(2);
-    expect(screen.getAllByText(/5 scans \/ 24h \(shared\)/)).toHaveLength(1);
+    expect(screen.getAllByText(/סריקות שוק/)).toHaveLength(2);
+    expect(screen.getAllByText(/5 סריקות ב־24 שעות, במכסה משותפת/)).toHaveLength(1);
     expect(
       [...container.querySelectorAll('.tier-matrix-feature-specific')].filter((element) =>
-        element.textContent.includes('Unlimited')
+        element.textContent.includes('ללא הגבלה')
       )
     ).toHaveLength(4);
-    expect(screen.queryByText('Included', { exact: true })).not.toBeInTheDocument();
-    expect(screen.queryByText('Not included', { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText('כלול', { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText('לא כלול', { exact: true })).not.toBeInTheDocument();
   });
 
   it('shows the post-trial value proposition with only the paid paths', () => {
     renderWithProviders(<UpgradeModal userTier="free" trialEnded onClose={vi.fn()} />);
-    expect(screen.getByText(/keep your edge after the trial/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /keep scanning with premium/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /unlock elite/i })).toBeInTheDocument();
+    expect(screen.getByText(/ממשיכים גם אחרי הניסיון\./i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /המשך סריקה עם Premium/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /מעבר ל־Elite/i })).toBeInTheDocument();
     expect(screen.queryByText('Explore the basics')).not.toBeInTheDocument();
-    expect(screen.getByText('One payment')).toBeInTheDocument();
+    expect(screen.getByText('תשלום חד־פעמי')).toBeInTheDocument();
   });
 
   it('closes on Escape', () => {
@@ -149,7 +157,8 @@ describe('UpgradeModal', () => {
     );
     renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: /get premium/i }));
+    await user.click(screen.getByRole('button', { name: /בחירת Premium/i }));
+    await chooseBillingCountry(user);
 
     await waitFor(() =>
       expect(fetch).toHaveBeenCalledWith(
@@ -167,8 +176,12 @@ describe('UpgradeModal', () => {
     });
     expect(checkout).toHaveAttribute('data-return-url', `${window.location.origin}/?status=success`);
     expect(checkout).toHaveAttribute('data-analytics', 'false');
-    expect(await screen.findByTestId('whop-checkout-element')).toHaveAttribute('data-buyer-email', 'customer@example.com');
+    expect(await screen.findByTestId('whop-checkout-element')).toHaveAttribute(
+      'data-buyer-email',
+      'customer@example.com'
+    );
     expect(screen.getByTestId('whop-checkout-element')).toHaveAttribute('data-lock-buyer-email', 'true');
+    expect(screen.getByTestId('whop-checkout-element')).toHaveAttribute('data-billing-country', 'IL');
     expect(window.location.href).not.toContain('whop.com');
   });
 
@@ -184,14 +197,13 @@ describe('UpgradeModal', () => {
     const onClose = vi.fn();
     renderWithProviders(<UpgradeModal userTier="free" onClose={onClose} />);
 
-    await user.click(screen.getByRole('button', { name: /get premium/i }));
+    await user.click(screen.getByRole('button', { name: /בחירת Premium/i }));
+    await chooseBillingCountry(user);
     await screen.findByTestId('whop-elements-checkout');
     await user.click(screen.getByRole('button', { name: 'Simulate payment complete' }));
 
-    expect(await screen.findByText(/Payment received\. We’re confirming your access now/)).toBeInTheDocument();
-    expect(checkoutReturnMocks.redirectToWhopReturn).toHaveBeenCalledWith(
-      `${window.location.origin}/?status=success`
-    );
+    expect(await screen.findByText(/התשלום התקבל\. מפעילים את הגישה שלך/)).toBeInTheDocument();
+    expect(checkoutReturnMocks.redirectToWhopReturn).toHaveBeenCalledWith(`${window.location.origin}/?status=success`);
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -206,7 +218,8 @@ describe('UpgradeModal', () => {
     );
     renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: /get premium/i }));
+    await user.click(screen.getByRole('button', { name: /בחירת Premium/i }));
+    await chooseBillingCountry(user);
 
     expect(await screen.findByTestId('whop-elements-checkout')).toBeInTheDocument();
     expect(screen.getAllByTestId('whop-elements-checkout')).toHaveLength(1);
@@ -224,7 +237,8 @@ describe('UpgradeModal', () => {
     );
     renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: /get premium/i }));
+    await user.click(screen.getByRole('button', { name: /בחירת Premium/i }));
+    await chooseBillingCountry(user);
 
     await waitFor(() =>
       expect(fetch).toHaveBeenCalledWith(
@@ -250,7 +264,8 @@ describe('UpgradeModal', () => {
     );
     renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: /get elite/i }));
+    await user.click(screen.getByRole('button', { name: /בחירת Elite/i }));
+    await chooseBillingCountry(user);
 
     await waitFor(() => expect(localStorage.getItem('vs_pending_tier')).toBe('elite'));
     expect(await screen.findByTestId('whop-elements-checkout')).toHaveAttribute('data-plan', 'plan_elite_test');
@@ -268,11 +283,12 @@ describe('UpgradeModal', () => {
     const onClose = vi.fn();
     renderWithProviders(<UpgradeModal userTier="free" onClose={onClose} />);
 
-    await user.click(screen.getByRole('button', { name: /get premium/i }));
+    await user.click(screen.getByRole('button', { name: /בחירת Premium/i }));
+    await chooseBillingCountry(user);
     await screen.findByTestId('whop-elements-checkout');
     expect(localStorage.getItem('vs_pending_tier')).toBe('premium');
 
-    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('button', { name: 'סגירה' }));
     expect(localStorage.getItem('vs_pending_tier')).toBeNull();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -285,25 +301,41 @@ describe('UpgradeModal', () => {
     );
     renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: /get premium/i }));
+    await user.click(screen.getByRole('button', { name: /בחירת Premium/i }));
 
-    expect(await screen.findByText('Whop is not configured yet')).toBeInTheDocument();
+    expect(await screen.findByText('לא הצלחנו לפתוח את התשלום. אפשר לנסות שוב.')).toBeInTheDocument();
+    expect(screen.queryByText('Whop is not configured yet')).not.toBeInTheDocument();
     expect(screen.queryByTestId('whop-elements-checkout')).not.toBeInTheDocument();
   });
 
   it('does not show raw provider error text to the customer', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: true, json: async () => signedCheckoutResponse() })
-    );
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => signedCheckoutResponse() }));
     renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: /get premium/i }));
+    await user.click(screen.getByRole('button', { name: /בחירת Premium/i }));
+    await chooseBillingCountry(user);
     await screen.findByTestId('whop-checkout-element');
     await user.click(screen.getByRole('button', { name: 'Simulate checkout error' }));
 
-    expect(await screen.findByText('Secure checkout is temporarily unavailable. Please try again.')).toBeInTheDocument();
+    expect(await screen.findByText('התשלום המאובטח אינו זמין כרגע. אפשר לנסות שוב.')).toBeInTheDocument();
     expect(screen.queryByText('raw processor detail')).not.toBeInTheDocument();
+  });
+  it('uses the United States only when the buyer explicitly selects it', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => signedCheckoutResponse('elite') }));
+    renderWithProviders(<UpgradeModal userTier="free" onClose={vi.fn()} />);
+    await user.click(screen.getByRole('button', { name: /בחירת Elite/i }));
+    await chooseBillingCountry(user, 'US');
+    expect(await screen.findByTestId('whop-checkout-element')).toHaveAttribute('data-billing-country', 'US');
+    expect(screen.getByTestId('whop-elements-checkout')).toHaveAttribute('data-plan', 'plan_elite_test');
+    expect(JSON.parse(screen.getByTestId('whop-elements-checkout').getAttribute('data-metadata'))).toMatchObject({
+      tier: 'elite',
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/checkout/transaction',
+      expect.objectContaining({ body: JSON.stringify({ tier: 'elite' }) })
+    );
   });
 });

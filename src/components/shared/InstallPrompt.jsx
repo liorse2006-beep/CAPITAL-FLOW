@@ -25,7 +25,7 @@ export default function InstallPrompt() {
   }
 
   return (
-    <div className="install-prompt" role="banner" aria-label="Add to Home Screen">
+    <div className="install-prompt" role="banner" aria-label="הוספה למסך הבית">
       <div className="install-prompt-icon" aria-hidden="true">
         <img src="/favicon.svg" alt="" width="36" height="36" />
       </div>
@@ -33,10 +33,10 @@ export default function InstallPrompt() {
       <div className="install-prompt-body">
         {isIOS ? (
           <>
-            <p className="install-prompt-title">Add Capital Flow to your Home Screen for notifications</p>
-            <p className="install-prompt-sub">Open it from the new icon, then allow notifications.</p>
+            <p className="install-prompt-title">לקבלת התראות באייפון, הוסף את Capital Flow למסך הבית</p>
+            <p className="install-prompt-sub">פתח מהאייקון החדש ואשר התראות.</p>
             <div className="install-prompt-steps">
-              <span className="install-prompt-step install-prompt-step-icon-only" aria-label="More">
+              <span className="install-prompt-step install-prompt-step-icon-only" aria-label="אפשרויות נוספות">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                   <circle cx="5" cy="12" r="2" />
                   <circle cx="12" cy="12" r="2" />
@@ -71,7 +71,7 @@ export default function InstallPrompt() {
                   <path d="M7 8l5-5 5 5" />
                   <rect x="5" y="13" width="14" height="8" rx="2" />
                 </svg>
-                Share
+                שיתוף
               </span>
               <svg
                 className="install-prompt-step-arrow"
@@ -100,25 +100,25 @@ export default function InstallPrompt() {
                   <rect x="3" y="3" width="18" height="18" rx="4" />
                   <path d="M12 8v8M8 12h8" />
                 </svg>
-                Add Home
+                הוספה למסך הבית
               </span>
             </div>
           </>
         ) : (
           <>
-            <p className="install-prompt-title">Add Capital Flow to your home screen</p>
-            <p className="install-prompt-sub">One tap — instant access, no app store needed.</p>
+            <p className="install-prompt-title">הוספת Capital Flow למסך הבית</p>
+            <p className="install-prompt-sub">גישה מהירה, ללא התקנה מחנות אפליקציות.</p>
           </>
         )}
       </div>
 
       {!isIOS && (
         <button className="install-prompt-cta" onClick={handleInstall}>
-          Install
+          הוספה
         </button>
       )}
 
-      <button className="install-prompt-close" onClick={handleDismiss} aria-label="Dismiss">
+      <button className="install-prompt-close" onClick={handleDismiss} aria-label="סגירה">
         ✕
       </button>
     </div>

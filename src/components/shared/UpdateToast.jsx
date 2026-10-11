@@ -22,11 +22,11 @@ export default function UpdateToast() {
 
   return (
     <div className="update-toast" role="status" aria-live="polite">
-      <span className="update-toast-msg">A new version of Capital Flow is available</span>
+      <span className="update-toast-msg">גרסה חדשה של Capital Flow זמינה</span>
       <button className="update-toast-btn" onClick={() => window.location.reload()}>
-        Refresh
+        עדכון
       </button>
-      <button className="update-toast-close" onClick={() => setShow(false)} aria-label="Dismiss">
+      <button className="update-toast-close" onClick={() => setShow(false)} aria-label="סגירה">
         ✕
       </button>
     </div>

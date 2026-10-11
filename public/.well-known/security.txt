@@ -1,0 +1,4 @@
+Contact: mailto:liormenaiot@gmail.com
+Expires: 2027-10-10T00:00:00Z
+Canonical: https://capitalflow.vip/.well-known/security.txt
+Preferred-Languages: he, en

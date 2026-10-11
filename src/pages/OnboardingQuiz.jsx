@@ -3,44 +3,44 @@ import React, { useState, useEffect } from 'react';
 const QUESTIONS = [
   {
     id: 'role',
-    question: 'What best describes you as a trader?',
-    subtitle: 'No judgment — helps us show you the right features',
+    question: 'מה מתאר אותך כמשקיע?',
+    subtitle: 'כך נתאים לך את ההיכרות עם הכלים',
     options: [
-      { label: 'Active day trader', emoji: '⚡', desc: 'Multiple positions, daily action' },
-      { label: 'Swing trader', emoji: '📈', desc: 'Hold for days or weeks' },
-      { label: 'Long term investor', emoji: '🏦', desc: 'Holding for years, watching fundamentals' },
-      { label: 'Learning to trade', emoji: '🌱', desc: 'Building my strategy' },
+      { label: 'סוחר יומי', emoji: '⚡', desc: 'פעילות מסחר בכל יום' },
+      { label: 'סוחר סווינג', emoji: '📈', desc: 'החזקת מניות למספר ימים או שבועות' },
+      { label: 'משקיע לטווח ארוך', emoji: '🏦', desc: 'השקעה ארוכת טווח ומעקב פיננסי' },
+      { label: 'לומד את עולם המסחר', emoji: '🌱', desc: 'בונה שיטת עבודה' },
     ],
   },
   {
     id: 'challenge',
-    question: "What's your biggest challenge finding trades?",
-    subtitle: 'Pick the one that hurts the most',
+    question: 'מה הכי מקשה עליך לאתר מניות?',
+    subtitle: 'בחר את האתגר המרכזי שלך',
     options: [
-      { label: 'Missing breakouts', emoji: '💨', desc: "By the time I see it, it's already moved" },
-      { label: 'Too much noise', emoji: '📡', desc: 'Hard to filter what actually matters' },
-      { label: 'Research takes too long', emoji: '⏱️', desc: 'Manually scanning charts kills my time' },
-      { label: 'No reliable system', emoji: '🎲', desc: 'Relying on tips and gut feeling' },
+      { label: 'מפספס תנועות בשוק', emoji: '💨', desc: 'רואה את התנועה אחרי שהיא כבר התרחשה' },
+      { label: 'יותר מדי רעש', emoji: '📡', desc: 'קשה לסנן את מה שבאמת חשוב' },
+      { label: 'המחקר לוקח יותר מדי זמן', emoji: '⏱️', desc: 'בדיקת גרפים ידנית גוזלת זמן' },
+      { label: 'אין שיטת עבודה מסודרת', emoji: '🎲', desc: 'מסתמך על טיפים ותחושת בטן' },
     ],
   },
   {
     id: 'timing',
-    question: 'How often do you see a stock up 15%+ and think "I saw signs of this"?',
-    subtitle: "Be honest — we won't judge",
+    question: 'באיזו תדירות אתה רואה תנועה חזקה ומרגיש שיכולת לשים לב מוקדם יותר?',
+    subtitle: 'אין תשובה נכונה או לא נכונה',
     options: [
-      { label: 'Rarely — I catch most moves', emoji: '😎', desc: 'My process is solid' },
-      { label: 'Sometimes — a few per week', emoji: '😐', desc: 'Room to improve' },
-      { label: "All the time — it's frustrating", emoji: '😤', desc: 'I miss more than I catch' },
+      { label: 'לעיתים רחוקות', emoji: '😎', desc: 'יש לי תהליך מחקר מסודר' },
+      { label: 'לפעמים', emoji: '😐', desc: 'יש מקום לשיפור' },
+      { label: 'לעיתים קרובות', emoji: '😤', desc: 'מרגיש שאני מפספס הזדמנויות למחקר' },
     ],
   },
   {
     id: 'money_flow',
-    question: 'Would you want to know where the big money is flowing — before it moves the price?',
-    subtitle: 'Before the market moves and everyone else notices',
+    question: 'האם תרצה כלי שיעזור לזהות פעילות חריגה בשוק?',
+    subtitle: 'נתוני מחיר ונפח מסחר להמשך מחקר עצמאי',
     options: [
-      { label: "Yes — that's exactly the edge I need", emoji: '🎯', desc: 'I want to follow smart money in real time' },
-      { label: "Definitely — I'm tired of being last", emoji: '🔥', desc: 'Done missing moves I could have caught' },
-      { label: "I'm curious, show me how", emoji: '🧐', desc: 'Tell me more before I decide' },
+      { label: 'כן — זה בדיוק מה שאני מחפש', emoji: '🎯', desc: 'רוצה להבין את פעילות המסחר' },
+      { label: 'בהחלט — רוצה לעבוד בצורה מסודרת', emoji: '🔥', desc: 'רוצה לאתר מניות מעניינות למחקר' },
+      { label: 'מסקרן אותי, הראה לי איך', emoji: '🧐', desc: 'רוצה להכיר לפני שאחליט' },
     ],
   },
 ];
@@ -107,7 +107,7 @@ export default function OnboardingQuiz({ onComplete }) {
             >
               <polyline points="15 18 9 12 15 6" />
             </svg>
-            Back
+            חזרה
           </button>
         ) : (
           <div className="quiz-logo">
@@ -140,7 +140,7 @@ export default function OnboardingQuiz({ onComplete }) {
           {isQuestion && (
             <div className="quiz-question-wrap">
               <div className="quiz-step-label">
-                Question {step + 1} of {QUESTIONS.length}
+                שאלה {step + 1} מתוך {QUESTIONS.length}
               </div>
               <h2 className="quiz-question">{q.question}</h2>
               <p className="quiz-subtitle">{q.subtitle}</p>
@@ -180,8 +180,8 @@ export default function OnboardingQuiz({ onComplete }) {
                 <img src="/logo-text-transparent.png" alt="Capital Flow" className="quiz-cta-logo-img" />
               </div>
               <h1 className="quiz-cta-title">
-                Start now and get
-                <span className="quiz-cta-highlight">7 days free.</span>
+                התחל עכשיו וקבל
+                <span className="quiz-cta-highlight">שבעה ימי ניסיון בחינם.</span>
               </h1>
               <ul className="quiz-cta-benefits">
                 <li>
@@ -197,7 +197,7 @@ export default function OnboardingQuiz({ onComplete }) {
                   >
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
-                  Real-time institutional volume detection
+                  איתור נפח מסחר חריג במניות
                 </li>
                 <li>
                   <svg
@@ -212,7 +212,7 @@ export default function OnboardingQuiz({ onComplete }) {
                   >
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
-                  Instant alerts the moment money moves
+                  התראות לפי התנאים שהגדרת
                 </li>
                 <li>
                   <svg
@@ -227,12 +227,12 @@ export default function OnboardingQuiz({ onComplete }) {
                   >
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
-                  Start scanning free — no card required
+                  התחל לסרוק בחינם — ללא כרטיס אשראי
                 </li>
               </ul>
               <div className="quiz-cta-scan-outer">
                 <button className="quiz-cta-scan-btn" onClick={handleScan}>
-                  <span className="quiz-cta-scan-label">Start scanning</span>
+                  <span className="quiz-cta-scan-label">התחלת סריקה</span>
                 </button>
               </div>
             </div>

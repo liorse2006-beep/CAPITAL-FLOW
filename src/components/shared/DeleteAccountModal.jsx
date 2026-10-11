@@ -49,20 +49,20 @@ export default function DeleteAccountModal({ getToken, onDeleted, onClose }) {
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label="Delete account"
+        aria-label="מחיקת חשבון"
       >
-        <button className="upgrade-close" onClick={onClose} aria-label="Close">
+        <button className="upgrade-close" onClick={onClose} aria-label="סגירה">
           ×
         </button>
         <h2 className="upgrade-title" style={{ color: '#EF4444' }}>
-          Delete Account
+          מחיקת חשבון
         </h2>
         <p className="upgrade-desc">
-          This permanently deletes your account, watchlist, alerts, and push subscriptions. This cannot be undone.
+          החשבון, רשימת המעקב, ההתראות וחיבורי ההתראות יימחקו לצמיתות. לא ניתן לבטל את הפעולה.
         </p>
         <form onSubmit={submit}>
           <label htmlFor="delete-confirm-input" className="upgrade-desc" style={{ marginBottom: 8, display: 'block' }}>
-            Type <strong>{CONFIRM_WORD}</strong> to confirm.
+            יש להקליד <strong dir="ltr">{CONFIRM_WORD}</strong> לאישור.
           </label>
           <input
             id="delete-confirm-input"
@@ -74,7 +74,7 @@ export default function DeleteAccountModal({ getToken, onDeleted, onClose }) {
           />
           {status === 'error' && (
             <p className="upgrade-desc" style={{ color: '#EF4444' }}>
-              Couldn&apos;t confirm account deletion. Sign in again to check before retrying.
+              לא הצלחנו לאשר שהחשבון נמחק. יש להתחבר שוב ולבדוק לפני ניסיון נוסף.
             </p>
           )}
           <button
@@ -83,7 +83,7 @@ export default function DeleteAccountModal({ getToken, onDeleted, onClose }) {
             disabled={input.trim() !== CONFIRM_WORD || status === 'deleting'}
             style={{ background: '#EF4444', color: '#fff' }}
           >
-            {status === 'deleting' ? 'Deleting…' : 'Permanently Delete My Account'}
+            {status === 'deleting' ? 'מוחקים…' : 'מחיקת החשבון שלי לצמיתות'}
           </button>
         </form>
       </div>

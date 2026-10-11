@@ -68,7 +68,7 @@ export default function AlertThresholdModal({
   const [value, setValue] = useState(initValueFor(current ? current.type : 'volume', current));
   const [submitting, setSubmitting] = useState(false);
   const [pendingAlert, setPendingAlert] = useState(null);
-  const panelRef = useModalA11y(onClose);
+  const panelRef = useModalA11y(onClose, !pendingAlert);
 
   function chooseType(type) {
     setValue(initValueFor(type, current));
@@ -171,14 +171,14 @@ export default function AlertThresholdModal({
         dir="rtl"
         aria-label={'התראה עבור ' + symbol}
       >
-        <button className="upgrade-close" onClick={onClose} aria-label="Close">
+        <button className="upgrade-close" onClick={onClose} aria-label="סגירת ההתראה">
           ×
         </button>
 
         <div className="alert-modal-header">
           <span className="alert-modal-dot" />
-          <h2 className="alert-modal-title" lang="en" dir="ltr">
-            {'ALERT · ' + symbol}
+          <h2 className="alert-modal-title">
+            התראה · <bdi dir="ltr">{symbol}</bdi>
           </h2>
         </div>
 
@@ -222,7 +222,7 @@ export default function AlertThresholdModal({
                   <div className="alert-readout-val" dir="ltr">
                     {(trimmed === '' ? '—' : parseFloat(trimmed) || '—') + '×'}
                   </div>
-                  <div className="alert-readout-lbl">RVOL THRESHOLD</div>
+                  <div className="alert-readout-lbl">סף נפח יחסי</div>
                 </div>
 
                 <p className="alert-modal-sublabel">בחרו סף מהיר</p>
@@ -249,7 +249,7 @@ export default function AlertThresholdModal({
                     type="number"
                     step="0.5"
                     min="0.5"
-                    placeholder="e.g. 3"
+                    placeholder="לדוגמה: 3"
                     dir="ltr"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
@@ -274,7 +274,7 @@ export default function AlertThresholdModal({
                   <div className="alert-readout-val" dir="ltr">
                     {trimmed === '' ? '—' : '$' + (parseFloat(trimmed) || '—')}
                   </div>
-                  <div className="alert-readout-lbl">PRICE TARGET</div>
+                  <div className="alert-readout-lbl">מחיר יעד</div>
                 </div>
 
                 {formatPrice(currentPrice) !== '—' && (
@@ -293,7 +293,7 @@ export default function AlertThresholdModal({
                     type="number"
                     step="0.01"
                     min="0.01"
-                    placeholder="e.g. 185.00"
+                    placeholder="לדוגמה: 185.00"
                     dir="ltr"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}

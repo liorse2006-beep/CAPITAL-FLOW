@@ -5,7 +5,7 @@ import { useEffect, useRef } from 'react';
 // Returns a ref to attach to the modal's outer panel element (not the overlay
 // backdrop). The panel itself must expose role="dialog" or role="alertdialog"
 // and aria-modal="true" so assistive technology gets the same boundary.
-export default function useModalA11y(onClose) {
+export default function useModalA11y(onClose, enabled = true) {
   const panelRef = useRef(null);
   const onCloseRef = useRef(onClose);
   const returnFocusRef = useRef(null);
@@ -18,6 +18,7 @@ export default function useModalA11y(onClose) {
   }, [onClose]);
 
   useEffect(() => {
+    if (!enabled) return undefined;
     returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     function getFocusableElements(panel) {
@@ -31,6 +32,11 @@ export default function useModalA11y(onClose) {
     function handleKeyDown(e) {
       const panel = panelRef.current;
       if (!panel) return;
+      const dialogs = document.querySelectorAll(
+        '[aria-modal="true"][role="dialog"], [aria-modal="true"][role="alertdialog"]'
+      );
+      const topDialog = dialogs[dialogs.length - 1];
+      if (topDialog && topDialog !== panel) return;
 
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -63,7 +69,9 @@ export default function useModalA11y(onClose) {
 
     const toFocus = panelRef.current;
     if (toFocus) {
-      const firstField = toFocus.querySelector('input, textarea, select, button:not([aria-label="Close"])');
+      const firstField = toFocus.querySelector(
+        'input, textarea, select, button:not([aria-label="Close"]):not([aria-label^="סגיר"])'
+      );
       (firstField || toFocus).focus({ preventScroll: true });
     }
 
@@ -81,7 +89,7 @@ export default function useModalA11y(onClose) {
         returnFocus.focus({ preventScroll: true });
       }
     };
-  }, []);
+  }, [enabled]);
 
   return panelRef;
 }

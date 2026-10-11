@@ -117,10 +117,12 @@ describe('App routing', () => {
       </AuthProvider>
     );
     fireEvent.click(screen.getByRole('button', { name: 'Test sign in' }));
-    expect(await screen.findByRole('dialog', { name: 'Capital Flow results' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Capital Flow — תוצאות' })).toBeInTheDocument();
     expect(screen.getByText('PRIVATEFIX')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Test other account' }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Capital Flow results' })).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Capital Flow — תוצאות' })).not.toBeInTheDocument()
+    );
     expect(screen.queryByText('PRIVATEFIX')).not.toBeInTheDocument();
     await waitFor(() => expect(streams).toHaveLength(2));
   });
@@ -175,18 +177,21 @@ describe('App routing', () => {
   it('renders the watchlist page at /watchlist', () => {
     renderAt('/watchlist');
     // WatchlistPage's empty state for a logged-out visitor
-    expect(screen.getAllByText(/watchlist/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/רשימת מעקב/i).length).toBeGreaterThan(0);
   });
 
-  it('redirects an unknown path back to the scanner page', () => {
+  it('shows a real missing-page state instead of silently redirecting to the scanner', () => {
     renderAt('/this-route-does-not-exist');
-    expect(screen.getByText('Full Scan')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'העמוד לא נמצא' })).toBeInTheDocument();
+    expect(screen.queryByText('סריקה מלאה')).not.toBeInTheDocument();
+    expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow');
+    expect(screen.getByRole('link', { name: 'חזרה לעמוד הבית' })).toHaveAttribute('href', '/');
   });
 
   it('highlights the active tab in the topbar to match the current route', () => {
     const { container } = renderAt('/watchlist');
     const watchlistTab = container.querySelector('.nav-tabs .nav-tab:nth-child(5)');
-    expect(watchlistTab.textContent).toMatch(/Watchlist/);
+    expect(watchlistTab.textContent).toMatch(/רשימת מעקב/);
     expect(watchlistTab.className).toMatch(/active/);
   });
 
@@ -195,7 +200,7 @@ describe('App routing', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Capital Flow' }));
 
-    await waitFor(() => expect(screen.getByText('Full Scan')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('סריקה מלאה')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Capital Flow' }).className).toMatch(/active/);
   });
 
@@ -220,6 +225,6 @@ describe('App routing', () => {
     renderAt('/?status=error');
 
     await waitFor(() => expect(localStorage.getItem('vs_pending_tier')).toBeNull());
-    expect(screen.getByText('Checkout was not completed. Please try again.')).toBeInTheDocument();
+    expect(screen.getByText('התשלום לא הושלם. אפשר לנסות שוב.')).toBeInTheDocument();
   });
 });

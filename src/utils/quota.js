@@ -6,14 +6,14 @@ export function categoryQuota(scanMeta, _category) {
   if (!scanMeta) return { exhausted: false, label: '' };
 
   if (scanMeta.tier === 'elite') {
-    return { exhausted: false, label: 'Unlimited' };
+    return { exhausted: false, label: 'ללא הגבלה' };
   }
 
   if (scanMeta.tier === 'premium') {
     const p = scanMeta.premium || { used: 0, left: 5, limit: 5 };
     return {
       exhausted: p.left === 0,
-      label: `${p.used} / ${p.limit} scans used today`,
+      label: `${p.used} מתוך ${p.limit} סריקות נוצלו`,
       used: p.used,
       limit: p.limit,
       left: p.left,
@@ -24,7 +24,7 @@ export function categoryQuota(scanMeta, _category) {
   const active = !!(scanMeta.free && scanMeta.free.trialActive);
   return {
     exhausted: !active,
-    label: active ? 'Free trial active' : 'Free trial ended',
+    label: active ? 'תקופת הניסיון פעילה' : 'תקופת הניסיון הסתיימה',
     trialEndsAt: scanMeta.free ? scanMeta.free.trialEndsAt : null,
   };
 }

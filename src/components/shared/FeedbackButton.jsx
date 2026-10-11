@@ -49,28 +49,28 @@ function FeedbackModal({ user, onClose }) {
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label="Send feedback"
+        aria-label="שליחת משוב"
       >
-        <button className="upgrade-close" onClick={onClose} aria-label="Close">
+        <button className="upgrade-close" onClick={onClose} aria-label="סגירה">
           ×
         </button>
         {status === 'sent' ? (
           <>
-            <h2 className="upgrade-title">Thanks!</h2>
-            <p className="upgrade-desc">Your feedback helps shape what we build next.</p>
+            <h2 className="upgrade-title">תודה!</h2>
+            <p className="upgrade-desc">המשוב שלך עוזר לנו לשפר את המוצר.</p>
           </>
         ) : (
           <form onSubmit={submit}>
-            <h2 className="upgrade-title">Send Feedback</h2>
-            <p className="upgrade-desc">Found a bug, or have an idea? Tell us — we read every message.</p>
+            <h2 className="upgrade-title">שליחת משוב</h2>
+            <p className="upgrade-desc">מצאת תקלה או שיש לך רעיון? נשמח לשמוע.</p>
             <label htmlFor="feedback-message" className="sr-only">
-              Your feedback
+              המשוב שלך
             </label>
             <textarea
               id="feedback-message"
               className="auth-input"
               rows={4}
-              placeholder="What's on your mind?"
+              placeholder="מה תרצה לשתף?"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               style={{ resize: 'vertical', marginBottom: 10, fontFamily: 'inherit' }}
@@ -78,13 +78,13 @@ function FeedbackModal({ user, onClose }) {
             {!user && (
               <>
                 <label htmlFor="feedback-email" className="sr-only">
-                  Your email (optional)
+                  המייל שלך (לא חובה)
                 </label>
                 <input
                   id="feedback-email"
                   className="auth-input"
                   type="email"
-                  placeholder="Your email (optional, so we can reply)"
+                  placeholder="המייל שלך (לא חובה, כדי שנוכל להשיב)"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   style={{ marginBottom: 14 }}
@@ -93,11 +93,11 @@ function FeedbackModal({ user, onClose }) {
             )}
             {status === 'error' && (
               <p className="upgrade-desc" style={{ color: 'var(--red, #EF4444)' }}>
-                Couldn&apos;t send — please try again.
+                לא הצלחנו לשלוח. אפשר לנסות שוב.
               </p>
             )}
             <button className="upgrade-cta" type="submit" disabled={status === 'sending' || !message.trim()}>
-              {status === 'sending' ? 'Sending…' : 'Send'}
+              {status === 'sending' ? 'שולחים…' : 'שליחה'}
             </button>
           </form>
         )}
@@ -115,7 +115,7 @@ export default function FeedbackButton() {
 
   return (
     <>
-      <button className="feedback-fab" onClick={() => setOpen(true)} title="Send feedback" aria-label="Send feedback">
+      <button className="feedback-fab" onClick={() => setOpen(true)} title="שליחת משוב" aria-label="שליחת משוב">
         <svg
           width="18"
           height="18"

@@ -1,27 +1,7 @@
 <!doctype html>
-<!-- lang/dir here is the default for EVERY route this SPA serves — this is
-     one shared shell, not a per-route template (server/publicMetadata.js
-     only swaps title/OG tags per route, never lang/dir). The authenticated
-     app (Scanner, MA Scanner, Fundamentals, Watchlist, admin, status — every
-     route except the marketing landing page) is built and styled in English/
-     LTR throughout. Only the Hebrew landing page is RTL, and it already
-     declares its own dir="rtl" lang="he" locally on its own wrapper element
-     (src/pages/LandingPage.jsx's root div) — that local declaration is
-     unaffected by whatever this root value is. Setting rtl/he HERE instead
-     forces the mirrored/RTL bidi algorithm onto every English screen in the
-     app: flipped flex/grid ordering (nav, buttons, cards), and neutral
-     punctuation (periods, arrows) reattaching to the visual-start edge of
-     English sentences, e.g. ".Catch the moment a setup appears" instead of
-     "Catch the moment a setup appears." — confirmed live on /scanner. -->
-<html lang="en">
+<html lang="he" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <!-- Chrome/Edge can fire beforeinstallprompt as soon as it decides the
-         page is installable — on a first visit from a new device this can
-         happen before React has mounted and useInstallPrompt's own listener
-         is attached, silently dropping the event and the install prompt
-         with it. Capturing it here, before anything else loads, means it's
-         never missed regardless of how long the JS bundle takes to parse. -->
     <script>
       window.addEventListener('beforeinstallprompt', function (e) {
         e.preventDefault();
@@ -36,6 +16,9 @@
     />
     <meta name="theme-color" content="#0A0A0A" />
     <link rel="canonical" href="https://capitalflow.vip/" />
+    <link rel="alternate" hreflang="he" href="https://capitalflow.vip/" />
+    <link rel="alternate" hreflang="x-default" href="https://capitalflow.vip/" />
+    <meta property="og:locale" content="he_IL" />
     <meta property="og:title" content="Capital Flow — סורק מניות, נפח מסחר ומגמות" />
     <meta
       property="og:description"
@@ -57,24 +40,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <!-- Use the approved Capital Flow mark everywhere the browser asks for
-         an app identity. The old favicon.svg was only a temporary bar-chart
-         placeholder and is not the product logo. -->
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link rel="shortcut icon" type="image/png" href="/icon-192.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
     <link rel="manifest" href="/manifest.json" />
-    <!-- Fonts are self-hosted (see @font-face in src/styles/index.css) — no
-         external CDN. Preload the two faces on the critical first-paint path:
-         Switzer 400 (body/UI text) and JetBrains Mono (every number in the
-         scanner table). The browser fetches them in parallel with the CSS
-         instead of discovering them only after the stylesheet parses. -->
     <link rel="preload" href="/fonts/switzer-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <!-- Structured data so search engines can identify the product/brand
-         directly instead of inferring it from page text. Kept minimal and
-         accurate to what the app actually offers (no invented ratings or
-         prices) to stay within Google's structured-data guidelines. -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -83,17 +54,14 @@
         "url": "https://capitalflow.vip/",
         "applicationCategory": "FinanceApplication",
         "operatingSystem": "Web",
-        "description": "Stock market screening and research tools for unusual trading volume, sector price and volume movement, and moving-average setups. Market data may be delayed or incomplete."
+        "inLanguage": "he",
+        "description": "כלי מחקר וסריקת מניות לפי נפח מסחר וממוצעים נעים. נתוני השוק עשויים להיות מעוכבים או חלקיים."
       }
     </script>
   </head>
   <body>
     <div id="root"></div>
-    <section
-      id="seo-route-content"
-      class="seo-discovery-content"
-      aria-label="Capital Flow product information"
-    ></section>
+    <section id="seo-route-content" class="seo-discovery-content" aria-label="מידע על Capital Flow"></section>
     <script type="module" src="/src/main.jsx?landing-preview-v2"></script>
   </body>
 </html>

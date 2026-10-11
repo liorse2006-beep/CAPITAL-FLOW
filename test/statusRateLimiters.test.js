@@ -1,4 +1,5 @@
 process.env.STATUS_ADMIN_TOKEN = 'test-status-admin-token-'.padEnd(40, 'x');
+process.env.INDEPENDENT_STATUS_SERVICE = 'true';
 require('./helpers/testEnv');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -98,8 +99,8 @@ test('status pages and status data require an authenticated operator session', a
 
     const loginPage = await fetch(`${baseUrl}/status/admin`);
     const loginHtml = await loginPage.text();
-    assert.equal(loginPage.status, 200);
-    assert.match(loginHtml, /Admin sign in/);
+    assert.equal(loginPage.status, 404);
+    assert.doesNotMatch(loginHtml, /Admin sign in|Admin token/);
     assert.doesNotMatch(loginHtml, /Availability history|Services and components|No active incidents/);
     assert.match(loginPage.headers.get('x-robots-tag') || '', /noindex/i);
 
@@ -144,14 +145,39 @@ test('status pages and status data require an authenticated operator session', a
     const summary = await fetch(`${baseUrl}/status/api/summary`, { headers: { Cookie: cookie } });
     assert.equal(summary.status, 200);
 
+    for (const path of [
+      '/status/api/admin/check-now',
+      '/status/api/admin/backup/run-now',
+      '/status/api/admin/maintenance',
+      '/status/api/admin/recipients',
+    ]) {
+      for (const origin of [undefined, 'https://untrusted.example', baseUrl.replace('http:', 'https:')]) {
+        const rejected = await fetch(`${baseUrl}${path}`, {
+          method: 'POST',
+          headers: { Cookie: cookie, ...(origin ? { Origin: origin } : {}) },
+        });
+        assert.equal(
+          rejected.status,
+          403,
+          `${path}: missing or cross-origin cookie-authenticated writes must be rejected before effects`
+        );
+      }
+    }
+
     const logout = await fetch(`${baseUrl}/status/api/admin/session/logout`, {
       method: 'POST',
-      headers: { Cookie: cookie },
+      headers: { Cookie: cookie, Origin: baseUrl },
     });
     assert.equal(logout.status, 200);
     assert.match(logout.headers.get('set-cookie') || '', /Max-Age=0/);
     const afterLogout = await fetch(`${baseUrl}/status/api/summary`);
     assert.equal(afterLogout.status, 401);
+    const replayAfterLogout = await fetch(`${baseUrl}/status/api/summary`, { headers: { Cookie: cookie } });
+    assert.equal(replayAfterLogout.status, 401, 'a copied operator cookie must be revoked by logout');
+    const machineRead = await fetch(`${baseUrl}/status/api/history`, {
+      headers: { 'x-admin-token': process.env.STATUS_ADMIN_TOKEN },
+    });
+    assert.equal(machineRead.status, 200, 'independent status operator API credentials remain supported');
   } finally {
     server.close();
   }

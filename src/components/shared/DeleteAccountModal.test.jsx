@@ -24,8 +24,8 @@ describe('account deletion request lifecycle', () => {
     const view = render(
       <DeleteAccountModal getToken={() => 'synthetic-old-token'} onDeleted={onDeleted} onClose={vi.fn()} />
     );
-    fireEvent.change(screen.getByLabelText(/Type DELETE to confirm/), { target: { value: 'DELETE' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Permanently Delete My Account' }));
+    fireEvent.change(screen.getByLabelText(/יש להקליד DELETE לאישור/), { target: { value: 'DELETE' } });
+    fireEvent.click(screen.getByRole('button', { name: 'מחיקת החשבון שלי לצמיתות' }));
     view.unmount();
     await act(async () => request.resolve({ ok: true }));
     expect(onDeleted).not.toHaveBeenCalled();
@@ -41,8 +41,8 @@ describe('account deletion request lifecycle', () => {
     let token = 'synthetic-old-token';
     const onDeleted = vi.fn();
     render(<DeleteAccountModal getToken={() => token} onDeleted={onDeleted} onClose={vi.fn()} />);
-    fireEvent.change(screen.getByLabelText(/Type DELETE to confirm/), { target: { value: 'DELETE' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Permanently Delete My Account' }));
+    fireEvent.change(screen.getByLabelText(/יש להקליד DELETE לאישור/), { target: { value: 'DELETE' } });
+    fireEvent.click(screen.getByRole('button', { name: 'מחיקת החשבון שלי לצמיתות' }));
     token = 'synthetic-replacement-token';
     await act(async () => request.resolve({ ok: true }));
     expect(onDeleted).not.toHaveBeenCalled();
@@ -53,10 +53,10 @@ describe('account deletion request lifecycle', () => {
     vi.stubGlobal('fetch', fetchMock);
     const onDeleted = vi.fn();
     render(<DeleteAccountModal getToken={() => 'synthetic-token'} onDeleted={onDeleted} onClose={vi.fn()} />);
-    expect(screen.getByRole('button', { name: 'Permanently Delete My Account' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'מחיקת החשבון שלי לצמיתות' })).toBeDisabled();
     expect(fetchMock).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText(/Type DELETE to confirm/), { target: { value: 'DELETE' } });
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Permanently Delete My Account' })));
+    fireEvent.change(screen.getByLabelText(/יש להקליד DELETE לאישור/), { target: { value: 'DELETE' } });
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'מחיקת החשבון שלי לצמיתות' })));
     expect(onDeleted).toHaveBeenCalledOnce();
     expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer synthetic-token');
   });

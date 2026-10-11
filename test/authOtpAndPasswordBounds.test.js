@@ -63,9 +63,12 @@ test('known-account login failures remain throttled across requests and clear af
   const user = await db
     .prepare('INSERT INTO users (email, password_hash, is_verified) VALUES (?, ?, 1)')
     .run(email, await hashPassword('correct-password-123'));
-  for (let attempt = 0; attempt < 10; attempt += 1) await recordLoginFailure(user.lastInsertRowid);
+  for (let attempt = 0; attempt < 4; attempt += 1) await recordLoginFailure(user.lastInsertRowid);
+  assert.strictEqual((await getLoginThrottleState(user.lastInsertRowid)).locked, false);
+  await recordLoginFailure(user.lastInsertRowid);
   const locked = await getLoginThrottleState(user.lastInsertRowid);
   assert.strictEqual(locked.locked, true);
+  assert.strictEqual(locked.failedCount, 5);
   await clearLoginFailures(user.lastInsertRowid);
   const cleared = await getLoginThrottleState(user.lastInsertRowid);
   assert.strictEqual(cleared.locked, false);

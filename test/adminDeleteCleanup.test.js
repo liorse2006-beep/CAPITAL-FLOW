@@ -11,9 +11,13 @@ const db = require('../server/db');
 const adminRouter = require('../server/routes/admin');
 const { issueToken } = require('../server/services/auth');
 const { resolveToken } = require('../server/middleware/authMiddleware');
+let adminAccessToken;
 
 before(async () => {
   await db.ready;
+  const row = await db.prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)').run(process.env.ADMIN_EMAIL);
+  const admin = await db.prepare('SELECT * FROM users WHERE id = ?').get(row.lastInsertRowid);
+  adminAccessToken = (await issueToken(admin)).accessToken;
 });
 
 function startAdminApp() {
@@ -58,7 +62,7 @@ test('admin user deletion cleans owned records and kills active sessions', async
   try {
     const res = await fetch(`http://127.0.0.1:${server.address().port}/admin/api/users/${userId}`, {
       method: 'DELETE',
-      headers: { 'X-Admin-Token': process.env.ADMIN_TOKEN },
+      headers: { Authorization: `Bearer ${adminAccessToken}` },
     });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(await resolveToken(accessToken), null);

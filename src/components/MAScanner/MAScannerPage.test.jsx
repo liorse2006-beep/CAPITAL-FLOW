@@ -41,7 +41,7 @@ afterEach(() => {
 
 function begin() {
   const view = render(<MAScannerPage {...props} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Run MA Scan' }));
+  fireEvent.click(screen.getByRole('button', { name: 'התחלת סריקת ממוצעים' }));
   return view;
 }
 
@@ -51,8 +51,8 @@ describe('MA scan request lifetime', () => {
     begin();
     await act(() => vi.advanceTimersByTimeAsync(30000));
     expect(screen.queryByText('Fixture scan loading')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Run MA Scan' })).toBeEnabled();
-    expect(screen.getByText(/scan.*try again/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'התחלת סריקת ממוצעים' })).toBeEnabled();
+    expect(screen.getByText(/הסריקה מתעכבת/)).toBeInTheDocument();
   });
 
   it('also bounds a response whose JSON body never finishes', async () => {
@@ -63,7 +63,7 @@ describe('MA scan request lifetime', () => {
     begin();
     await act(() => vi.advanceTimersByTimeAsync(30000));
     expect(screen.queryByText('Fixture scan loading')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Run MA Scan' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'התחלת סריקת ממוצעים' })).toBeEnabled();
   });
 
   it('aborts every pending request and clears all scan timers on unmount', async () => {
@@ -125,7 +125,7 @@ describe('MA scan request lifetime', () => {
     begin();
     await act(async () => {});
     expect(screen.getAllByText('FIXA')).toHaveLength(2);
-    expect(screen.getByText(/data may be delayed or incomplete/i)).toBeInTheDocument();
+    expect(screen.getByText(/הנתונים עשויים להיות מעוכבים או חלקיים/)).toBeInTheDocument();
     expect(fixture.setScanMeta).toHaveBeenCalledWith(expect.objectContaining({ tier: 'elite' }));
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -182,7 +182,7 @@ describe('MA scan request lifetime', () => {
     begin();
     await act(() => vi.advanceTimersByTimeAsync(10 * 60 * 1000));
     expect(screen.queryByText('Fixture scan loading')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Run MA Scan' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'התחלת סריקת ממוצעים' })).toBeEnabled();
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -193,7 +193,7 @@ describe('MA scan request lifetime', () => {
     );
     begin();
     await act(async () => {});
-    expect(screen.getByText('The scan could not return a result. Please try again.')).toBeInTheDocument();
+    expect(screen.getByText('לא הצלחנו לקבל תוצאות לסריקה. אפשר לנסות שוב.')).toBeInTheDocument();
     expect(fixture.setScanMeta).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
   });

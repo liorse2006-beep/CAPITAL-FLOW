@@ -25,7 +25,7 @@ test('signup rejects an HTML/script payload disguised as an email', async () => 
     const res = await fetch(`http://127.0.0.1:${port}/api/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: '<script>alert(1)</script>@x.com', password: 'password123' }),
+      body: JSON.stringify({ email: '<script>alert(1)</script>@x.com', password: 'unique-password123' }),
     });
     assert.strictEqual(res.status, 400);
     const body = await res.json();
@@ -42,7 +42,7 @@ test('signup rejects an email with no @ or domain', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'not-an-email', password: 'password123' }),
+      body: JSON.stringify({ email: 'not-an-email', password: 'unique-password123' }),
     });
     assert.strictEqual(res.status, 400);
   } finally {
@@ -57,7 +57,7 @@ test('signup accepts a normal, well-formed email', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'real-user@example.com', password: 'password123' }),
+      body: JSON.stringify({ email: 'real-user@example.com', password: 'unique-password123' }),
     });
     assert.strictEqual(res.status, 200);
   } finally {
@@ -80,7 +80,7 @@ test('signup + login resolve to the same account regardless of email casing', as
     const signupRes = await fetch(`${base}/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'Case@Test.local', password: 'password123' }),
+      body: JSON.stringify({ email: 'Case@Test.local', password: 'unique-password123' }),
     });
     assert.strictEqual(signupRes.status, 200);
 
@@ -90,7 +90,7 @@ test('signup + login resolve to the same account regardless of email casing', as
     const secondSignupRes = await fetch(`${base}/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'case@test.local', password: 'password123' }),
+      body: JSON.stringify({ email: 'case@test.local', password: 'unique-password123' }),
     });
     assert.strictEqual(secondSignupRes.status, 200);
 

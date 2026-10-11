@@ -9,12 +9,13 @@ const { spawnSync } = require('node:child_process');
 const db = require('../server/db');
 const { dumpTables, TABLES } = require('../server/services/dbBackup');
 const { restoreDump, readDumpFile } = require('../restoreDb');
+const { encryptBackup } = require('../server/services/backupEncryption');
 const { hashPassword, verifyPassword } = require('../server/services/auth');
 const notifications = require('../server/services/notifications');
 const webPush = require('../server/services/webPush');
 const outbox = require('../server/services/notificationOutbox');
 
-test('real gzip backup and restore CLI preserve all allowlisted tables and operational guards in isolation', async (t) => {
+test('real encrypted backup and restore CLI preserve all allowlisted tables and operational guards in isolation', async (t) => {
   await db.ready;
   assert.equal(process.env.DATABASE_URL, '');
   assert.equal(process.env.TURSO_DB_URL, process.env.CAPITAL_FLOW_TEST_DATABASE_URL);
@@ -150,9 +151,9 @@ test('real gzip backup and restore CLI preserve all allowlisted tables and opera
   for (const table of TABLES) assert.ok(original.tables[table].length > 0, table);
 
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'capital-flow-backup-roundtrip-'));
-  const filename = path.join(directory, 'synthetic-capital-flow-backup.json.gz');
+  const filename = path.join(directory, 'synthetic-capital-flow-backup.json.gz.enc');
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
-  fs.writeFileSync(filename, zlib.gzipSync(JSON.stringify(original)));
+  fs.writeFileSync(filename, encryptBackup(zlib.gzipSync(JSON.stringify(original))));
   assert.deepEqual(readDumpFile(filename).dump, original);
 
   // The real command-line dry run must not load or mutate even this isolated DB.

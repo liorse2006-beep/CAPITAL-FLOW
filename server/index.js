@@ -213,17 +213,10 @@ app.use('/api/webhooks/whop', webhookLimiter, express.raw({ type: 'application/j
 app.use('/api', require('./routes/webhooks'));
 
 app.use(express.json({ limit: '256kb' }));
-// The OAuth handshake's session (just Passport's transient state — never
-// real app data) lives entirely in a signed cookie on the client, not
-// server memory. That was a deliberate choice, not just "the default":
-// server-side session storage (express-session + MemoryStore, or any
-// in-process store) only lives in the ONE process that handled the /google
-// redirect — if a second server process/worker handles the /callback that
-// follows a few seconds later, that process has never heard of the session
-// and the login silently fails. A signed cookie carries the session with
-// the browser itself, so it works identically whether one process or many
-// end up handling the two halves of the OAuth round trip — this is what
-// lets the app scale horizontally later without an OAuth outage.
+// The signed cookie holds only a transient browser binding, never a PKCE
+// verifier or application credentials. One-time state stays in the single
+// HTTP instance's bounded ledger. Scaling beyond the existing one-worker
+// topology requires a shared ledger, not cookie-only replayable state.
 app.use(
   cookieSession({
     name: 'vs.sess',
@@ -286,6 +279,10 @@ app.use(function (req, res, next) {
 // the file isn't present yet, so a missing token fails loudly rather than
 // silently returning HTML. Must come before the static + SPA handlers.
 const APPLE_PAY_FILE = path.join(__dirname, '../public/.well-known/apple-developer-merchantid-domain-association');
+app.get('/.well-known/security.txt', (_req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.type('text/plain').sendFile(path.join(publicDir, '.well-known/security.txt'));
+});
 app.get('/.well-known/apple-developer-merchantid-domain-association', (req, res) => {
   fs.readFile(APPLE_PAY_FILE, 'utf8', (err, data) => {
     if (err || !data || !data.trim()) return res.status(404).type('text/plain').send('Not found');

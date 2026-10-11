@@ -3,6 +3,7 @@ const { createChallenge, verifySolution } = require('altcha-lib');
 const { deriveKey } = require('altcha-lib/algorithms/pbkdf2');
 
 const COOKIE_NAME = 'vs_signup_verification';
+const LOGIN_COOKIE_NAME = 'vs_login_verification';
 const TOKEN_PREFIX = 'altcha:';
 const TTL_MS = 10 * 60 * 1000;
 const MAX_TOKEN_LENGTH = 8192;
@@ -17,7 +18,9 @@ function createSignupVerification({
   maxChallenges = 2000,
   maxInFlight = 4,
   counter = () => crypto.randomInt(1000, 3001),
+  purpose = 'signup',
 } = {}) {
+  if (!['signup', 'login'].includes(purpose)) throw new Error('Unsupported verification purpose');
   const signatureSecret = crypto.randomBytes(48).toString('base64url');
   const keySecret = crypto.randomBytes(48).toString('base64url');
   const issued = new Map();
@@ -49,7 +52,7 @@ function createSignupVerification({
         expiresAt: Math.floor(expiresAt / 1000),
         hmacSignatureSecret: signatureSecret,
         hmacKeySignatureSecret: keySecret,
-        data: { purpose: 'signup', binding: binding(cookie) },
+        data: { purpose, binding: binding(cookie) },
       });
       issued.set(challenge.parameters.nonce, { signature: challenge.signature, expiresAt, cookie });
       return challenge;
@@ -76,7 +79,7 @@ function createSignupVerification({
         parameters.algorithm !== 'PBKDF2/SHA-256' ||
         parameters.cost !== 1000 ||
         parameters.keyLength !== 32 ||
-        parameters.data?.purpose !== 'signup' ||
+        parameters.data?.purpose !== purpose ||
         parameters.data?.binding !== binding(cookie) ||
         !Number.isInteger(solution?.counter) ||
         solution.counter < 0 ||
@@ -106,4 +109,14 @@ function createSignupVerification({
 }
 
 const signupVerification = createSignupVerification();
-module.exports = { createSignupVerification, signupVerification, COOKIE_NAME, COOKIE_RE, TOKEN_PREFIX, TTL_MS };
+const loginVerification = createSignupVerification({ purpose: 'login' });
+module.exports = {
+  createSignupVerification,
+  signupVerification,
+  loginVerification,
+  COOKIE_NAME,
+  LOGIN_COOKIE_NAME,
+  COOKIE_RE,
+  TOKEN_PREFIX,
+  TTL_MS,
+};

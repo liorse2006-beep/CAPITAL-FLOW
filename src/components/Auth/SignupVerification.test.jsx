@@ -7,6 +7,7 @@ vi.mock('altcha/external', () => {
   window.$altcha = { algorithms: registry };
   return {};
 });
+vi.mock('altcha/i18n/he', () => ({}));
 vi.mock('altcha/workers/pbkdf2?worker', () => ({ default: class Worker {} }));
 import SignupVerification from './SignupVerification';
 
@@ -60,8 +61,8 @@ it('invalidates an expired proof and retries with a fresh widget', () => {
   const old = document.querySelector('altcha-widget');
   event(old, 'statechange', { state: 'expired' });
   expect(onExpire).toHaveBeenCalled();
-  expect(screen.getByRole('alert')).toHaveTextContent('Could not verify');
-  fireEvent.click(screen.getByRole('button', { name: 'Retry verification' }));
+  expect(screen.getByRole('alert')).toHaveTextContent('לא הצלחנו לאמת');
+  fireEvent.click(screen.getByRole('button', { name: 'ניסיון נוסף' }));
   expect(document.querySelector('altcha-widget')).not.toBe(old);
   expect(old.reset).toHaveBeenCalled();
   event(old, 'verified', { payload: 'stale' });
@@ -89,5 +90,23 @@ it('a hung verification cannot leave signup silently waiting forever', () => {
   render(<SignupVerification onVerify={vi.fn()} onExpire={onExpire} />);
   act(() => vi.advanceTimersByTime(30000));
   expect(onExpire).toHaveBeenCalled();
-  expect(screen.getByRole('button', { name: 'Retry verification' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'ניסיון נוסף' })).toBeInTheDocument();
+});
+
+it('switching to login replaces the signup proof with a purpose-bound challenge', () => {
+  const onVerify = vi.fn(),
+    onExpire = vi.fn();
+  const view = render(<SignupVerification onVerify={onVerify} onExpire={onExpire} />);
+  const signup = document.querySelector('altcha-widget');
+  view.rerender(<SignupVerification purpose="login" onVerify={onVerify} onExpire={onExpire} />);
+  const login = document.querySelector('altcha-widget');
+  expect(login).not.toBe(signup);
+  expect(JSON.parse(login.getAttribute('configuration'))).toMatchObject({
+    challenge: '/api/auth/login-challenge',
+    language: 'he',
+  });
+  event(signup, 'verified', { payload: 'signup-proof' });
+  expect(onVerify).not.toHaveBeenCalled();
+  event(login, 'verified', { payload: 'login-proof' });
+  expect(onVerify).toHaveBeenCalledWith('altcha:login-proof');
 });

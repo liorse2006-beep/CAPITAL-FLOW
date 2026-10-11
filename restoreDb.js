@@ -8,6 +8,7 @@ const fs = require('fs');
 const zlib = require('zlib');
 const path = require('path');
 const { BACKUP_TABLES } = require('./server/services/backupTables');
+const { decryptBackup, isEncryptedBackup } = require('./server/services/backupEncryption');
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const BACKUP_TABLE_SET = new Set(BACKUP_TABLES);
@@ -95,15 +96,21 @@ async function restoreDump(db, dump) {
 function readDumpFile(filePath) {
   const resolved = path.resolve(filePath);
   if (!fs.existsSync(resolved)) throw new Error(`File not found: ${resolved}`);
-  const gzipped = fs.readFileSync(resolved);
+  const bytes = fs.readFileSync(resolved);
+  // Old operator-selected .gz snapshots remain recoverable. New .enc files
+  // must authenticate before decompression and before loading any database.
+  const gzipped = isEncryptedBackup(bytes) || /\.enc$/i.test(resolved) ? decryptBackup(bytes) : bytes;
   return { resolved, dump: JSON.parse(zlib.gunzipSync(gzipped).toString('utf8')) };
 }
 
 async function main(argv = process.argv.slice(2)) {
+  // Load recovery configuration without importing the DB or touching it.
+  // Existing process credentials take precedence; never echo a key.
+  require('dotenv').config({ path: ['.env.backup-recovery', '.env'], quiet: true });
   const confirmed = argv.includes('--confirm');
   const filePaths = argv.filter((arg) => !arg.startsWith('--'));
   if (filePaths.length !== 1) {
-    throw new Error('Usage: node restoreDb.js <path-to-backup.json.gz> [--confirm]');
+    throw new Error('Usage: node restoreDb.js <backup.json.gz.enc|legacy-backup.json.gz> [--confirm]');
   }
 
   const { resolved, dump } = readDumpFile(filePaths[0]);

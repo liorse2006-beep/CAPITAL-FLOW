@@ -94,7 +94,7 @@ export default function SectorHeatmap(props) {
           letterSpacing: '0.05em',
         },
       },
-      'NO SECTOR DATA — RUN A SCAN TO POPULATE THE HEATMAP'
+      'אין עדיין נתוני סקטורים. יש להתחיל סריקה כדי לראות את מפת הפעילות.'
     );
   }
 
@@ -303,7 +303,7 @@ export default function SectorHeatmap(props) {
                 letterSpacing: '0.04em',
               },
             },
-            'VOL ' + fmt(cell.volume)
+            'נפח ' + fmt(cell.volume)
           ),
 
           React.createElement(
@@ -394,7 +394,7 @@ export default function SectorHeatmap(props) {
               fontFamily: 'var(--mono)',
             },
           },
-          'SECTOR FLOW HEATMAP'
+          'מפת פעילות הסקטורים'
         ),
         React.createElement(
           'span',
@@ -406,7 +406,7 @@ export default function SectorHeatmap(props) {
               letterSpacing: '0.06em',
             },
           },
-          cells.length + ' SECTORS'
+          cells.length + ' סקטורים'
         )
       ),
 
@@ -420,7 +420,7 @@ export default function SectorHeatmap(props) {
           React.createElement(
             'span',
             { style: { fontSize: 9, color: 'var(--text-2)', fontFamily: 'var(--mono)', letterSpacing: '0.06em' } },
-            'AVG CHG'
+            'שינוי ממוצע'
           ),
           React.createElement(
             'span',
@@ -445,7 +445,7 @@ export default function SectorHeatmap(props) {
           React.createElement(
             'span',
             { style: { fontSize: 10, color: 'var(--text-1)', fontFamily: 'var(--mono)' } },
-            totalInflow + ' IN'
+            totalInflow + ' חיובי'
           )
         ),
         React.createElement(
@@ -457,13 +457,13 @@ export default function SectorHeatmap(props) {
           React.createElement(
             'span',
             { style: { fontSize: 10, color: 'var(--text-1)', fontFamily: 'var(--mono)' } },
-            totalOutflow + ' OUT'
+            totalOutflow + ' שלילי'
           )
         ),
         React.createElement(
           'div',
           { style: { fontSize: 9, color: 'var(--text-3)', fontFamily: 'var(--mono)', letterSpacing: '0.04em' } },
-          'CELL SIZE = VOLUME'
+          'גודל התא מייצג נפח מסחר'
         )
       )
     ),
@@ -485,8 +485,8 @@ export default function SectorHeatmap(props) {
           },
         },
         dataStatus === 'unavailable'
-          ? 'SECTOR DATA UNAVAILABLE — try again in a few minutes'
-          : 'PARTIAL SECTOR DATA — some values could not be verified'
+          ? 'נתוני הסקטורים אינם זמינים כרגע. אפשר לנסות שוב בהמשך.'
+          : 'נתוני הסקטורים חלקיים — חלק מהערכים לא אומתו.'
       ),
 
     // Last-session banner (shown when market is closed and data is from prior day)
@@ -508,7 +508,7 @@ export default function SectorHeatmap(props) {
           },
         },
         React.createElement('span', { style: { fontSize: 12 } }, '🕐'),
-        'MARKET CLOSED — showing last session data'
+        'המסחר סגור — מוצגים נתוני יום המסחר האחרון'
       ),
 
     // Grid

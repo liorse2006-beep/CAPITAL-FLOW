@@ -3,6 +3,7 @@ const { reportError } = require('../utils/reportError');
 const router = express.Router();
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const { createGoogleOAuthStateStore } = require('../services/googleOAuthState');
 const db = require('../db');
 const {
   normalizeEmail,
@@ -31,8 +32,23 @@ const {
 } = require('../services/email');
 const { requireAuth, invalidateUserSessions, invalidateUserEntitlement } = require('../middleware/authMiddleware');
 const { eliteAccess } = require('../services/scanQuota');
-const { authLimiter, otpLimiter, sessionLimiter, signupChallengeLimiter } = require('../middleware/rateLimiters');
-const { signupVerification, COOKIE_NAME, COOKIE_RE, TOKEN_PREFIX, TTL_MS } = require('../services/signupVerification');
+const {
+  authLimiter,
+  oauthStartLimiter,
+  otpLimiter,
+  sessionLimiter,
+  signupChallengeLimiter,
+} = require('../middleware/rateLimiters');
+const {
+  signupVerification,
+  loginVerification,
+  COOKIE_NAME,
+  LOGIN_COOKIE_NAME,
+  COOKIE_RE,
+  TOKEN_PREFIX,
+  TTL_MS,
+} = require('../services/signupVerification');
+const { passwordPolicyError } = require('../services/passwordPolicy');
 const crypto = require('crypto');
 const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
 const pilotAllowlist = require('../services/pilotAllowlist');
@@ -94,9 +110,9 @@ const AUTH_COOKIE_DOMAIN = (() => {
 })();
 
 // OAuth authorization and callback must both opt into Passport's state
-// verifier. Passport stores the nonce in the signed cookie-session configured
-// by server/index.js and rejects a callback that was not started by this
-// browser. Keep the options in named constants so the two halves cannot drift
+// verifier. The server-side ledger binds a single-use state and PKCE verifier
+// to the signed browser cookie and rejects callbacks from another browser.
+// Keep the options in named constants so the two halves cannot drift
 // apart during a future auth refactor, and so the contract is testable without
 // contacting Google.
 const GOOGLE_AUTH_OPTIONS = Object.freeze({
@@ -234,6 +250,12 @@ async function verifyTurnstile(token) {
   }
 }
 
+// The refresh cookie is deliberately scoped to /api/auth. These read-only
+// navigation gates keep that scope intact; administrative API mutations still
+// require a short-lived Bearer and a fresh database-backed role check.
+router.get('/admin', (req, res, next) => require('./admin').renderAdminPage(req, res, next));
+router.get('/status', (req, res, next) => require('./status').renderApplicationAdminPage(req, res, next));
+
 /* ── Google OAuth ── */
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   passport.use(
@@ -242,6 +264,9 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
         clientID: GOOGLE_CLIENT_ID,
         clientSecret: GOOGLE_CLIENT_SECRET,
         callbackURL: GOOGLE_CALLBACK_URL || 'http://localhost:3001/api/auth/google/callback',
+        state: true,
+        pkce: 'S256',
+        store: createGoogleOAuthStateStore(),
       },
       async function (accessToken, refreshToken, profile, done) {
         try {
@@ -300,9 +325,10 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   // Without `state: true`, an attacker can start Google OAuth in their own
   // browser, then make a victim follow the callback URL and silently log the
   // victim into the attacker's Capital Flow account (login CSRF). Passport
-  // stores the nonce in the cookie-session and rejects a callback whose state
-  // does not match the authorization request that started in that browser.
-  router.get('/google', passport.authenticate('google', GOOGLE_AUTH_OPTIONS));
+  // keeps only a browser binding in the signed cookie. The single-use nonce
+  // and PKCE verifier stay in the server ledger and cannot be replayed from
+  // an older signed cookie after the callback has consumed them.
+  router.get('/google', oauthStartLimiter, passport.authenticate('google', GOOGLE_AUTH_OPTIONS));
 
   router.get('/google/callback', function (req, res, next) {
     passport.authenticate('google', GOOGLE_CALLBACK_AUTH_OPTIONS, async function (err, user, _info) {
@@ -339,21 +365,26 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
 }
 
 /* ── Sign Up ── */
-router.get('/signup-challenge', signupChallengeLimiter, async (req, res) => {
+router.get(['/signup-challenge', '/login-challenge'], signupChallengeLimiter, async (req, res) => {
   res.set('Cache-Control', 'no-store');
   try {
-    let cookie = req.cookies?.[COOKIE_NAME];
+    const loginChallenge = req.path.replace(/\/+$/, '').toLowerCase() === '/login-challenge';
+    const cookieName = loginChallenge ? LOGIN_COOKIE_NAME : COOKIE_NAME;
+    const verifier = loginChallenge ? loginVerification : signupVerification;
+    let cookie = req.cookies?.[cookieName];
     if (!COOKIE_RE.test(cookie || '')) {
       cookie = crypto.randomBytes(32).toString('hex');
-      res.cookie(COOKIE_NAME, cookie, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/api/auth',
-        maxAge: TTL_MS,
-      });
     }
-    const challenge = await signupVerification.issue(cookie);
+    // Renew for every fresh challenge; a proof issued near the previous
+    // cookie's expiry must remain usable for its complete verification window.
+    res.cookie(cookieName, cookie, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/api/auth',
+      maxAge: TTL_MS,
+    });
+    const challenge = await verifier.issue(cookie);
     if (!challenge) return res.status(503).json({ error: 'Verification is busy. Please try again shortly.' });
     res.json(challenge);
   } catch (err) {
@@ -369,9 +400,8 @@ router.post('/signup', authLimiter, async (req, res) => {
     if (!email || typeof password !== 'string' || !password)
       return res.status(400).json({ error: 'Email and password are required' });
     if (!isValidEmailShape(email)) return res.status(400).json({ error: 'Please enter a valid email address' });
-    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    if (Buffer.byteLength(password, 'utf8') > MAX_PASSWORD_BYTES)
-      return res.status(400).json({ error: `Password must be at most ${MAX_PASSWORD_BYTES} UTF-8 bytes` });
+    const policyError = passwordPolicyError(password);
+    if (policyError) return res.status(400).json({ error: policyError });
 
     // Retain validation of old Turnstile tokens for an already-open browser
     // during deployment. New clients always use the self-hosted challenge.
@@ -482,7 +512,7 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
 /* ── Log In ── */
 router.post('/login', authLimiter, async (req, res) => {
   try {
-    const { password } = req.body;
+    const { password, captchaToken } = req.body;
     const email = normalizeEmail(req.body.email);
     if (!email || typeof password !== 'string' || !password)
       return res.status(400).json({ error: 'Email and password are required' });
@@ -492,6 +522,15 @@ router.post('/login', authLimiter, async (req, res) => {
     // details or an account-existence oracle.
     if (Buffer.byteLength(password, 'utf8') > MAX_PASSWORD_BYTES)
       return res.status(401).json({ error: 'Invalid email or password' });
+
+    // Production always requires a fresh browser-bound, single-use proof
+    // before looking up the account or spending CPU on bcrypt. Development
+    // can exercise legacy password fixtures, but any supplied proof is still
+    // validated. Signup proofs cannot be used for login or replayed here.
+    if (process.env.NODE_ENV === 'production' || captchaToken !== undefined) {
+      const verified = await loginVerification.consume(captchaToken, req.cookies?.[LOGIN_COOKIE_NAME]);
+      if (!verified) return res.status(400).json({ error: 'CAPTCHA verification failed' });
+    }
 
     let user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
     const loginThrottle = user ? await getLoginThrottleState(user.id) : { locked: false };
@@ -563,9 +602,8 @@ router.post('/reset-password', otpLimiter, async (req, res) => {
       !newPassword
     )
       return res.status(400).json({ error: 'Missing fields' });
-    if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    if (Buffer.byteLength(newPassword, 'utf8') > MAX_PASSWORD_BYTES)
-      return res.status(400).json({ error: `Password must be at most ${MAX_PASSWORD_BYTES} UTF-8 bytes` });
+    const policyError = passwordPolicyError(newPassword);
+    if (policyError) return res.status(400).json({ error: policyError });
 
     const result = await verifyOTP(email, code, 'reset_password');
     if (!result.valid) return res.status(400).json({ error: result.reason });

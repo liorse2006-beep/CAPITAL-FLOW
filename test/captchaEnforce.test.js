@@ -32,7 +32,7 @@ test('signup with no captcha token is rejected when Turnstile is configured', as
     const res = await fetch(`http://localhost:${port}/api/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'captcha-bypass@test.local', password: 'password123' }),
+      body: JSON.stringify({ email: 'captcha-bypass@test.local', password: 'unique-check-password123' }),
     });
     assert.strictEqual(res.status, 400);
     const body = await res.json();

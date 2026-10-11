@@ -27,7 +27,8 @@ export function hasConsented() {
 }
 
 export function hasAnswered() {
-  return readConsent() !== null;
+  const consent = readConsent();
+  return consent === 'true' || consent === 'false';
 }
 
 function safely(action) {

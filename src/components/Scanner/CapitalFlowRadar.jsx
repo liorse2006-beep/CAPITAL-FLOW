@@ -1,21 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import useModalA11y from '../../hooks/useModalA11y';
+import { sectorName } from '../../utils/marketCopy';
 
-const DATA_UNAVAILABLE = 'Data is not available right now. Try again in a few minutes.';
-const RADAR_SINGLE_LIMIT_MESSAGE =
-  'Only one Radar scan can be saved per account. Edit or remove the current Radar before creating another.';
+const DATA_UNAVAILABLE = 'הנתונים אינם זמינים כרגע. אפשר לנסות שוב בעוד כמה דקות.';
+const RADAR_SINGLE_LIMIT_MESSAGE = 'ניתן לשמור רדאר אחד בחשבון. לפני יצירת רדאר נוסף יש לערוך או להסיר את הקיים.';
 
 function modeLabel(radar) {
   if (radar.mode === 'sp500') return 'S&P 500';
   if (radar.mode === 'nasdaq100') return 'NASDAQ 100';
-  if (radar.mode === 'sectors') return radar.selectedSectors.join(' · ');
-  return 'Full market';
+  if (radar.mode === 'sectors') return radar.selectedSectors.map(sectorName).join(' · ');
+  return 'כל השוק';
 }
 
 function formatCap(value) {
   const billions = Number(value || 0) / 1e9;
-  return '$' + (billions >= 10 ? billions.toFixed(0) : billions.toFixed(1)) + 'B cap';
+  return '$' + (billions >= 10 ? billions.toFixed(0) : billions.toFixed(1)) + 'B שווי שוק';
 }
 
 function formatRadarTime(value) {
@@ -23,9 +23,7 @@ function formatRadarTime(value) {
   if (!match) return value || '—';
   const hour = Number(match[1]);
   const minute = match[2];
-  const displayHour = hour % 12 || 12;
-  const period = hour >= 12 ? 'PM' : 'AM';
-  return `${displayHour}:${minute} ${period}`;
+  return `${String(hour).padStart(2, '0')}:${minute}`;
 }
 
 const RADAR_TIME_OPTIONS = Array.from({ length: 25 }, (_, index) => {
@@ -53,13 +51,13 @@ const RADAR_SECTORS = [
 const RADAR_MA_PERIODS = [9, 20, 50, 150];
 const RADAR_MA_DISTANCES = [1, 2];
 const RADAR_MA_DIRECTIONS = [
-  { value: 'all', label: 'All' },
-  { value: 'above', label: 'Above' },
-  { value: 'below', label: 'Below' },
+  { value: 'all', label: 'הכול' },
+  { value: 'above', label: 'מעל' },
+  { value: 'below', label: 'מתחת' },
 ];
 
 function conditionModeLabel(value) {
-  return value === 'either' ? 'Either condition' : 'Both conditions';
+  return value === 'either' ? 'אחד התנאים' : 'שני התנאים';
 }
 
 function formatVolumeInput(value) {
@@ -102,7 +100,7 @@ function formatDate(value) {
 
 function formatRadarDateInput(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
-  return match ? `${match[2]}/${match[3]}/${match[1]}` : 'Choose a date';
+  return match ? `${match[2]}/${match[3]}/${match[1]}` : 'בחירת תאריך';
 }
 
 function formatBillions(value) {
@@ -114,17 +112,15 @@ function formatBillions(value) {
 function setupUniverseLabel(recipe) {
   if (recipe?.mode === 'sp500') return 'S&P 500';
   if (recipe?.mode === 'nasdaq100') return 'NASDAQ 100';
-  if (recipe?.mode === 'sectors') return 'Selected sectors';
-  return 'All stocks';
+  if (recipe?.mode === 'sectors') return 'סקטורים נבחרים';
+  return 'כל המניות';
 }
 
 function dataLine(radar) {
-  if (radar.dataStatus === 'unavailable') return radar.statusMessage || DATA_UNAVAILABLE;
-  if (radar.dataStatus === 'partial')
-    return radar.statusMessage || 'Some market data is unavailable right now. Try again in a few minutes.';
-  if (radar.dataStatus === 'waiting') return 'WAITING FOR A SIGNAL';
-  if (radar.dataStatus === 'needs_schedule' || radar.dataStatus === 'expired')
-    return radar.statusMessage || 'Choose a new Radar schedule.';
+  if (radar.dataStatus === 'unavailable') return DATA_UNAVAILABLE;
+  if (radar.dataStatus === 'partial') return 'חלק מנתוני השוק אינם זמינים. אפשר לבדוק שוב בהמשך.';
+  if (radar.dataStatus === 'waiting') return 'ממתינים להתאמה';
+  if (radar.dataStatus === 'needs_schedule' || radar.dataStatus === 'expired') return 'יש לבחור תזמון חדש לרדאר.';
   return null;
 }
 
@@ -157,20 +153,19 @@ function radarConditionState(data, condition) {
 function capitalFlowDetail(data, radar) {
   const ratio = numberOrNull(data?.volumeRatio);
   const minimum = numberOrNull(radar?.minVolumeRatio);
-  if (ratio === null || minimum === null) return 'RVOL data unavailable';
-  return `RVOL ${ratio.toFixed(2)}x ${ratio >= minimum ? '≥' : '<'} ${minimum.toFixed(1)}x minimum`;
+  if (ratio === null || minimum === null) return 'יחס הנפח אינו זמין';
+  return `RVOL ${ratio.toFixed(2)}x ${ratio >= minimum ? '≥' : '<'} ${minimum.toFixed(1)}x מינימלי`;
 }
 
 function movingAverageDetail(data, radar) {
   const period = numberOrNull(data?.maPeriod) ?? numberOrNull(radar?.maPeriod);
   const distance = numberOrNull(data?.maDistance);
   const limit = numberOrNull(radar?.maDistance);
-  if (distance === null)
-    return period === null ? 'Moving average distance unavailable' : `SMA${period} distance unavailable`;
-  const position = distance > 0 ? 'above' : distance < 0 ? 'below' : 'at';
+  if (distance === null) return period === null ? 'המרחק מהממוצע הנע אינו זמין' : `המרחק מ־SMA${period} אינו זמין`;
+  const position = distance > 0 ? 'מעל' : distance < 0 ? 'מתחת' : 'בגובה';
   const distanceText = Math.abs(distance).toFixed(2) + '%';
-  const averageLabel = period === null ? 'moving average' : `SMA${period}`;
-  return `Price ${distanceText} ${position} ${averageLabel}${limit === null ? '' : ` · limit ±${limit.toFixed(0)}%`}`;
+  const averageLabel = period === null ? 'הממוצע הנע' : `SMA${period}`;
+  return `המחיר ${distanceText} ${position} ${averageLabel}${limit === null ? '' : ` · טווח ±${limit.toFixed(0)}%`}`;
 }
 
 function RadarConditionRow({ label, state, detail }) {
@@ -179,7 +174,7 @@ function RadarConditionRow({ label, state, detail }) {
       <span className="cfr-radar-signal-condition-icon" aria-hidden="true">
         {state === 'met' ? '✓' : state === 'not-met' ? '—' : '?'}
       </span>
-      <span className="cfr-radar-signal-condition-label">{label}</span>
+      <span className="cfr-radar-signal-condition-label">{label === 'Moving Average' ? 'ממוצעים נעים' : label}</span>
       <span className="cfr-radar-signal-condition-detail">{detail}</span>
     </div>
   );
@@ -188,7 +183,7 @@ function RadarConditionRow({ label, state, detail }) {
 function RadarSignalCard({ event, radar }) {
   const data = event?.data && typeof event.data === 'object' ? event.data : {};
   const symbol = String(data.symbol || event?.symbol || '—').toUpperCase();
-  const marketLine = [data.exchange, data.sector].filter(Boolean).join(' · ');
+  const marketLine = [data.exchange, data.sector ? sectorName(data.sector) : null].filter(Boolean).join(' · ');
   const change = numberOrNull(data.change);
   const matchedConditions = Array.isArray(data.matchedConditions) ? data.matchedConditions : null;
   const capitalFlowState = radarConditionState(data, 'Capital Flow');
@@ -196,37 +191,37 @@ function RadarSignalCard({ event, radar }) {
   const maPeriod = numberOrNull(data.maPeriod) ?? numberOrNull(radar.maPeriod);
 
   return (
-    <article className="cfr-radar-signal-card" aria-label={`${symbol} Radar entry`}>
+    <article className="cfr-radar-signal-card" aria-label={`התאמת רדאר עבור ${symbol}`}>
       <div className="cfr-radar-signal-identity">
         <span className="cfr-radar-signal-symbol">{symbol}</span>
         <span className="cfr-radar-signal-match">
-          <span aria-hidden="true">✓</span> MATCHED
+          <span aria-hidden="true">✓</span> נמצאה התאמה
         </span>
         {marketLine && <span className="cfr-radar-signal-market">{marketLine}</span>}
       </div>
 
       <div className="cfr-radar-signal-proof">
-        <div className="cfr-radar-signal-proof-label">WHY RADAR SURFACED THIS</div>
+        <div className="cfr-radar-signal-proof-label">למה המניה מתאימה?</div>
         <div className="cfr-radar-signal-conditions">
           <RadarConditionRow label="Capital Flow" state={capitalFlowState} detail={capitalFlowDetail(data, radar)} />
           <RadarConditionRow
-            label={maPeriod === null ? 'Moving Average' : `SMA${maPeriod}`}
+            label={maPeriod === null ? 'ממוצע נע' : `SMA${maPeriod}`}
             state={movingAverageState}
             detail={movingAverageDetail(data, radar)}
           />
         </div>
         {matchedConditions === null && (
-          <div className="cfr-radar-signal-data-note">Match details unavailable for this entry.</div>
+          <div className="cfr-radar-signal-data-note">פרטי ההתאמה אינם זמינים לתוצאה זו.</div>
         )}
       </div>
 
       <div className="cfr-radar-signal-stats">
         <div className="cfr-radar-signal-stat">
-          <span>PRICE</span>
+          <span>מחיר</span>
           <b>{formatRadarPriceValue(data.price)}</b>
         </div>
         <div className="cfr-radar-signal-stat">
-          <span>CHANGE %</span>
+          <span>שינוי באחוזים</span>
           <b className={change === null ? '' : change >= 0 ? 'positive' : 'negative'}>
             {formatRadarChangeValue(data.change)}
           </b>
@@ -236,7 +231,7 @@ function RadarSignalCard({ event, radar }) {
           <b>{formatRadarRatioValue(data.volumeRatio)}</b>
         </div>
         <div className="cfr-radar-signal-stat cfr-radar-signal-stat-time">
-          <span>SCANNED</span>
+          <span>מועד סריקה</span>
           <b>{formatTime(event?.scanTime || data.scanTime)}</b>
         </div>
       </div>
@@ -271,16 +266,14 @@ function RadarDeleteConfirm({ onCancel, onConfirm, removing, error }) {
           type="button"
           className="cfr-radar-confirm-close"
           onClick={onCancel}
-          aria-label="Close"
+          aria-label="סגירה"
           disabled={removing}
         >
           ×
         </button>
-        <span className="cfr-radar-confirm-kicker">CAPITAL FLOW / RADAR</span>
-        <h2 id="cfr-radar-remove-title">Remove this Radar?</h2>
-        <p id="cfr-radar-remove-description">
-          This will stop the scan and remove its saved results. This action cannot be undone.
-        </p>
+        <span className="cfr-radar-confirm-kicker">רדאר Capital Flow</span>
+        <h2 id="cfr-radar-remove-title">להסיר את הרדאר הזה?</h2>
+        <p id="cfr-radar-remove-description">הסריקה תיפסק והתוצאות השמורות יוסרו. לא ניתן לבטל את ההסרה.</p>
         {error && (
           <div className="cfr-radar-confirm-error" role="alert">
             {error}
@@ -288,10 +281,10 @@ function RadarDeleteConfirm({ onCancel, onConfirm, removing, error }) {
         )}
         <div className="cfr-radar-confirm-actions">
           <button type="button" className="cfr-radar-confirm-cancel" onClick={onCancel} disabled={removing}>
-            Keep Radar
+            שמירת הרדאר
           </button>
           <button type="button" className="cfr-radar-confirm-delete" onClick={onConfirm} disabled={removing}>
-            {removing ? 'Removing…' : 'Remove Radar'}
+            {removing ? 'מסירים…' : 'הסרת רדאר'}
           </button>
         </div>
       </div>
@@ -348,17 +341,17 @@ export default function CapitalFlowRadar({
     return fetch('/api/radars', { headers: headers() })
       .then(async (response) => {
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || 'Radar data is temporarily unavailable.');
+        if (!response.ok) throw new Error(data.error || 'נתוני הרדאר אינם זמינים כרגע.');
         return data;
       })
       .then((data) => {
         setRadars(Array.isArray(data.radars) ? data.radars : []);
         setRadarsLoaded(true);
       })
-      .catch((err) => {
+      .catch(() => {
         setRadarLoadFailed(true);
         setRadarsLoaded(true);
-        setError(err.message || DATA_UNAVAILABLE);
+        setError(DATA_UNAVAILABLE);
       })
       .finally(() => setLoading(false));
   }, [headers, radarAccess]);
@@ -465,19 +458,19 @@ export default function CapitalFlowRadar({
       return;
     }
     if (!scheduleTime1) {
-      setError('Choose at least one scan time.');
+      setError('יש לבחור לפחות שעת סריקה אחת.');
       return;
     }
     if (scheduleTime2 && scheduleTime1 === scheduleTime2) {
-      setError('Choose two different scan times.');
+      setError('יש לבחור שתי שעות שונות.');
       return;
     }
     if (!expiresOn) {
-      setError('Choose the last date on which this Radar may run.');
+      setError('יש לבחור תאריך סיום לרדאר.');
       return;
     }
     if (selectedRecipe.mode === 'sectors' && selectedRecipe.selectedSectors.length === 0) {
-      setError('Choose at least one sector before activating this Radar.');
+      setError('יש לבחור לפחות סקטור אחד לפני הפעלת הרדאר.');
       return;
     }
     setLoading(true);
@@ -496,7 +489,7 @@ export default function CapitalFlowRadar({
     })
       .then(async (response) => {
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || 'Radar could not be created right now.');
+        if (!response.ok) throw new Error('לא הצלחנו ליצור את הרדאר. אפשר לנסות שוב.');
         return data;
       })
       .then((data) => {
@@ -509,10 +502,8 @@ export default function CapitalFlowRadar({
         }
         closeSetup();
       })
-      .catch((err) =>
-        setError(
-          err.message || (editing ? 'Radar could not be updated right now.' : 'Radar could not be created right now.')
-        )
+      .catch(() =>
+        setError(editing ? 'לא הצלחנו לעדכן את הרדאר. אפשר לנסות שוב.' : 'לא הצלחנו ליצור את הרדאר. אפשר לנסות שוב.')
       )
       .finally(() => setLoading(false));
   }
@@ -526,13 +517,13 @@ export default function CapitalFlowRadar({
     })
       .then(async (response) => {
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || 'Radar could not be updated right now.');
+        if (!response.ok) throw new Error('לא הצלחנו לעדכן את הרדאר. אפשר לנסות שוב.');
         return data;
       })
       .then((data) => {
         if (data.radar) setRadars((prev) => prev.map((item) => (item.id === id ? data.radar : item)));
       })
-      .catch((err) => setError(err.message || 'Radar could not be updated right now.'));
+      .catch(() => setError('לא הצלחנו לעדכן את הרדאר. אפשר לנסות שוב.'));
   }
 
   function requestRemoveRadar(id) {
@@ -554,14 +545,14 @@ export default function CapitalFlowRadar({
     fetch('/api/radars/' + id, { method: 'DELETE', headers: headers() })
       .then(async (response) => {
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || 'Radar could not be removed right now.');
+        if (!response.ok) throw new Error('לא הצלחנו להסיר את הרדאר. אפשר לנסות שוב.');
         return data;
       })
       .then(() => {
         setRadars((prev) => prev.filter((item) => item.id !== id));
         setPendingRemoveRadarId(null);
       })
-      .catch((err) => setError(err.message || 'Radar could not be removed right now.'))
+      .catch(() => setError('לא הצלחנו להסיר את הרדאר. אפשר לנסות שוב.'))
       .finally(() => setRemovingRadarId(null));
   }
 
@@ -572,15 +563,15 @@ export default function CapitalFlowRadar({
     (radar) => radar.active && radar.dataStatus !== 'expired' && radar.dataStatus !== 'needs_schedule'
   );
   const setupUniverse = setupUniverseLabel(currentRecipe);
-  const setupConditionMode = currentRecipe.conditionMode === 'either' ? 'EITHER' : 'BOTH';
+  const setupConditionMode = currentRecipe.conditionMode === 'either' ? 'אחד התנאים' : 'שני התנאים';
   const setupMinRatio = Number(currentRecipe.minVolumeRatio || 0).toFixed(1);
   const setupMinCap = formatBillions(currentRecipe.minMarketCap);
   const setupRecipe = `${setupUniverse} · RVOL ${setupMinRatio}x · SMA${currentRecipe.maPeriod} ±${currentRecipe.maDistance}% · ${
-    currentRecipe.maInterval === '1wk' ? 'Weekly' : 'Daily'
+    currentRecipe.maInterval === '1wk' ? 'שבועי' : 'יומי'
   }`;
   const setupPriceRange =
     currentRecipe.minPrice || currentRecipe.maxPrice
-      ? `${currentRecipe.minPrice ? '$' + currentRecipe.minPrice : 'Any'} – ${currentRecipe.maxPrice ? '$' + currentRecipe.maxPrice : 'Any'}`
+      ? `${currentRecipe.minPrice ? '$' + currentRecipe.minPrice : 'ללא הגבלה'} – ${currentRecipe.maxPrice ? '$' + currentRecipe.maxPrice : 'ללא הגבלה'}`
       : null;
 
   return (
@@ -598,23 +589,19 @@ export default function CapitalFlowRadar({
             </svg>
           </span>
           <div>
-            <span className="cfr-radar-kicker">CAPITAL FLOW / RADAR</span>
-            <h3 id="capital-flow-radar-title">
-              {hasSavedRadar && !setupOpen ? 'SIGNAL CARDS' : 'Capital Radar — Ultimate Scan'}
-            </h3>
-            {hasSavedRadar && !setupOpen && (
-              <span className="cfr-radar-results-heading">CAPITAL FLOW RADAR RESULTS</span>
-            )}
+            <span className="cfr-radar-kicker">רדאר Capital Flow</span>
+            <h3 id="capital-flow-radar-title">{hasSavedRadar && !setupOpen ? 'תוצאות הרדאר' : 'רדאר Capital Flow'}</h3>
+            {hasSavedRadar && !setupOpen && <span className="cfr-radar-results-heading">תוצאות רדאר Capital Flow</span>}
           </div>
         </div>
         <span className={'cfr-radar-state' + (locked ? ' locked' : hasActiveScheduledRadar ? ' on' : '')}>
           {locked
             ? !user
-              ? 'SIGN IN TO ACTIVATE'
-              : 'ELITE ACCESS ONLY'
+              ? 'התחבר כדי להפעיל'
+              : 'כלול במסלול Elite'
             : hasActiveScheduledRadar
-              ? 'SCHEDULED'
-              : 'READY TO SCHEDULE'}
+              ? 'מתוזמן'
+              : 'מוכן לתזמון'}
         </span>
       </div>
 
@@ -622,11 +609,11 @@ export default function CapitalFlowRadar({
         <div className="cfr-radar-locked">
           <span>
             {user
-              ? 'Radar is available during the 7-day trial and with Elite access. Premium does not include Radar.'
-              : 'Sign in to activate Radar and keep a scan running when you are away.'}
+              ? 'הרדאר זמין בתקופת הניסיון ובמסלול Elite. הוא אינו כלול ב־Premium.'
+              : 'התחבר כדי להפעיל רדאר ולסרוק גם כשאינך באפליקציה.'}
           </span>
           <button className="cfr-radar-cta" type="button" onClick={user ? onUpgrade : onSignIn}>
-            {user ? 'Unlock with Elite' : 'Sign in to activate'} <span aria-hidden="true">→</span>
+            {user ? 'שדרוג ל־Elite' : 'התחברות להפעלה'} <span aria-hidden="true">→</span>
           </button>
         </div>
       ) : (
@@ -644,27 +631,27 @@ export default function CapitalFlowRadar({
                   </div>
                   <span className={'cfr-radar-data-status ' + radar.dataStatus}>
                     {radar.dataStatus === 'ready'
-                      ? 'DATA READY'
+                      ? 'נתונים זמינים'
                       : radar.dataStatus === 'partial'
-                        ? 'PARTIAL DATA'
+                        ? 'נתונים חלקיים'
                         : radar.dataStatus === 'waiting'
-                          ? 'WAITING'
-                          : 'DATA UNAVAILABLE'}
+                          ? 'ממתינים'
+                          : 'אין נתונים זמינים'}
                   </span>
                 </div>
 
                 <div className="cfr-radar-results-toolbar">
                   <div className="cfr-radar-results-recipe">
-                    <span>ACTIVE RADAR RECIPE</span>
+                    <span>הגדרות הרדאר הפעיל</span>
                     <b>
                       {modeLabel(radar)} <em>·</em> RVOL {Number(radar.minVolumeRatio).toFixed(1)}x <em>·</em> SMA
                       {radar.maPeriod || 20} ±{Number(radar.maDistance || 2).toFixed(0)}% <em>·</em>{' '}
-                      {radar.maInterval === '1wk' ? 'Weekly' : 'Daily'} <em>·</em>{' '}
+                      {radar.maInterval === '1wk' ? 'שבועי' : 'יומי'} <em>·</em>{' '}
                       {conditionModeLabel(radar.conditionMode)}
                     </b>
                   </div>
                   <div className="cfr-radar-results-last-check">
-                    <span>LAST SCAN</span>
+                    <span>סריקה אחרונה</span>
                     <b>{formatTime(radar.lastCheckAt)}</b>
                   </div>
                   <button
@@ -676,20 +663,20 @@ export default function CapitalFlowRadar({
                     <span className="cfr-radar-refresh-icon" aria-hidden="true">
                       ↻
                     </span>
-                    {loading ? 'Checking…' : 'Refresh'}
+                    {loading ? 'בודקים…' : 'עדכון'}
                   </button>
                 </div>
 
                 <div className="cfr-radar-meta">
                   <span>
-                    Scan times{' '}
+                    שעות סריקה{' '}
                     <b>
                       {[radar.scheduleTime1, radar.scheduleTime2].filter(Boolean).map(formatRadarTime).join(' · ') ||
-                        'Not set'}
+                        'לא הוגדר'}
                     </b>
                   </span>
                   <span>
-                    Until <b>{formatDate(radar.expiresOn)}</b>
+                    עד <b>{formatDate(radar.expiresOn)}</b>
                   </span>
                 </div>
 
@@ -701,7 +688,7 @@ export default function CapitalFlowRadar({
 
                 {radar.events && radar.events.length > 0 && (
                   <div className="cfr-radar-events">
-                    <div className="cfr-radar-events-label">RECENT ENTRIES</div>
+                    <div className="cfr-radar-events-label">התאמות אחרונות</div>
                     <div className="cfr-radar-signal-list">
                       {radar.events.slice(0, 3).map((event) => (
                         <RadarSignalCard key={event.id} event={event} radar={radar} />
@@ -713,14 +700,14 @@ export default function CapitalFlowRadar({
                 <div className="cfr-radar-controls">
                   <button type="button" onClick={() => openSetupForRadar(radar)}>
                     {radar.dataStatus === 'expired' || radar.dataStatus === 'needs_schedule'
-                      ? 'Set schedule'
-                      : 'Edit schedule'}
+                      ? 'הגדרת תזמון'
+                      : 'עריכת תזמון'}
                   </button>
                   <button type="button" onClick={() => updateRadar(radar.id, { active: !radar.active })}>
-                    {radar.active ? 'Pause' : 'Resume'}
+                    {radar.active ? 'השהיה' : 'הפעלה מחדש'}
                   </button>
                   <button type="button" onClick={() => requestRemoveRadar(radar.id)} className="danger">
-                    Remove
+                    הסרה
                   </button>
                 </div>
               </article>
@@ -731,7 +718,7 @@ export default function CapitalFlowRadar({
             <div className="cfr-radar-live-event" role="status" aria-live="polite">
               <span className="cfr-radar-live-pulse" />
               <span>
-                <b>{latestEvent.symbol}</b> just entered a saved Radar
+                <b>{latestEvent.symbol}</b> התאימה לרדאר שמור
               </span>
             </div>
           )}
@@ -739,15 +726,15 @@ export default function CapitalFlowRadar({
           {setupOpen ? (
             <div className="cfr-radar-setup">
               <div className="cfr-radar-setup-label" id="capital-flow-radar-setup-title">
-                CAPITAL FLOW RADAR SETUP
-                {editingRadarId !== null && <em> · EDITING SAVED RADAR</em>}
+                הגדרת רדאר Capital Flow
+                {editingRadarId !== null && <em> · עריכת רדאר שמור</em>}
               </div>
               <div className="cfr-radar-condition-block">
                 <fieldset className="cfr-radar-logic-picker">
                   <legend className="cfr-radar-logic-legend">
-                    <span>ALERT LOGIC</span>
+                    <span>תנאי ההתראה</span>
                   </legend>
-                  <div className="cfr-radar-logic-options" role="radiogroup" aria-label="Radar alert logic">
+                  <div className="cfr-radar-logic-options" role="radiogroup" aria-label="תנאי ההתראה ברדאר">
                     <label
                       className={'cfr-radar-logic-option' + (currentRecipe.conditionMode === 'both' ? ' active' : '')}
                     >
@@ -759,8 +746,8 @@ export default function CapitalFlowRadar({
                         onChange={() => updateDraftRecipe('conditionMode', 'both')}
                       />
                       <span className="cfr-radar-logic-option-copy">
-                        <b>Both conditions</b>
-                        <small>Capital Flow AND Moving Average must match.</small>
+                        <b>שני התנאים</b>
+                        <small>גם נפח המסחר וגם הממוצע הנע צריכים להתאים.</small>
                       </span>
                     </label>
                     <label
@@ -774,40 +761,40 @@ export default function CapitalFlowRadar({
                         onChange={() => updateDraftRecipe('conditionMode', 'either')}
                       />
                       <span className="cfr-radar-logic-option-copy">
-                        <b>Either condition</b>
-                        <small>Capital Flow OR Moving Average is enough.</small>
+                        <b>אחד התנאים</b>
+                        <small>מספיק שנפח המסחר או הממוצע הנע יתאימו.</small>
                       </span>
                     </label>
                   </div>
                   <p className="cfr-radar-logic-result">
                     {currentRecipe.conditionMode === 'either'
-                      ? 'One match sends an alert. If both match, you still receive one alert.'
-                      : 'Only a match from both layers sends an alert.'}
+                      ? 'התאמה אחת מספיקה להתראה. גם אם שני התנאים מתקיימים, נשלחת התראה אחת.'
+                      : 'התראה נשלחת רק אם שני התנאים מתקיימים.'}
                   </p>
                 </fieldset>
                 <div className="cfr-radar-filter-section">
                   <div className="cfr-radar-filter-section-heading">
                     <span>CAPITAL FLOW</span>
-                    <small>Choose the universe and activity filters.</small>
+                    <small>בחר את המניות והמסננים לסריקה.</small>
                   </div>
                   <div className="cfr-radar-filter-grid">
                     <label className="cfr-radar-filter cfr-radar-filter-wide">
-                      <span>Universe</span>
+                      <span>קבוצת מניות</span>
                       <select
                         value={currentRecipe.mode}
                         onChange={(event) =>
                           updateDraftRecipe('mode', event.target.value === 'sectors' ? 'sectors' : event.target.value)
                         }
-                        aria-label="Radar market universe"
+                        aria-label="קבוצת מניות ברדאר"
                       >
-                        <option value="all">All stocks</option>
+                        <option value="all">כל המניות</option>
                         <option value="sp500">S&amp;P 500</option>
                         <option value="nasdaq100">NASDAQ 100</option>
-                        <option value="sectors">Selected sectors</option>
+                        <option value="sectors">סקטורים נבחרים</option>
                       </select>
                     </label>
                     <label className="cfr-radar-filter">
-                      <span>Min RVOL</span>
+                      <span>יחס נפח מינימלי</span>
                       <input
                         type="number"
                         min="1.5"
@@ -815,11 +802,11 @@ export default function CapitalFlowRadar({
                         step="0.1"
                         value={currentRecipe.minVolumeRatio}
                         onChange={(event) => updateDraftRecipe('minVolumeRatio', event.target.value)}
-                        aria-label="Minimum relative volume"
+                        aria-label="יחס נפח מינימלי"
                       />
                     </label>
                     <label className="cfr-radar-filter">
-                      <span>Min cap ($B)</span>
+                      <span>שווי מינימלי במיליארדי דולר</span>
                       <input
                         type="number"
                         min="0.5"
@@ -827,7 +814,7 @@ export default function CapitalFlowRadar({
                         step="0.1"
                         value={(Number(currentRecipe.minMarketCap || 0) / 1e9).toString()}
                         onChange={(event) => updateDraftRecipe('minMarketCap', Number(event.target.value) * 1e9)}
-                        aria-label="Minimum market capitalization in billions"
+                        aria-label="שווי שוק מינימלי במיליארדי דולר"
                       />
                     </label>
                   </div>
@@ -840,7 +827,7 @@ export default function CapitalFlowRadar({
                   >
                     <span aria-hidden="true">{advancedFiltersOpen ? '⌃' : '⌄'}</span>
                     <span>
-                      More filters <em>(optional)</em>
+                      מסננים נוספים <em>(לא חובה)</em>
                     </span>
                   </button>
                   {advancedFiltersOpen && (
@@ -849,44 +836,44 @@ export default function CapitalFlowRadar({
                       className="cfr-radar-filter-grid cfr-radar-advanced-filter-grid"
                     >
                       <label className="cfr-radar-filter">
-                        <span>Min volume</span>
+                        <span>נפח מינימלי</span>
                         <input
                           type="text"
                           value={currentRecipe.minVolRaw}
                           onChange={(event) => updateDraftRecipe('minVolRaw', event.target.value.toUpperCase())}
-                          placeholder="Optional"
-                          aria-label="Minimum trading volume"
+                          placeholder="לא חובה"
+                          aria-label="נפח מסחר מינימלי"
                         />
                       </label>
                       <label className="cfr-radar-filter">
-                        <span>Min price</span>
+                        <span>מחיר מינימלי</span>
                         <input
                           type="number"
                           min="0"
                           step="0.01"
                           value={currentRecipe.minPrice || ''}
                           onChange={(event) => updateDraftRecipe('minPrice', Number(event.target.value || 0))}
-                          placeholder="Any"
-                          aria-label="Minimum price"
+                          placeholder="לא חובה"
+                          aria-label="מחיר מינימלי"
                         />
                       </label>
                       <label className="cfr-radar-filter">
-                        <span>Max price</span>
+                        <span>מחיר מקסימלי</span>
                         <input
                           type="number"
                           min="0"
                           step="0.01"
                           value={currentRecipe.maxPrice || ''}
                           onChange={(event) => updateDraftRecipe('maxPrice', Number(event.target.value || 0))}
-                          placeholder="Any"
-                          aria-label="Maximum price"
+                          placeholder="לא חובה"
+                          aria-label="מחיר מקסימלי"
                         />
                       </label>
                     </div>
                   )}
                   {currentRecipe.mode === 'sectors' && (
                     <div className="cfr-radar-sector-picker">
-                      <span>Sectors</span>
+                      <span>סקטורים</span>
                       <div className="cfr-radar-sector-grid">
                         {RADAR_SECTORS.map((sector) => (
                           <button
@@ -905,12 +892,12 @@ export default function CapitalFlowRadar({
                 </div>
                 <div className="cfr-radar-filter-section cfr-radar-ma-section">
                   <div className="cfr-radar-filter-section-heading">
-                    <span>MOVING AVERAGE</span>
-                    <small>Set the SMA confirmation settings.</small>
+                    <span>ממוצע נע</span>
+                    <small>הגדר את תנאי ההתאמה לממוצע הנע.</small>
                   </div>
                   <div className="cfr-radar-ma-controls">
                     <div className="cfr-radar-option-group">
-                      <span>SMA period</span>
+                      <span>תקופת הממוצע הנע</span>
                       <div className="cfr-radar-option-row">
                         {RADAR_MA_PERIODS.map((period) => (
                           <button
@@ -926,7 +913,7 @@ export default function CapitalFlowRadar({
                       </div>
                     </div>
                     <div className="cfr-radar-option-group">
-                      <span>Distance</span>
+                      <span>מרחק</span>
                       <div className="cfr-radar-option-row">
                         {RADAR_MA_DISTANCES.map((distance) => (
                           <button
@@ -942,7 +929,7 @@ export default function CapitalFlowRadar({
                       </div>
                     </div>
                     <div className="cfr-radar-option-group">
-                      <span>Direction</span>
+                      <span>כיוון</span>
                       <div className="cfr-radar-option-row">
                         {RADAR_MA_DIRECTIONS.map((item) => (
                           <button
@@ -958,11 +945,11 @@ export default function CapitalFlowRadar({
                       </div>
                     </div>
                     <div className="cfr-radar-option-group">
-                      <span>Timeframe</span>
+                      <span>טווח זמן</span>
                       <div className="cfr-radar-option-row">
                         {[
-                          { value: '1d', label: 'Daily' },
-                          { value: '1wk', label: 'Weekly' },
+                          { value: '1d', label: 'יומי' },
+                          { value: '1wk', label: 'שבועי' },
                         ].map((item) => (
                           <button
                             type="button"
@@ -981,47 +968,54 @@ export default function CapitalFlowRadar({
               </div>
               <aside className="cfr-radar-summary" aria-labelledby="cfr-radar-summary-title">
                 <div className="cfr-radar-summary-head">
-                  <span id="cfr-radar-summary-title">YOUR RADAR</span>
-                  {editingRadarId !== null && <em>EDITING</em>}
+                  <span id="cfr-radar-summary-title">הרדאר שלך</span>
+                  {editingRadarId !== null && <em>עריכה</em>}
                 </div>
                 <div className="cfr-radar-summary-recipe">{setupRecipe}</div>
 
                 <div className="cfr-radar-summary-divider" />
 
-                <div className="cfr-radar-summary-label">CONDITIONS ({setupConditionMode})</div>
+                <div className="cfr-radar-summary-label">תנאים ({setupConditionMode})</div>
                 <div className="cfr-radar-summary-conditions">
                   <div className="cfr-radar-summary-condition">
                     <span className="cfr-radar-summary-step">1</span>
                     <div>
-                      <b>CAPITAL FLOW CONDITION</b>
-                      <p>Price action meets Capital Flow filters</p>
+                      <b>תנאי נפח מסחר</b>
+                      <p>המניה עומדת במסנני נפח המסחר</p>
                       <ul>
-                        <li>Universe: {setupUniverse}</li>
-                        <li>Min RVOL: {setupMinRatio}</li>
-                        <li>Min cap: ${setupMinCap}B</li>
+                        <li>קבוצת מניות: {setupUniverse}</li>
+                        <li>יחס נפח מינימלי: {setupMinRatio}</li>
+                        <li>
+                          שווי שוק מינימלי: <bdi dir="ltr">${setupMinCap}B</bdi>
+                        </li>
                         {currentRecipe.mode === 'sectors' && currentRecipe.selectedSectors.length > 0 && (
-                          <li>Sectors: {currentRecipe.selectedSectors.join(' · ')}</li>
+                          <li>סקטורים: {currentRecipe.selectedSectors.map(sectorName).join(' · ')}</li>
                         )}
-                        {currentRecipe.minVolRaw && <li>Min volume: {currentRecipe.minVolRaw}</li>}
-                        {setupPriceRange && <li>Price: {setupPriceRange}</li>}
+                        {currentRecipe.minVolRaw && <li>נפח מינימלי: {currentRecipe.minVolRaw}</li>}
+                        {setupPriceRange && (
+                          <li>
+                            מחיר: <bdi dir="ltr">{setupPriceRange}</bdi>
+                          </li>
+                        )}
                       </ul>
                     </div>
                   </div>
                   <div className="cfr-radar-summary-condition">
                     <span className="cfr-radar-summary-step">2</span>
                     <div>
-                      <b>MOVING AVERAGE CONDITION</b>
+                      <b>תנאי ממוצע נע</b>
                       <p>
-                        Price is within ±{currentRecipe.maDistance}% of SMA{currentRecipe.maPeriod}
+                        המחיר נמצא בטווח ±{currentRecipe.maDistance}% מהממוצע הנע SMA{currentRecipe.maPeriod}
                       </p>
                       <ul>
-                        <li>SMA period: {currentRecipe.maPeriod}</li>
-                        <li>Distance: ±{currentRecipe.maDistance}%</li>
+                        <li>תקופת הממוצע הנע: {currentRecipe.maPeriod}</li>
+                        <li>מרחק: ±{currentRecipe.maDistance}%</li>
                         <li>
-                          Direction:{' '}
-                          {RADAR_MA_DIRECTIONS.find((item) => item.value === currentRecipe.maDirection)?.label || 'All'}
+                          כיוון:{' '}
+                          {RADAR_MA_DIRECTIONS.find((item) => item.value === currentRecipe.maDirection)?.label ||
+                            'הכול'}
                         </li>
-                        <li>Timeframe: {currentRecipe.maInterval === '1wk' ? 'Weekly' : 'Daily'}</li>
+                        <li>טווח זמן: {currentRecipe.maInterval === '1wk' ? 'שבועי' : 'יומי'}</li>
                       </ul>
                     </div>
                   </div>
@@ -1030,19 +1024,19 @@ export default function CapitalFlowRadar({
                 <div className="cfr-radar-summary-divider" />
 
                 <div className="cfr-radar-summary-schedule">
-                  <div className="cfr-radar-summary-label">SCHEDULE</div>
+                  <div className="cfr-radar-summary-label">תזמון</div>
                   <div className="cfr-radar-summary-schedule-row">
-                    <span>First scan</span>
-                    <b>{scheduleTime1 ? formatRadarTime(scheduleTime1) : 'Choose a time'}</b>
+                    <span>סריקה ראשונה</span>
+                    <b>{scheduleTime1 ? formatRadarTime(scheduleTime1) : 'בחירת שעה'}</b>
                   </div>
                   <div className="cfr-radar-summary-schedule-row">
                     <span>
-                      Second scan <em>optional</em>
+                      סריקה שנייה <em>לא חובה</em>
                     </span>
-                    <b>{scheduleTime2 ? formatRadarTime(scheduleTime2) : 'No second scan'}</b>
+                    <b>{scheduleTime2 ? formatRadarTime(scheduleTime2) : 'ללא סריקה שנייה'}</b>
                   </div>
                   <div className="cfr-radar-summary-schedule-row">
-                    <span>Active through</span>
+                    <span>פעיל עד</span>
                     <b>{formatRadarDateInput(expiresOn)}</b>
                   </div>
                 </div>
@@ -1062,25 +1056,25 @@ export default function CapitalFlowRadar({
                       loading || (currentRecipe.mode === 'sectors' && currentRecipe.selectedSectors.length === 0)
                     }
                   >
-                    Activate Radar <span aria-hidden="true">→</span>
+                    הפעלת רדאר <span aria-hidden="true">→</span>
                   </button>
                   <button type="button" className="cfr-radar-cancel" onClick={closeSetup}>
-                    Cancel
+                    ביטול
                   </button>
                 </div>
               </aside>
               <div className="cfr-radar-schedule-picker">
-                <div className="cfr-radar-schedule-heading">Choose up to 2 scan times · Jerusalem time</div>
+                <div className="cfr-radar-schedule-heading">בחר עד שתי שעות סריקה · שעון ירושלים</div>
                 <div className="cfr-radar-schedule-grid">
                   <label>
-                    <span>First scan</span>
+                    <span>סריקה ראשונה</span>
                     <select
                       value={scheduleTime1}
                       onChange={(event) => setScheduleTime1(event.target.value)}
                       required
-                      aria-label="First daily Radar scan time"
+                      aria-label="שעת הסריקה הראשונה"
                     >
-                      <option value="">Choose a time</option>
+                      <option value="">בחירת שעה</option>
                       {RADAR_TIME_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
@@ -1090,14 +1084,14 @@ export default function CapitalFlowRadar({
                   </label>
                   <label>
                     <span>
-                      Second scan <em>optional</em>
+                      סריקה שנייה <em>לא חובה</em>
                     </span>
                     <select
                       value={scheduleTime2}
                       onChange={(event) => setScheduleTime2(event.target.value)}
-                      aria-label="Second daily Radar scan time"
+                      aria-label="שעת הסריקה השנייה"
                     >
-                      <option value="">No second scan</option>
+                      <option value="">ללא סריקה שנייה</option>
                       {RADAR_TIME_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
@@ -1106,33 +1100,33 @@ export default function CapitalFlowRadar({
                     </select>
                   </label>
                   <label className="cfr-radar-expiry-field">
-                    <span>Active through</span>
+                    <span>פעיל עד</span>
                     <input
                       type="date"
                       value={expiresOn}
                       min={todayIsrael()}
                       onChange={(event) => setExpiresOn(event.target.value)}
                       required
-                      aria-label="Radar expiry date"
+                      aria-label="תאריך סיום לרדאר"
                     />
                   </label>
                 </div>
                 <p className="cfr-radar-schedule-note">
-                  Pick a time between 11:00 AM and 11:00 PM. Pre-market and regular-session checks are supported;
-                  closed-market periods are skipped, and the expiry date is inclusive.
+                  בחר שעה בין 11:00 ל־23:00. הסריקות פועלות במסחר המוקדם ובמסחר הרגיל; כשהמסחר סגור הסריקה לא מתבצעת.
+                  תאריך הסיום כלול.
                 </p>
               </div>
               <label className="cfr-radar-name-field">
                 <span>
-                  Radar name <em>optional</em>
+                  שם הרדאר <em>לא חובה</em>
                 </span>
                 <input
                   type="text"
                   maxLength={60}
                   value={name}
                   onChange={(event) => setName(event.target.value)}
-                  placeholder="e.g. Large-cap momentum"
-                  aria-label="Radar name"
+                  placeholder="לדוגמה: פעילות במניות גדולות"
+                  aria-label="שם הרדאר"
                 />
               </label>
               <div className="cfr-radar-current-recipe">
@@ -1141,7 +1135,7 @@ export default function CapitalFlowRadar({
                 {currentRecipe.maDistance}%
               </div>
               {currentRecipe.mode === 'sectors' && currentRecipe.selectedSectors.length === 0 && (
-                <div className="cfr-radar-form-error">Choose at least one sector before activating this Radar.</div>
+                <div className="cfr-radar-form-error">יש לבחור לפחות סקטור אחד לפני הפעלת הרדאר.</div>
               )}
             </div>
           ) : canCreateRadar ? (
@@ -1149,7 +1143,7 @@ export default function CapitalFlowRadar({
               <span className="cfr-radar-plus" aria-hidden="true">
                 +
               </span>
-              Activate this scan as Radar
+              הפעלת הסריקה כרדאר
             </button>
           ) : null}
 
@@ -1164,7 +1158,7 @@ export default function CapitalFlowRadar({
             onClick={() => setRefreshKey((key) => key + 1)}
             disabled={loading}
           >
-            {loading ? 'Checking…' : 'Refresh Radar status'}
+            {loading ? 'בודקים…' : 'עדכון מצב הרדאר'}
           </button>
         </>
       )}

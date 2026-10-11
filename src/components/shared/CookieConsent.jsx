@@ -7,6 +7,8 @@ const styles = `
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 .cc-card {
+  direction: rtl;
+  text-align: start;
   position: fixed;
   bottom: 24px;
   left: 24px;
@@ -45,7 +47,7 @@ const styles = `
 }
 .cc-body {
   font-size: 12px;
-  color: #71717a;
+  color: #b4b4bd;
   line-height: 1.6;
   margin-bottom: 16px;
 }
@@ -63,7 +65,7 @@ const styles = `
   background: none;
   border: none;
   font-size: 12px;
-  color: #52525b;
+  color: #e4e4e7;
   cursor: pointer;
   padding: 0;
   transition: color .15s;
@@ -72,7 +74,7 @@ const styles = `
 .cc-decline:hover { color: #a0a0a8; }
 .cc-policy {
   font-size: 11px;
-  color: #3f3f46;
+  color: #a0a0a8;
   text-decoration: none;
   border-bottom: 1px solid #3f3f46;
   padding-bottom: 1px;
@@ -117,25 +119,23 @@ export default function CookieConsent() {
   return (
     <>
       <style>{styles}</style>
-      <div role="dialog" aria-label="Cookie Preferences" className="cc-card">
+      <div role="dialog" aria-label="העדפות פרטיות" lang="he" dir="rtl" className="cc-card">
         <div className="cc-top">
           <div className="cc-dot" />
-          <span className="cc-title">Cookie Preferences</span>
+          <span className="cc-title">העדפות פרטיות</span>
         </div>
-        <p className="cc-body">
-          We use cookies to deliver and improve our service. No personal data is sold or shared with third parties.
-        </p>
+        <p className="cc-body">עוגיות חיוניות מאפשרות להתחבר. אנליטיקה לשיפור השירות מופעלת רק באישור שלך.</p>
         <div className="cc-footer">
           <div className="cc-left">
             <button className="cc-decline" onClick={handleDecline}>
-              Decline
+              ללא אנליטיקה
             </button>
             <a className="cc-policy" href="/policy">
-              Privacy Policy
+              מדיניות פרטיות
             </a>
           </div>
           <button className="cc-accept" onClick={handleAccept}>
-            Accept All
+            אישור אנליטיקה
           </button>
         </div>
       </div>

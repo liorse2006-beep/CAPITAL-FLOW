@@ -10,7 +10,7 @@ describe('TierComparisonMatrix', () => {
     expect(screen.getByRole('heading', { name: 'Elite' })).toBeInTheDocument();
     expect(screen.getByText('$14.90')).toBeInTheDocument();
     expect(screen.getByText('$29.90')).toBeInTheDocument();
-    expect(screen.getAllByText('Capital Flow Radar')).toHaveLength(2);
+    expect(screen.getAllByText('רדאר Capital Flow')).toHaveLength(2);
     expect(screen.queryByText(/CAPI\s*-\s*AI\s*MENTOR/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/news\s*&\s*ai\s*summaries/i)).not.toBeInTheDocument();
   });

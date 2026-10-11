@@ -15,7 +15,7 @@ describe('AlertThresholdModal', () => {
         onClose={vi.fn()}
       />
     );
-    expect(screen.getByText(/ALERT · AAPL/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'התראה · AAPL' })).toBeInTheDocument();
     expect(screen.getByText('נפח')).toBeInTheDocument();
     expect(screen.getByText('מחיר')).toBeInTheDocument();
   });

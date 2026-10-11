@@ -8,6 +8,7 @@ import ErrorBoundary from './components/shared/ErrorBoundary';
 import CookieConsent from './components/shared/CookieConsent';
 import UpdateToast from './components/shared/UpdateToast';
 import AccessibilityWidget from './components/shared/AccessibilityWidget';
+import PublicLegalPage from './components/shared/PublicLegalPage';
 import ScanLoader from './components/shared/ScanLoader';
 import './sentry';
 import './analytics';
@@ -31,11 +32,7 @@ try {
 // check is slow because the server was asleep. Imported eagerly, not lazily
 // — ScannerPage already imports it statically, so it's in the main bundle
 // regardless; a dynamic import() here would just add an ineffective split.
-const COLD_START_MESSAGES = [
-  'Waking up the server…',
-  'This can take up to 30 seconds on the first load of the day',
-  'Almost there…',
-];
+const COLD_START_MESSAGES = ['מכינים את סביבת העבודה…', 'אם הטעינה מתעכבת, אפשר לנסות שוב בעוד רגע', 'כמעט מוכנים…'];
 
 // Push notifications depend on an active service worker — App.jsx waits on
 // navigator.serviceWorker.ready, which never resolves without a prior
@@ -66,6 +63,7 @@ if ('serviceWorker' in navigator) {
 
 function Root() {
   const { isLoading, user, authLoadError } = useAuth();
+  const { pathname } = useLocation();
   // Most loads resolve in well under a second — only switch to the fuller
   // animated "waking up" screen once the wait has gone on long enough that
   // it's plausibly a cold Render instance, not a flash on every visit.
@@ -86,7 +84,9 @@ function Root() {
         background: '#0A0A0A',
       }}
     >
-      <div style={{ color: '#F59E0B', fontFamily: 'monospace', fontSize: 13, letterSpacing: '0.1em' }}>Loading…</div>
+      <div style={{ color: '#F59E0B', fontFamily: 'monospace', fontSize: 13, letterSpacing: '0.1em' }} role="status">
+        טוענים…
+      </div>
     </div>
   );
 
@@ -109,6 +109,10 @@ function Root() {
     plainLoadingScreen
   );
 
+  if (pathname === '/policy' || pathname === '/accessibility') {
+    return <PublicLegalPage path={pathname} />;
+  }
+
   if (isLoading) {
     return loadingScreen;
   }
@@ -122,10 +126,10 @@ function Root() {
             <div className="logo-bar" />
             <div className="logo-bar" />
           </div>
-          <h1>We couldn&apos;t reach Capital Flow</h1>
-          <p>The server may be waking up or temporarily unavailable. Your session is still saved.</p>
+          <h1>לא הצלחנו לטעון את Capital Flow</h1>
+          <p>השירות אינו זמין כרגע. ההתחברות שלך נשמרה ואפשר לנסות שוב.</p>
           <button className="upgrade-cta" onClick={() => window.location.reload()}>
-            Try again
+            ניסיון נוסף
           </button>
         </div>
       </div>
@@ -137,17 +141,6 @@ function Root() {
   return <App key={user ? String(user.id) : 'guest'} />;
 }
 
-// The landing page (App.jsx's own logged-out "/" route) has its own
-// complete, self-contained design — the app-wide accessibility widget
-// doesn't belong floating on top of it. Only suppressed there; every real
-// app screen still gets it.
-function ConditionalAccessibilityWidget() {
-  const { user } = useAuth();
-  const location = useLocation();
-  if (location.pathname === '/' && !user) return null;
-  return <AccessibilityWidget />;
-}
-
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
@@ -156,7 +149,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Root />
           <CookieConsent />
           <UpdateToast />
-          <ConditionalAccessibilityWidget />
+          <AccessibilityWidget />
         </BrowserRouter>
       </AuthProvider>
     </ErrorBoundary>

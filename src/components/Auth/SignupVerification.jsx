@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import 'altcha/external';
+import 'altcha/i18n/he';
 import 'altcha/altcha.css';
 import Pbkdf2Worker from 'altcha/workers/pbkdf2?worker';
 
@@ -9,19 +10,21 @@ window.$altcha.algorithms.set('PBKDF2/SHA-256', () => new Pbkdf2Worker());
 
 // The SDK exposes its methods only after its asynchronous `load` event.
 // Initial configuration must be supplied as attributes, before that event.
-const configuration = JSON.stringify({
-  challenge: '/api/auth/signup-challenge',
-  credentials: 'same-origin',
-  auto: 'onload',
-  workers: 2,
-  language: 'en',
-  hideLogo: true,
-  hideFooter: true,
-  humanInteractionSignature: false,
-  timeout: 25000,
-});
+function configurationFor(purpose) {
+  return JSON.stringify({
+    challenge: `/api/auth/${purpose === 'login' ? 'login' : 'signup'}-challenge`,
+    credentials: 'same-origin',
+    auto: 'onload',
+    workers: 2,
+    language: 'he',
+    hideLogo: true,
+    hideFooter: true,
+    humanInteractionSignature: false,
+    timeout: 25000,
+  });
+}
 
-export default function SignupVerification({ onVerify, onExpire, resetKey = 0 }) {
+export default function SignupVerification({ onVerify, onExpire, resetKey = 0, purpose = 'signup' }) {
   const widgetRef = useRef(null);
   const callbacksRef = useRef({ onVerify, onExpire });
   const [attempt, setAttempt] = useState(0);
@@ -63,15 +66,19 @@ export default function SignupVerification({ onVerify, onExpire, resetKey = 0 })
       widget.removeEventListener('verified', verified);
       widget.reset?.();
     };
-  }, [attempt, resetKey]);
+  }, [attempt, resetKey, purpose]);
 
   return (
     <div className="auth-verification">
-      <altcha-widget ref={widgetRef} key={`${resetKey}-${attempt}`} configuration={configuration} />
-      {status === 'loading' && <p role="status">Verifying…</p>}
+      <altcha-widget
+        ref={widgetRef}
+        key={`${purpose}-${resetKey}-${attempt}`}
+        configuration={configurationFor(purpose)}
+      />
+      {status === 'loading' && <p role="status">מאמתים…</p>}
       {status === 'error' && (
         <div role="alert">
-          <p>Could not verify. Please try again.</p>
+          <p>לא הצלחנו לאמת. אפשר לנסות שוב.</p>
           <button
             type="button"
             className="auth-link-btn"
@@ -80,7 +87,7 @@ export default function SignupVerification({ onVerify, onExpire, resetKey = 0 })
               setAttempt((value) => value + 1);
             }}
           >
-            Retry verification
+            ניסיון נוסף
           </button>
         </div>
       )}

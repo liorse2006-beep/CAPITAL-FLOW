@@ -9,14 +9,16 @@
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const { decryptBackup, isEncryptedBackup } = require('./server/services/backupEncryption');
 const { restoreStatusTables } = require('./server/services/statusDbBackup');
 
 async function main() {
+  require('dotenv').config({ path: ['.env.backup-recovery', '.env'], quiet: true });
   const args = process.argv.slice(2);
   const filePath = args.find((arg) => !arg.startsWith('--'));
   const confirm = args.includes('--confirm');
   if (!filePath) {
-    console.error('Usage: node restoreStatusDb.js <backup.json.gz> [--confirm]');
+    console.error('Usage: node restoreStatusDb.js <backup.json.gz.enc|legacy-backup.json.gz> [--confirm]');
     process.exit(1);
   }
   const resolved = path.resolve(filePath);
@@ -24,7 +26,9 @@ async function main() {
     console.error('File not found: ' + resolved);
     process.exit(1);
   }
-  const dump = JSON.parse(zlib.gunzipSync(fs.readFileSync(resolved)).toString('utf8'));
+  const bytes = fs.readFileSync(resolved);
+  const compressed = isEncryptedBackup(bytes) || /\.enc$/i.test(resolved) ? decryptBackup(bytes) : bytes;
+  const dump = JSON.parse(zlib.gunzipSync(compressed).toString('utf8'));
   const result = await restoreStatusTables(dump, { confirm });
   console.log(JSON.stringify(result, null, 2));
   if (result.dryRun) {

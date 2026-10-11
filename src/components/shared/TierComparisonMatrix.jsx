@@ -1,5 +1,6 @@
 import React from 'react';
 import { TIER_COLUMNS, TIER_ROWS } from '../../constants/tierFeatures';
+import planCopy from '../../utils/planCopy';
 
 const TIER_RANK = { free: 0, premium: 1, elite: 2 };
 const UPGRADE_COLUMNS = TIER_COLUMNS.filter((column) => column.key !== 'free');
@@ -44,7 +45,7 @@ function AccessCell({ value }) {
   const included = value !== false;
   return (
     <span className={'tier-matrix-access ' + (included ? 'is-included' : 'is-excluded')}>
-      <span className="tier-matrix-status" aria-label={included ? 'Included' : 'Not included'}>
+      <span className="tier-matrix-status" aria-label={included ? 'כלול' : 'לא כלול'}>
         {included ? <CheckIcon /> : <CrossIcon />}
       </span>
     </span>
@@ -58,21 +59,21 @@ function getVisibleFeatureDetail(value) {
 
 function PlanAction({ column, userTier, trialEnded, payingTier, onCheckout }) {
   if (userTier === column.key) {
-    return <span className="tier-matrix-current">Your plan</span>;
+    return <span className="tier-matrix-current">המסלול שלך</span>;
   }
   if (TIER_RANK[userTier] > TIER_RANK[column.key]) return null;
   const label = trialEnded
     ? column.key === 'elite'
-      ? 'Unlock Elite'
-      : 'Keep scanning with Premium'
-    : 'Get ' + column.label;
+      ? 'מעבר ל־Elite'
+      : 'המשך סריקה עם Premium'
+    : 'בחירת ' + column.label;
   return (
     <button
       className={'upgrade-cta tier-matrix-cta tier-matrix-cta-' + column.key}
       onClick={() => onCheckout(column.key)}
       disabled={payingTier === column.key}
     >
-      {payingTier === column.key ? 'Loading…' : label}
+      {payingTier === column.key ? 'טוענים…' : label}
     </button>
   );
 }
@@ -83,12 +84,14 @@ function PlanCard({ column, userTier, trialEnded, payingTier, onCheckout }) {
   return (
     <article className={'tier-matrix-plan ' + (column.featured ? 'is-featured' : '')} aria-labelledby={headingId}>
       <header className="tier-matrix-plan-heading">
-        {column.featured && <span className="tier-matrix-popular">Most popular</span>}
+        {column.featured && <span className="tier-matrix-popular">הכי פופולרי</span>}
         <h3 id={headingId} className="tier-matrix-plan-name">
           {column.label}
         </h3>
-        <strong className="tier-matrix-plan-price">{column.price}</strong>
-        <span className="tier-matrix-plan-details">{column.details}</span>
+        <strong className="tier-matrix-plan-price" dir="ltr">
+          {column.price}
+        </strong>
+        <span className="tier-matrix-plan-details">{planCopy(column.details)}</span>
       </header>
 
       <ul className="tier-matrix-feature-list">
@@ -100,8 +103,8 @@ function PlanCard({ column, userTier, trialEnded, payingTier, onCheckout }) {
             <li key={row.label} className={'tier-matrix-feature ' + (featureValue === false ? 'is-excluded' : '')}>
               <AccessCell value={featureValue} />
               <span className="tier-matrix-feature-name">
-                {row.label}
-                {specificValue && <span className="tier-matrix-feature-specific"> · {specificValue}</span>}
+                {planCopy(row.label)}
+                {specificValue && <span className="tier-matrix-feature-specific"> · {planCopy(specificValue)}</span>}
               </span>
             </li>
           );
@@ -123,8 +126,8 @@ function PlanCard({ column, userTier, trialEnded, payingTier, onCheckout }) {
 
 export default function TierComparisonMatrix({ userTier = 'free', trialEnded = false, payingTier, onCheckout }) {
   return (
-    <div className="tier-matrix-scroll" dir="ltr">
-      <div className="tier-matrix" role="group" aria-label="Premium and Elite feature comparison">
+    <div className="tier-matrix-scroll" dir="rtl" lang="he">
+      <div className="tier-matrix" role="group" aria-label="השוואת מסלולי Premium ו־Elite">
         {UPGRADE_COLUMNS.map((column) => (
           <PlanCard
             key={column.key}

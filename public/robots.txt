@@ -1,7 +1,7 @@
 User-agent: *
 Allow: /
-Allow: /api/auth/refresh
 Disallow: /admin
 Disallow: /api/
+Disallow: /status
 
 Sitemap: https://capitalflow.vip/sitemap.xml

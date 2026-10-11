@@ -7,6 +7,8 @@ const crypto = require('node:crypto');
 
 process.env.JWT_SECRET = 'test-jwt-secret-'.padEnd(32, 'x');
 process.env.SESSION_SECRET = 'test-session-secret-'.padEnd(32, 'x');
+// Always override inherited recovery credentials with a synthetic test key.
+process.env.BACKUP_ENCRYPTION_KEY = Buffer.alloc(32, 0xa5).toString('base64');
 // Use a unique temporary SQLite file. The libsql memory URL can isolate
 // connections created in separate async/test contexts, making an HTTP route
 // see an empty schema even after the test runner initialized it. A per-process

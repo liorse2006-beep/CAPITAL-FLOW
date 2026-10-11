@@ -50,13 +50,13 @@ const ACCESS_TOKEN_TTL = '1h';
 // boundary at every HTTP entry point so two apparently different passwords
 // cannot silently hash to the same credential and oversized inputs cannot
 // waste CPU in bcrypt before being discarded.
-const MAX_PASSWORD_BYTES = 72;
+const { MAX_PASSWORD_BYTES } = require('./passwordPolicy');
 
 // Credential throttling is identity-aware in addition to the existing
 // transport/IP limiters. The counters live on the user/OTP rows so they work
 // across processes and database-backed deployments rather than resetting when
 // a worker restarts. The IP limiters remain useful defense in depth.
-const LOGIN_FAILURE_LIMIT = 10;
+const LOGIN_FAILURE_LIMIT = 5;
 const LOGIN_FAILURE_WINDOW_SEC = 15 * 60;
 const LOGIN_LOCKOUT_SEC = 15 * 60;
 const OTP_FAILURE_LIMIT = 5;

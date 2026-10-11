@@ -1,28 +1,16 @@
 const router = require('express').Router();
 const crypto = require('crypto');
 const db = require('../db');
-const { ADMIN_TOKEN, ADMIN_EMAIL, DATABASE_URL, TURSO_DB_URL } = require('../config');
+const { checkAdminToken: checkToken, checkAdminPageSession } = require('../services/adminAccess');
 const { revokeAllSessions } = require('../services/auth');
 const { reportError } = require('../utils/reportError');
-
-function timingSafeStringEqual(a, b) {
-  const bufA = Buffer.from(String(a));
-  const bufB = Buffer.from(String(b));
-  if (bufA.length !== bufB.length) return false;
-  return crypto.timingSafeEqual(bufA, bufB);
-}
 
 function parsePositiveUserId(value) {
   const id = Number(value);
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
-const DB_ENV = DATABASE_URL ? 'PRODUCTION (PostgreSQL)' : TURSO_DB_URL ? 'PRODUCTION (Turso)' : 'LOCAL (SQLite)';
-const {
-  resolveRequestToken,
-  invalidateUserSessions,
-  invalidateUserEntitlement,
-} = require('../middleware/authMiddleware');
+const { invalidateUserSessions, invalidateUserEntitlement } = require('../middleware/authMiddleware');
 
 // Catches unhandled promise rejections in async route handlers (Express 4 doesn't do this natively)
 function asyncRoute(fn) {
@@ -32,37 +20,6 @@ function asyncRoute(fn) {
       if (!res.headersSent) res.status(500).json({ error: 'Server error' });
     });
   };
-}
-
-// Returns the acting admin's identity string on success (the ADMIN_EMAIL, or
-// 'static-token' when authenticated via ADMIN_TOKEN instead of a login), or
-// false on failure. Every existing call site already does
-// `if (!(await checkToken(req, res))) return;`, which still works unchanged
-// since a non-empty string is truthy — callers that need to attribute an
-// audit-log entry just capture the returned identity instead of discarding it.
-async function checkToken(req, res) {
-  if (!ADMIN_TOKEN && !ADMIN_EMAIL) {
-    res.status(503).send('Admin panel disabled — set ADMIN_TOKEN or ADMIN_EMAIL in .env');
-    return false;
-  }
-
-  // Credentials are accepted only in headers. Query-string credentials leak
-  // into browser history, reverse-proxy logs and monitoring systems.
-  const tok = req.headers['x-admin-token'];
-  if (tok && ADMIN_TOKEN && timingSafeStringEqual(tok, ADMIN_TOKEN)) return 'static-token';
-
-  // Accept a current JWT belonging to the configured admin account. resolveToken
-  // also enforces session_version, blocked status and expiry.
-  const auth = req.headers.authorization || '';
-  const jwt = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  if (jwt && ADMIN_EMAIL) {
-    const user = await resolveRequestToken(jwt, res, req);
-    if (res.headersSent) return false;
-    if (user && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return user.email;
-  }
-
-  res.status(401).send('Unauthorized');
-  return false;
 }
 
 // Best-effort — an audit-log write failure should never block the action it's
@@ -433,42 +390,48 @@ router.delete(
 );
 
 // ── Admin UI ───────────────────────────────────────────────────────────────
-router.get(
-  '/admin',
-  asyncRoute(async (req, res) => {
-    // The page shell is public — no server-side auth here.
-    // Every data API call (/admin/api/*) still enforces checkToken.
-    // Auth headers are built in the browser from a short-lived in-memory token
-    // obtained through the httpOnly refresh cookie (or the operator's token).
-    // Credentials are read from request headers by the page script. Never copy
-    // a static admin secret into this HTML response or accept it in the URL.
+router.get('/admin', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  res.redirect(302, '/api/auth/admin');
+});
 
-    // Per-request nonce for the inline <script> and <style>. This lets the admin
-    // page run under a real Content-Security-Policy: script-src carries the nonce
-    // and NOT 'unsafe-inline', so an injected <script> (even if escaping ever
-    // failed) cannot execute. All former inline on* handlers were moved into the
-    // nonce'd script via event delegation. Inline style="" attributes remain, so
-    // style-src keeps 'unsafe-inline' — style injection is a far lower risk and
-    // every user-controlled value is already escaped with escapeHtml().
-    const nonce = crypto.randomBytes(16).toString('base64');
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store'); // never cache — prevents stale JWT in HTML
-    res.setHeader(
-      'Content-Security-Policy',
-      [
-        "default-src 'self'",
-        `script-src 'self' 'nonce-${nonce}'`,
-        "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data:",
-        "connect-src 'self'",
-        "font-src 'self'",
-        "object-src 'none'",
-        "base-uri 'self'",
-        "frame-ancestors 'none'",
-        "form-action 'self'",
-      ].join('; ')
-    );
-    res.send(`<!DOCTYPE html>
+// Existing HttpOnly refresh cookies already reach /api/auth/admin. This
+// read-only navigation neither creates sessions nor grants API authority.
+const renderAdminPage = asyncRoute(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  if (!(await checkAdminPageSession(req, res))) {
+    if (!res.headersSent) res.status(404).type('text/plain').send('העמוד לא נמצא');
+    return;
+  }
+
+  // Per-request nonce for the inline <script> and <style>. This lets the admin
+  // page run under a real Content-Security-Policy: script-src carries the nonce
+  // and NOT 'unsafe-inline', so an injected <script> (even if escaping ever
+  // failed) cannot execute. All former inline on* handlers were moved into the
+  // nonce'd script via event delegation. Inline style="" attributes remain, so
+  // style-src keeps 'unsafe-inline' — style injection is a far lower risk and
+  // every user-controlled value is already escaped with escapeHtml().
+  const nonce = crypto.randomBytes(16).toString('base64');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store'); // never cache — prevents stale JWT in HTML
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      `script-src 'self' 'nonce-${nonce}'`,
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "connect-src 'self'",
+      "font-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+    ].join('; ')
+  );
+  res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -602,11 +565,6 @@ router.get(
 <header class="topbar">
   <h1 id="admin-page-title">⚡ Capital Flow — Admin</h1>
   <nav aria-label="Admin navigation" style="display:flex;align-items:center;gap:16px">
-    <div class="admin-token-form">
-      <input id="admin-token-input" type="password" autocomplete="off" placeholder="Static admin token" aria-label="Static admin token" />
-      <button class="refresh-btn" id="admin-token-save" type="button">Use token</button>
-    </div>
-    <span style="font-size:11px;font-family:monospace;padding:3px 10px;border-radius:4px;font-weight:700;${TURSO_DB_URL ? 'background:rgba(34,197,94,0.12);color:#22C55E;border:1px solid rgba(34,197,94,0.25)' : 'background:rgba(239,68,68,0.12);color:#EF4444;border:1px solid rgba(239,68,68,0.25)'}">${DB_ENV}</span>
     <span id="last-refresh" role="status" aria-live="polite">Loading…</span>
     <a href="/" class="back-link" style="font-size:12px;color:#71717A;text-decoration:none;border:1px solid rgba(255,255,255,0.1);padding:5px 12px;border-radius:6px;transition:color .15s">← Back to site</a>
   </nav>
@@ -691,23 +649,15 @@ window.addEventListener('error', function (e) {
   if (typeof toast === 'function') toast('Script error: ' + (e.message || 'see console'), true);
 });
 
-// Admin credentials are retained only in this page's JavaScript memory. They
-// are intentionally never persisted in localStorage/sessionStorage, where an
-// unrelated page or later browser use could retrieve them. A normal signed-in
-// admin receives a short-lived JWT from the httpOnly refresh cookie; a static
-// ADMIN_TOKEN remains available as a deliberate operator fallback.
-let transientAdminToken = '';
+// API requests require a short-lived Bearer kept only in this page's memory.
+// The refresh cookie authorizes page navigation, never administrative writes.
 let transientSessionToken = '';
 function authHeaders() {
-  return transientAdminToken
-    ? { 'x-admin-token': transientAdminToken }
-    : transientSessionToken
-      ? { Authorization: 'Bearer ' + transientSessionToken }
-      : {};
+  return transientSessionToken ? { Authorization: 'Bearer ' + transientSessionToken } : {};
 }
 let AUTH_HEADERS = authHeaders();
 async function refreshAuthHeaders(force) {
-  if (!transientAdminToken && (force || !transientSessionToken)) {
+  if (force || !transientSessionToken) {
     try {
       const r = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'same-origin', cache: 'no-store' });
       const data = r.ok ? await r.json() : {};
@@ -736,18 +686,6 @@ function safeOn(id, event, handler) {
   el.addEventListener(event, handler);
 }
 
-safeOn('admin-token-save', 'click', function () {
-  const value = document.getElementById('admin-token-input').value.trim();
-  if (!value) return;
-  transientAdminToken = value;
-  document.getElementById('admin-token-input').value = '';
-  refreshAuthHeaders().then(function () {
-    load();
-    loadAuditLog();
-    loadVisits();
-    loadBackupStatus();
-  });
-});
 
 let allUsers = [];
 let activityLogHidden = false;
@@ -1156,7 +1094,7 @@ setInterval(loadVisits, 60000);
 </script>
 </body>
 </html>`);
-  })
-);
+});
 
 module.exports = router;
+module.exports.renderAdminPage = renderAdminPage;

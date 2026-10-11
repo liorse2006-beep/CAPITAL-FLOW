@@ -72,11 +72,11 @@ describe('ProfileModal preferences', () => {
       vi.fn((url) => (url === '/api/account/change-password' ? request : Promise.resolve(summaryResponse())))
     );
     const { props } = renderProfile({ initialSection: 'security', getToken: () => token });
-    await screen.findByLabelText('Current password');
-    fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'synthetic-old-password' } });
-    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'synthetic-new-password' } });
-    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'synthetic-new-password' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Update password' }));
+    await screen.findByLabelText('סיסמה נוכחית');
+    fireEvent.change(screen.getByLabelText('סיסמה נוכחית'), { target: { value: 'synthetic-old-password' } });
+    fireEvent.change(screen.getByLabelText('סיסמה חדשה'), { target: { value: 'synthetic-new-password' } });
+    fireEvent.change(screen.getByLabelText('אימות הסיסמה החדשה'), { target: { value: 'synthetic-new-password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'עדכון סיסמה' }));
     token = 'synthetic-other-token';
     await act(async () =>
       resolvePassword({ ok: true, json: async () => ({ token: 'synthetic-replacement-session', user }) })
@@ -96,13 +96,13 @@ describe('ProfileModal preferences', () => {
       )
     );
     const { props } = renderProfile({ initialSection: 'security' });
-    await screen.findByLabelText('Current password');
-    fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'synthetic-old-password' } });
-    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'synthetic-new-password' } });
-    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'synthetic-new-password' } });
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Update password' })));
+    await screen.findByLabelText('סיסמה נוכחית');
+    fireEvent.change(screen.getByLabelText('סיסמה נוכחית'), { target: { value: 'synthetic-old-password' } });
+    fireEvent.change(screen.getByLabelText('סיסמה חדשה'), { target: { value: 'synthetic-new-password' } });
+    fireEvent.change(screen.getByLabelText('אימות הסיסמה החדשה'), { target: { value: 'synthetic-new-password' } });
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'עדכון סיסמה' })));
     expect(props.onPasswordChanged).toHaveBeenCalledWith('synthetic-new-session', user);
-    expect(screen.getByText('Password updated. Other sessions were signed out.')).toBeInTheDocument();
+    expect(screen.getByText('הסיסמה עודכנה. שאר המכשירים נותקו מהחשבון.')).toBeInTheDocument();
   });
 
   it('does not restore an old account session from a password response after unmount', async () => {
@@ -115,11 +115,11 @@ describe('ProfileModal preferences', () => {
     );
     vi.stubGlobal('fetch', fetchMock);
     const { unmount, props } = renderProfile({ initialSection: 'security' });
-    await screen.findByLabelText('Current password');
-    fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'synthetic-old-password' } });
-    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'synthetic-new-password' } });
-    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'synthetic-new-password' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Update password' }));
+    await screen.findByLabelText('סיסמה נוכחית');
+    fireEvent.change(screen.getByLabelText('סיסמה נוכחית'), { target: { value: 'synthetic-old-password' } });
+    fireEvent.change(screen.getByLabelText('סיסמה חדשה'), { target: { value: 'synthetic-new-password' } });
+    fireEvent.change(screen.getByLabelText('אימות הסיסמה החדשה'), { target: { value: 'synthetic-new-password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'עדכון סיסמה' }));
     unmount();
     await act(async () => resolvePassword({ ok: true, json: async () => ({ token: 'synthetic-new-session', user }) }));
     expect(props.onPasswordChanged).not.toHaveBeenCalled();
@@ -141,8 +141,8 @@ describe('ProfileModal preferences', () => {
     URL.createObjectURL = createObjectURL;
     try {
       const { unmount } = renderProfile({ initialSection: 'security' });
-      await screen.findByRole('button', { name: 'Download my data' });
-      fireEvent.click(screen.getByRole('button', { name: 'Download my data' }));
+      await screen.findByRole('button', { name: 'הורדת הנתונים שלי' });
+      fireEvent.click(screen.getByRole('button', { name: 'הורדת הנתונים שלי' }));
       unmount();
       await act(async () => resolveExport({ ok: true, blob: async () => new Blob(['synthetic-account-export']) }));
       expect(createObjectURL).not.toHaveBeenCalled();
@@ -155,22 +155,22 @@ describe('ProfileModal preferences', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(summaryResponse()));
     renderProfile();
 
-    expect(await screen.findByRole('heading', { name: 'Account & workspace' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'מרכז החשבון' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Close profile' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'סגירת פרטי החשבון' })).toBeInTheDocument();
   });
 
   it('asks for confirmation before enabling notifications', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(summaryResponse()));
     const { props } = renderProfile();
 
-    expect(await screen.findByRole('heading', { name: 'Account & workspace' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Automation & alerts' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Allow notifications' }));
-    expect(screen.getByRole('alertdialog')).toHaveTextContent('Allow notifications on this device?');
+    expect(await screen.findByRole('heading', { name: 'מרכז החשבון' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'תזמונים והתראות' }));
+    fireEvent.click(screen.getByRole('button', { name: 'הפעלת התראות' }));
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('הפעלת התראות במכשיר הזה?');
     expect(props.onEnablePush).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    fireEvent.click(screen.getByRole('button', { name: 'אישור' }));
     expect(props.onEnablePush).toHaveBeenCalledOnce();
   });
 
@@ -178,11 +178,11 @@ describe('ProfileModal preferences', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(summaryResponse()));
     const { props } = renderProfile({ pushEnabled: true, notificationPermission: 'granted' });
 
-    expect(await screen.findByRole('heading', { name: 'Account & workspace' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Automation & alerts' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Disable notifications' }));
-    expect(screen.getByRole('alertdialog')).toHaveTextContent('Disable notifications on this device?');
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('heading', { name: 'מרכז החשבון' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'תזמונים והתראות' }));
+    fireEvent.click(screen.getByRole('button', { name: 'כיבוי התראות' }));
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('כיבוי התראות במכשיר הזה?');
+    fireEvent.click(screen.getByRole('button', { name: 'ביטול' }));
     expect(props.onDisablePush).not.toHaveBeenCalled();
   });
 
@@ -190,9 +190,9 @@ describe('ProfileModal preferences', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(summaryResponse()));
     const { props } = renderProfile();
 
-    expect(await screen.findByRole('heading', { name: 'Account & workspace' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Automation & alerts' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Schedule scans' }));
+    expect(await screen.findByRole('heading', { name: 'מרכז החשבון' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'תזמונים והתראות' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'תזמון סריקות' }));
     expect(props.onOpenScheduling).toHaveBeenCalledOnce();
   });
 
@@ -200,11 +200,11 @@ describe('ProfileModal preferences', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(summaryResponse()));
     renderProfile();
 
-    expect(await screen.findByRole('heading', { name: 'Account & workspace' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Automation & alerts' }));
+    expect(await screen.findByRole('heading', { name: 'מרכז החשבון' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'תזמונים והתראות' }));
 
-    const notifications = await screen.findByRole('heading', { name: 'Notifications' });
-    const scheduling = screen.getByRole('heading', { name: 'Scan scheduling' });
+    const notifications = await screen.findByRole('heading', { name: 'התראות' });
+    const scheduling = screen.getByRole('heading', { name: 'תזמון סריקות' });
     expect(notifications.compareDocumentPosition(scheduling) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
@@ -239,15 +239,21 @@ describe('ProfileModal preferences', () => {
     vi.stubGlobal('fetch', fetchMock);
     const { props } = renderProfile();
 
-    expect(await screen.findByRole('heading', { name: 'Account & workspace' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Automation & alerts' }));
+    expect(await screen.findByRole('heading', { name: 'מרכז החשבון' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'תזמונים והתראות' }));
 
-    expect(await screen.findByText('09:30 · Every day')).toBeInTheDocument();
-    expect(screen.getByText('MA Scanner')).toBeInTheDocument();
-    expect(screen.getByText('Aug 27, 2026 · 14:15')).toBeInTheDocument();
-    expect(screen.getByText('Active')).toBeInTheDocument();
-    expect(screen.getByText('Paused')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Schedule another scan' }));
+    expect(await screen.findByText('09:30 · כל יום')).toBeInTheDocument();
+    expect(screen.getByText('סורק ממוצעים נעים')).toBeInTheDocument();
+    const date = new Date('2026-08-27T00:00:00Z').toLocaleDateString('he-IL', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+    expect(screen.getByText(date + ' · 14:15')).toBeInTheDocument();
+    expect(screen.getByText('פעיל')).toBeInTheDocument();
+    expect(screen.getByText('מושהה')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'תזמון סריקה נוספת' }));
     expect(props.onOpenScheduling).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledWith('/api/scheduled-scans', expect.any(Object));
   });

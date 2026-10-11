@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import useModalA11y from '../../hooks/useModalA11y';
+import { friendlyError } from '../../utils/format';
 
 /**
  * Ask for an explicit delivery choice at the moment an alert or schedule is
@@ -13,32 +15,41 @@ export default function NotificationChoice({
   onContinue,
   onCancel,
   actionBusy = false,
-  title = "Notifications aren't enabled",
-  supportedDescription = 'Would you like to enable push notifications so you receive this result even when the app is closed? If not, it will still be saved in Notifications.',
-  unsupportedDescription = 'Push notifications are not available in this browser. On iPhone: add Capital Flow to your Home Screen, open it from the new icon, and allow notifications.',
-  enableLabel = 'Enable notifications',
-  continueLabel = 'Continue without push',
-  cancelLabel = 'Back',
-  dir = 'ltr',
+  title = 'ההתראות אינן מופעלות',
+  supportedDescription = 'להפעיל התראות גם כשהאפליקציה סגורה? אפשר להמשיך בלי — התוצאה תישמר באפליקציה.',
+  unsupportedDescription = 'באייפון: שיתוף ← הוספה למסך הבית. פתח משם והפעל התראות. בינתיים התוצאה תישמר באפליקציה.',
+  enableLabel = 'הפעלת התראות',
+  continueLabel = 'המשך בלי התראות למכשיר',
+  cancelLabel = 'חזרה',
+  dir = 'rtl',
 }) {
+  const panelRef = useModalA11y(onCancel);
   const [enableError, setEnableError] = useState(null);
 
   async function handleEnable() {
     if (typeof onEnable !== 'function') {
-      setEnableError('Notifications could not be enabled here. You can continue without push.');
+      setEnableError('לא הצלחנו להפעיל התראות כאן. אפשר להמשיך בלי התראות למכשיר.');
       return;
     }
     setEnableError(null);
     try {
       await onEnable();
     } catch (error) {
-      setEnableError(error instanceof Error ? error.message : 'Notifications could not be enabled.');
+      setEnableError(friendlyError(error?.message));
     }
   }
 
   return (
     <div className="notification-choice-overlay">
-      <div className="notification-choice" role="dialog" aria-modal="true" aria-label={title} dir={dir}>
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="notification-choice"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        dir={dir}
+      >
         <div className="notification-choice-icon" aria-hidden="true">
           🔔
         </div>
@@ -47,7 +58,7 @@ export default function NotificationChoice({
 
         {(enableError || pushError) && (
           <p className="notification-choice-error" role="alert">
-            {enableError || pushError}
+            {enableError || friendlyError(pushError)}
           </p>
         )}
 
@@ -59,11 +70,11 @@ export default function NotificationChoice({
               onClick={handleEnable}
               disabled={pushBusy || actionBusy}
             >
-              {pushBusy ? 'Enabling…' : enableLabel}
+              {pushBusy ? 'מפעילים…' : enableLabel}
             </button>
           )}
           <button type="button" className="notification-choice-secondary" onClick={onContinue} disabled={actionBusy}>
-            {actionBusy ? 'Saving…' : continueLabel}
+            {actionBusy ? 'שומרים…' : continueLabel}
           </button>
           <button type="button" className="notification-choice-cancel" onClick={onCancel} disabled={actionBusy}>
             {cancelLabel}

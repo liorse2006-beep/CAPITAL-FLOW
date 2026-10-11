@@ -1,208 +1,131 @@
-import React from 'react';
 import { resetConsent } from '../analytics';
 import useSeo from '../hooks/useSeo';
 
-const DATA_COLLECTED = [
-  {
-    title: 'Account information',
-    body: 'Your email address and subscription tier (Free, Premium, or Elite).',
-  },
-  {
-    title: 'Watchlist and alerts',
-    body: 'The tickers you star, and any volume or price alert thresholds you set for them, so we can show your Watchlist and notify you when a threshold is crossed.',
-  },
-  {
-    title: 'Push notifications',
-    body: 'If you enable push notifications (available to Elite and during the free trial), we store a technical subscription identifier tied to your browser or device so we can deliver alerts to it. You can revoke this at any time from the Watchlist page.',
-  },
-  {
-    title: 'Technical and analytics data (optional)',
-    body: 'If usage analytics is enabled, we collect general events such as page visits, scans run, or upgrade prompts viewed, to help us understand and improve the product. If error monitoring is enabled, we record technical details about browser errors (the page URL and error message) to help us fix bugs. Both services are off by default and only activate if explicitly configured on our servers.',
-  },
-];
-
-const USER_RIGHTS = [
-  'Request to view the data stored on your account.',
-  'Request correction of inaccurate data.',
-  'Permanently delete your account and all data associated with it directly from your account settings in the app, or by contacting us.',
-  'Unsubscribe from any notifications (push, alerts) at any time.',
-];
-
-const THIRD_PARTY_PROVIDERS = [
-  'Google (for optional sign-in via Google OAuth)',
-  "Cloudflare Turnstile (to verify you're not a bot during sign-in)",
-  'Resend (to deliver essential account emails such as verification codes and password resets)',
-  'Whop (our payment processor for checkout and billing; we never see or store your full card details)',
-  'Gmail (our operator receives a weekly, encrypted-in-transit database backup and any downtime alerts by email to this address — this is an internal operational backup, not a marketing or third-party analytics use)',
-  'Analytics and error-monitoring providers (only where explicitly enabled)',
-];
-
-function Part({ number, title, children }) {
-  return (
-    <div className="policy-part">
-      <h3 className="policy-part-title">
-        {number}. {title}
-      </h3>
-      {children}
-    </div>
-  );
-}
-
 function Section({ title, children }) {
   return (
-    <div className="policy-section">
-      <h4 className="policy-subtitle">{title}</h4>
+    <section className="policy-section">
+      <h3 className="policy-subtitle">{title}</h3>
       {children}
-    </div>
+    </section>
   );
 }
 
 export default function PolicyPage() {
   useSeo({
-    title: 'מדיניות פרטיות | Capital Flow',
-    description: 'מדיניות הפרטיות של Capital Flow — כיצד אנו אוספים, משתמשים ומגנים על המידע שלך.',
+    title: 'תנאי שימוש ומדיניות פרטיות | Capital Flow',
+    description: 'תנאי השימוש, פרטיות, תשלומים, החזרים ודרכי יצירת קשר עם Capital Flow.',
     path: '/policy',
   });
   return (
-    <div className="page-content policy-page">
-      <h2 className="flow-title policy-title">Terms of Service & Privacy Policy</h2>
+    <article className="page-content policy-page" lang="he" dir="rtl">
+      <h2 className="flow-title policy-title">תנאי שימוש ומדיניות פרטיות</h2>
       <div className="policy-card">
-        <p className="policy-paragraph policy-updated">Last updated: July 21, 2026</p>
-        <p className="policy-paragraph">
-          Welcome to Capital Flow. This document contains both our Terms of Service and Privacy Policy. By accessing or
-          using Capital Flow, you agree to the terms described below.
-        </p>
-
-        <Part number={1} title="Terms of Use & Disclaimers">
-          <Section title="Not Investment Advice">
-            <p className="policy-paragraph">
-              Capital Flow is a market-scanning and information tool only. It displays market data — such as trading
-              volume, prices, and moving averages — for informational purposes only. Nothing on this site constitutes
-              investment advice, a recommendation to buy or sell any security, or financial advice of any kind. We are
-              not licensed investment advisors and do not act as one. Market data shown may be delayed, estimated, or
-              subject to provider errors, and should not be relied on as your sole source of information. Every
-              investment decision, including its financial outcome, whether profit or loss, is the sole responsibility
-              of the user. We recommend consulting a licensed financial advisor before making investment decisions.
-            </p>
-          </Section>
-
-          <Section title="Disclaimer of Warranties and Limitation of Liability">
-            <p className="policy-paragraph">
-              The service is provided &quot;as is&quot; and &quot;as available&quot;, without warranties of any kind,
-              express or implied. We do not guarantee uninterrupted access, error-free operation, or the accuracy,
-              completeness, or timeliness of any market data displayed. To the fullest extent permitted by law, Capital
-              Flow and its operators are not liable for any direct, indirect, incidental, or consequential damages —
-              including trading losses — arising from your use of, or inability to use, the service.
-            </p>
-          </Section>
-
-          <Section title="Refund Policy">
-            <p className="policy-paragraph">
-              Refunds are issued only in the case of a technical malfunction in the product&apos;s functionality, which
-              our team attempted to fix and was unable to resolve within 14 days of being reported. Outside of this
-              case, payments made are non-refundable.
-            </p>
-          </Section>
-        </Part>
-
-        <Part number={2} title="Privacy Policy">
+        <p className="policy-paragraph policy-updated">עודכן ב־11 באוקטובר 2026</p>
+        <p className="policy-paragraph">מסמך זה מסביר את תנאי השימוש ואת אופן הטיפול במידע ב־Capital Flow.</p>
+        <Section title="השירות אינו ייעוץ השקעות">
           <p className="policy-paragraph">
-            We only collect the minimum data required to operate the service. We never sell, rent, or trade your
-            personal data to third parties for marketing, advertising, or any other commercial purposes.
+            Capital Flow מציגה נתוני שוק וכלי סריקה למטרות חינוך ומחקר בלבד. המידע אינו ייעוץ השקעות, ייעוץ פיננסי או
+            המלצה לקנייה או למכירה של נייר ערך. השירות אינו מספק ייעוץ השקעות מורשה. נתוני מחיר, נפח מסחר וממוצעים נעים
+            עשויים להיות מעוכבים, מוערכים, חלקיים או שגויים. אין להסתמך עליהם כמקור יחיד. החלטות השקעה ותוצאותיהן הן
+            באחריות המשתמש, ומומלץ להתייעץ עם בעל רישיון מתאים.
+          </p>
+        </Section>
+        <Section title="זמינות ואחריות">
+          <p className="policy-paragraph">
+            השירות ניתן כפי שהוא וכפי שהוא זמין. אין התחייבות לפעילות רציפה, להיעדר שגיאות או לשלמות ולעדכניות של כל
+            נתון. בכפוף לדין החל, מפעילי השירות אינם אחראים לנזקים הנובעים מהשימוש או מחוסר היכולת להשתמש בו, לרבות
+            הפסדי מסחר. אין בתנאים אלה כדי לשלול זכות שלא ניתן להתנות עליה לפי דין.
+          </p>
+        </Section>
+        <Section title="תשלום ובקשות להחזר">
+          <p className="policy-paragraph">
+            מסלולי Premium ו־Elite הם רכישה חד־פעמית, ללא חיוב חודשי חוזר. המחיר הסופי מוצג בתשלום המאובטח שמספקת Whop.
+            איננו שומרים את מלוא פרטי הכרטיס.
           </p>
           <p className="policy-paragraph">
-            You are not legally required to provide us with any personal data. Providing your information is done
-            voluntarily and with your explicit consent for the purposes specified in this policy.
+            בנוסף לזכויות לפי דין, ניתן לבקש החזר בשל תקלה בתפקוד המוצר שנמסרה לטיפולנו ולא תוקנה בתוך 14 ימים מהדיווח.
+            מדיניות זו אינה מגבילה זכויות ביטול או החזר החלות לפי חוק. בקשת ביטול או החזר אפשר לשלוח לכתובת המייל
+            המופיעה למטה; אין צורך להמתין 14 ימים כדי לממש זכות חוקית.
           </p>
-
-          <Section title="Information We Collect">
-            {DATA_COLLECTED.map((d, i) => (
-              <p key={i} className="policy-paragraph">
-                <strong>{d.title}:</strong> {d.body}
-              </p>
-            ))}
-          </Section>
-
-          <Section title="How Long We Retain Your Data">
-            <p className="policy-paragraph">
-              We retain your data for as long as your account remains active. When you delete your account, all
-              associated data — account details, Watchlist, alerts, and push subscriptions — is permanently deleted from
-              our servers immediately.
-            </p>
-          </Section>
-
-          <Section title="Your Rights">
-            <ul className="policy-list">
-              {USER_RIGHTS.map((r, i) => (
-                <li key={i}>{r}</li>
-              ))}
-            </ul>
-          </Section>
-
-          <Section title="Cookies">
-            <p className="policy-paragraph">
-              We use cookies to operate and improve the service. We do not sell or share your personal data with third
-              parties for advertising purposes. You can manage your cookie preferences at any time by{' '}
-              <button
-                type="button"
-                className="policy-inline-link"
-                onClick={() => {
-                  resetConsent();
-                  window.location.reload();
-                }}
-              >
-                reopening the consent banner
-              </button>
-              .
-            </p>
-          </Section>
-
-          <Section title="Essential Third-Party Service Providers & Global Data Processing">
-            <p className="policy-paragraph">
-              To operate Capital Flow, we rely on a small number of trusted third-party service providers solely for
-              technical operation and infrastructure:
-            </p>
-            <ul className="policy-list">
-              {THIRD_PARTY_PROVIDERS.map((p, i) => (
-                <li key={i}>{p}</li>
-              ))}
-            </ul>
-            <p className="policy-paragraph">
-              These providers act strictly as essential infrastructure processors to deliver our services to you. They
-              process data under their respective privacy policies only to the extent necessary to operate the service.
-              By using Capital Flow, you acknowledge that your data may be processed and stored on secure servers
-              operated by these trusted providers outside of your country of residence (including in the United States
-              and Europe).
-            </p>
-          </Section>
-
-          <Section title="Data Security">
-            <p className="policy-paragraph">
-              We apply reasonable technical and organizational measures to protect your data, including encrypted
-              connections (HTTPS) and access controls on our servers. No method of electronic storage or transmission is
-              completely secure, and we cannot guarantee absolute security.
-            </p>
-          </Section>
-        </Part>
-
-        <Part number={3} title="Changes and Contact">
-          <Section title="Changes to This Policy">
-            <p className="policy-paragraph">
-              We may update this document from time to time to reflect changes in our practices or for legal,
-              operational, or regulatory reasons. Material changes will be reflected by an updated revision date at the
-              top of this page. Continued use of the service after changes take effect constitutes acceptance of the
-              revised policy.
-            </p>
-          </Section>
-
-          <Section title="Contact Us">
-            <p className="policy-paragraph">
-              For any questions or data requests regarding this policy, you can reach us via email at
-              liormenaiot@gmail.com or via Instagram at capital_flow555.
-            </p>
-          </Section>
-        </Part>
+        </Section>
+        <Section title="איזה מידע נשמר">
+          <ul className="policy-list">
+            <li>כתובת מייל, פרטי התחברות מאובטחים ומסלול החשבון.</li>
+            <li>מניות ברשימת המעקב, סריקות שמורות, תזמונים והגדרות התראות.</li>
+            <li>אם מפעילים פוש: פרטי מינוי של הדפדפן או המכשיר הדרושים למשלוח. ניתן לבטל את הפוש בהגדרות.</li>
+            <li>
+              אנליטיקה אופציונלית: אירועים כגון ביקורים ושימוש בתכונות, רק לאחר אישור מפורש. ניטור תקלות טכני, כאשר
+              מוגדר, משמש לאיתור בעיות ולא לפרסום.
+            </li>
+          </ul>
+          <p className="policy-paragraph">
+            איננו מוכרים מידע אישי למטרות שיווק או פרסום. מסירת המידע היא מרצון; מידע חיוני נדרש כדי ליצור חשבון ולהפעיל
+            את התכונות שבחרת.
+          </p>
+        </Section>
+        <Section title="עוגיות ואנליטיקה">
+          <p className="policy-paragraph">
+            עוגיות חיוניות מאפשרות התחברות ואבטחה. אנליטיקה באמצעות PostHog מופעלת רק באישור שלך, וניתן לדחות אותה בלי
+            לפגוע בשימוש הרגיל באתר. כאשר מאשרים אנליטיקה, המידע עשוי להישמר בארצות הברית.
+          </p>
+          <button
+            type="button"
+            className="policy-inline-link"
+            onClick={() => {
+              resetConsent();
+              window.location.reload();
+            }}
+          >
+            שינוי העדפות פרטיות
+          </button>
+        </Section>
+        <Section title="ספקי שירות ועיבוד מידע">
+          <ul className="policy-list">
+            <li>Google — התחברות לפי בחירתך.</li>
+            <li>Resend — מיילים חיוניים לאימות חשבון ולאיפוס סיסמה.</li>
+            <li>Whop — עיבוד תשלומים וניהול פרטי העסקה.</li>
+            <li>
+              שירותי אירוח, אחסון וגיבוי — להפעלת השירות ולהתאוששות מתקלות. גיבוי תפעולי נשלח למפעיל במייל כקובץ מוצפן;
+              מפתח השחזור נשמר בנפרד ואינו נשלח עם הקובץ.
+            </li>
+            <li>PostHog וספק ניטור תקלות, אם מופעל — בהתאם להגדרות ולבחירת הפרטיות.</li>
+          </ul>
+          <p className="policy-paragraph">
+            האימות המקומי בהרשמה אינו דורש פנייה לשירות CAPTCHA חיצוני. ספקי התשתית עשויים לעבד מידע מחוץ למדינת מגוריך,
+            לרבות בארצות הברית ובאירופה, בהתאם לשירות ולמדיניות הספק.
+          </p>
+        </Section>
+        <Section title="שמירה, מחיקה והזכויות שלך">
+          <p className="policy-paragraph">
+            מידע פעיל נשמר כל עוד החשבון פעיל. ניתן לבקש עיון ותיקון, לבטל התראות ולמחוק את החשבון דרך הגדרות החשבון או
+            בפנייה אלינו. המחיקה מסירה את החשבון ואת הרשומות המקושרות ממסד הנתונים הפעיל. עותקים קודמים עשויים להישאר
+            בגיבויים תפעוליים, ונתוני עסקאות אצל ספק התשלום כפופים למדיניותו ולדין החל.
+          </p>
+        </Section>
+        <Section title="אבטחת מידע">
+          <p className="policy-paragraph">
+            אנו משתמשים בחיבורים מוצפנים ובהגבלת גישה למידע. אין שיטת אחסון או העברה שמבטיחה אבטחה מוחלטת.
+          </p>
+        </Section>
+        <Section title="עדכונים ויצירת קשר">
+          <p className="policy-paragraph">
+            שינויים מהותיים במסמך ישתקפו בתאריך העדכון. לפניות בנושא השירות, ביטול, פרטיות או נגישות:{' '}
+            <a className="policy-inline-link" href="mailto:liormenaiot@gmail.com" dir="ltr">
+              liormenaiot@gmail.com
+            </a>
+            . אפשר לפנות גם דרך{' '}
+            <a
+              className="policy-inline-link"
+              href="https://instagram.com/capital_flow555"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Instagram
+            </a>
+            .
+          </p>
+        </Section>
       </div>
-    </div>
+    </article>
   );
 }

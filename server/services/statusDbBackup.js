@@ -1,6 +1,7 @@
 'use strict';
 
 const zlib = require('zlib');
+const { encryptBackup, encryptionKey } = require('./backupEncryption');
 const db = require('../db');
 const {
   ADMIN_EMAIL,
@@ -37,7 +38,7 @@ function now() {
 }
 
 function backupFilename(createdAt) {
-  return 'capital-flow-status-backup-' + createdAt.slice(0, 10) + '.json.gz';
+  return 'capital-flow-status-backup-' + createdAt.slice(0, 10) + '.json.gz.enc';
 }
 
 async function configuredRecipients() {
@@ -79,11 +80,12 @@ async function dumpStatusTables() {
 
 function encodeStatusBackup(dump) {
   const json = JSON.stringify(dump, null, 2);
-  return zlib.gzipSync(json);
+  return encryptBackup(zlib.gzipSync(json));
 }
 
 async function runStatusBackup({ send = sendStatusBackupEmail } = {}) {
   if (!STATUS_BACKUP_ENABLED) return { status: 'disabled' };
+  encryptionKey();
   await db.ready;
   const attemptedAt = now();
   await setMeta('status_backup_last_attempt_at', attemptedAt);

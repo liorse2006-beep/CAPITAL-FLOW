@@ -72,6 +72,17 @@ const authLimiter = rateLimit({
   message: { error: 'Too many attempts. Please wait a few minutes and try again.' },
 });
 
+// OAuth starts allocate server-side one-time state. Bound allocation before
+// Passport runs, while keeping ordinary browser retries separate from login.
+const oauthStartLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(realIp(req)),
+  message: { error: 'Too many sign-in attempts. Please wait a minute and try again.' },
+});
+
 // A separate budget keeps loading/retrying verification from consuming the
 // credential-attempt budget. The challenge service also caps global storage
 // and concurrent generation, and never performs external provider work.
@@ -219,6 +230,7 @@ const checkoutLimiter = rateLimit({
 
 module.exports = {
   authLimiter,
+  oauthStartLimiter,
   signupChallengeLimiter,
   otpLimiter,
   webhookLimiter,

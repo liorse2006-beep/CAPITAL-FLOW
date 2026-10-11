@@ -49,7 +49,7 @@ export default function AddTickerModal({ watchlist, onAdd, onClose }) {
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="Add Ticker"
+        aria-label="הוספת מניה"
         ref={panelRef}
         tabIndex={-1}
       >
@@ -70,9 +70,9 @@ export default function AddTickerModal({ watchlist, onAdd, onClose }) {
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
             </div>
-            <h3 className="atm-title">Add Ticker</h3>
+            <h3 className="atm-title">הוספת מניה</h3>
           </div>
-          <button className="atm-close" onClick={onClose} aria-label="Close">
+          <button className="atm-close" onClick={onClose} aria-label="סגירה">
             <svg
               width="14"
               height="14"
@@ -105,13 +105,13 @@ export default function AddTickerModal({ watchlist, onAdd, onClose }) {
           </svg>
           <input
             className="atm-search"
-            placeholder="Search by symbol — e.g. AAPL, NVDA…"
+            placeholder="חיפוש לפי סימול — לדוגמה AAPL או NVDA…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             autoFocus
           />
           {query && (
-            <button className="atm-clear" onClick={() => setQuery('')} aria-label="Clear">
+            <button className="atm-clear" onClick={() => setQuery('')} aria-label="ניקוי">
               <svg
                 width="12"
                 height="12"
@@ -128,7 +128,7 @@ export default function AddTickerModal({ watchlist, onAdd, onClose }) {
           )}
         </div>
 
-        <p className="atm-scope">Only from: S&amp;P 500 · NASDAQ 100 · Top 5 per sector</p>
+        <p className="atm-scope">מניות מתוך S&amp;P 500, ‏NASDAQ 100 וחמש המניות המובילות בכל סקטור</p>
 
         {/* Results */}
         <div className="atm-list">
@@ -147,7 +147,7 @@ export default function AddTickerModal({ watchlist, onAdd, onClose }) {
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
-              <span>Search for a ticker to add it</span>
+              <span>חפש סימול כדי להוסיף מניה</span>
             </div>
           )}
           {searchResults.map(renderTicker)}
@@ -166,7 +166,9 @@ export default function AddTickerModal({ watchlist, onAdd, onClose }) {
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
-              <span>&quot;{query.trim().toUpperCase()}&quot; not in our lists</span>
+              <span>
+                המניה <bdi dir="ltr">{query.trim().toUpperCase()}</bdi> אינה ברשימות הנתמכות
+              </span>
             </div>
           )}
         </div>

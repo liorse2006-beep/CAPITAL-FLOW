@@ -11,8 +11,12 @@ const assert = require('node:assert');
 const express = require('express');
 
 const db = require('../server/db');
+let adminAccessToken;
 before(async () => {
   await db.ready;
+  const row = await db.prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)').run(process.env.ADMIN_EMAIL);
+  const admin = await db.prepare('SELECT * FROM users WHERE id = ?').get(row.lastInsertRowid);
+  adminAccessToken = (await issueToken(admin)).accessToken;
 });
 
 const { issueToken, refreshAccessToken, hashPassword, saveOTP } = require('../server/services/auth');
@@ -58,7 +62,7 @@ test('admin force-logout actually revokes the session (not the removed session_v
   try {
     const res = await fetch(`http://127.0.0.1:${port}/admin/api/users/${user.id}/logout`, {
       method: 'POST',
-      headers: { 'X-Admin-Token': process.env.ADMIN_TOKEN },
+      headers: { Authorization: `Bearer ${adminAccessToken}` },
     });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(await resolveToken(accessToken), null, 'the token must be dead immediately after force-logout');
@@ -77,7 +81,7 @@ test('admin force-logout revokes every session for the account, not just one', a
   try {
     const res = await fetch(`http://127.0.0.1:${port}/admin/api/users/${user.id}/logout`, {
       method: 'POST',
-      headers: { 'X-Admin-Token': process.env.ADMIN_TOKEN },
+      headers: { Authorization: `Bearer ${adminAccessToken}` },
     });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(await resolveToken(tokenA), null, 'device A must be logged out');
@@ -122,7 +126,7 @@ test('resetting a password revokes every existing session — the actual fix for
 test('admin coupon routes: create, list, toggle, delete, all requiring admin auth', async () => {
   const server = await startAdminApp();
   const port = server.address().port;
-  const H = { 'Content-Type': 'application/json', 'X-Admin-Token': process.env.ADMIN_TOKEN };
+  const H = { 'Content-Type': 'application/json', Authorization: `Bearer ${adminAccessToken}` };
   try {
     const unauth = await fetch(`http://127.0.0.1:${port}/admin/api/coupons`);
     assert.strictEqual(unauth.status, 401);
@@ -190,7 +194,7 @@ test('admin manual backup run and feedback deletion are audit-logged', async () 
 
   const server = await startAdminApp();
   const port = server.address().port;
-  const H = { 'X-Admin-Token': process.env.ADMIN_TOKEN };
+  const H = { Authorization: `Bearer ${adminAccessToken}` };
   try {
     const del = await fetch(`http://127.0.0.1:${port}/admin/api/feedback/${fb.id}`, { method: 'DELETE', headers: H });
     assert.strictEqual(del.status, 200);
