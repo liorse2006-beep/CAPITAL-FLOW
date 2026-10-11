@@ -63,7 +63,12 @@ test('Linux capacity job is public-runner-only, offline and within the existing 
   const originalJob = workflow.slice(0, boundary);
   assert.match(originalJob, /Run backend test suite/);
   assert.match(originalJob, /Run frontend test suite/);
-  assert.match(originalJob, /Audit production dependencies/);
+  assert.match(originalJob, /Audit all dependencies/);
+  for (const file of ['ci.yml', 'deploy.yml']) {
+    const releaseWorkflow = readFileSync(require.resolve(`../.github/workflows/${file}`), 'utf8');
+    assert.match(releaseWorkflow, /npm audit --audit-level=high/);
+    assert.doesNotMatch(releaseWorkflow, /npm audit[^\n]*--omit=dev/);
+  }
   const job = workflow.slice(boundary).replace(/^\s*#.*$/gm, '');
   assert.match(job, /github\.event\.repository\.private == false/);
   assert.match(job, /runs-on: ubuntu-latest/);

@@ -50,10 +50,10 @@ jobs:
       # commit three times in a row, each requiring a manual "Re-run failed
       # jobs" click. Same retry shape as the npm ci step above, which
       # already exists for exactly this class of flakiness.
-      - name: Audit production dependencies
+      - name: Audit all dependencies
         run: |
           for attempt in 1 2 3 4 5; do
-            npm audit --omit=dev --audit-level=high && exit 0
+            npm audit --audit-level=high && exit 0
             echo "npm audit failed (possibly a transient registry timeout); retrying in $((attempt * 10))s (attempt $attempt/5)"
             sleep $((attempt * 10))
           done
