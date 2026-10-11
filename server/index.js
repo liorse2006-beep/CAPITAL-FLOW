@@ -279,10 +279,7 @@ app.use(function (req, res, next) {
 // the file isn't present yet, so a missing token fails loudly rather than
 // silently returning HTML. Must come before the static + SPA handlers.
 const APPLE_PAY_FILE = path.join(__dirname, '../public/.well-known/apple-developer-merchantid-domain-association');
-app.get('/.well-known/security.txt', (_req, res) => {
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.type('text/plain').sendFile(path.join(publicDir, '.well-known/security.txt'));
-});
+app.get('/.well-known/security.txt', require('./services/securityContact'));
 app.get('/.well-known/apple-developer-merchantid-domain-association', (req, res) => {
   fs.readFile(APPLE_PAY_FILE, 'utf8', (err, data) => {
     if (err || !data || !data.trim()) return res.status(404).type('text/plain').send('Not found');
