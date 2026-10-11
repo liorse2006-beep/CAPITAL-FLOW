@@ -3,7 +3,13 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { CAPACITY_STAGES, assertSuccessfulAudit } = require('../scripts/capacity-audit-contract.cjs');
 const { assertFixture, fixtureFetch, failureSample } = require('../scripts/capacity-audit-load.cjs');
-const { parseTcpCounters, counterDelta, validRequestId } = require('../scripts/capacity-audit-diagnostics.cjs');
+const {
+  parseTcpCounters,
+  counterDelta,
+  validRequestId,
+  parseCgroupCpuStats,
+  cgroupCpuCounterDelta,
+} = require('../scripts/capacity-audit-diagnostics.cjs');
 
 function fixture() {
   return {
@@ -152,4 +158,17 @@ test('isolated request correlation is bounded and does not accept identities or 
   const generator = readFileSync(require.resolve('../scripts/capacity-audit-load.cjs'), 'utf8');
   assert.match(generator, /sample\.serverTrace = trace\.requests\[sample\.requestId\]/);
   assert.match(generator, /generatorDelay\.disable\(\)/);
+});
+
+test('CPU throttle evidence is allowlisted, measured by deltas and never fabricated on unsupported systems', () => {
+  const source = 'usage_usec 999\nnr_periods 40\nnr_throttled 5\nthrottled_usec 6000\nprivate 1\n';
+  assert.deepEqual(parseCgroupCpuStats(source), { nr_periods: 40, nr_throttled: 5, throttled_usec: 6000 });
+  assert.equal(parseCgroupCpuStats('unavailable'), null);
+  assert.deepEqual(parseCgroupCpuStats('nr_periods NaN\nthrottled_usec 99999999999999999999\n'), {});
+  assert.deepEqual(
+    cgroupCpuCounterDelta({ nr_periods: 30, nr_throttled: 4, throttled_usec: 5000 }, parseCgroupCpuStats(source)),
+    { nr_periods: 10, nr_throttled: 1, throttled_usec: 1000 }
+  );
+  assert.equal(cgroupCpuCounterDelta(null, parseCgroupCpuStats(source)), null);
+  assert.deepEqual(cgroupCpuCounterDelta({ nr_periods: 50 }, { nr_periods: 40 }), {});
 });

@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { performance, monitorEventLoopDelay } = require('node:perf_hooks');
 const { readFileSync } = require('node:fs');
 const { CAPACITY_STAGES, MAX_P95_MS, assertSuccessfulAudit } = require('./capacity-audit-contract.cjs');
-const { readTcpCounters, validRequestId } = require('./capacity-audit-diagnostics.cjs');
+const { readTcpCounters, validRequestId, readCgroupCpuStats } = require('./capacity-audit-diagnostics.cjs');
 const express = require('express');
 const db = require('../server/db');
 const { issueToken } = require('../server/services/auth');
@@ -93,15 +93,26 @@ async function main() {
   const requestMetrics = {};
   const activeRequests = new Set();
   const requestTrace = new Map();
+  const socketAcceptance = new WeakMap();
   app.use('/api', (req, res, next) => {
     const route = req.path;
     const metrics = (requestMetrics[route] ||= { received: 0, finished: 0, closedBeforeFinish: 0, maxMs: 0 });
     const began = performance.now();
     const marker = {};
     const requestId = req.get('X-Isolated-Request-Id');
+    const connection = socketAcceptance.get(req.socket);
     const trace =
       serveFixture && validRequestId(requestId) && requestTrace.size < 6000
-        ? { path: req.path, receivedAt: Date.now(), finishedAt: null, handlingMs: null, outcome: 'active' }
+        ? {
+            path: req.path,
+            acceptedAt: connection?.acceptedAt ?? null,
+            socketRemotePort: req.socket.remotePort ?? null,
+            acceptanceToRequestMs: connection ? Number((performance.now() - connection.began).toFixed(2)) : null,
+            receivedAt: Date.now(),
+            finishedAt: null,
+            handlingMs: null,
+            outcome: 'active',
+          }
         : null;
     if (trace) requestTrace.set(requestId, trace);
     metrics.received++;
@@ -144,9 +155,11 @@ async function main() {
         rssMiB: Number((process.memoryUsage().rss / 1048576).toFixed(2)),
         cpuMs: Number(((spent.user + spent.system) / 1000).toFixed(2)),
         eventLoopP99Ms: Number((fixtureDelay.percentile(99) / 1e6).toFixed(2)),
+        eventLoopMaxMs: Number((fixtureDelay.max / 1e6).toFixed(2)),
         transport: { ...transport },
         requests: { active: activeRequests.size, routes: requestMetrics },
         tcpCounters: readTcpCounters(),
+        cpuStat: readCgroupCpuStats(),
       });
       if (req.query.reset === '1') fixtureDelay.reset();
     });
@@ -171,6 +184,7 @@ async function main() {
   });
   const transport = { open: 0, peakOpen: 0, accepted: 0, listenerErrors: 0 };
   server.on('connection', (socket) => {
+    socketAcceptance.set(socket, { acceptedAt: Date.now(), began: performance.now() });
     transport.open++;
     transport.accepted++;
     transport.peakOpen = Math.max(transport.peakOpen, transport.open);

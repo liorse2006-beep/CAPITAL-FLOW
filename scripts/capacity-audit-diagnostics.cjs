@@ -8,6 +8,7 @@ const TCP_FIELDS = Object.freeze([
   'TCPBacklogDrop',
   'TCPAbortOnTimeout',
 ]);
+const CPU_FIELDS = Object.freeze(['nr_periods', 'nr_throttled', 'throttled_usec']);
 
 function parseTcpCounters(source) {
   const lines = source.trim().split(/\r?\n/);
@@ -35,13 +36,45 @@ function readTcpCounters() {
 }
 
 function counterDelta(before, after) {
+  return counterDeltaForFields(before, after, TCP_FIELDS);
+}
+
+function counterDeltaForFields(before, after, fields) {
   if (!before || !after) return null;
   return Object.fromEntries(
-    TCP_FIELDS.filter(
-      (field) =>
-        Number.isSafeInteger(before[field]) && Number.isSafeInteger(after[field]) && after[field] >= before[field]
-    ).map((field) => [field, after[field] - before[field]])
+    fields
+      .filter(
+        (field) =>
+          Number.isSafeInteger(before[field]) && Number.isSafeInteger(after[field]) && after[field] >= before[field]
+      )
+      .map((field) => [field, after[field] - before[field]])
   );
+}
+
+function parseCgroupCpuStats(source) {
+  const counters = {};
+  let recognized = false;
+  for (const line of source.trim().split(/\r?\n/)) {
+    const [field, raw, extra] = line.trim().split(/\s+/);
+    if (!CPU_FIELDS.includes(field)) continue;
+    recognized = true;
+    if (extra !== undefined || !/^\d+$/.test(raw || '')) continue;
+    const value = Number(raw);
+    if (Number.isSafeInteger(value)) counters[field] = value;
+  }
+  return recognized ? counters : null;
+}
+
+function readCgroupCpuStats() {
+  try {
+    return parseCgroupCpuStats(readFileSync('/sys/fs/cgroup/cpu.stat', 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function cgroupCpuCounterDelta(before, after) {
+  return counterDeltaForFields(before, after, CPU_FIELDS);
 }
 
 function validRequestId(value) {
@@ -52,4 +85,12 @@ function validRequestId(value) {
   );
 }
 
-module.exports = { parseTcpCounters, readTcpCounters, counterDelta, validRequestId };
+module.exports = {
+  parseTcpCounters,
+  readTcpCounters,
+  counterDelta,
+  validRequestId,
+  parseCgroupCpuStats,
+  readCgroupCpuStats,
+  cgroupCpuCounterDelta,
+};

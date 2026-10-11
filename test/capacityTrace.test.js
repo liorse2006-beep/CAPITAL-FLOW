@@ -86,7 +86,27 @@ test(
     assert.ok(Number.isSafeInteger(trace.receivedAt) && Math.abs(trace.receivedAt - beganAt) < 5000);
     assert.ok(Number.isSafeInteger(trace.finishedAt) && Math.abs(trace.finishedAt - checkedAt) < 5000);
     assert.ok(Number.isFinite(trace.handlingMs) && trace.handlingMs >= 0 && trace.handlingMs < 5000);
-    assert.deepEqual(Object.keys(trace).sort(), ['finishedAt', 'handlingMs', 'outcome', 'path', 'receivedAt']);
+    assert.ok(Number.isSafeInteger(trace.acceptedAt) && trace.acceptedAt > 0);
+    assert.ok(Number.isFinite(trace.acceptanceToRequestMs) && trace.acceptanceToRequestMs >= 0);
+    assert.ok(
+      Number.isInteger(trace.socketRemotePort) && trace.socketRemotePort > 0 && trace.socketRemotePort <= 65535
+    );
+    assert.deepEqual(Object.keys(trace).sort(), [
+      'acceptanceToRequestMs',
+      'acceptedAt',
+      'finishedAt',
+      'handlingMs',
+      'outcome',
+      'path',
+      'receivedAt',
+      'socketRemotePort',
+    ]);
+    const stats = await (await localFetch('/__isolated-capacity-fixture/stats')).json();
+    assert.ok(Number.isFinite(stats.eventLoopMaxMs) && stats.eventLoopMaxMs >= 0);
+    assert.ok(
+      stats.cpuStat === null ||
+        Object.keys(stats.cpuStat).every((field) => ['nr_periods', 'nr_throttled', 'throttled_usec'].includes(field))
+    );
     assert.equal((await query(['sensitive-user-token'])).status, 400);
     assert.equal((await query(Array(51).fill('1.1'))).status, 400);
     await (await localFetch('/__isolated-capacity-fixture/stats?reset=1')).json();

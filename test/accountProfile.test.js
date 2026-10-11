@@ -85,6 +85,37 @@ test('GET /api/account/summary returns current counts without sensitive fields i
   }
 });
 
+test('GET /api/account/summary rejects an account removed after authentication without a server error', async (t) => {
+  const user = await makeUser('profile-summary-disappeared@test.local');
+  const token = (await issueToken(user)).accessToken;
+  const prepare = db.prepare;
+  let missing = false;
+  let aggregateCalls = 0;
+  t.mock.method(db, 'prepare', (sql, ...args) => {
+    if (/COUNT\(\*\)/i.test(sql)) aggregateCalls++;
+    if (sql === 'SELECT * FROM users WHERE id = ?')
+      return { get: async () => (missing ? undefined : prepare(sql, ...args).get(user.id)) };
+    return prepare(sql, ...args);
+  });
+  const server = await startTestApp();
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  try {
+    missing = true;
+    const response = await fetch(`${origin}/api/account/summary`, { headers: { Authorization: 'Bearer ' + token } });
+    assert.strictEqual(response.status, 401);
+    assert.deepStrictEqual(await response.json(), { error: 'Account not found' });
+    assert.strictEqual(aggregateCalls, 0, 'a missing account must not query or expose account data');
+    assert.strictEqual(response.headers.get('Set-Cookie'), null);
+    missing = false;
+    const recovered = await fetch(`${origin}/api/account/summary`, { headers: { Authorization: 'Bearer ' + token } });
+    assert.strictEqual(recovered.status, 200);
+    assert.strictEqual((await recovered.json()).user.id, user.id);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test('POST /api/account/change-password rotates the current session and revokes the old one', async () => {
   const user = await makeUser('profile-password@test.local');
   const oldToken = (await issueToken(user)).accessToken;

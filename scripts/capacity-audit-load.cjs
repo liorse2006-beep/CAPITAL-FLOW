@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const { performance, monitorEventLoopDelay } = require('node:perf_hooks');
 const { CAPACITY_STAGES, MAX_P95_MS, assertSuccessfulAudit } = require('./capacity-audit-contract.cjs');
-const { counterDelta } = require('./capacity-audit-diagnostics.cjs');
+const { counterDelta, cgroupCpuCounterDelta } = require('./capacity-audit-diagnostics.cjs');
 const { installClientRequestTrace } = require('./capacity-client-trace.cjs');
 const ORIGIN = 'http://127.0.0.1:3001';
 const PREFIX = '/__isolated-capacity-fixture';
@@ -189,6 +189,7 @@ async function main() {
         transport: after.transport,
         serverRequests: after.requests,
         tcpCounterDelta: counterDelta(before.tcpCounters, after.tcpCounters),
+        cpuThrottleDelta: cgroupCpuCounterDelta(before.cpuStat, after.cpuStat),
         generator: {
           cpuMs: Number(((generatorSpent.user + generatorSpent.system) / 1000).toFixed(2)),
           rssMiB: Number((process.memoryUsage().rss / 1048576).toFixed(2)),
@@ -218,6 +219,7 @@ async function main() {
         rssMiB: after.rssMiB,
         cpuMs: Number((after.cpuMs - before.cpuMs).toFixed(2)),
         eventLoopP99Ms: after.eventLoopP99Ms,
+        eventLoopMaxMs: after.eventLoopMaxMs,
       };
       report.stages.push(stage);
       console.log('CAPACITY_STAGE ' + JSON.stringify(stage));

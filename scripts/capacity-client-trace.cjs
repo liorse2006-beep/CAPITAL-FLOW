@@ -30,13 +30,29 @@ function installClientRequestTrace() {
         return;
       const id = isolatedMarker(request.headers);
       if (!id || traces.has(id)) return;
-      const trace = { createdAt: Date.now(), sentAt: null, responseHeadersAt: null, erroredAt: null };
+      const trace = {
+        createdAt: Date.now(),
+        sentAt: null,
+        responseHeadersAt: null,
+        erroredAt: null,
+        socketLocalPort: null,
+        socketRemotePort: null,
+      };
       requests.set(request, trace);
       traces.set(id, trace);
     },
-    'undici:client:sendHeaders': ({ request }) => {
+    'undici:client:sendHeaders': ({ request, socket }) => {
       const trace = request && requests.get(request);
-      if (trace) trace.sentAt = Date.now();
+      if (trace) {
+        // This event does not prove a TCP flush/acknowledgement. Ports permit
+        // correlation with the offline server's acceptance timestamp only.
+        trace.sentAt = Date.now();
+        for (const [field, value] of [
+          ['socketLocalPort', socket?.localPort],
+          ['socketRemotePort', socket?.remotePort],
+        ])
+          if (Number.isInteger(value) && value > 0 && value <= 65535) trace[field] = value;
+      }
     },
     'undici:request:headers': ({ request }) => {
       const trace = request && requests.get(request);

@@ -34,6 +34,8 @@ test('real offline HTTP request records create/write/response timestamps and res
     for (const field of ['createdAt', 'sentAt', 'responseHeadersAt'])
       assert.ok(Number.isSafeInteger(recorded[field]) && recorded[field] > 0);
     assert.equal(recorded.erroredAt, null);
+    assert.ok(Number.isInteger(recorded.socketLocalPort) && recorded.socketLocalPort > 0);
+    assert.equal(recorded.socketRemotePort, 3001);
     assert.doesNotMatch(JSON.stringify(recorded), /Bearer|secret|headers|watchlist/);
     assert.equal(trace.get('500.6001'), null);
     trace.reset();

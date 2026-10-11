@@ -30,8 +30,9 @@ function jsonOrNull(value) {
 // initial profile dialog or exposing technical identifiers.
 router.get('/account/summary', requireAuth, async (req, res) => {
   try {
-    const user = withEffectivePremium(await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id));
-    if (!user) return res.status(401).json({ error: 'Account not found' });
+    const storedUser = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    if (!storedUser) return res.status(401).json({ error: 'Account not found' });
+    const user = withEffectivePremium(storedUser);
 
     // One aggregate round trip avoids multiplying concurrent profile callers
     // into six waiting database operations. Every subquery stays owner-scoped;
