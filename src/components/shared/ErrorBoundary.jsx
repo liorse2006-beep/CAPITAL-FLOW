@@ -25,8 +25,14 @@ class ErrorBoundary extends React.Component {
   render() {
     if (!this.state.hasError) return this.props.children;
 
+    // This boundary wraps the router, so preserve the landing language even
+    // when a rendering error prevents its language provider from mounting.
+    const isLanding = window.location.pathname === '/';
+
     return (
       <div
+        lang={isLanding ? 'he' : 'en'}
+        dir={isLanding ? 'rtl' : 'ltr'}
         style={{
           minHeight: '100vh',
           display: 'flex',
@@ -45,14 +51,18 @@ class ErrorBoundary extends React.Component {
           <div className="logo-bar" />
           <div className="logo-bar" />
         </div>
-        <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>לא הצלחנו להציג את המסך</h1>
-        <p style={{ fontSize: 13, color: '#A0A0A8', maxWidth: 360, margin: 0 }}>אפשר לנסות לטעון את העמוד מחדש.</p>
+        <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
+          {isLanding ? 'לא הצלחנו להציג את המסך' : "We couldn't display this screen"}
+        </h1>
+        <p style={{ fontSize: 13, color: '#A0A0A8', maxWidth: 360, margin: 0 }}>
+          {isLanding ? 'אפשר לנסות לטעון את העמוד מחדש.' : 'Try reloading the page.'}
+        </p>
         <button
           className="upgrade-cta"
           style={{ width: 'auto', padding: '10px 24px' }}
           onClick={() => window.location.reload()}
         >
-          טעינה מחדש
+          {isLanding ? 'טעינה מחדש' : 'Reload'}
         </button>
       </div>
     );

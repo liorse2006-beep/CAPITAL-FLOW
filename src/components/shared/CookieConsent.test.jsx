@@ -13,9 +13,9 @@ describe('first-visit cookie consent', () => {
 
   it('is visible for a new guest and leaves analytics off until explicit acceptance', () => {
     render(<CookieConsent />);
-    expect(screen.getByRole('dialog', { name: 'העדפות פרטיות' })).toHaveAttribute('dir', 'rtl');
+    expect(screen.getByRole('dialog', { name: 'Privacy preferences' })).toHaveAttribute('dir', 'ltr');
     expect(hasConsented()).toBe(false);
-    fireEvent.click(screen.getByRole('button', { name: 'ללא אנליטיקה' }));
+    fireEvent.click(screen.getByRole('button', { name: 'No analytics' }));
     expect(hasAnswered()).toBe(true);
     expect(hasConsented()).toBe(false);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

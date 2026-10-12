@@ -221,7 +221,7 @@ export default function ChartModal({ symbol, name, onClose }) {
         )
         .then((d) => {
           if (!Array.isArray(d.quotes) || d.quotes.length === 0) {
-            throw new Error('נתוני הגרף אינם זמינים כרגע. אפשר לנסות שוב בהמשך.');
+            throw new Error('Chart data is not available right now. Try again in a few minutes.');
           }
           dataRef.current = d;
           setQuote(d.currentPrice);
@@ -415,7 +415,7 @@ export default function ChartModal({ symbol, name, onClose }) {
             'div',
             { className: 'chart-loader' },
             React.createElement('div', { className: 'spinner' }),
-            React.createElement('span', null, 'טוענים גרף…')
+            React.createElement('span', null, 'Loading chart...')
           ),
         error && React.createElement('div', { className: 'chart-error' }, error),
 
@@ -433,7 +433,7 @@ export default function ChartModal({ symbol, name, onClose }) {
             React.createElement(
               'div',
               { className: 'chart-tt-date' },
-              new Date(tooltip.q.date).toLocaleDateString('he-IL', {
+              new Date(tooltip.q.date).toLocaleDateString('en-US', {
                 month: 'short',
                 day: 'numeric',
                 year: '2-digit',
@@ -444,31 +444,31 @@ export default function ChartModal({ symbol, name, onClose }) {
             React.createElement(
               'div',
               { className: 'chart-tt-row' },
-              React.createElement('span', null, 'פתיחה'),
+              React.createElement('span', null, 'O'),
               React.createElement('span', { dir: 'ltr' }, formatPrice(tooltip.q.open))
             ),
             React.createElement(
               'div',
               { className: 'chart-tt-row' },
-              React.createElement('span', null, 'גבוה'),
+              React.createElement('span', null, 'H'),
               React.createElement('span', { dir: 'ltr', style: { color: '#22C55E' } }, formatPrice(tooltip.q.high))
             ),
             React.createElement(
               'div',
               { className: 'chart-tt-row' },
-              React.createElement('span', null, 'נמוך'),
+              React.createElement('span', null, 'L'),
               React.createElement('span', { dir: 'ltr', style: { color: '#EF4444' } }, formatPrice(tooltip.q.low))
             ),
             React.createElement(
               'div',
               { className: 'chart-tt-row' },
-              React.createElement('span', null, 'סגירה'),
+              React.createElement('span', null, 'Close'),
               React.createElement('span', { dir: 'ltr', style: { color: '#F59E0B' } }, formatPrice(tooltip.q.close))
             ),
             React.createElement(
               'div',
               { className: 'chart-tt-row' },
-              React.createElement('span', null, 'נפח'),
+              React.createElement('span', null, 'VOL'),
               React.createElement('span', { dir: 'ltr' }, fmt(tooltip.q.volume))
             )
           )

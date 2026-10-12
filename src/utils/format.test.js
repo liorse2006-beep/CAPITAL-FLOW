@@ -44,17 +44,17 @@ describe('parseVolInput', () => {
 
 describe('friendlyError', () => {
   it('gives a default message when there is no error', () => {
-    expect(friendlyError(null)).toMatch(/לא הצלחנו להשלים/);
+    expect(friendlyError(null)).toMatch(/went wrong/);
   });
   it('special-cases "Scan already in progress"', () => {
-    expect(friendlyError('Scan already in progress')).toMatch(/סריקה כבר מתבצעת/);
+    expect(friendlyError('Scan already in progress')).toMatch(/already running/);
   });
   it('classifies fetch/network failures generically', () => {
-    expect(friendlyError('Failed to fetch')).toMatch(/יש לבדוק את החיבור/);
-    expect(friendlyError('NetworkError when attempting to fetch resource')).toMatch(/יש לבדוק את החיבור/);
+    expect(friendlyError('Failed to fetch')).toMatch(/Check your connection/);
+    expect(friendlyError('NetworkError when attempting to fetch resource')).toMatch(/Check your connection/);
   });
   it('does not pass unknown backend messages through to the customer', () => {
-    expect(friendlyError('Invalid ticker symbol')).toBe('לא הצלחנו להשלים את הפעולה. אפשר לנסות שוב.');
+    expect(friendlyError('Invalid ticker symbol')).toBe('Something went wrong. Please try again.');
     for (const raw of [
       'Internal Server Error',
       'database user id 42',
@@ -66,20 +66,20 @@ describe('friendlyError', () => {
       '{"apiKey":"private-key"}',
     ]) {
       const safe = friendlyError(raw);
-      expect(safe).toBe('לא הצלחנו להשלים את הפעולה. אפשר לנסות שוב.');
+      expect(safe).toBe('Something went wrong. Please try again.');
       expect(safe).not.toContain(raw);
     }
   });
   it('localizes only known actionable error categories', () => {
-    expect(friendlyError('Unauthorized')).toBe('יש להתחבר לחשבון כדי להמשיך.');
-    expect(friendlyError('Too many requests')).toMatch(/יותר מדי ניסיונות/);
-    expect(friendlyError('Notifications denied')).toMatch(/ההתראות חסומות/);
-    expect(friendlyError({ message: 'secret' })).toMatch(/לא הצלחנו להשלים/);
+    expect(friendlyError('Unauthorized')).toBe('Please sign in to continue.');
+    expect(friendlyError('Too many requests')).toMatch(/Too many attempts/);
+    expect(friendlyError('Notifications denied')).toMatch(/Notifications are blocked/);
+    expect(friendlyError({ message: 'secret' })).toMatch(/went wrong/);
   });
   it('gives a friendly message for JSON SyntaxError (non-JSON server response)', () => {
-    expect(friendlyError('Unexpected token \'<\', "<!DOCTYPE "... is not valid JSON')).toMatch(/לא הצלחנו להשלים/);
-    expect(friendlyError("Unexpected token '<'")).toMatch(/לא הצלחנו להשלים/);
-    expect(friendlyError('JSON.parse: unexpected character at line 1 column 1')).toMatch(/לא הצלחנו להשלים/);
+    expect(friendlyError('Unexpected token \'<\', "<!DOCTYPE "... is not valid JSON')).toMatch(/went wrong/);
+    expect(friendlyError("Unexpected token '<'")).toMatch(/went wrong/);
+    expect(friendlyError('JSON.parse: unexpected character at line 1 column 1')).toMatch(/went wrong/);
   });
 });
 

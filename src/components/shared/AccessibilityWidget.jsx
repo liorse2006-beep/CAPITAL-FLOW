@@ -1,3 +1,5 @@
+import { useUiLanguage } from '../../context/UiLanguageContext';
+import { copyFor } from '../../utils/landingUiCopy';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -37,6 +39,7 @@ function applySettings(s) {
    owner of the `data-theme` attribute — nothing else in the app should set
    it, or it'll fight this widget's saved preference. */
 export default function AccessibilityWidget() {
+  const language = useUiLanguage();
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState(loadSettings);
 
@@ -92,25 +95,25 @@ export default function AccessibilityWidget() {
           role="dialog"
           aria-modal="false"
           id="a11y-controls"
-          aria-label="נגישות"
-          lang="he"
-          dir="rtl"
+          aria-label={copyFor(language, 'Accessibility')}
+          lang={language}
+          dir={language === 'he' ? 'rtl' : 'ltr'}
         >
           <div className="a11y-panel-header">
-            <span>נגישות</span>
-            <button className="a11y-panel-close" onClick={() => setOpen(false)} aria-label="סגירה">
+            <span>{copyFor(language, 'Accessibility')}</span>
+            <button className="a11y-panel-close" onClick={() => setOpen(false)} aria-label={copyFor(language, 'Close')}>
               &times;
             </button>
           </div>
 
           <div className="a11y-row">
-            <span className="a11y-row-label">גודל טקסט</span>
+            <span className="a11y-row-label">{copyFor(language, 'Text size')}</span>
             <div className="a11y-btn-group">
               <button
                 className="a11y-btn"
                 onClick={decreaseFont}
                 disabled={settings.fontStep === 0}
-                aria-label="הקטנת טקסט"
+                aria-label={copyFor(language, 'Decrease text size')}
               >
                 A-
               </button>
@@ -118,7 +121,7 @@ export default function AccessibilityWidget() {
                 className="a11y-btn"
                 onClick={increaseFont}
                 disabled={settings.fontStep === FONT_STEPS.length - 1}
-                aria-label="הגדלת טקסט"
+                aria-label={copyFor(language, 'Increase text size')}
               >
                 A+
               </button>
@@ -126,55 +129,55 @@ export default function AccessibilityWidget() {
           </div>
 
           <div className="a11y-row">
-            <span className="a11y-row-label">תצוגה</span>
+            <span className="a11y-row-label">{copyFor(language, 'Appearance')}</span>
             <div className="a11y-btn-group">
               <button
                 className={'a11y-btn a11y-toggle' + (settings.theme === 'dark' ? ' on' : '')}
                 onClick={() => setTheme('dark')}
                 aria-pressed={settings.theme === 'dark'}
               >
-                כהה
+                {copyFor(language, '\n                Dark\n              ')}
               </button>
               <button
                 className={'a11y-btn a11y-toggle' + (settings.theme === 'light' ? ' on' : '')}
                 onClick={() => setTheme('light')}
                 aria-pressed={settings.theme === 'light'}
               >
-                בהירה
+                {copyFor(language, '\n                Light\n              ')}
               </button>
             </div>
           </div>
 
           <div className="a11y-row">
-            <span className="a11y-row-label">ניגודיות גבוהה</span>
+            <span className="a11y-row-label">{copyFor(language, 'High contrast')}</span>
             <button
               className={'a11y-btn a11y-toggle' + (settings.highContrast ? ' on' : '')}
               onClick={toggleContrast}
-              aria-label="ניגודיות גבוהה"
+              aria-label={copyFor(language, 'High contrast')}
               aria-pressed={settings.highContrast}
             >
-              {settings.highContrast ? 'פעיל' : 'כבוי'}
+              {settings.highContrast ? copyFor(language, 'Active') : copyFor(language, 'Off')}
             </button>
           </div>
 
           <div className="a11y-row">
-            <span className="a11y-row-label">הדגשת קישורים</span>
+            <span className="a11y-row-label">{copyFor(language, 'Highlight links')}</span>
             <button
               className={'a11y-btn a11y-toggle' + (settings.highlightLinks ? ' on' : '')}
               onClick={toggleLinks}
-              aria-label="הדגשת קישורים"
+              aria-label={copyFor(language, 'Highlight links')}
               aria-pressed={settings.highlightLinks}
             >
-              {settings.highlightLinks ? 'פעיל' : 'כבוי'}
+              {settings.highlightLinks ? copyFor(language, 'Active') : copyFor(language, 'Off')}
             </button>
           </div>
 
           <button className="a11y-reset-btn" onClick={resetSettings}>
-            איפוס הגדרות
+            {copyFor(language, '\n            Reset settings\n          ')}
           </button>
 
           <Link className="a11y-statement-link" to="/accessibility" onClick={() => setOpen(false)}>
-            הצהרת נגישות
+            {copyFor(language, '\n            Accessibility Statement ›\n          ')}
           </Link>
         </div>
       )}
@@ -182,10 +185,10 @@ export default function AccessibilityWidget() {
       <button
         className="a11y-fab"
         onClick={() => setOpen((o) => !o)}
-        aria-label="פתיחת תפריט נגישות"
+        aria-label={copyFor(language, 'Open accessibility menu')}
         aria-expanded={open}
         aria-controls="a11y-controls"
-        title="נגישות"
+        title={copyFor(language, 'Accessibility')}
       >
         <span aria-hidden="true">&#9855;</span>
       </button>

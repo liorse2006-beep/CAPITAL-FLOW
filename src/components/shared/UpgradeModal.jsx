@@ -5,7 +5,7 @@ import EmbeddedCheckout from './EmbeddedCheckout';
 import TierComparisonMatrix from './TierComparisonMatrix';
 import { clearWhopReturnState, saveWhopReturnState } from '../../utils/checkoutReturn';
 
-const TIER_LABEL = { premium: 'Premium', elite: 'Elite', eliteUpgrade: 'שדרוג ל־Elite' };
+const TIER_LABEL = { premium: 'Premium', elite: 'Elite', eliteUpgrade: 'Elite upgrade' };
 //
 // Clicking "Get <tier>" swaps this same modal over to Whop's checkout
 // Elements checkout, mounted inline. The server returns an allowlisted plan
@@ -61,14 +61,14 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
         tierKey,
       });
     } catch (err) {
-      setPayError('לא הצלחנו לפתוח את התשלום. אפשר לנסות שוב.');
+      setPayError("We couldn't open secure checkout. Please try again.");
     } finally {
       setPayingTier(null);
     }
   }
 
   function handlePaymentError() {
-    setPayError('התשלום המאובטח אינו זמין כרגע. אפשר לנסות שוב.');
+    setPayError('Secure checkout is temporarily unavailable. Please try again.');
     setCheckoutSession(null);
     localStorage.removeItem('vs_pending_tier');
     clearWhopReturnState();
@@ -83,12 +83,12 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
           tabIndex={-1}
           role="dialog"
           aria-modal="true"
-          dir="rtl"
-          lang="he"
-          aria-label={'תשלום — ' + TIER_LABEL[checkoutSession.tierKey]}
+          dir="ltr"
+          lang="en"
+          aria-label={'Checkout — ' + TIER_LABEL[checkoutSession.tierKey]}
           onClick={(e) => e.stopPropagation()}
         >
-          <button className="upgrade-close" onClick={handleClose} aria-label="סגירה">
+          <button className="upgrade-close" onClick={handleClose} aria-label="Close">
             ×
           </button>
           <button
@@ -99,10 +99,10 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
               clearWhopReturnState();
             }}
           >
-            חזרה למסלולים
+            ‹ Back to plans
           </button>
           <h2 className="upgrade-title" style={{ textAlign: 'center', marginBottom: 16 }}>
-            תשלום עבור {TIER_LABEL[checkoutSession.tierKey]}
+            Checkout for {TIER_LABEL[checkoutSession.tierKey]}
           </h2>
           <EmbeddedCheckout
             planId={checkoutSession.planId}
@@ -124,45 +124,50 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        dir="rtl"
-        lang="he"
-        aria-label={trialEnded ? 'המשך הגישה ל־Capital Flow' : 'בחירת מסלול'}
+        dir="ltr"
+        lang="en"
+        aria-label={trialEnded ? 'Continue your Capital Flow access' : 'Choose a plan'}
         onClick={(e) => e.stopPropagation()}
       >
-        <button className="upgrade-close" onClick={handleClose} aria-label="סגירה">
+        <button className="upgrade-close" onClick={handleClose} aria-label="Close">
           ×
         </button>
         {trialEnded && (
           <div className="upgrade-context-row">
             <span className="upgrade-context-badge">
               <img src="/icon-192.png" alt="" />
-              <span>תקופת הניסיון הסתיימה</span>
+              <span>Trial ended</span>
             </span>
-            <span className="upgrade-context-meta">ההגדרות שלך נשמרו</span>
+            <span className="upgrade-context-meta">Your workspace is saved</span>
           </div>
         )}
         <div className="upgrade-header">
           <div className="upgrade-header-eyebrow">
-            {trialEnded ? 'המשך שימוש ב־Capital Flow' : 'מסלולי Capital Flow'}
+            {trialEnded ? 'Continue using Capital Flow' : 'Capital Flow Plans'}
           </div>
-          <h2 className="upgrade-title">{trialEnded ? 'ממשיכים גם אחרי הניסיון.' : 'בחירת המסלול המתאים לך.'}</h2>
+          <h2 className="upgrade-title">
+            {trialEnded ? 'Keep your edge after day seven.' : 'Choose the workflow that fits your trading.'}
+          </h2>
           {trialEnded && (
-            <p className="upgrade-desc">אפשר לבחור את רמת הגישה המתאימה לך — תשלום חד־פעמי, ללא חיוב חודשי.</p>
+            <p className="upgrade-desc">
+              You have already felt the full Elite workflow. Choose the level of access that matches how you trade — one
+              payment, lifetime access.
+            </p>
           )}
         </div>
         {trialEnded && (
-          <div className="upgrade-proof-strip" aria-label="יתרונות המסלול">
+          <div className="upgrade-proof-strip" aria-label="Membership highlights">
             <span>
-              <strong>תשלום חד־פעמי</strong>
-              <small>גישה ללא הגבלת זמן</small>
+              <strong>One payment</strong>
+              <small>Lifetime access</small>
             </span>
             <span>
-              <strong>ההגדרות נשמרות</strong>
-              <small>המניות והתזמונים נשארים</small>
+              <strong>Keep your workspace</strong>
+              <small>Saved settings stay in place</small>
             </span>
             <span>
-              <strong>כלים למחקר</strong>
-              <small>סריקה, סינון ומעקב</small>
+              <strong>Built for action</strong>
+              <small>Scan, filter, decide</small>
             </span>
           </div>
         )}
@@ -174,11 +179,11 @@ export default function UpgradeModal({ userTier = 'free', onClose, trialEnded = 
           onCheckout={goToCheckout}
         />
         <div className="upgrade-trust-row">
-          <span>תשלום מאובטח</span>
+          <span>Secure checkout</span>
           <span className="upgrade-trust-separator" />
-          <span>Apple Pay ו־Google Pay במכשירים נתמכים</span>
+          <span>Apple Pay / Google Pay when supported</span>
           <span className="upgrade-trust-separator" />
-          <span>ללא חיוב חוזר</span>
+          <span>No recurring billing</span>
         </div>
         {payError && (
           <p className="upgrade-payment-error" role="alert">

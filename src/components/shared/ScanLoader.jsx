@@ -247,10 +247,10 @@ export default function ScanLoader({ label, matches, statusMessages }) {
     statusMessages && statusMessages.length
       ? statusMessages
       : [
-          'סורקים את השוק לאיתור פעילות חריגה…',
-          'בודקים את המחירים ונפחי המסחר…',
-          'בודקים פעילות בסקטורים השונים…',
-          'משווים לממוצעים ההיסטוריים…',
+          'Scanning the market for unusual activity…',
+          'Checking prices and trading volumes…',
+          'Checking activity across sectors…',
+          'Comparing with historical averages…',
         ];
 
   useEffect(
@@ -312,7 +312,7 @@ export default function ScanLoader({ label, matches, statusMessages }) {
         React.createElement(
           'span',
           { className: 'scan-loader-matches-label' },
-          matches === 1 ? 'תוצאה נמצאה' : 'תוצאות נמצאו'
+          matches === 1 ? 'result found' : 'results found'
         )
       ),
     React.createElement('div', { className: 'scan-loader-status' }, messages[statusIdx])

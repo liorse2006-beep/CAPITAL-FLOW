@@ -24,6 +24,6 @@ const COPY = {
   'One-time purchase · Lifetime access': 'תשלום חד־פעמי · גישה ללא הגבלת זמן',
   Free: 'חינם',
 };
-export default function planCopy(value) {
-  return COPY[value] || value;
+export default function planCopy(value, language = 'en') {
+  return language === 'he' ? COPY[value] || value : value;
 }

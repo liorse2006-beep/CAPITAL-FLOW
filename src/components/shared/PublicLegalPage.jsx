@@ -6,10 +6,10 @@ import AccessibilityStatementPage from '../../pages/AccessibilityStatementPage';
 // opening it must not trigger trial gates or paid-feature prompts.
 export default function PublicLegalPage({ path }) {
   return (
-    <main lang="he" dir="rtl">
-      <nav className="page-content" aria-label="ניווט">
+    <main lang="en" dir="ltr">
+      <nav className="page-content" aria-label="Navigation">
         <Link to="/" className="policy-inline-link">
-          Capital Flow — חזרה לאתר
+          Capital Flow — back to the app
         </Link>
       </nav>
       {path === '/policy' ? <PolicyPage /> : <AccessibilityStatementPage />}

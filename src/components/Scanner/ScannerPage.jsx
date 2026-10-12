@@ -30,8 +30,8 @@ const SCAN_MODE_OPTIONS = [
     mode: 'all',
     color: '#06B6D4',
     rgb: '6, 182, 212',
-    label: 'סריקה מלאה',
-    desc: 'S&P 500, NASDAQ 100 וכל הסקטורים יחד',
+    label: 'Full Scan',
+    desc: 'S&P 500, NASDAQ 100 and all sectors combined',
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -53,7 +53,7 @@ const SCAN_MODE_OPTIONS = [
     color: '#22C55E',
     rgb: '34, 197, 94',
     label: 'S&P 500',
-    desc: '500 מהחברות הציבוריות הגדולות בארה״ב',
+    desc: "500 of America's largest public companies",
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -74,7 +74,7 @@ const SCAN_MODE_OPTIONS = [
     color: '#3B82F6',
     rgb: '59, 130, 246',
     label: 'NASDAQ 100',
-    desc: '100 חברות מובילות במדד NASDAQ 100',
+    desc: '100 leading companies in the NASDAQ 100',
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -94,8 +94,8 @@ const SCAN_MODE_OPTIONS = [
     mode: 'sectors',
     color: '#F59E0B',
     rgb: '245, 158, 11',
-    label: 'לפי סקטור',
-    desc: 'בחירת ענפים — חמש מניות מובילות בכל סקטור',
+    label: 'By Sector',
+    desc: 'Choose sectors — five leading stocks per sector',
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -203,9 +203,9 @@ export default function ScannerPage({
   onEnablePush,
 }) {
   useSeo({
-    title: 'סורק נפח מסחר חריג | Capital Flow',
+    title: 'Unusual Volume Stock Scanner | Capital Flow',
     description:
-      'סריקת מניות לפי נפח מסחר חריג, שווי שוק ונפח מינימלי. הנתונים עשויים להיות מעוכבים או חלקיים ואינם ייעוץ השקעות.',
+      'Screen selected stock universes for unusual trading volume with volume-ratio, market-cap and volume filters. Market data may be delayed or incomplete; educational use only.',
     path: '/scanner',
   });
   const [currentTime, setCurrentTime] = useState(null);
@@ -305,19 +305,19 @@ export default function ScannerPage({
                   <div className="scan-progress-fill" style={{ width: displayProgressPct + '%' }} />
                 </div>
               </div>
-              <div className="radar-stat">סורקים את השוק…</div>
-              <div className="radar-stat accent">{progress.found + ' תוצאות עם נפח חריג'}</div>
+              <div className="radar-stat">Scanning the market...</div>
+              <div className="radar-stat accent">{progress.found + ' volume spike'}</div>
             </div>
           </div>
 
           <ScanLoader
-            label="סריקה מלאה"
+            label="Full Scan"
             matches={progress.found || 0}
             statusMessages={[
-              'סורקים את השוק לאיתור נפח חריג…',
-              'בודקים את המחירים ונפחי המסחר…',
-              'בודקים פעילות בסקטורים השונים…',
-              'משווים לממוצעים ההיסטוריים…',
+              'Scanning the market for unusual volume…',
+              'Checking prices and trading volumes…',
+              'Checking activity across sectors…',
+              'Comparing with historical averages…',
             ]}
           />
 
@@ -325,7 +325,7 @@ export default function ScannerPage({
             <div className="live-feed">
               <div className="live-feed-header">
                 <span className="live-dot" />
-                <span>תוצאות הסריקה</span>
+                <span>Scan results</span>
               </div>
               <div className="live-feed-list">
                 {liveResults
@@ -393,11 +393,11 @@ export default function ScannerPage({
                   startScan();
                 }}
               >
-                ניסיון נוסף
+                Retry
               </button>
             )}
             <button className="error-dismiss-btn" onClick={() => setError(null)}>
-              סגירה
+              Dismiss
             </button>
           </div>
         </div>
@@ -407,9 +407,9 @@ export default function ScannerPage({
       {!results && !scanning && (
         <div className="scan-mode-wrap">
           <div className="scan-mode-header">
-            <div className="scan-mode-kicker">סריקת השוק</div>
-            <h2 className="scan-mode-title">אילו מניות לסרוק?</h2>
-            <p className="scan-mode-sub">בחר את קבוצת המניות שבה נאתר פעילות מסחר חריגה</p>
+            <div className="scan-mode-kicker">Market scan / 01</div>
+            <h2 className="scan-mode-title">Select Universe</h2>
+            <p className="scan-mode-sub">Choose which stocks to scan for unusual volume activity</p>
           </div>
 
           <div className="scan-filters-panel">
@@ -419,7 +419,7 @@ export default function ScannerPage({
               onClick={!filtersUnlocked ? goToUpgrade : undefined}
             >
               <label className="scan-filter-label" htmlFor="scan-min-ratio">
-                יחס נפח מינימלי
+                Min Ratio
               </label>
               <div className="scan-filter-input-row">
                 <input
@@ -440,7 +440,7 @@ export default function ScannerPage({
               onClick={!filtersUnlocked ? goToUpgrade : undefined}
             >
               <label className="scan-filter-label" htmlFor="scan-min-cap">
-                שווי מינימלי במיליארדי דולר
+                Min Cap $B
               </label>
               <div className="scan-filter-input-row">
                 <input
@@ -461,14 +461,14 @@ export default function ScannerPage({
               onClick={!filtersUnlocked ? goToUpgrade : undefined}
             >
               <label className="scan-filter-label" htmlFor="scan-min-vol">
-                נפח מינימלי
+                Min Vol
               </label>
               <div className="scan-filter-input-row">
                 <input
                   className="scan-filter-input"
                   id="scan-min-vol"
                   type="text"
-                  placeholder="לדוגמה: 1M"
+                  placeholder="e.g. 1M"
                   value={minVol}
                   onChange={filtersUnlocked ? (e) => setMinVol(e.target.value) : undefined}
                   readOnly={!filtersUnlocked}
@@ -491,7 +491,7 @@ export default function ScannerPage({
                   >
                     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                   </svg>
-                  <span className="scan-mode-go-label">התחלת סריקה</span>
+                  <span className="scan-mode-go-label">Start market scan</span>
                 </button>
                 <ScheduleScan
                   scanType="capitalFlow"
@@ -506,7 +506,7 @@ export default function ScannerPage({
                 />
                 {!isPremium && scanMeta && scanMeta.tier === 'premium' && (
                   <span className="scan-limit-topbar">
-                    {(scanMeta.premium ? scanMeta.premium.left : 5) + '/5 סריקות נותרו היום'}
+                    {(scanMeta.premium ? scanMeta.premium.left : 5) + '/5 scans left today'}
                   </span>
                 )}
               </div>
@@ -514,8 +514,8 @@ export default function ScannerPage({
           </div>
 
           <div className="scan-mode-options-head">
-            <span>קבוצות מניות לסריקה</span>
-            <span>{SCAN_MODE_OPTIONS.length + ' אפשרויות סריקה'}</span>
+            <span>Available universes</span>
+            <span>{SCAN_MODE_OPTIONS.length + ' scan modes'}</span>
           </div>
           <div className="scan-mode-options">
             {SCAN_MODE_OPTIONS.map((cfg) => {
@@ -539,12 +539,12 @@ export default function ScannerPage({
                     <div className="scan-mode-data-strip">
                       {lastCount !== null && (
                         <div className="scan-mode-stat">
-                          <span className="scan-mode-stat-label">סריקה אחרונה</span>
+                          <span className="scan-mode-stat-label">LAST</span>
                           <span
                             className="scan-mode-stat-val"
                             style={{ color: lastCount > 0 ? 'var(--accent)' : 'var(--text-3)' }}
                           >
-                            {lastCount + ' תוצאות'}
+                            {lastCount + ' Results'}
                           </span>
                         </div>
                       )}
@@ -569,36 +569,38 @@ export default function ScannerPage({
             <div className="sector-summary-row">
               <span className="sector-summary-text">
                 {selectedSectors.length === 0
-                  ? 'לא נבחרו סקטורים — נסרוק את חמש המניות המובילות בכל סקטור'
-                  : selectedSectors.length + ' סקטורים נבחרו: ' + selectedSectors.map(sectorName).join(', ')}
+                  ? 'No sectors selected — will scan top 5 from all sectors'
+                  : selectedSectors.length + ' sector' + selectedSectors.map(sectorName).join(', ')}
               </span>
               <button className="sector-clear" onClick={() => setShowSectorModal(true)}>
-                שינוי סקטורים
+                Change sectors
               </button>
             </div>
           )}
 
           {!user && (
-            <div className="scan-guest-overlay" aria-label="תצוגת סריקת Capital Flow">
+            <div className="scan-guest-overlay" aria-label="Capital Flow scan view">
               <div className="empty-rich-card empty-rich-guest-card scan-guest-card">
                 <div className="empty-rich-icon">
                   <img src="/icon-192.png" alt="" />
                 </div>
-                <span className="empty-rich-kicker">תמונת השוק</span>
-                <h3>זהה פעילות חריגה בשוק.</h3>
-                <p>צור חשבון כדי לסרוק מאות מניות ולראות היכן מתפתחת פעילות חריגה.</p>
+                <span className="empty-rich-kicker">MARKET INTELLIGENCE</span>
+                <h3>Find the market&#39;s next move.</h3>
+                <p>
+                  Create an account to scan unusual volume across hundreds of stocks and see where activity is building.
+                </p>
                 <div className="empty-rich-pills">
-                  <span className="empty-rich-pill">מעל 500 מניות</span>
-                  <span className="empty-rich-pill">נפח מסחר חריג</span>
-                  <span className="empty-rich-pill">פעילות לפי סקטור</span>
+                  <span className="empty-rich-pill">500+ stocks</span>
+                  <span className="empty-rich-pill">Unusual volume</span>
+                  <span className="empty-rich-pill">Sector activity</span>
                 </div>
                 <button className="empty-rich-cta" onClick={onCreateAccount || onSignIn}>
-                  יצירת חשבון <span aria-hidden="true">→</span>
+                  Create account <span aria-hidden="true">→</span>
                 </button>
                 <div className="empty-rich-signin">
-                  <span>כבר יש לך חשבון?</span>{' '}
+                  <span>Already have an account?</span>{' '}
                   <button type="button" onClick={onSignIn}>
-                    התחברות
+                    Sign in
                   </button>
                 </div>
               </div>
@@ -611,7 +613,7 @@ export default function ScannerPage({
       {results && !scanning && (
         <div className="filter-strip">
           <div className="filter-chip" onClick={!filtersUnlocked ? goToUpgrade : undefined}>
-            <label>יחס נפח מינימלי</label>
+            <label>Minimum volume ratio</label>
             <input
               type="number"
               step="0.5"
@@ -623,7 +625,7 @@ export default function ScannerPage({
             />
           </div>
           <div className="filter-chip" onClick={!filtersUnlocked ? goToUpgrade : undefined}>
-            <label>שווי מינימלי במיליארדי דולר</label>
+            <label>Minimum market cap ($B)</label>
             <input
               type="number"
               step="0.5"
@@ -635,10 +637,10 @@ export default function ScannerPage({
             />
           </div>
           <div className="filter-chip" onClick={!filtersUnlocked ? goToUpgrade : undefined}>
-            <label>נפח מינימלי</label>
+            <label>Minimum volume</label>
             <input
               type="text"
-              placeholder="לדוגמה: 1M"
+              placeholder="e.g. 1M"
               value={minVol}
               onChange={filtersUnlocked ? (e) => setMinVol(e.target.value) : undefined}
               readOnly={!filtersUnlocked}
@@ -650,7 +652,7 @@ export default function ScannerPage({
             onClick={filtersUnlocked ? () => setShowPresetPanel(!showPresetPanel) : goToUpgrade}
             style={{ marginLeft: 'auto' }}
           >
-            שמירת מסננים
+            Create Preset
           </button>
         </div>
       )}
@@ -661,7 +663,7 @@ export default function ScannerPage({
           <div className="preset-save">
             <input
               type="text"
-              placeholder="שם קבוצת המסננים…"
+              placeholder="Filter preset name…"
               value={presetName}
               onChange={(e) => setPresetName(e.target.value)}
               onKeyDown={(e) => {
@@ -670,7 +672,7 @@ export default function ScannerPage({
               className="preset-input"
             />
             <button className="preset-save-btn" onClick={savePreset}>
-              שמירה
+              Save
             </button>
           </div>
           {presets.length > 0 && (
@@ -680,7 +682,7 @@ export default function ScannerPage({
                   <button className="preset-load" onClick={() => loadPreset(p)}>
                     {p.name}
                   </button>
-                  <span className="preset-detail">{'יחס ' + p.minRatio + ' · שווי $' + p.minCap + 'B'}</span>
+                  <span className="preset-detail">{'Ratio ' + p.minRatio + ' · Market cap $' + p.minCap + 'B'}</span>
                   <button className="preset-del" onClick={() => deletePreset(i)}>
                     {'\xd7'}
                   </button>
@@ -695,7 +697,7 @@ export default function ScannerPage({
         <div className="last-session-banner">
           <span className="last-session-icon">🕐</span>
           <span>
-            המסחר סגור — מוצגים נתוני יום המסחר האחרון
+            Market closed — showing last session data
             {scanTime &&
               ' · ' +
                 new Date(scanTime).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
@@ -715,7 +717,7 @@ export default function ScannerPage({
           <div className="table-card signal-rail-results">
             <div className="table-bar">
               <div>
-                <h2>{sorted.length === 1 ? 'תוצאה אחת' : sorted.length + ' תוצאות'}</h2>
+                <h2>{sorted.length === 1 ? '1 Result' : sorted.length + ' Results'}</h2>
                 {scanTime &&
                   currentTime &&
                   (() => {
@@ -739,11 +741,11 @@ export default function ScannerPage({
                       return (
                         <span
                           className="table-bar-sub table-bar-sub-restored"
-                          title="תוצאות הסריקה האחרונה. לסריקה עדכנית יש להתחיל סריקה חדשה."
+                          title="Results from your last scan. Start a new scan for current results."
                         >
-                          {'הסריקה האחרונה: ' +
+                          {'📋 Last scan from ' +
                             new Date(scanTime).toLocaleString() +
-                            ' — לסריקה עדכנית יש להתחיל סריקה חדשה'}
+                            ' — start a new scan for current results'}
                         </span>
                       );
                     }
@@ -751,8 +753,8 @@ export default function ScannerPage({
                     if (fromCache && !marketClosed) {
                       const remain = Math.max(0, 15 - Math.round((cacheAge || 0) / 60));
                       return (
-                        <span className="table-bar-sub table-bar-sub-cached" title="הנתונים מתעדכנים כל 15 דקות">
-                          {'עדכון נתונים בעוד כ־' + (remain <= 0 ? '1' : remain) + ' דקות'}
+                        <span className="table-bar-sub table-bar-sub-cached" title="Data updates every 15 minutes">
+                          {'🔄 Shared scan · next refresh in ~' + (remain <= 0 ? '1' : remain) + ' minutes'}
                         </span>
                       );
                     }
@@ -762,11 +764,11 @@ export default function ScannerPage({
                       <span
                         className="table-bar-sub"
                         style={isStale ? { color: 'var(--accent)', fontWeight: 600 } : undefined}
-                        title={isStale ? 'ייתכן שהנתונים אינם משקפים את הפעילות הנוכחית בשוק' : undefined}
+                        title={isStale ? 'Data may not reflect current market activity' : undefined}
                       >
                         {isStale
-                          ? `הנתונים מלפני ${ageMins} דקות`
-                          : 'נתונים נכון ל־' + new Date(freshnessTime).toLocaleString()}
+                          ? `Data from ${ageMins} minutes`
+                          : 'Data as of ' + new Date(freshnessTime).toLocaleString()}
                       </span>
                     );
                   })()}
@@ -780,7 +782,7 @@ export default function ScannerPage({
                       setScanTime(null);
                     }}
                   >
-                    סריקה חדשה
+                    New Scan
                   </button>
                 )}
               </div>
@@ -789,30 +791,30 @@ export default function ScannerPage({
             {scanDataStatus && scanDataStatus !== 'complete' && (
               <div className={'data-status-banner ' + scanDataStatus} role="status">
                 {scanDataStatus === 'unavailable'
-                  ? 'נתוני השוק אינם זמינים כרגע. אפשר לנסות שוב בעוד כמה דקות.'
-                  : 'הנתונים עשויים להיות מעוכבים או חלקיים. יש לבדוק אותם באופן עצמאי.'}
+                  ? 'Market data is currently unavailable. Please try again in a few minutes.'
+                  : 'Market data may be delayed or incomplete; verify independently.'}
               </div>
             )}
 
             {sorted.length === 0 ? (
               <div className="no-match">
                 {scanDataStatus === 'unavailable'
-                  ? 'אין כרגע נתוני שוק מאומתים. אפשר לנסות שוב בעוד כמה דקות.'
+                  ? 'Verified market data is currently unavailable. Please try again in a few minutes.'
                   : scanDataStatus === 'partial'
-                    ? 'לא נמצאו תוצאות מתאימות בנתונים הזמינים. אפשר לנסות שוב בהמשך.'
-                    : 'לא נמצאו מניות שמתאימות למסננים שלך.'}
+                    ? 'No matches were found in the available data. Please try again later.'
+                    : 'No stocks matched your filters.'}
               </div>
             ) : (
               <>
                 <MobileResultSort
                   options={[
-                    { value: 'symbol', label: 'סימול' },
-                    { value: 'name', label: 'שם' },
-                    { value: 'marketCap', label: 'שווי שוק' },
-                    { value: 'price', label: 'מחיר' },
-                    { value: 'change', label: 'שינוי' },
-                    { value: 'volumeRatio', label: 'נפח יחסי' },
-                    { value: 'sector', label: 'סקטור' },
+                    { value: 'symbol', label: 'Ticker' },
+                    { value: 'name', label: 'Name' },
+                    { value: 'marketCap', label: 'Market cap' },
+                    { value: 'price', label: 'Price' },
+                    { value: 'change', label: 'Change' },
+                    { value: 'volumeRatio', label: 'Relative volume' },
+                    { value: 'sector', label: 'Sector' },
                   ]}
                   value={sortField}
                   direction={sortDir}
@@ -834,7 +836,7 @@ export default function ScannerPage({
                         <path d="M3 3v18h18" />
                         <path d="M18.7 8l-5.1 5.1-4-4L3 15.6" />
                       </svg>
-                      גרף
+                      Chart
                     </span>
                     <span className="action-hint-item">
                       <svg
@@ -850,9 +852,9 @@ export default function ScannerPage({
                         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                         <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                       </svg>
-                      התראת נפח
+                      Volume alert
                     </span>
-                    <button className="action-hint-close" onClick={dismissActionHint} aria-label="סגירה">
+                    <button className="action-hint-close" onClick={dismissActionHint} aria-label="Close">
                       ×
                     </button>
                   </div>
@@ -863,7 +865,7 @@ export default function ScannerPage({
                       <tr>
                         <th className="result-rank-col">#</th>
                         <TH
-                          label="סימול"
+                          label="Ticker"
                           field="symbol"
                           sortField={sortField}
                           sortDir={sortDir}
@@ -872,7 +874,7 @@ export default function ScannerPage({
                           onSortReset={handleSortDoubleClick}
                         />
                         <TH
-                          label="שם"
+                          label="Name"
                           field="name"
                           sortField={sortField}
                           sortDir={sortDir}
@@ -881,7 +883,7 @@ export default function ScannerPage({
                           onSortReset={handleSortDoubleClick}
                         />
                         <TH
-                          label="שווי שוק"
+                          label="Market cap"
                           field="marketCap"
                           sortField={sortField}
                           sortDir={sortDir}
@@ -890,7 +892,7 @@ export default function ScannerPage({
                           onSortReset={handleSortDoubleClick}
                         />
                         <TH
-                          label="מחיר"
+                          label="Price"
                           field="price"
                           sortField={sortField}
                           sortDir={sortDir}
@@ -899,7 +901,7 @@ export default function ScannerPage({
                           onSortReset={handleSortDoubleClick}
                         />
                         <TH
-                          label="שינוי"
+                          label="Change"
                           field="change"
                           sortField={sortField}
                           sortDir={sortDir}
@@ -917,7 +919,7 @@ export default function ScannerPage({
                           onSortReset={handleSortDoubleClick}
                         />
                         <TH
-                          label="סקטור"
+                          label="Sector"
                           field="sector"
                           sortField={sortField}
                           sortDir={sortDir}
@@ -940,8 +942,8 @@ export default function ScannerPage({
                                   e.stopPropagation();
                                   toggleWatchlistTicker(r.symbol);
                                 }}
-                                title={isInWatchlist(r.symbol) ? 'הסרה מרשימת המעקב' : 'הוספה לרשימת המעקב'}
-                                aria-label={isInWatchlist(r.symbol) ? 'הסרה מרשימת המעקב' : 'הוספה לרשימת המעקב'}
+                                title={isInWatchlist(r.symbol) ? 'Remove from watchlist' : 'Add to watchlist'}
+                                aria-label={isInWatchlist(r.symbol) ? 'Remove from watchlist' : 'Add to watchlist'}
                               >
                                 <svg
                                   viewBox="0 0 24 24"
@@ -1004,7 +1006,7 @@ export default function ScannerPage({
                                   <bdi dir="ltr">{formatRatio(r.volumeRatio)}</bdi>
                                 </span>
                               )}
-                              <span className="vol-stack-mini" title="נפח ממוצע / נוכחי">
+                              <span className="vol-stack-mini" title="Average / current volume">
                                 {fmt(r.avgVolume) + ' / ' + fmt(r.volume)}
                               </span>
                             </div>
@@ -1017,8 +1019,8 @@ export default function ScannerPage({
                               <button
                                 className="chart-open-btn"
                                 onClick={(e) => handleChart(r.symbol, r.name, e)}
-                                title={isPremium ? 'פתיחת גרף מחיר' : 'פתיחת הגישה לגרפים'}
-                                aria-label={isPremium ? 'פתיחת גרף מחיר' : 'פתיחת הגישה לגרפים'}
+                                title={isPremium ? 'Open price chart' : 'Unlock price charts'}
+                                aria-label={isPremium ? 'Open price chart' : 'Unlock price charts'}
                               >
                                 <svg
                                   viewBox="0 0 24 24"
@@ -1039,8 +1041,8 @@ export default function ScannerPage({
                                 onClick={() => promptCreateAlert(r.symbol, r.price)}
                                 title={
                                   alertLevels && alertLevels[r.symbol]
-                                    ? 'התראה מוגדרת ב־' + alertLevelLabel(alertLevels[r.symbol]) + ' — לחיצה לעריכה'
-                                    : 'יצירת התראה'
+                                    ? 'Alert set at ' + alertLevelLabel(alertLevels[r.symbol]) + ' — click to edit'
+                                    : 'Create alert'
                                 }
                               >
                                 <svg
@@ -1082,8 +1084,8 @@ export default function ScannerPage({
                                 e.stopPropagation();
                                 toggleWatchlistTicker(r.symbol);
                               }}
-                              title={isInWatchlist(r.symbol) ? 'הסרה מרשימת המעקב' : 'הוספה לרשימת המעקב'}
-                              aria-label={isInWatchlist(r.symbol) ? 'הסרה מרשימת המעקב' : 'הוספה לרשימת המעקב'}
+                              title={isInWatchlist(r.symbol) ? 'Remove from watchlist' : 'Add to watchlist'}
+                              aria-label={isInWatchlist(r.symbol) ? 'Remove from watchlist' : 'Add to watchlist'}
                             >
                               <svg
                                 viewBox="0 0 24 24"
@@ -1116,8 +1118,8 @@ export default function ScannerPage({
                             <button
                               className="chart-open-btn"
                               onClick={(e) => handleChart(r.symbol, r.name, e)}
-                              title={isPremium ? 'פתיחת גרף מחיר' : 'פתיחת הגישה לגרפים'}
-                              aria-label={isPremium ? 'פתיחת גרף מחיר' : 'פתיחת הגישה לגרפים'}
+                              title={isPremium ? 'Open price chart' : 'Unlock price charts'}
+                              aria-label={isPremium ? 'Open price chart' : 'Unlock price charts'}
                             >
                               <svg
                                 viewBox="0 0 24 24"
@@ -1141,8 +1143,8 @@ export default function ScannerPage({
                               }}
                               title={
                                 alertLevels && alertLevels[r.symbol]
-                                  ? 'התראה מוגדרת ב־' + alertLevelLabel(alertLevels[r.symbol]) + ' — לחיצה לעריכה'
-                                  : 'יצירת התראה'
+                                  ? 'Alert set at ' + alertLevelLabel(alertLevels[r.symbol]) + ' — click to edit'
+                                  : 'Create alert'
                               }
                             >
                               <svg
@@ -1174,7 +1176,7 @@ export default function ScannerPage({
                         </div>
                         <div className="mobile-result-card-grid">
                           <div className="mobile-result-card-stat">
-                            <span className="mobile-result-card-label">שווי שוק</span>
+                            <span className="mobile-result-card-label">Market cap</span>
                             <span className="mobile-result-card-value">{r.marketCap > 0 ? fmt(r.marketCap) : '—'}</span>
                           </div>
                           <div className="mobile-result-card-stat">
@@ -1201,19 +1203,19 @@ export default function ScannerPage({
                             )}
                           </div>
                           <div className="mobile-result-card-stat">
-                            <span className="mobile-result-card-label">נפח ממוצע</span>
+                            <span className="mobile-result-card-label">AVG VOLUME</span>
                             <span className="mobile-result-card-value">
                               <bdi dir="ltr">{fmt(r.avgVolume)}</bdi>
                             </span>
                           </div>
                           <div className="mobile-result-card-stat">
-                            <span className="mobile-result-card-label">נפח נוכחי</span>
+                            <span className="mobile-result-card-label">CURRENT VOLUME</span>
                             <span className="mobile-result-card-value">
                               <bdi dir="ltr">{fmt(r.volume)}</bdi>
                             </span>
                           </div>
                           <div className="mobile-result-card-stat mobile-result-card-stat-wide">
-                            <span className="mobile-result-card-label">סקטור</span>
+                            <span className="mobile-result-card-label">Sector</span>
                             <span className="sector-chip">{sectorName(r.sector)}</span>
                           </div>
                         </div>

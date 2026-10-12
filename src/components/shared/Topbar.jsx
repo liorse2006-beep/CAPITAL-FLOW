@@ -5,24 +5,24 @@ import UserAvatar from './UserAvatar';
 
 function TierBadgeOrUpgrade({ isElite, isPremium, isTrial, user, onUpgrade, onSignIn }) {
   if (isElite) {
-    return <span className="topbar-premium-badge tier-elite">מסלול Elite</span>;
+    return <span className="topbar-premium-badge tier-elite">ELITE EDITION</span>;
   }
   if (isPremium) {
     return (
       <>
-        <button className="topbar-premium-badge tier-premium" onClick={onUpgrade} aria-label="פתיחת מסלולים">
+        <button className="topbar-premium-badge tier-premium" onClick={onUpgrade} aria-label="Open upgrade plans">
           PREMIUM
         </button>
         <button className="topbar-upgrade-btn" onClick={onUpgrade}>
-          שדרוג ל־Elite
+          Upgrade to Elite
         </button>
       </>
     );
   }
   if (isTrial) {
     return (
-      <button className="topbar-premium-badge tier-trial" onClick={onUpgrade} aria-label="פתיחת מסלולים">
-        ניסיון חינם
+      <button className="topbar-premium-badge tier-trial" onClick={onUpgrade} aria-label="Open upgrade plans">
+        Free trial
       </button>
     );
   }
@@ -35,7 +35,7 @@ function TierBadgeOrUpgrade({ isElite, isPremium, isTrial, user, onUpgrade, onSi
     return (
       <button className="topbar-upgrade-btn" onClick={onUpgrade}>
         {rocket}
-        בחירת מסלול
+        Choose a plan
       </button>
     );
   }
@@ -43,10 +43,10 @@ function TierBadgeOrUpgrade({ isElite, isPremium, isTrial, user, onUpgrade, onSi
     <>
       <button className="topbar-upgrade-btn" onClick={onSignIn}>
         {rocket}
-        בחירת מסלול
+        Choose a plan
       </button>
       <button className="topbar-signin-btn" onClick={onSignIn}>
-        התחברות
+        Sign In
       </button>
     </>
   );
@@ -143,16 +143,16 @@ export default function Topbar({
 
   const profileMenuSections = [
     {
-      label: 'חשבון',
-      items: [{ label: 'החשבון וסביבת העבודה', hint: 'פרטים, מסלול ונתוני שימוש', section: 'account' }],
+      label: 'ACCOUNT',
+      items: [{ label: 'Account & workspace', hint: 'Identity, plan, and usage', section: 'account' }],
     },
     {
-      label: 'תזמונים והתראות',
-      items: [{ label: 'תזמונים והתראות', hint: 'סריקות מתוזמנות והתראות', section: 'automation' }],
+      label: 'Schedules and alerts',
+      items: [{ label: 'Schedules and alerts', hint: 'Scheduled scans and notifications', section: 'automation' }],
     },
     {
-      label: 'אבטחה ופרטיות',
-      items: [{ label: 'אבטחה ופרטיות', hint: 'סיסמה, מכשירים ונתונים', section: 'security' }],
+      label: 'Security and privacy',
+      items: [{ label: 'Security and privacy', hint: 'Password, sessions, and data', section: 'security' }],
     },
   ];
 
@@ -169,7 +169,7 @@ export default function Topbar({
             <h1>
               <strong>Capital</strong> Flow
             </h1>
-            <span className="product-release-badge" aria-label="גרסת בטא 0.1.0">
+            <span className="product-release-badge" aria-label="Beta version 0.1.0">
               BETA · v0.1.0
             </span>
           </div>
@@ -184,8 +184,8 @@ export default function Topbar({
             onSignIn={onSignIn}
           />
           {isAdmin && (
-            <a className="topbar-admin-btn" href="/admin" title="ניהול">
-              ניהול
+            <a className="topbar-admin-btn" href="/admin" title="Admin">
+              Admin
             </a>
           )}
           {user && (
@@ -197,22 +197,22 @@ export default function Topbar({
                   if (!profileMenuOpen && showAlertPanel) onClosePanel?.();
                   setProfileMenuOpen((open) => !open);
                 }}
-                aria-label="פתיחת תפריט החשבון"
+                aria-label="Open profile menu"
                 aria-haspopup="menu"
                 aria-expanded={profileMenuOpen}
                 aria-controls="profile-menu"
-                title="פתיחת החשבון"
+                title="Open profile"
               >
                 <UserAvatar user={user} className="topbar-profile-avatar" />
               </button>
               {profileMenuOpen && (
-                <div id="profile-menu" className="topbar-profile-menu" role="menu" aria-label="תפריט החשבון">
+                <div id="profile-menu" className="topbar-profile-menu" role="menu" aria-label="Profile menu">
                   <div className="topbar-profile-menu-head">
                     <div className="topbar-profile-menu-email" title={user.email} dir="ltr">
                       {user.email}
                     </div>
                     <span className="topbar-profile-menu-tier">
-                      {isElite ? 'ELITE' : isPremium ? 'PREMIUM' : isTrial ? 'ניסיון חינם' : 'חינם'}
+                      {isElite ? 'ELITE' : isPremium ? 'PREMIUM' : isTrial ? 'Free trial' : 'Free'}
                     </span>
                   </div>
                   <div className="topbar-profile-menu-links">
@@ -243,14 +243,14 @@ export default function Topbar({
                     className="topbar-profile-menu-item topbar-profile-menu-item--danger"
                     type="button"
                     role="menuitem"
-                    aria-label="התנתקות"
+                    aria-label="Log Out"
                     onClick={() => {
                       setProfileMenuOpen(false);
                       logout();
                     }}
                   >
                     <span className="topbar-profile-menu-item-copy">
-                      <strong>התנתקות</strong>
+                      <strong>Log Out</strong>
                     </span>
                     <ProfileMenuArrow external />
                   </button>
@@ -274,7 +274,7 @@ export default function Topbar({
             onToggleNotifications={onToggleNotifications}
           />
           {page === 'scanner' && results && !scanning && !isPremium && scanMeta && scanMeta.tier === 'premium' && (
-            <span className="scan-limit-topbar">{(scanMeta.premium ? scanMeta.premium.used : 0) + '/5 היום'}</span>
+            <span className="scan-limit-topbar">{(scanMeta.premium ? scanMeta.premium.used : 0) + '/5 today'}</span>
           )}
         </div>
       </header>
@@ -313,19 +313,19 @@ export default function Topbar({
           Capital Flow
         </button>
         <button className={'nav-tab ' + (page === 'flow' ? 'active' : '')} onClick={() => setPage('flow')}>
-          פעילות בסקטורים
+          Hot Sectors
         </button>
         <button className={'nav-tab ' + (page === 'ma' ? 'active' : '')} onClick={() => setPage('ma')}>
-          ממוצעים נעים
+          MA Scanner
         </button>
         <button
           className={'nav-tab ' + (page === 'fundamentals' ? 'active' : '')}
           onClick={() => setPage('fundamentals')}
         >
-          נתונים פיננסיים
+          Fundamentals
         </button>
         <button className={'nav-tab ' + (page === 'watchlist' ? 'active' : '')} onClick={() => setPage('watchlist')}>
-          רשימת מעקב
+          Watchlist
         </button>
       </nav>
     </>

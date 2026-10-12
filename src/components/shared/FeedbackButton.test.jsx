@@ -25,34 +25,34 @@ describe('FeedbackButton', () => {
 
   it('renders a floating button and no modal by default', () => {
     renderWithProviders(<FeedbackButton />);
-    expect(screen.getByLabelText('שליחת משוב')).toBeInTheDocument();
-    expect(screen.queryByText('שליחת משוב')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Send feedback')).toBeInTheDocument();
+    expect(screen.queryByText('Send feedback')).not.toBeInTheDocument();
   });
 
   it('opens the modal on click', async () => {
     const user = userEvent.setup();
     renderWithProviders(<FeedbackButton />);
-    await user.click(screen.getByLabelText('שליחת משוב'));
-    expect(screen.getByText('שליחת משוב')).toBeInTheDocument();
+    await user.click(screen.getByLabelText('Send feedback'));
+    expect(screen.getByText('Send feedback')).toBeInTheDocument();
   });
 
   it('closes the modal on Escape', async () => {
     const user = userEvent.setup();
     renderWithProviders(<FeedbackButton />);
-    await user.click(screen.getByLabelText('שליחת משוב'));
-    expect(screen.getByText('שליחת משוב')).toBeInTheDocument();
+    await user.click(screen.getByLabelText('Send feedback'));
+    expect(screen.getByText('Send feedback')).toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'Escape' });
-    await waitFor(() => expect(screen.queryByText('שליחת משוב')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('Send feedback')).not.toBeInTheDocument());
   });
 
   it('submits feedback to POST /api/feedback and shows a thank-you message', async () => {
     const user = userEvent.setup();
     renderWithProviders(<FeedbackButton />);
-    await user.click(screen.getByLabelText('שליחת משוב'));
-    await user.type(screen.getByPlaceholderText('מה תרצה לשתף?'), 'Great app!');
-    await user.click(screen.getByRole('button', { name: /שליחה/i }));
+    await user.click(screen.getByLabelText('Send feedback'));
+    await user.type(screen.getByPlaceholderText("What's on your mind?"), 'Great app!');
+    await user.click(screen.getByRole('button', { name: 'Send', exact: true }));
 
-    await waitFor(() => expect(screen.getByText('תודה!')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Thanks!')).toBeInTheDocument());
     expect(fetch).toHaveBeenCalledWith('/api/feedback', expect.objectContaining({ method: 'POST' }));
     // AuthProvider now fires its own /api/auth/refresh call on mount (the
     // silent-session-refresh flow), so the feedback POST is no longer
@@ -65,9 +65,9 @@ describe('FeedbackButton', () => {
   it('the send button stays disabled until a message is typed', async () => {
     const user = userEvent.setup();
     renderWithProviders(<FeedbackButton />);
-    await user.click(screen.getByLabelText('שליחת משוב'));
-    expect(screen.getByRole('button', { name: /שליחה/i })).toBeDisabled();
-    await user.type(screen.getByPlaceholderText('מה תרצה לשתף?'), 'hi');
-    expect(screen.getByRole('button', { name: /שליחה/i })).not.toBeDisabled();
+    await user.click(screen.getByLabelText('Send feedback'));
+    expect(screen.getByRole('button', { name: 'Send', exact: true })).toBeDisabled();
+    await user.type(screen.getByPlaceholderText("What's on your mind?"), 'hi');
+    expect(screen.getByRole('button', { name: 'Send', exact: true })).not.toBeDisabled();
   });
 });

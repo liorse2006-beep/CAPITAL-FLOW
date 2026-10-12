@@ -15,9 +15,9 @@ describe('AlertThresholdModal', () => {
         onClose={vi.fn()}
       />
     );
-    expect(screen.getByRole('heading', { name: 'התראה · AAPL' })).toBeInTheDocument();
-    expect(screen.getByText('נפח')).toBeInTheDocument();
-    expect(screen.getByText('מחיר')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Alert · AAPL' })).toBeInTheDocument();
+    expect(screen.getByText('VOL')).toBeInTheDocument();
+    expect(screen.getByText('Price')).toBeInTheDocument();
   });
 
   it('goes straight to the volume step when the existing alert is a volume alert', () => {
@@ -49,9 +49,9 @@ describe('AlertThresholdModal', () => {
         pushEnabled={true}
       />
     );
-    await user.click(screen.getByText('נפח'));
+    await user.click(screen.getByText('VOL'));
     await user.type(screen.getByRole('spinbutton'), '4');
-    await user.click(screen.getByRole('button', { name: 'קבע התראה' }));
+    await user.click(screen.getByRole('button', { name: 'Set alert' }));
     expect(onSave).toHaveBeenCalledWith({ type: 'volume', minRatio: 4 });
   });
 
@@ -70,9 +70,9 @@ describe('AlertThresholdModal', () => {
         pushEnabled={true}
       />
     );
-    await user.click(screen.getByText('מחיר'));
+    await user.click(screen.getByText('Price'));
     await user.type(screen.getByRole('spinbutton'), '200');
-    await user.click(screen.getByRole('button', { name: 'קבע התראה' }));
+    await user.click(screen.getByRole('button', { name: 'Set alert' }));
     expect(onSave).toHaveBeenCalledWith({
       type: 'price',
       targetPrice: 200,
@@ -95,7 +95,7 @@ describe('AlertThresholdModal', () => {
       />
     );
     await user.clear(screen.getByRole('spinbutton'));
-    await user.click(screen.getByRole('button', { name: 'הסר התראה' }));
+    await user.click(screen.getByRole('button', { name: 'Remove alert' }));
     expect(onRemove).toHaveBeenCalled();
   });
 
@@ -120,9 +120,9 @@ describe('AlertThresholdModal', () => {
         pushEnabled={true}
       />
     );
-    await user.click(screen.getByText('נפח'));
+    await user.click(screen.getByText('VOL'));
     await user.type(screen.getByRole('spinbutton'), '4');
-    const saveButton = screen.getByRole('button', { name: 'קבע התראה' });
+    const saveButton = screen.getByRole('button', { name: 'Set alert' });
     await user.click(saveButton);
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(saveButton).toBeDisabled();
@@ -148,13 +148,13 @@ describe('AlertThresholdModal', () => {
       />
     );
 
-    await user.click(screen.getByText('נפח'));
+    await user.click(screen.getByText('VOL'));
     await user.type(screen.getByRole('spinbutton'), '4');
-    await user.click(screen.getByRole('button', { name: 'קבע התראה' }));
+    await user.click(screen.getByRole('button', { name: 'Set alert' }));
 
     expect(onSave).not.toHaveBeenCalled();
-    expect(screen.getByRole('dialog', { name: 'ההתראות אינן מופעלות' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'המשך בלי Push' }));
+    expect(screen.getByRole('dialog', { name: "Notifications aren't enabled" })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Continue without push' }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith({ type: 'volume', minRatio: 4 }));
   });
@@ -178,10 +178,10 @@ describe('AlertThresholdModal', () => {
       />
     );
 
-    await user.click(screen.getByText('נפח'));
+    await user.click(screen.getByText('VOL'));
     await user.type(screen.getByRole('spinbutton'), '4');
-    await user.click(screen.getByRole('button', { name: 'קבע התראה' }));
-    await user.click(screen.getByRole('button', { name: 'כן, הפעילו התראות' }));
+    await user.click(screen.getByRole('button', { name: 'Set alert' }));
+    await user.click(screen.getByRole('button', { name: 'Yes, enable notifications' }));
 
     await waitFor(() => expect(onEnablePush).toHaveBeenCalledTimes(1));
     expect(onSave).toHaveBeenCalledWith({ type: 'volume', minRatio: 4 });
@@ -199,9 +199,9 @@ describe('AlertThresholdModal', () => {
         onClose={vi.fn()}
       />
     );
-    await user.click(screen.getByText('חזרה לבחירת סוג ההתראה'));
-    expect(screen.getByText('נפח')).toBeInTheDocument();
-    expect(screen.getByText('מחיר')).toBeInTheDocument();
+    await user.click(screen.getByText('Back to alert types'));
+    expect(screen.getByText('VOL')).toBeInTheDocument();
+    expect(screen.getByText('Price')).toBeInTheDocument();
   });
 
   it('closes on Escape', () => {

@@ -4,14 +4,14 @@ import useModalA11y from '../../hooks/useModalA11y';
 
 var SCAN_LABEL = {
   capitalFlow: 'Capital Flow',
-  maScanner: 'סורק ממוצעים נעים',
-  sectorMoving: 'פעילות בסקטורים',
+  maScanner: 'MA Scanner',
+  sectorMoving: 'Hot Sectors',
   capitalFlowRadar: 'Capital Flow Radar',
 };
 
 function formatWhen(unixSec) {
   if (typeof unixSec !== 'number' || !Number.isFinite(unixSec) || unixSec <= 0) return '';
-  return new Date(unixSec * 1000).toLocaleString('he-IL', {
+  return new Date(unixSec * 1000).toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -46,15 +46,15 @@ export default function ScheduledScanResultsModal(props) {
 function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggleWatchlistTicker }) {
   const panelRef = useModalA11y(onClose);
   var results = Array.isArray(notification.results) ? notification.results : [];
-  var label = SCAN_LABEL[notification.scanType] || 'סריקה מתוזמנת';
+  var label = SCAN_LABEL[notification.scanType] || 'Scheduled scan';
   var observedAt = dataTime(notification.dataAsOf);
   var qualityNotice =
     notification.dataStatus === 'partial'
-      ? 'מוצגות התוצאות הזמינות. חלק מנתוני השוק חסרים.'
+      ? 'Showing available results. Some market data was unavailable.'
       : notification.dataStatus === 'stale'
-        ? 'התוצאות השמורות מבוססות על נתונים מעוכבים.'
+        ? 'Saved results are based on delayed data.'
         : notification.dataStatus !== 'complete'
-          ? 'לא ניתן היה לאמת את כל הנתונים בתוצאות השמורות.'
+          ? 'These saved results could not be fully verified.'
           : '';
 
   return (
@@ -66,7 +66,7 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={label + ' — תוצאות'}
+        aria-label={label + ' results'}
       >
         <div className="scheduled-results-header">
           <div>
@@ -81,11 +81,11 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
             {results.length > 0 && (
               <div className="scheduled-results-quality" role="note">
                 {qualityNotice && <p>{qualityNotice}</p>}
-                <p>{observedAt ? 'נתוני שוק נכון ל־' + observedAt + '.' : 'מועד נתוני השוק אינו זמין.'}</p>
+                <p>{observedAt ? 'Market data as of ' + observedAt + '.' : 'Market data time is unavailable.'}</p>
               </div>
             )}
           </div>
-          <button className="scheduled-results-close" onClick={onClose} aria-label="סגירה">
+          <button className="scheduled-results-close" onClick={onClose} aria-label="Close">
             &times;
           </button>
         </div>
@@ -95,11 +95,11 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
         ) : (
           <div className="scheduled-results-list">
             <div className="scheduled-results-col-header">
-              <span>מניה</span>
-              <span>שווי שוק</span>
-              <span>מחיר</span>
-              <span>שינוי</span>
-              <span>סיבת התאמה</span>
+              <span>Symbol</span>
+              <span>Market cap</span>
+              <span>Price</span>
+              <span>Change</span>
+              <span>Signal</span>
               <span></span>
             </div>
             {results.map(function (r) {
@@ -111,21 +111,21 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
                     <span className="scheduled-results-symbol">{r.symbol}</span>
                     {r.name && <span className="scheduled-results-name">{r.name}</span>}
                   </div>
-                  <span className="scheduled-results-cap" data-label="שווי שוק">
+                  <span className="scheduled-results-cap" data-label="Market cap">
                     {r.marketCap > 0 ? fmt(r.marketCap) : '—'}
                   </span>
-                  <span className="scheduled-results-price" data-label="מחיר">
+                  <span className="scheduled-results-price" data-label="Price">
                     <bdi dir="ltr">{formatPrice(r.price)}</bdi>
                   </span>
                   <span
                     className={
                       'scheduled-results-change ' + (r.change == null ? '' : r.change >= 0 ? 'col-pos' : 'col-neg')
                     }
-                    data-label="שינוי"
+                    data-label="Change"
                   >
                     <bdi dir="ltr">{formatSignedPercent(r.change)}</bdi>
                   </span>
-                  <span className="scheduled-results-signal" data-label="סיבת התאמה">
+                  <span className="scheduled-results-signal" data-label="Signal">
                     {hasRatio ? (
                       <span
                         className={'ratio-pill ' + (r.volumeRatio >= 5 ? 'hot' : r.volumeRatio >= 3.5 ? 'warm' : 'ok')}
@@ -134,7 +134,7 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
                       </span>
                     ) : hasMaDistance ? (
                       <span className="scheduled-results-ma">
-                        {(r.direction === 'above' ? '+' : '') + Number(r.maDistance).toFixed(2) + '% מהממוצע'}
+                        {(r.direction === 'above' ? '+' : '') + Number(r.maDistance).toFixed(2) + '% from MA'}
                       </span>
                     ) : null}
                   </span>
@@ -144,8 +144,8 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
                       href={'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(r.symbol)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      title="פתיחה ב־TradingView"
-                      aria-label={'פתיחת ' + r.symbol + ' ב־TradingView'}
+                      title="Open in TradingView"
+                      aria-label={'Open ' + r.symbol + ' on TradingView'}
                     >
                       <svg
                         viewBox="0 0 24 24"
@@ -165,9 +165,9 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
                       <button
                         className={'star-btn-remove' + (isInWatchlist && isInWatchlist(r.symbol) ? ' active' : '')}
                         onClick={() => toggleWatchlistTicker(r.symbol)}
-                        title={isInWatchlist && isInWatchlist(r.symbol) ? 'הסרה מרשימת המעקב' : 'הוספה לרשימת המעקב'}
+                        title={isInWatchlist && isInWatchlist(r.symbol) ? 'Remove from watchlist' : 'Add to watchlist'}
                         aria-label={
-                          (isInWatchlist && isInWatchlist(r.symbol) ? 'הסרת ' : 'הוספת ') + r.symbol + ' ברשימת המעקב'
+                          (isInWatchlist && isInWatchlist(r.symbol) ? 'Remove ' : 'Add ') + r.symbol + ' In watchlist'
                         }
                       >
                         <svg

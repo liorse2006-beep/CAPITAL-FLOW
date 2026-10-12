@@ -1,6 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import 'altcha/external';
-import 'altcha/i18n/he';
 import 'altcha/altcha.css';
 import Pbkdf2Worker from 'altcha/workers/pbkdf2?worker';
 
@@ -16,7 +15,7 @@ function configurationFor(purpose) {
     credentials: 'same-origin',
     auto: 'onload',
     workers: 2,
-    language: 'he',
+    language: 'en',
     hideLogo: true,
     hideFooter: true,
     humanInteractionSignature: false,
@@ -75,10 +74,10 @@ export default function SignupVerification({ onVerify, onExpire, resetKey = 0, p
         key={`${purpose}-${resetKey}-${attempt}`}
         configuration={configurationFor(purpose)}
       />
-      {status === 'loading' && <p role="status">מאמתים…</p>}
+      {status === 'loading' && <p role="status">Verifying…</p>}
       {status === 'error' && (
         <div role="alert">
-          <p>לא הצלחנו לאמת. אפשר לנסות שוב.</p>
+          <p>Could not verify. Please try again.</p>
           <button
             type="button"
             className="auth-link-btn"
@@ -87,7 +86,7 @@ export default function SignupVerification({ onVerify, onExpire, resetKey = 0, p
               setAttempt((value) => value + 1);
             }}
           >
-            ניסיון נוסף
+            Try again
           </button>
         </div>
       )}

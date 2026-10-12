@@ -35,19 +35,20 @@ test('Docker runtime image includes the route content required by server-side re
 
 test('server-rendered route metadata replaces the SPA defaults without trusting the URL as content', () => {
   const rendered = renderPublicMetadata(SHELL, '/fundamentals');
-  assert.match(rendered, /<title>נתונים פיננסיים למניות \| Capital Flow<\/title>/);
-  assert.match(rendered, /name="description" content="סקירת מכפילי רווח, צמיחה/);
+  assert.match(rendered, /<title>Fundamental Stock Analysis \| Capital Flow<\/title>/);
+  assert.match(rendered, /name="description" content="Review available P\/E/);
   assert.match(rendered, /property="og:url" content="https:\/\/capitalflow\.vip\/fundamentals"/);
   assert.match(rendered, /rel="canonical" href="https:\/\/capitalflow\.vip\/fundamentals"/);
   assert.match(
     rendered,
-    /<section id="seo-route-content"[^>]*><h2 id="stock-fundamentals-title">נתונים פיננסיים למניות<\/h2>/
+    /<section id="seo-route-content"[^>]*><h2 id="stock-fundamentals-title">Stock Fundamentals Research<\/h2>/
   );
-  assert.match(rendered, /סקירת מדדי חברה זמינים/);
-  assert.match(rendered, /hreflang="he" href="https:\/\/capitalflow\.vip\/fundamentals"/);
+  assert.match(rendered, /available company/i);
+  assert.match(rendered, /hreflang="en" href="https:\/\/capitalflow\.vip\/fundamentals"/);
   assert.match(rendered, /hreflang="x-default" href="https:\/\/capitalflow\.vip\/fundamentals"/);
-  assert.match(rendered, /property="og:locale" content="he_IL"/);
-  assert.doesNotMatch(rendered, /hreflang="en"/);
+  assert.match(rendered, /property="og:locale" content="en_US"/);
+  assert.doesNotMatch(rendered, /hreflang="he"/);
+  assert.match(rendered, /<html[^>]*lang="en"[^>]*dir="ltr"/);
   assert.equal(renderPublicMetadata(SHELL, '/not-a-route'), SHELL);
 });
 
@@ -64,9 +65,9 @@ test('the homepage has Hebrew crawlable content and links to the main research t
 test('route-specific crawl copy is present in the initial HTML and links only to internal paths', () => {
   const rendered = renderPublicMetadata(SHELL, '/scanner');
 
-  assert.match(rendered, /<h2 id="volume-scanner-title">סורק נפח מסחר חריג<\/h2>/);
-  assert.match(rendered, /נתוני שוק עשויים להיות מעוכבים, מוערכים או חלקיים/);
-  assert.match(rendered, /href="\/ma">סורק ממוצעים נעים<\/a>/);
+  assert.match(rendered, /<h2 id="volume-scanner-title">Unusual Volume Stock Scanner<\/h2>/);
+  assert.match(rendered, /Market data may be delayed, estimated or partial/);
+  assert.match(rendered, /href="\/ma">MA Scanner<\/a>/);
   assert.doesNotMatch(rendered, /Data provenance|Yahoo Finance|Finnhub|Massive/);
 });
 
@@ -75,11 +76,11 @@ test('scanner metadata describes available screening tools without claiming live
   const movingAverage = getPublicMetadata('/ma');
   const sectorFlow = getPublicMetadata('/flow');
 
-  assert.match(scanner.title, /סורק נפח מסחר חריג/);
-  assert.match(scanner.description, /עשויים להיות מעוכבים או חלקיים/);
+  assert.match(scanner.title, /Unusual Volume Stock Scanner/);
+  assert.match(scanner.description, /may be delayed or incomplete/);
   assert.doesNotMatch(scanner.description, /real[- ]time|entire market|breakout potential/i);
-  assert.match(movingAverage.title, /סורק ממוצעים נעים/);
-  assert.match(movingAverage.description, /9, 20, 50 ו־150/);
-  assert.match(sectorFlow.title, /פעילות בסקטורים/);
-  assert.match(sectorFlow.description, /עשויים להיות מעוכבים או חלקיים/);
+  assert.match(movingAverage.title, /Moving Average Stock Scanner/);
+  assert.match(movingAverage.description, /9, 20, 50 and 150/);
+  assert.match(sectorFlow.title, /Stock Sector Performance/);
+  assert.match(sectorFlow.description, /may be delayed or incomplete/);
 });

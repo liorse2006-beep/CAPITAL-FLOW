@@ -60,7 +60,7 @@ function renderSeoContent(content) {
     })
     .join('');
 
-  return `<h2 id="${escapeHtml(content.id)}-title">${escapeHtml(content.title)}</h2><p class="seo-discovery-intro">${escapeHtml(content.intro)}</p><div class="seo-discovery-sections">${sections}</div><p class="seo-discovery-disclaimer">${escapeHtml(content.disclaimer)}</p><nav class="seo-discovery-links" aria-label="כלי מחקר נוספים"><span>כלים נוספים</span>${links}</nav>`;
+  return `<h2 id="${escapeHtml(content.id)}-title">${escapeHtml(content.title)}</h2><p class="seo-discovery-intro">${escapeHtml(content.intro)}</p><div class="seo-discovery-sections">${sections}</div><p class="seo-discovery-disclaimer">${escapeHtml(content.disclaimer)}</p><nav class="seo-discovery-links" aria-label="Explore Capital Flow tools"><span>Explore other tools</span>${links}</nav>`;
 }
 
 // Keeps <title>, the meta description, the canonical link, and the
@@ -75,11 +75,13 @@ function renderSeoContent(content) {
 export default function useSeo({ title, description, path, ogImage, noIndex = false }) {
   useEffect(() => {
     const url = SITE_URL + (path || '/');
+    const language = path === '/' ? 'he' : 'en';
     const seoContentMount = document.querySelector('#seo-route-content');
     if (seoContentMount) {
       // The marketing page already has its own research description and
       // disclaimer. Do not append a duplicate SEO footer below it.
       seoContentMount.innerHTML = noIndex || path === '/' ? '' : renderSeoContent(SEO_CONTENT[path || '/']);
+      seoContentMount.setAttribute('aria-label', language === 'he' ? 'מידע על Capital Flow' : 'About Capital Flow');
     }
     const previousTitle = document.title;
     if (title) document.title = title;
@@ -92,7 +94,10 @@ export default function useSeo({ title, description, path, ogImage, noIndex = fa
     const previousTwitterTitle = setAttr('meta[name="twitter:title"]', 'content', title);
     const previousTwitterDescription = setAttr('meta[name="twitter:description"]', 'content', description);
     const cleanups = [
-      managedTag('meta[property="og:locale"]', 'meta', { property: 'og:locale', content: 'he_IL' }),
+      managedTag('meta[property="og:locale"]', 'meta', {
+        property: 'og:locale',
+        content: language === 'he' ? 'he_IL' : 'en_US',
+      }),
       managedTag('meta[name="robots"]', 'meta', {
         name: 'robots',
         content: noIndex ? 'noindex, nofollow' : 'index, follow',
@@ -104,12 +109,18 @@ export default function useSeo({ title, description, path, ogImage, noIndex = fa
         cleanups.push(() => document.head.appendChild(element));
       }
     } else {
+      for (const element of document.querySelectorAll('link[rel="alternate"][hreflang]')) {
+        if (![language, 'x-default'].includes(element.getAttribute('hreflang'))) {
+          element.remove();
+          cleanups.push(() => document.head.appendChild(element));
+        }
+      }
       cleanups.push(managedTag('link[rel="canonical"]', 'link', { rel: 'canonical', href: url }));
-      for (const language of ['he', 'x-default']) {
+      for (const alternateLanguage of [language, 'x-default']) {
         cleanups.push(
-          managedTag(`link[rel="alternate"][hreflang="${language}"]`, 'link', {
+          managedTag(`link[rel="alternate"][hreflang="${alternateLanguage}"]`, 'link', {
             rel: 'alternate',
-            hreflang: language,
+            hreflang: alternateLanguage,
             href: url,
           })
         );

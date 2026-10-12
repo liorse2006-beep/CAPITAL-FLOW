@@ -6,20 +6,20 @@ import useModalA11y from '../../hooks/useModalA11y';
 
 const SCAN_LABELS = {
   capitalFlow: 'Capital Flow',
-  maScanner: 'סורק ממוצעים נעים',
-  sectorMoving: 'פעילות בסקטורים',
+  maScanner: 'MA Scanner',
+  sectorMoving: 'Hot Sectors',
 };
 
 function fmtTime(iso) {
   if (!iso) return '—';
   const d = new Date(Number(iso) * 1000);
-  return d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
 function fmtDate(yyyyMmDd) {
   if (!yyyyMmDd) return '';
   const [y, m, d] = yyyyMmDd.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('he-IL', { month: 'short', day: 'numeric' });
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function todayLocalDate() {
@@ -110,8 +110,8 @@ export default function ScheduleScan({
       <button
         className="schedule-scan-btn"
         onClick={() => (user ? setOpen(true) : onSignIn && onSignIn())}
-        title="תזמון סריקה אוטומטית"
-        aria-label="תזמון סריקה אוטומטית"
+        title="Schedule automatic scan"
+        aria-label="Schedule automatic scan"
       >
         <svg
           width="15"
@@ -127,7 +127,7 @@ export default function ScheduleScan({
           <circle cx="12" cy="12" r="10" />
           <polyline points="12 6 12 12 16 14" />
         </svg>
-        תזמון
+        Schedule
         {mySchedules.filter((s) => s.active).length > 0 && (
           <span className="schedule-scan-badge">{mySchedules.filter((s) => s.active).length}</span>
         )}
@@ -139,12 +139,12 @@ export default function ScheduleScan({
             className="schedule-scan-panel"
             ref={panelRef}
             tabIndex={-1}
-            dir="rtl"
-            lang="he"
+            dir="ltr"
+            lang="en"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
-            aria-label="תזמון סריקה"
+            aria-label="Schedule scan"
           >
             <div className="schedule-scan-header">
               <div className="schedule-scan-title-row">
@@ -162,9 +162,9 @@ export default function ScheduleScan({
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
-                <span>תזמון {SCAN_LABELS[scanType]}</span>
+                <span>Schedule {SCAN_LABELS[scanType]}</span>
               </div>
-              <button className="schedule-scan-close" onClick={closeSchedule} aria-label="סגירה">
+              <button className="schedule-scan-close" onClick={closeSchedule} aria-label="Close">
                 ✕
               </button>
             </div>
@@ -172,12 +172,12 @@ export default function ScheduleScan({
             {!hasAccess ? (
               <div className="schedule-scan-upsell">
                 <div className="schedule-scan-upsell-icon">⏰</div>
-                <p className="schedule-scan-upsell-title">סריקות אוטומטיות</p>
+                <p className="schedule-scan-upsell-title">Automated Scans</p>
                 <p className="schedule-scan-upsell-desc">
-                  תזמון {SCAN_LABELS[scanType]} לשעה שתבחר, גם כשהאפליקציה סגורה. התוצאות יישמרו בחשבון, ויישלחו למכשיר
-                  אם ההתראות מופעלות.
+                  Schedule {SCAN_LABELS[scanType]} for your chosen time, even when the app is closed. Results will be
+                  saved to your account and sent to your device if notifications are enabled.
                 </p>
-                <p className="schedule-scan-upsell-tag">כלול ב־Elite</p>
+                <p className="schedule-scan-upsell-tag">Elite feature</p>
                 <button
                   className="upgrade-cta"
                   onClick={() => {
@@ -185,7 +185,7 @@ export default function ScheduleScan({
                     onUpgrade?.();
                   }}
                 >
-                  שדרוג ל־Elite
+                  Upgrade to Elite
                 </button>
               </div>
             ) : (
@@ -202,7 +202,7 @@ export default function ScheduleScan({
                   />
                 )}
                 <form className="schedule-scan-form" onSubmit={handleAdd}>
-                  <div className="schedule-scan-repeat-toggle" role="radiogroup" aria-label="תדירות">
+                  <div className="schedule-scan-repeat-toggle" role="radiogroup" aria-label="Frequency">
                     <button
                       type="button"
                       role="radio"
@@ -210,7 +210,7 @@ export default function ScheduleScan({
                       className={'schedule-scan-repeat-btn' + (repeatMode === 'once' ? ' active' : '')}
                       onClick={() => setRepeatMode('once')}
                     >
-                      פעם אחת
+                      Once
                     </button>
                     <button
                       type="button"
@@ -219,12 +219,12 @@ export default function ScheduleScan({
                       className={'schedule-scan-repeat-btn' + (repeatMode === 'daily' ? ' active' : '')}
                       onClick={() => setRepeatMode('daily')}
                     >
-                      בכל יום
+                      Repeat daily
                     </button>
                   </div>
 
                   <label className="schedule-scan-label" htmlFor="scan-time-input">
-                    {repeatMode === 'once' ? 'מועד הסריקה החד־פעמית (שעון ירושלים)' : 'שעה יומית (שעון ירושלים)'}
+                    {repeatMode === 'once' ? 'Run once at (Jerusalem time)' : 'Daily time (Jerusalem time)'}
                   </label>
                   <div className="schedule-scan-input-row">
                     {repeatMode === 'once' && (
@@ -236,7 +236,7 @@ export default function ScheduleScan({
                         min={todayLocalDate()}
                         onChange={(e) => setDateInput(e.target.value)}
                         required
-                        aria-label="תאריך"
+                        aria-label="Date"
                       />
                     )}
                     <input
@@ -248,7 +248,7 @@ export default function ScheduleScan({
                       required
                     />
                     <button type="submit" className="schedule-scan-add-btn" disabled={adding || loading}>
-                      {adding ? 'מוסיפים…' : '+ הוספה'}
+                      {adding ? 'Adding…' : '+ Add'}
                     </button>
                   </div>
                   {error && <p className="schedule-scan-error">{friendlyError(error)}</p>}
@@ -256,7 +256,9 @@ export default function ScheduleScan({
 
                 <div className="schedule-scan-list">
                   {mySchedules.length === 0 ? (
-                    <p className="schedule-scan-empty">אין עדיין תזמונים. אפשר להוסיף תזמון לסריקה אוטומטית.</p>
+                    <p className="schedule-scan-empty">
+                      No schedules yet. Add one above and we&#39;ll run the scan automatically.
+                    </p>
                   ) : (
                     mySchedules.map((s) => (
                       <div key={s.id} className={'schedule-scan-item' + (s.active ? '' : ' schedule-scan-item--off')}>
@@ -264,10 +266,10 @@ export default function ScheduleScan({
                           <span className="schedule-scan-item-time">
                             {s.scan_date ? `${fmtDate(s.scan_date)}, ${s.scan_time}` : s.scan_time}
                           </span>
-                          <span className="schedule-scan-item-repeat">{s.scan_date ? 'חד־פעמי' : 'חוזר בכל יום'}</span>
+                          <span className="schedule-scan-item-repeat">{s.scan_date ? 'Once' : 'Repeats daily'}</span>
                           {s.last_run_at && (
                             <span className="schedule-scan-item-last">
-                              הרצה אחרונה {fmtTime(s.last_run_at)}
+                              Last ran {fmtTime(s.last_run_at)}
                               {s.last_result_count != null ? ` · ${s.last_result_count} results` : ''}
                             </span>
                           )}
@@ -276,16 +278,16 @@ export default function ScheduleScan({
                           <button
                             className={'schedule-scan-toggle' + (s.active ? ' schedule-scan-toggle--on' : '')}
                             onClick={() => toggleSchedule(s.id, !s.active)}
-                            title={s.active ? 'השהיה' : 'הפעלה מחדש'}
-                            aria-label={s.active ? 'השהיית תזמון' : 'הפעלת תזמון מחדש'}
+                            title={s.active ? 'Pause' : 'Resume'}
+                            aria-label={s.active ? 'Pause schedule' : 'Resume schedule'}
                           >
                             {s.active ? '⏸' : '▶'}
                           </button>
                           <button
                             className="schedule-scan-delete"
                             onClick={() => removeSchedule(s.id)}
-                            title="מחיקה"
-                            aria-label="מחיקת תזמון"
+                            title="Delete"
+                            aria-label="Delete schedule"
                           >
                             ✕
                           </button>
@@ -295,7 +297,9 @@ export default function ScheduleScan({
                   )}
                 </div>
 
-                <p className="schedule-scan-footer">התוצאות נשמרות גם בהתראות באפליקציה. עד שלושה תזמונים פעילים.</p>
+                <p className="schedule-scan-footer">
+                  Push notifications are optional; results are also saved in Notifications. Max 3 active schedules.
+                </p>
               </>
             )}
           </div>

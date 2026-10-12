@@ -14,14 +14,14 @@ describe('TrialEndedModal', () => {
 
     render(<TrialEndedModal onClose={vi.fn()} onUpgrade={onUpgrade} />);
 
-    expect(screen.getByRole('dialog', { name: /תקופת הניסיון הסתיימה/ })).toBeInTheDocument();
-    expect(screen.getByText(/ממשיכים גם אחרי הניסיון\./i)).toBeInTheDocument();
-    expect(screen.getByText(/תשלום חד־פעמי · גישה ללא הגבלת זמן/i)).toBeInTheDocument();
-    expect(screen.getByText(/בלי חיוב חודשי\. ההגדרות שלך נשמרות\./i)).toBeInTheDocument();
-    expect(screen.queryByText(/5 סריקות ב־24 שעות, במכסה משותפת/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /Trial ended/ })).toBeInTheDocument();
+    expect(screen.getByText(/Keep your edge after day seven\./i)).toBeInTheDocument();
+    expect(screen.getByText(/One-time purchase · Lifetime access/i)).toBeInTheDocument();
+    expect(screen.getByText(/pay once. no recurring billing/i)).toBeInTheDocument();
+    expect(screen.queryByText(/5 scans \/ 24h/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/unlimited scans, alerts, push/i)).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /למסלולים ולהמשך סריקה/i }));
+    await user.click(screen.getByRole('button', { name: /See plans and keep scanning/i }));
     expect(onUpgrade).toHaveBeenCalledOnce();
   });
 });

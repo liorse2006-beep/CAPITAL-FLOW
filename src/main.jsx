@@ -4,6 +4,8 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter, useLocation } from 'react-router-dom';
 import App from './App';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { UiLanguageContext, useUiLanguage } from './context/UiLanguageContext';
+import { copyFor } from './utils/landingUiCopy';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import CookieConsent from './components/shared/CookieConsent';
 import UpdateToast from './components/shared/UpdateToast';
@@ -32,7 +34,11 @@ try {
 // check is slow because the server was asleep. Imported eagerly, not lazily
 // — ScannerPage already imports it statically, so it's in the main bundle
 // regardless; a dynamic import() here would just add an ineffective split.
-const COLD_START_MESSAGES = ['מכינים את סביבת העבודה…', 'אם הטעינה מתעכבת, אפשר לנסות שוב בעוד רגע', 'כמעט מוכנים…'];
+const COLD_START_MESSAGES = [
+  'Preparing your workspace…',
+  'If loading takes longer, please try again in a moment',
+  'Almost ready…',
+];
 
 // Push notifications depend on an active service worker — App.jsx waits on
 // navigator.serviceWorker.ready, which never resolves without a prior
@@ -62,6 +68,7 @@ if ('serviceWorker' in navigator) {
 }
 
 function Root() {
+  const language = useUiLanguage();
   const { isLoading, user, authLoadError } = useAuth();
   const { pathname } = useLocation();
   // Most loads resolve in well under a second — only switch to the fuller
@@ -85,7 +92,7 @@ function Root() {
       }}
     >
       <div style={{ color: '#F59E0B', fontFamily: 'monospace', fontSize: 13, letterSpacing: '0.1em' }} role="status">
-        טוענים…
+        {copyFor(language, 'Loading…')}
       </div>
     </div>
   );
@@ -102,7 +109,10 @@ function Root() {
       }}
     >
       <div style={{ width: '100%', maxWidth: 340 }}>
-        <ScanLoader label="Capital Flow" statusMessages={COLD_START_MESSAGES} />
+        <ScanLoader
+          label="Capital Flow"
+          statusMessages={COLD_START_MESSAGES.map((message) => copyFor(language, message))}
+        />
       </div>
     </div>
   ) : (
@@ -126,10 +136,12 @@ function Root() {
             <div className="logo-bar" />
             <div className="logo-bar" />
           </div>
-          <h1>לא הצלחנו לטעון את Capital Flow</h1>
-          <p>השירות אינו זמין כרגע. ההתחברות שלך נשמרה ואפשר לנסות שוב.</p>
+          <h1>{copyFor(language, "We couldn't load Capital Flow")}</h1>
+          <p>
+            {copyFor(language, 'The service is temporarily unavailable. Your session is saved and you can try again.')}
+          </p>
           <button className="upgrade-cta" onClick={() => window.location.reload()}>
-            ניסיון נוסף
+            {copyFor(language, 'Try again')}
           </button>
         </div>
       </div>
@@ -141,15 +153,29 @@ function Root() {
   return <App key={user ? String(user.id) : 'guest'} />;
 }
 
+function SiteLanguageFrame() {
+  const { pathname } = useLocation();
+  const language = pathname === '/' ? 'he' : 'en';
+  useEffect(() => {
+    document.documentElement.lang = language;
+    document.documentElement.dir = language === 'he' ? 'rtl' : 'ltr';
+  }, [language]);
+  return (
+    <UiLanguageContext.Provider value={language}>
+      <Root />
+      <CookieConsent />
+      <UpdateToast />
+      <AccessibilityWidget />
+    </UiLanguageContext.Provider>
+  );
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
       <AuthProvider>
         <BrowserRouter>
-          <Root />
-          <CookieConsent />
-          <UpdateToast />
-          <AccessibilityWidget />
+          <SiteLanguageFrame />
         </BrowserRouter>
       </AuthProvider>
     </ErrorBoundary>

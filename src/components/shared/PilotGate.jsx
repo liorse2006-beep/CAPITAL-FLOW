@@ -10,13 +10,13 @@ export default function PilotGate({ user, onAccept, onSignOut }) {
     return (
       <div className="upgrade-overlay" style={{ zIndex: 10000 }}>
         <div className="upgrade-modal" style={{ maxWidth: 460 }}>
-          <h2 className="upgrade-title">תוכנית פיילוט — גישה אישית</h2>
+          <h2 className="upgrade-title">Pilot Program — Confidential</h2>
           <p className="upgrade-desc" style={{ textAlign: 'start', lineHeight: 1.6 }}>
-            קיבלת גישה מוקדמת ל־Capital Flow במסגרת פיילוט מוגבל. הגישה אישית לחשבונך — אין לשתף פרטי התחברות. יש לשמור
-            בסודיות את המוצר, העיצוב והנתונים. תודה על ההתנסות ועל המשוב.
+            You have early access to Capital Flow through a limited pilot. Access is personal — do not share your login.
+            Keep the product, design and data confidential. Thank you for testing and sharing feedback.
           </p>
           <button className="upgrade-cta" onClick={onAccept}>
-            אני מסכים — המשך
+            I Agree — Continue
           </button>
           <p className="upgrade-sub">
             <a
@@ -26,7 +26,7 @@ export default function PilotGate({ user, onAccept, onSignOut }) {
                 onSignOut();
               }}
             >
-              התנתקות
+              Sign out instead
             </a>
           </p>
         </div>
@@ -53,7 +53,7 @@ export default function PilotGate({ user, onAccept, onSignOut }) {
         userSelect: 'none',
       }}
     >
-      {'פיילוט · גישה אישית · ' + user.email}
+      {'PILOT · CONFIDENTIAL · ' + user.email}
     </div>
   );
 }

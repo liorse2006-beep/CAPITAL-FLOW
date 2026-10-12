@@ -15,20 +15,20 @@ export default function NotificationChoice({
   onContinue,
   onCancel,
   actionBusy = false,
-  title = 'ההתראות אינן מופעלות',
-  supportedDescription = 'להפעיל התראות גם כשהאפליקציה סגורה? אפשר להמשיך בלי — התוצאה תישמר באפליקציה.',
-  unsupportedDescription = 'באייפון: שיתוף ← הוספה למסך הבית. פתח משם והפעל התראות. בינתיים התוצאה תישמר באפליקציה.',
-  enableLabel = 'הפעלת התראות',
-  continueLabel = 'המשך בלי התראות למכשיר',
-  cancelLabel = 'חזרה',
-  dir = 'rtl',
+  title = "Notifications aren't enabled",
+  supportedDescription = 'Would you like to enable push notifications so you receive this result even when the app is closed? If not, it will still be saved in Notifications.',
+  unsupportedDescription = 'Push notifications are not available in this browser. On iPhone: add Capital Flow to your Home Screen, open it from the new icon, and allow notifications.',
+  enableLabel = 'Enable notifications',
+  continueLabel = 'Continue without push',
+  cancelLabel = 'Back',
+  dir = 'ltr',
 }) {
   const panelRef = useModalA11y(onCancel);
   const [enableError, setEnableError] = useState(null);
 
   async function handleEnable() {
     if (typeof onEnable !== 'function') {
-      setEnableError('לא הצלחנו להפעיל התראות כאן. אפשר להמשיך בלי התראות למכשיר.');
+      setEnableError('Notifications could not be enabled here. You can continue without push.');
       return;
     }
     setEnableError(null);
@@ -70,11 +70,11 @@ export default function NotificationChoice({
               onClick={handleEnable}
               disabled={pushBusy || actionBusy}
             >
-              {pushBusy ? 'מפעילים…' : enableLabel}
+              {pushBusy ? 'Enabling…' : enableLabel}
             </button>
           )}
           <button type="button" className="notification-choice-secondary" onClick={onContinue} disabled={actionBusy}>
-            {actionBusy ? 'שומרים…' : continueLabel}
+            {actionBusy ? 'Saving…' : continueLabel}
           </button>
           <button type="button" className="notification-choice-cancel" onClick={onCancel} disabled={actionBusy}>
             {cancelLabel}

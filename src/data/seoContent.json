@@ -35,151 +35,151 @@
   },
   "/scanner": {
     "id": "volume-scanner",
-    "title": "סורק נפח מסחר חריג",
-    "intro": "הסורק משווה את נפח המסחר המדווח לממוצע ייחוס זמין. ניתן לבחור קבוצת מניות ולסנן לפי יחס נפח, שווי שוק ונפח מינימלי.",
+    "title": "Unusual Volume Stock Scanner",
+    "intro": "Capital Flow compares reported trading volume with a recent average to help screen for unusual activity in selected U.S. stock universes. Choose all stocks, the S&P 500, NASDAQ 100 or sector groups, then narrow the list with volume-ratio, market-cap and minimum-volume filters.",
     "sections": [
       {
-        "title": "איך פועלת סריקת הנפח",
-        "body": "יחס הנפח מאפשר לזהות פעילות חריגה ביחס לממוצע. יחס גבוה אינו מסביר את הסיבה לשינוי ואינו מנבא את ביצועי המניה."
+        "title": "How volume screening works",
+        "body": "A volume ratio compares displayed trading volume with a recent average-volume baseline. Filters help you review symbols that meet the thresholds you choose; a high ratio alone does not explain why activity changed or predict what a stock will do next."
       },
       {
-        "title": "בחירת קבוצת מניות",
-        "body": "אפשר לסרוק את קבוצת המניות הזמינה, S&P 500, NASDAQ 100 או סקטורים נבחרים, ולבדוק את התוצאות לפני המשך המחקר."
+        "title": "Choose a market universe and review results",
+        "body": "Run a scan across the available stock list, the S&P 500, NASDAQ 100 or selected sectors. Review the symbol, price, volume ratio, average volume and other available fields before deciding what to research further."
       }
     ],
-    "disclaimer": "נתוני שוק עשויים להיות מעוכבים, מוערכים או חלקיים. המידע למטרות לימוד ומחקר בלבד ואינו ייעוץ השקעות; יש לאמת אותו באופן עצמאי.",
+    "disclaimer": "Market data may be delayed, estimated or partial. Information is for education and research, not investment advice; verify it independently.",
     "links": [
       {
         "href": "/ma",
-        "label": "סורק ממוצעים נעים"
+        "label": "MA Scanner"
       },
       {
         "href": "/flow",
-        "label": "פעילות בסקטורים"
+        "label": "Hot Sectors"
       },
       {
         "href": "/fundamentals",
-        "label": "נתונים פיננסיים"
+        "label": "Fundamentals"
       }
     ]
   },
   "/ma": {
     "id": "moving-average-scanner",
-    "title": "סורק ממוצעים נעים",
-    "intro": "סקירת מניות לפי המרחק מממוצע נע פשוט: SMA 9, 20, 50 או 150. ניתן לבחור סף מרחק וטווח יומי או שבועי.",
+    "title": "MA Scanner",
+    "intro": "Use the Capital Flow moving average scanner to review selected U.S. stocks by their distance from a simple moving average (SMA). Choose SMA 9, 20, 50 or 150, set a distance threshold, and scan on a daily or weekly timeframe.",
     "sections": [
       {
-        "title": "סינון לפי מרחק מהממוצע",
-        "body": "הסורק מציג מניות שבהן המחיר קרוב לממוצע שבחרת, מתוך קבוצות המניות הזמינות וסקטורים נבחרים."
+        "title": "Screen stocks by moving-average distance",
+        "body": "The scanner organizes available symbols by the displayed price distance from the selected SMA. You can choose all stocks, the S&P 500, NASDAQ 100 or sector groups, then review the results and inspect individual symbols."
       },
       {
-        "title": "ממוצע נע כחלק מהמחקר",
-        "body": "ממוצע נע מסכם מחירים מהעבר. קרבה לממוצע היא תנאי סינון, ולא תחזית או המלצת קנייה או מכירה."
+        "title": "Use moving averages as one research input",
+        "body": "A moving average summarizes past prices over a chosen period. Proximity to an SMA is a screening condition, not a forecast or a buy or sell recommendation; consider it alongside other independently verified information."
       }
     ],
-    "disclaimer": "נתוני שוק עשויים להיות מעוכבים, מוערכים או חלקיים. המידע למטרות לימוד ומחקר בלבד ואינו ייעוץ השקעות; יש לאמת אותו באופן עצמאי.",
+    "disclaimer": "Market data may be delayed, estimated or partial. Information is for education and research, not investment advice; verify it independently.",
     "links": [
       {
         "href": "/scanner",
-        "label": "סורק נפח מסחר"
+        "label": "Unusual Volume Scanner"
       },
       {
         "href": "/flow",
-        "label": "פעילות בסקטורים"
+        "label": "Hot Sectors"
       },
       {
         "href": "/fundamentals",
-        "label": "נתונים פיננסיים"
+        "label": "Fundamentals"
       }
     ]
   },
   "/flow": {
     "id": "sector-performance",
-    "title": "פעילות בסקטורים",
-    "intro": "השוואת שינויי המחיר ונפח המסחר הזמינים בסקטורים באמצעות מפת חום, עם אפשרות לבדוק את המניות שמאחורי התנועה.",
+    "title": "Hot Sectors",
+    "intro": "Capital Flow's sector view helps compare available price and volume movement across market sectors. Use the heatmap to see how the sectors represented in the app are changing, then review individual symbols or return to a stock scanner for more context.",
     "sections": [
       {
-        "title": "השוואת סקטורים",
-        "body": "הצבעים והמספרים מסכמים את הנתונים המוצגים. הם אינם הוכחה לקנייה או מכירה מוסדית ואינם תחזית לביצועים."
+        "title": "Compare market sectors",
+        "body": "The sector heatmap summarizes available sector-market information in one view. Color and displayed figures are a way to compare the presented data, not proof of institutional buying, selling or future performance."
       },
       {
-        "title": "בדיקת ההקשר",
-        "body": "פעילות בסקטור יכולה לכוון מחקר נוסף, אך אינה מסבירה לבדה את סיבת השינוי. יש לבדוק גם את המניות ואת המידע המקורי."
+        "title": "Check the context behind a move",
+        "body": "Sector-level activity can help organize further research, but it does not explain the cause of a price or volume change. Review the underlying symbols and independently verify information before drawing conclusions."
       }
     ],
-    "disclaimer": "נתוני שוק עשויים להיות מעוכבים, מוערכים או חלקיים. המידע למטרות לימוד ומחקר בלבד ואינו ייעוץ השקעות; יש לאמת אותו באופן עצמאי.",
+    "disclaimer": "Market data may be delayed, estimated or partial. Information is for education and research, not investment advice; verify it independently.",
     "links": [
       {
         "href": "/scanner",
-        "label": "סורק נפח מסחר"
+        "label": "Unusual Volume Scanner"
       },
       {
         "href": "/ma",
-        "label": "סורק ממוצעים נעים"
+        "label": "MA Scanner"
       },
       {
         "href": "/fundamentals",
-        "label": "נתונים פיננסיים"
+        "label": "Fundamentals"
       }
     ]
   },
   "/fundamentals": {
     "id": "stock-fundamentals",
-    "title": "נתונים פיננסיים למניות",
-    "intro": "סקירת מדדי חברה זמינים, כגון מכפיל רווח, PEG, חוב להון, צמיחה, מניות סחירות ושורט. זמינות הנתונים משתנה בין מניות.",
+    "title": "Stock Fundamentals Research",
+    "intro": "Review available company and valuation metrics in Capital Flow, including P/E, forward P/E, PEG, debt-to-equity, growth, float, short interest and earnings information. Metric availability can vary by symbol.",
     "sections": [
       {
-        "title": "השוואת מדדים בהקשר",
-        "body": "מכפילים, נתוני צמיחה ונתוני מאזן מתארים היבטים שונים של החברה. מדד יחיד אינו מספיק לקבוע אם מניה אטרקטיבית."
+        "title": "Compare company metrics with context",
+        "body": "Valuation ratios, growth figures and balance-sheet measures describe different aspects of a company. They are not directly interchangeable, and any single metric is insufficient to establish whether a stock is attractive or fairly valued."
       },
       {
-        "title": "מידע חסר או משתנה",
-        "body": "נתון פיננסי עשוי להיות חסר, מעוכב או להתייחס לתקופה שונה. חשוב לבדוק את ההגדרה, המועד ודיווחי החברה המקוריים."
+        "title": "Verify missing or changing information",
+        "body": "Financial fields may be unavailable, delayed or reported for different periods. Check the date, definition and original company disclosures for information that matters to your research."
       }
     ],
-    "disclaimer": "נתוני שוק עשויים להיות מעוכבים, מוערכים או חלקיים. המידע למטרות לימוד ומחקר בלבד ואינו ייעוץ השקעות; יש לאמת אותו באופן עצמאי.",
+    "disclaimer": "Market data may be delayed, estimated or partial. Information is for education and research, not investment advice; verify it independently.",
     "links": [
       {
         "href": "/scanner",
-        "label": "סורק נפח מסחר"
+        "label": "Unusual Volume Scanner"
       },
       {
         "href": "/ma",
-        "label": "סורק ממוצעים נעים"
+        "label": "MA Scanner"
       },
       {
         "href": "/flow",
-        "label": "פעילות בסקטורים"
+        "label": "Hot Sectors"
       }
     ]
   },
   "/watchlist": {
     "id": "stock-watchlist",
-    "title": "רשימת מעקב והתראות",
-    "intro": "שמירת מניות במקום אחד, בדיקת מחירים זמינים וניהול התראות מחיר או נפח מסחר במסלולים התומכים בכך.",
+    "title": "Stock Watchlist and Price Alerts",
+    "intro": "Use the Capital Flow watchlist to keep selected stock symbols together, review available quote information and manage supported price or volume alerts from one place.",
     "sections": [
       {
-        "title": "ארגון מניות להמשך מעקב",
-        "body": "רשימת המעקב היא כלי מחקר. היא אינה תיק השקעות, אינה מייצגת בעלות במניות ואינה המלצה למסחר."
+        "title": "Organize symbols for follow-up",
+        "body": "A watchlist is a research aid for keeping track of symbols you want to revisit. It does not represent ownership, portfolio performance or a recommendation to trade."
       },
       {
-        "title": "התראה כהזמנה לבדיקה",
-        "body": "התראה מצביעה על תנאי המחיר או הנפח שבחרת. יש לאמת את המידע בהקשר; הנתונים ומשלוח ההתראות עשויים להתעכב."
+        "title": "Treat alerts as prompts to review",
+        "body": "Alerts can draw attention to a configured price or volume condition. Confirm the latest information in context; alert delivery and market data can be delayed or unavailable."
       }
     ],
-    "disclaimer": "נתוני שוק עשויים להיות מעוכבים, מוערכים או חלקיים. המידע למטרות לימוד ומחקר בלבד ואינו ייעוץ השקעות; יש לאמת אותו באופן עצמאי.",
+    "disclaimer": "Market data may be delayed, estimated or partial. Information is for education and research, not investment advice; verify it independently.",
     "links": [
       {
         "href": "/scanner",
-        "label": "סורק נפח מסחר"
+        "label": "Unusual Volume Scanner"
       },
       {
         "href": "/ma",
-        "label": "סורק ממוצעים נעים"
+        "label": "MA Scanner"
       },
       {
         "href": "/fundamentals",
-        "label": "נתונים פיננסיים"
+        "label": "Fundamentals"
       }
     ]
   }

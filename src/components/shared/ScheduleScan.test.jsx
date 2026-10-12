@@ -53,13 +53,13 @@ describe('ScheduleScan', () => {
     const user = userEvent.setup();
     renderScheduler();
 
-    await user.click(screen.getByRole('button', { name: 'תזמון סריקה אוטומטית' }));
+    await user.click(screen.getByRole('button', { name: 'Schedule automatic scan' }));
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '+ הוספה' }));
-    expect(screen.getByRole('dialog', { name: 'ההתראות אינן מופעלות' })).toBeInTheDocument();
-    expect(screen.getByText(/באייפון: שיתוף ← הוספה למסך הבית/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'המשך בלי התראות למכשיר' }));
+    await user.click(screen.getByRole('button', { name: '+ Add' }));
+    expect(screen.getByRole('dialog', { name: "Notifications aren't enabled" })).toBeInTheDocument();
+    expect(screen.getByText(/add Capital Flow to your Home Screen/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Continue without push' }));
 
     await waitFor(() =>
       expect(mocks.addSchedule).toHaveBeenCalledWith('09:30', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/))
@@ -71,11 +71,11 @@ describe('ScheduleScan', () => {
     const onEnablePush = vi.fn().mockResolvedValue(undefined);
     renderScheduler({ pushSupported: true, onEnablePush });
 
-    await user.click(screen.getByRole('button', { name: 'תזמון סריקה אוטומטית' }));
+    await user.click(screen.getByRole('button', { name: 'Schedule automatic scan' }));
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '+ הוספה' }));
-    expect(screen.getByRole('dialog', { name: 'ההתראות אינן מופעלות' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'הפעלת התראות' }));
+    await user.click(screen.getByRole('button', { name: '+ Add' }));
+    expect(screen.getByRole('dialog', { name: "Notifications aren't enabled" })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Enable notifications' }));
 
     await waitFor(() => expect(mocks.addSchedule).toHaveBeenCalledTimes(1));
     expect(onEnablePush).toHaveBeenCalledTimes(1);

@@ -49,20 +49,20 @@ export default function DeleteAccountModal({ getToken, onDeleted, onClose }) {
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label="מחיקת חשבון"
+        aria-label="Delete account"
       >
-        <button className="upgrade-close" onClick={onClose} aria-label="סגירה">
+        <button className="upgrade-close" onClick={onClose} aria-label="Close">
           ×
         </button>
         <h2 className="upgrade-title" style={{ color: '#EF4444' }}>
-          מחיקת חשבון
+          Delete Account
         </h2>
         <p className="upgrade-desc">
-          החשבון, רשימת המעקב, ההתראות וחיבורי ההתראות יימחקו לצמיתות. לא ניתן לבטל את הפעולה.
+          This permanently deletes your account, watchlist, alerts, and push subscriptions. This cannot be undone.
         </p>
         <form onSubmit={submit}>
           <label htmlFor="delete-confirm-input" className="upgrade-desc" style={{ marginBottom: 8, display: 'block' }}>
-            יש להקליד <strong dir="ltr">{CONFIRM_WORD}</strong> לאישור.
+            Type <strong dir="ltr">{CONFIRM_WORD}</strong> to confirm.
           </label>
           <input
             id="delete-confirm-input"
@@ -74,7 +74,7 @@ export default function DeleteAccountModal({ getToken, onDeleted, onClose }) {
           />
           {status === 'error' && (
             <p className="upgrade-desc" style={{ color: '#EF4444' }}>
-              לא הצלחנו לאשר שהחשבון נמחק. יש להתחבר שוב ולבדוק לפני ניסיון נוסף.
+              Couldn&#39;t confirm account deletion. Sign in again to check before retrying.
             </p>
           )}
           <button
@@ -83,7 +83,7 @@ export default function DeleteAccountModal({ getToken, onDeleted, onClose }) {
             disabled={input.trim() !== CONFIRM_WORD || status === 'deleting'}
             style={{ background: '#EF4444', color: '#fff' }}
           >
-            {status === 'deleting' ? 'מוחקים…' : 'מחיקת החשבון שלי לצמיתות'}
+            {status === 'deleting' ? 'Deleting…' : 'Permanently Delete My Account'}
           </button>
         </form>
       </div>

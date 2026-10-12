@@ -23,11 +23,11 @@ describe('FundamentalsPage', () => {
   it('gates the lookup behind sign-in for a logged-out visitor, never showing the search UI', () => {
     renderPage();
     // The guest gate explains the feature without rendering a fake data result.
-    expect(screen.getByText(/בדוק נתוני שווי, מינוף, צמיחה ומועדי דוחות לפני המשך המחקר\./i)).toBeInTheDocument();
+    expect(screen.getByText(/key fundamentals behind any ticker/i)).toBeInTheDocument();
     expect(screen.queryByText('AAPL')).not.toBeInTheDocument();
     expect(screen.queryByText(/live read/i)).not.toBeInTheDocument();
-    expect(screen.queryByText('בדיקת מניה')).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText(/סימול מניה/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Analyze')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/Enter a ticker/)).not.toBeInTheDocument();
   });
 
   it('the sign-in prompt calls onSignIn, not onUpgrade, for a logged-out visitor', async () => {
@@ -35,7 +35,7 @@ describe('FundamentalsPage', () => {
     const onSignIn = vi.fn();
     const onUpgrade = vi.fn();
     renderPage({ onSignIn, onUpgrade });
-    await user.click(screen.getByRole('button', { name: /התחברות/i }));
+    await user.click(screen.getByRole('button', { name: /Sign In/i }));
     expect(onSignIn).toHaveBeenCalled();
     expect(onUpgrade).not.toHaveBeenCalled();
   });
@@ -101,16 +101,16 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     const user = userEvent.setup();
     renderPremiumPage();
 
-    await screen.findByPlaceholderText(/סימול מניה/);
+    await screen.findByPlaceholderText(/Enter a ticker/);
     // None of the seven toggle buttons should read as pressed before the
     // customer has touched any of them.
-    expect(screen.getByRole('button', { name: 'מניות סחירות' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Float' })).toHaveAttribute('aria-pressed', 'false');
 
-    await user.type(screen.getByPlaceholderText(/סימול מניה/), 'AAPL');
-    await user.click(screen.getByText('בדיקת מניה'));
+    await user.type(screen.getByPlaceholderText(/Enter a ticker/), 'AAPL');
+    await user.click(screen.getByText('Analyze'));
 
     expect(await screen.findByText('Apple Inc.')).toBeInTheDocument();
-    expect(screen.getByText(/לא נבחרו מדדים/)).toBeInTheDocument();
+    expect(screen.getByText(/No metrics selected/)).toBeInTheDocument();
     expect(screen.queryByText('1.45')).not.toBeInTheDocument();
   });
 
@@ -118,17 +118,17 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     const user = userEvent.setup();
     renderPremiumPage();
 
-    await screen.findByPlaceholderText(/סימול מניה/);
-    await user.type(screen.getByPlaceholderText(/סימול מניה/), 'AAPL');
-    await user.click(screen.getByText('בדיקת מניה'));
+    await screen.findByPlaceholderText(/Enter a ticker/);
+    await user.type(screen.getByPlaceholderText(/Enter a ticker/), 'AAPL');
+    await user.click(screen.getByText('Analyze'));
 
     // 'AAPL' text now also appears in the Recent chip added by this same
     // lookup — wait on the company name instead, which stays unique.
     expect(await screen.findByText('Apple Inc.')).toBeInTheDocument();
     // Nothing is selected by default — turn every tile on to check them.
-    await user.click(screen.getByRole('button', { name: /בחירת הכול/i }));
+    await user.click(screen.getByRole('button', { name: /Select all/i }));
 
-    expect(screen.getByText('הנתון לא אומת. אפשר לנסות שוב בהמשך')).toBeInTheDocument();
+    expect(screen.getByText('Not verified — try again in a few minutes')).toBeInTheDocument();
     // A field Finnhub actually answered must never be replaced by the
     // unverified message — only the one flagged unverified is.
     expect(screen.queryByText('31.20')).not.toBeInTheDocument();
@@ -143,17 +143,17 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     };
     renderPremiumPage(result);
 
-    await screen.findByPlaceholderText(/סימול מניה/);
-    await user.type(screen.getByPlaceholderText(/סימול מניה/), 'AAPL');
-    await user.click(screen.getByText('בדיקת מניה'));
+    await screen.findByPlaceholderText(/Enter a ticker/);
+    await user.type(screen.getByPlaceholderText(/Enter a ticker/), 'AAPL');
+    await user.click(screen.getByText('Analyze'));
     await screen.findByText('Apple Inc.');
-    await user.click(screen.getByRole('button', { name: /בחירת הכול/i }));
+    await user.click(screen.getByRole('button', { name: /Select all/i }));
 
     expect(screen.getByText('31.20')).toBeInTheDocument();
     expect(screen.getByText('24.80')).toBeInTheDocument();
     expect(screen.getByText('1.60')).toBeInTheDocument();
-    expect(screen.getByText('מכפיל רווח עתידי')).toBeInTheDocument();
-    expect(screen.getAllByText('מכפיל צמיחה')).toHaveLength(2);
+    expect(screen.getByText('Forward P/E')).toBeInTheDocument();
+    expect(screen.getAllByText('PEG Ratio')).toHaveLength(2);
   });
 
   it('warns visibly when a result used stale or incomplete market data', async () => {
@@ -164,48 +164,48 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
       dataAsOf: '2026-09-01T09:55:00.000Z',
     });
 
-    await screen.findByPlaceholderText(/סימול מניה/);
-    await user.type(screen.getByPlaceholderText(/סימול מניה/), 'AAPL');
-    await user.click(screen.getByText('בדיקת מניה'));
+    await screen.findByPlaceholderText(/Enter a ticker/);
+    await user.type(screen.getByPlaceholderText(/Enter a ticker/), 'AAPL');
+    await user.click(screen.getByText('Analyze'));
 
-    expect(await screen.findByRole('status')).toHaveTextContent(/חלק מהנתונים לא אומתו\./i);
-    expect(screen.getByRole('status')).toHaveTextContent(/המחיר המוצג אינו עדכני\. אפשר לבדוק שוב בעוד כמה דקות\./i);
+    expect(await screen.findByRole('status')).toHaveTextContent(/some data could not be verified/i);
+    expect(screen.getByRole('status')).toHaveTextContent(/displayed price is not current/i);
   });
 
   it('deselecting a metric hides its tile, and Select all brings every tile back', async () => {
     const user = userEvent.setup();
     renderPremiumPage();
 
-    await screen.findByPlaceholderText(/סימול מניה/);
-    await user.type(screen.getByPlaceholderText(/סימול מניה/), 'AAPL');
-    await user.click(screen.getByText('בדיקת מניה'));
+    await screen.findByPlaceholderText(/Enter a ticker/);
+    await user.type(screen.getByPlaceholderText(/Enter a ticker/), 'AAPL');
+    await user.click(screen.getByText('Analyze'));
     await screen.findByText('Apple Inc.');
 
     // Nothing is selected by default — select everything first so this
     // test can exercise deselecting a single one against a known baseline.
-    await user.click(screen.getByRole('button', { name: /בחירת הכול/i }));
+    await user.click(screen.getByRole('button', { name: /Select all/i }));
 
     // "Debt / Equity" appears twice while its tile is shown: the filter chip
     // and the result tile. Deselecting removes the tile, leaving just the chip.
-    expect(screen.getAllByText('חוב להון')).toHaveLength(2);
+    expect(screen.getAllByText('Debt / Equity')).toHaveLength(2);
     // Toggle the chip off via its accessible name (the check glyph is
     // aria-hidden, so the button's name is just the metric label).
-    await user.click(screen.getByRole('button', { name: /^חוב להון$/ }));
-    expect(screen.getAllByText('חוב להון')).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: /^Debt \/ Equity$/ }));
+    expect(screen.getAllByText('Debt / Equity')).toHaveLength(1);
 
     // With one deselected the batch button reads "Select all" — clicking it
     // restores every tile.
-    await user.click(screen.getByRole('button', { name: /בחירת הכול/i }));
-    expect(screen.getAllByText('חוב להון')).toHaveLength(2);
+    await user.click(screen.getByRole('button', { name: /Select all/i }));
+    expect(screen.getAllByText('Debt / Equity')).toHaveLength(2);
   });
 
   it('a successful lookup adds a Recent chip, and clicking it re-runs the lookup for that ticker', async () => {
     const user = userEvent.setup();
     const { fetchMock } = renderPremiumPage();
 
-    await screen.findByPlaceholderText(/סימול מניה/);
-    await user.type(screen.getByPlaceholderText(/סימול מניה/), 'AAPL');
-    await user.click(screen.getByText('בדיקת מניה'));
+    await screen.findByPlaceholderText(/Enter a ticker/);
+    await user.type(screen.getByPlaceholderText(/Enter a ticker/), 'AAPL');
+    await user.click(screen.getByText('Analyze'));
     await screen.findByText('Apple Inc.');
 
     const chip = screen.getByRole('button', { name: 'AAPL' });
@@ -221,13 +221,13 @@ describe('FundamentalsPage — Premium user with a lookup result', () => {
     const user = userEvent.setup();
     const { fetchMock } = renderPremiumPage();
 
-    await screen.findByPlaceholderText(/סימול מניה/);
-    await user.type(screen.getByPlaceholderText(/סימול מניה/), 'AAPL');
-    await user.click(screen.getByText('בדיקת מניה'));
+    await screen.findByPlaceholderText(/Enter a ticker/);
+    await user.type(screen.getByPlaceholderText(/Enter a ticker/), 'AAPL');
+    await user.click(screen.getByText('Analyze'));
     await screen.findByText('Apple Inc.');
 
     fetchMock.mockClear();
-    await user.click(screen.getByRole('button', { name: 'הסרת AAPL מהחיפושים האחרונים' }));
+    await user.click(screen.getByRole('button', { name: 'Remove AAPL from recent searches' }));
     expect(screen.queryByRole('button', { name: 'AAPL' })).not.toBeInTheDocument();
     expect(localStorage.getItem('vs_fund_recent:1')).not.toContain('AAPL');
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/api/fundamentals'), expect.anything());
@@ -255,15 +255,13 @@ describe("FundamentalsPage — free-tier access mirrors the server's trial gate"
 
   it('shows the real search UI for a free account still inside its 7-day trial (elite_access true)', async () => {
     renderAsUser({ id: 2, email: 'trial@test.local', tier: 'free', is_premium: false, elite_access: true });
-    expect(await screen.findByPlaceholderText(/סימול מניה/)).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText(/Enter a ticker/)).toBeInTheDocument();
     expect(screen.queryByText(/swing decision/i)).not.toBeInTheDocument();
   });
 
   it('still shows the upsell for a free account whose trial has ended (elite_access false)', async () => {
     renderAsUser({ id: 3, email: 'expired@test.local', tier: 'free', is_premium: false, elite_access: false });
-    expect(
-      await screen.findByText(/בדוק נתוני שווי, מינוף, צמיחה ומועדי דוחות לפני המשך המחקר\./i)
-    ).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText(/סימול מניה/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/key fundamentals behind any ticker/i)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/Enter a ticker/)).not.toBeInTheDocument();
   });
 });

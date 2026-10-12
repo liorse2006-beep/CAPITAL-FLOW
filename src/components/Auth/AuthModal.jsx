@@ -44,7 +44,7 @@ function OTPInput({ length = 6, value, onChange }) {
           type="text"
           inputMode="numeric"
           maxLength={1}
-          aria-label={`ספרה ${i + 1} מתוך ${length}`}
+          aria-label={`Digit ${i + 1} of ${length}`}
           autoComplete={i === 0 ? 'one-time-code' : 'off'}
           value={value[i] || ''}
           onChange={(e) => handleChange(i, e)}
@@ -111,7 +111,7 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
 
   async function handleSignUp(e) {
     e.preventDefault();
-    if (!captchaToken) return handleErr('יש להשלים את האימות לפני יצירת החשבון.');
+    if (!captchaToken) return handleErr('Complete verification before creating your account.');
     setLoading(true);
     setError('');
     try {
@@ -132,7 +132,7 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
 
   async function handleLogin(e) {
     e.preventDefault();
-    if (!captchaToken) return handleErr('יש להשלים את האימות לפני ההתחברות.');
+    if (!captchaToken) return handleErr('Please verify your email before signing in.');
     setLoading(true);
     setError('');
     try {
@@ -156,7 +156,7 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
 
   async function handleVerifyOTP(e) {
     e.preventDefault();
-    if (otp.length < 6) return handleErr('יש להזין את כל שש ספרות הקוד');
+    if (otp.length < 6) return handleErr('Enter the full 6-digit code');
     setLoading(true);
     setError('');
     try {
@@ -229,18 +229,18 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
         aria-modal="true"
         aria-label={
           screen === 'signup'
-            ? 'הרשמה'
+            ? 'Sign Up'
             : screen === 'forgot' || screen === 'reset'
-              ? 'איפוס סיסמה'
+              ? 'Reset password'
               : screen === 'otp'
-                ? 'אימות כתובת האימייל'
-                : 'התחברות'
+                ? 'Verify your email'
+                : 'Log In'
         }
-        lang="he"
-        dir="rtl"
+        lang="en"
+        dir="ltr"
       >
         {/* Close */}
-        <button type="button" className="auth-close" onClick={onClose} aria-label="סגירה">
+        <button type="button" className="auth-close" onClick={onClose} aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
@@ -263,13 +263,13 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
                 className={`auth-tab ${screen === 'login' ? 'active' : ''}`}
                 onClick={() => switchScreen('login')}
               >
-                התחברות
+                Log In
               </button>
               <button
                 className={`auth-tab ${screen === 'signup' ? 'active' : ''}`}
                 onClick={() => switchScreen('signup')}
               >
-                הרשמה
+                Sign Up
               </button>
             </div>
 
@@ -292,17 +292,17 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
               </svg>
-              המשך עם Google
+              Continue with Google
             </button>
 
             <div className="auth-divider">
-              <span>או</span>
+              <span>or</span>
             </div>
 
             <form onSubmit={screen === 'signup' ? handleSignUp : handleLogin}>
               <div className="auth-field">
                 <label className="auth-label" htmlFor="auth-email">
-                  כתובת אימייל
+                  Email
                 </label>
                 <input
                   id="auth-email"
@@ -318,13 +318,13 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
               </div>
               <div className="auth-field">
                 <label className="auth-label" htmlFor="auth-password">
-                  סיסמה
+                  Password
                 </label>
                 <input
                   id="auth-password"
                   className="auth-input"
                   type="password"
-                  placeholder={screen === 'signup' ? 'לפחות 15 תווים' : 'הסיסמה שלך'}
+                  placeholder={screen === 'signup' ? 'Min 15 characters' : 'Your password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -351,12 +351,12 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
               )}
 
               <button className="auth-submit-btn" type="submit" disabled={loading || !captchaToken}>
-                {loading ? 'רק רגע…' : screen === 'signup' ? 'יצירת חשבון' : 'התחברות'}
+                {loading ? 'Just a moment…' : screen === 'signup' ? 'Create Account' : 'Log In'}
               </button>
 
               {screen === 'login' && (
                 <button type="button" className="auth-link-btn" onClick={() => switchScreen('forgot')}>
-                  שכחת את הסיסמה?
+                  Forgot password?
                 </button>
               )}
             </form>
@@ -368,9 +368,9 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
           <form onSubmit={handleVerifyOTP}>
             <div className="auth-otp-header">
               <div className="auth-otp-icon">✉️</div>
-              <h2 className="auth-otp-title">בדיקת האימייל</h2>
+              <h2 className="auth-otp-title">Check your email</h2>
               <p className="auth-otp-sub">
-                שלחנו קוד בן שש ספרות אל
+                We sent a 6-digit code to
                 <br />
                 <strong>{pendingEmail}</strong>
               </p>
@@ -378,10 +378,10 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
             <OTPInput length={6} value={otp} onChange={setOtp} />
             {error && <div className="auth-error">{error}</div>}
             <button className="auth-submit-btn" type="submit" disabled={loading || otp.length < 6}>
-              {loading ? 'מאמתים…' : 'אימות הקוד'}
+              {loading ? 'Verifying…' : 'Verify →'}
             </button>
             <button type="button" className="auth-link-btn" onClick={handleResend} disabled={resendCooldown > 0}>
-              {resendCooldown > 0 ? `אפשר לשלוח שוב בעוד ${resendCooldown} שניות` : 'שליחת קוד מחדש'}
+              {resendCooldown > 0 ? `Resend in ${resendCooldown} seconds` : 'Resend code'}
             </button>
           </form>
         )}
@@ -389,10 +389,10 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
         {/* ── Forgot Password ── */}
         {screen === 'forgot' && (
           <form onSubmit={handleForgot}>
-            <h2 className="auth-otp-title">איפוס סיסמה</h2>
-            <p className="auth-otp-sub">יש להזין כתובת אימייל כדי לקבל קוד לאיפוס הסיסמה.</p>
+            <h2 className="auth-otp-title">Reset password</h2>
+            <p className="auth-otp-sub">Enter your email and we&#39;ll send a reset code.</p>
             <div className="auth-field">
-              <label className="auth-label">כתובת אימייל</label>
+              <label className="auth-label">Email</label>
               <input
                 className="auth-input"
                 type="email"
@@ -404,10 +404,10 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
             </div>
             {error && <div className="auth-error">{error}</div>}
             <button className="auth-submit-btn" type="submit" disabled={loading}>
-              {loading ? 'שולחים…' : 'שליחת קוד איפוס'}
+              {loading ? 'Sending…' : 'Send reset code'}
             </button>
             <button type="button" className="auth-link-btn" onClick={() => switchScreen('login')}>
-              חזרה להתחברות
+              ← Back to Log In
             </button>
           </form>
         )}
@@ -436,7 +436,7 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
               </svg>
             </div>
             <h2 className="auth-otp-title" style={{ marginTop: 12 }}>
-              התחברות באמצעות
+              Continue as
             </h2>
             <p className="auth-otp-sub" style={{ marginBottom: 8 }}>
               <strong style={{ color: 'var(--text-1)' }}>{decodeJwtEmail(pendingGoogleToken)}</strong>
@@ -447,17 +447,19 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
                 </svg>
-                <span>תמונת הפרופיל שלך</span>
+                <span>Your name and profile picture</span>
               </div>
               <div className="auth-consent-row">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2">
                   <rect x="2" y="4" width="20" height="16" rx="2" />
                   <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
                 </svg>
-                <span>כתובת האימייל שלך</span>
+                <span>Your email address</span>
               </div>
             </div>
-            <p className="auth-consent-note">הפרטים שלך ישמשו להתחברות, בהתאם למדיניות הפרטיות. לא נפרסם בשמך.</p>
+            <p className="auth-consent-note">
+              We will not share your data with third parties or post anything on your behalf.
+            </p>
             <div className="auth-consent-actions">
               <button
                 className="auth-consent-cancel"
@@ -466,7 +468,7 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
                   onClose();
                 }}
               >
-                ביטול
+                Cancel
               </button>
               <button
                 className="auth-consent-allow"
@@ -477,7 +479,7 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
                   onClose();
                 }}
               >
-                {googleLoading ? 'מתחברים…' : 'אישור והמשך'}
+                {googleLoading ? 'Signing in…' : 'Verify and continue'}
                 {!googleLoading && (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <path d="m9 18 6-6-6-6" />
@@ -493,18 +495,18 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
           <form onSubmit={handleVerifyOTP}>
             <div className="auth-otp-header">
               <div className="auth-otp-icon">🔑</div>
-              <h2 className="auth-otp-title">קוד איפוס הסיסמה</h2>
+              <h2 className="auth-otp-title">Enter reset code</h2>
               <p className="auth-otp-sub">
-                הקוד נשלח אל <strong>{pendingEmail}</strong>
+                Code sent to <strong>{pendingEmail}</strong>
               </p>
             </div>
             <OTPInput length={6} value={otp} onChange={setOtp} />
             <div className="auth-field" style={{ marginTop: 16 }}>
-              <label className="auth-label">סיסמה חדשה</label>
+              <label className="auth-label">New password</label>
               <input
                 className="auth-input"
                 type="password"
-                placeholder="לפחות 15 תווים"
+                placeholder="Min 15 characters"
                 minLength={15}
                 autoComplete="new-password"
                 value={newPassword}
@@ -514,10 +516,10 @@ export default function AuthModal({ onClose, initialScreen = 'login' }) {
             </div>
             {error && <div className="auth-error">{error}</div>}
             <button className="auth-submit-btn" type="submit" disabled={loading || otp.length < 6 || !newPassword}>
-              {loading ? 'מעדכנים…' : 'שמירת הסיסמה החדשה'}
+              {loading ? 'Updating…' : 'Save new password'}
             </button>
             <button type="button" className="auth-link-btn" onClick={handleResend} disabled={resendCooldown > 0}>
-              {resendCooldown > 0 ? `אפשר לשלוח שוב בעוד ${resendCooldown} שניות` : 'שליחת קוד מחדש'}
+              {resendCooldown > 0 ? `Resend in ${resendCooldown} seconds` : 'Resend code'}
             </button>
           </form>
         )}

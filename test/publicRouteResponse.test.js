@@ -23,7 +23,7 @@ test('known public routes remain 200; unknown paths are genuine non-indexable 40
     assert.equal(response.status, 404);
     assert.equal(response.headers.get('location'), null);
     assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
-    assert.match(html, /העמוד לא נמצא/);
+    assert.match(html, /Page not found/);
     assert.doesNotMatch(html, /rel="canonical"/);
     assert.doesNotMatch(html, /%3Cscript%3E/);
   }

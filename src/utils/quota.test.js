@@ -9,7 +9,7 @@ describe('categoryQuota', () => {
   it('elite is always unlimited', () => {
     const result = categoryQuota({ tier: 'elite' }, 'capitalFlow');
     expect(result.exhausted).toBe(false);
-    expect(result.label).toBe('ללא הגבלה');
+    expect(result.label).toBe('Unlimited');
   });
 
   it('premium is exhausted once the shared pool hits 0 left', () => {

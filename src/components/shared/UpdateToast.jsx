@@ -1,3 +1,5 @@
+import { useUiLanguage } from '../../context/UiLanguageContext';
+import { copyFor } from '../../utils/landingUiCopy';
 import React, { useEffect, useState } from 'react';
 
 // The service worker (public/sw.js) calls skipWaiting()+clients.claim() the
@@ -8,6 +10,7 @@ import React, { useEffect, useState } from 'react';
 // choose when to reload into it, rather than yanking the page out from
 // under them mid-action.
 export default function UpdateToast() {
+  const language = useUiLanguage();
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -22,11 +25,11 @@ export default function UpdateToast() {
 
   return (
     <div className="update-toast" role="status" aria-live="polite">
-      <span className="update-toast-msg">גרסה חדשה של Capital Flow זמינה</span>
+      <span className="update-toast-msg">{copyFor(language, 'A new version of Capital Flow is available')}</span>
       <button className="update-toast-btn" onClick={() => window.location.reload()}>
-        עדכון
+        {copyFor(language, '\n        Refresh\n      ')}
       </button>
-      <button className="update-toast-close" onClick={() => setShow(false)} aria-label="סגירה">
+      <button className="update-toast-close" onClick={() => setShow(false)} aria-label={copyFor(language, 'Close')}>
         ✕
       </button>
     </div>

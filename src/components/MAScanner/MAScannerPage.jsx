@@ -29,10 +29,10 @@ const ALL_SECTORS = [
 const MAX_FREE_SECTORS = 2;
 
 const MARKET_OPTIONS = [
-  { key: 'all', label: 'כל המניות', meta: '~516', color: '#06B6D4' },
+  { key: 'all', label: 'All stocks', meta: '~516', color: '#06B6D4' },
   { key: 'sp500', label: 'S&P 500', meta: '500', color: '#22C55E' },
   { key: 'nasdaq100', label: 'NASDAQ 100', meta: '100', color: '#3B82F6' },
-  { key: 'sectors', label: 'לפי סקטור', meta: '5 לסקטור', color: '#F59E0B' },
+  { key: 'sectors', label: 'By Sector', meta: '5 per sector', color: '#F59E0B' },
 ];
 
 export default function MAScannerPage({
@@ -51,9 +51,9 @@ export default function MAScannerPage({
   onEnablePush,
 }) {
   useSeo({
-    title: 'סורק ממוצעים נעים | Capital Flow',
+    title: 'Moving Average Stock Scanner | Capital Flow',
     description:
-      'איתור מניות בקרבת ממוצעים נעים 9, 20, 50 ו־150 בטווח יומי או שבועי. נתוני השוק עשויים להיות מעוכבים או חלקיים.',
+      'Scan selected U.S. stock universes for proximity to 9, 20, 50 and 150 simple moving averages on daily or weekly timeframes. Market data may be delayed or incomplete.',
     path: '/ma',
   });
   const { getToken, user } = useAuth();
@@ -133,8 +133,8 @@ export default function MAScannerPage({
           e.stopPropagation();
           toggleWatchlistTicker(symbol);
         },
-        title: starred ? 'הסרה מרשימת המעקב' : 'הוספה לרשימת המעקב',
-        'aria-label': starred ? 'הסרה מרשימת המעקב' : 'הוספה לרשימת המעקב',
+        title: starred ? 'Remove from watchlist' : 'Add to watchlist',
+        'aria-label': starred ? 'Remove from watchlist' : 'Add to watchlist',
       },
       React.createElement(
         'svg',
@@ -161,8 +161,8 @@ export default function MAScannerPage({
         href: 'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(symbol),
         target: '_blank',
         rel: 'noopener noreferrer',
-        title: 'פתיחה ב־TradingView',
-        'aria-label': 'פתיחה ב־TradingView',
+        title: 'Open in TradingView',
+        'aria-label': 'Open in TradingView',
         onClick: (e) => e.stopPropagation(),
       },
       React.createElement(
@@ -192,7 +192,7 @@ export default function MAScannerPage({
           e.stopPropagation();
           promptCreateAlert(symbol, price);
         },
-        title: level ? 'התראה מוגדרת ב־' + alertLevelLabel(level) + ' — לחיצה לעריכה' : 'יצירת התראה',
+        title: level ? 'Alert set at ' + alertLevelLabel(level) + ' — click to edit' : 'Create alert',
       },
       React.createElement(
         'svg',
@@ -224,16 +224,16 @@ export default function MAScannerPage({
     );
 
   const scanLimitReached = !isPremium && categoryQuota(scanMeta, 'maScanner').exhausted;
-  const intervalLabel = timeframe === '1d' ? 'יומי' : 'שבועי';
+  const intervalLabel = timeframe === '1d' ? 'Daily' : 'Weekly';
   const isLocked = !user;
 
   const selectedMarket = MARKET_OPTIONS.find((m) => m.key === market);
   const noResultsText =
     dataStatus === 'unavailable'
-      ? 'אין כרגע נתוני שוק מאומתים. אפשר לנסות שוב בעוד כמה דקות.'
+      ? 'Verified market data is currently unavailable. Please try again in a few minutes.'
       : dataStatus === 'partial'
-        ? 'לא נמצאו תוצאות מתאימות בנתונים הזמינים. אפשר לנסות שוב בהמשך.'
-        : 'לא נמצאו תוצאות שמתאימות למסננים שלך';
+        ? 'No matches were found in the available data. Please try again later.'
+        : 'No results match your filters';
 
   // Guests can see every filter at full strength — touching any of them
   // (instead of hitting a persistent "sign in" banner up front) is what
@@ -257,7 +257,7 @@ export default function MAScannerPage({
     React.createElement(
       'div',
       { className: 'flow-header' },
-      React.createElement('div', null, React.createElement('h2', { className: 'flow-title' }, 'סורק ממוצעים נעים')),
+      React.createElement('div', null, React.createElement('h2', { className: 'flow-title' }, 'MA Scanner')),
       React.createElement(
         'div',
         { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
@@ -274,11 +274,11 @@ export default function MAScannerPage({
                   React.Fragment,
                   null,
                   React.createElement('div', { className: 'spinner' }),
-                  ' סורקים…'
+                  ' Scanning...'
                 )
               : results
-                ? 'סריקה חוזרת'
-                : 'התחלת סריקת ממוצעים'
+                ? 'Scan again'
+                : 'Run MA Scan'
           ),
         React.createElement(ScheduleScan, {
           scanType: 'maScanner',
@@ -303,7 +303,7 @@ export default function MAScannerPage({
       React.createElement(
         'div',
         { className: 'ma-ctrl-group' },
-        React.createElement('span', { className: 'ma-ctrl-label' }, 'ממוצע נע'),
+        React.createElement('span', { className: 'ma-ctrl-label' }, 'Moving Average'),
         React.createElement(
           'div',
           { className: 'ma-ctrl-btns' },
@@ -326,7 +326,7 @@ export default function MAScannerPage({
       React.createElement(
         'div',
         { className: 'ma-ctrl-group' },
-        React.createElement('span', { className: 'ma-ctrl-label' }, 'מרחק'),
+        React.createElement('span', { className: 'ma-ctrl-label' }, 'Distance'),
         React.createElement(
           'div',
           { className: 'ma-ctrl-btns' },
@@ -349,7 +349,7 @@ export default function MAScannerPage({
       React.createElement(
         'div',
         { className: 'ma-ctrl-group' },
-        React.createElement('span', { className: 'ma-ctrl-label' }, 'טווח זמן'),
+        React.createElement('span', { className: 'ma-ctrl-label' }, 'Timeframe'),
         React.createElement(
           'div',
           { className: 'ma-ctrl-btns' },
@@ -360,7 +360,7 @@ export default function MAScannerPage({
               onClick: guarded(() => setTimeframe('1d')),
               disabled: loading,
             },
-            'יומי'
+            'Daily'
           ),
           React.createElement(
             'button',
@@ -369,7 +369,7 @@ export default function MAScannerPage({
               onClick: guarded(() => setTimeframe('1wk')),
               disabled: loading,
             },
-            'שבועי'
+            'Weekly'
           )
         )
       ),
@@ -378,7 +378,7 @@ export default function MAScannerPage({
       React.createElement(
         'div',
         { className: 'ma-ctrl-group' },
-        React.createElement('span', { className: 'ma-ctrl-label' }, 'כיוון'),
+        React.createElement('span', { className: 'ma-ctrl-label' }, 'Direction'),
         React.createElement(
           'div',
           { className: 'ma-ctrl-btns' },
@@ -391,7 +391,7 @@ export default function MAScannerPage({
                 onClick: guarded(() => setDirFilter(d)),
                 disabled: loading,
               },
-              d === 'all' ? 'הכול' : d === 'above' ? '▲ מעל' : '▼ מתחת'
+              d === 'all' ? 'All' : d === 'above' ? '▲ Above' : '▼ Below'
             )
           )
         )
@@ -401,7 +401,7 @@ export default function MAScannerPage({
       React.createElement(
         'div',
         { className: 'ma-ctrl-group ma-ctrl-group-wide' },
-        React.createElement('span', { className: 'ma-ctrl-label' }, 'קבוצת מניות'),
+        React.createElement('span', { className: 'ma-ctrl-label' }, 'Universe'),
         React.createElement(
           'div',
           { className: 'ma-ctrl-btns' },
@@ -455,28 +455,32 @@ export default function MAScannerPage({
               { className: 'empty-rich-icon' },
               React.createElement('img', { src: '/icon-192.png', alt: '' })
             ),
-            React.createElement('span', { className: 'empty-rich-kicker' }, 'סריקת מניות'),
-            React.createElement('h3', null, 'מצא מניות ליד הממוצע הנע.'),
-            React.createElement('p', null, 'צור חשבון כדי לסרוק מאות מניות לפי ממוצעים נעים, סקטורים וטווחי זמן.'),
+            React.createElement('span', { className: 'empty-rich-kicker' }, 'MARKET-WIDE SCANNING'),
+            React.createElement('h3', null, 'Find stocks at the move.'),
+            React.createElement(
+              'p',
+              null,
+              'Create an account to scan hundreds of stocks by moving average, sector and timeframe.'
+            ),
             React.createElement(
               'div',
               { className: 'empty-rich-pills' },
               React.createElement('span', { className: 'empty-rich-pill' }, 'SMA 9 / 20 / 50 / 150'),
-              React.createElement('span', { className: 'empty-rich-pill' }, 'יומי ושבועי'),
-              React.createElement('span', { className: 'empty-rich-pill' }, 'מעל 500 מניות')
+              React.createElement('span', { className: 'empty-rich-pill' }, 'Daily and weekly'),
+              React.createElement('span', { className: 'empty-rich-pill' }, '500+ stocks')
             ),
             React.createElement(
               'button',
               { className: 'empty-rich-cta', onClick: onCreateAccount || onSignIn },
-              'יצירת חשבון ',
+              'Create account ',
               React.createElement('span', { 'aria-hidden': 'true' }, '→')
             ),
             React.createElement(
               'div',
               { className: 'empty-rich-signin' },
-              React.createElement('span', null, 'כבר יש לך חשבון?'),
+              React.createElement('span', null, 'Already have an account?'),
               ' ',
-              React.createElement('button', { type: 'button', onClick: onSignIn }, 'התחברות')
+              React.createElement('button', { type: 'button', onClick: onSignIn }, 'Log In')
             )
           )
         )
@@ -491,7 +495,7 @@ export default function MAScannerPage({
         React.createElement(
           'div',
           { className: 'sector-grid-header' },
-          React.createElement('span', null, 'בחירת סקטורים'),
+          React.createElement('span', null, 'Select sectors'),
           selectedSectors.length > 0 &&
             React.createElement(
               'button',
@@ -499,10 +503,10 @@ export default function MAScannerPage({
                 className: 'sector-clear',
                 onClick: () => setSelectedSectors([]),
               },
-              'ניקוי הבחירה'
+              'Clear all'
             )
         ),
-        React.createElement('p', { className: 'sector-grid-subtitle' }, 'חמש המניות הגדולות בכל סקטור'),
+        React.createElement('p', { className: 'sector-grid-subtitle' }, 'The 5 largest tickers from each sector'),
         React.createElement(
           'div',
           { className: 'sector-grid' },
@@ -526,13 +530,13 @@ export default function MAScannerPage({
           React.createElement(
             'div',
             { className: 'sector-hint' },
-            'לא נבחרו סקטורים — נסרוק את חמש המניות המובילות בכל סקטור'
+            'No sectors selected — will scan top 5 from all sectors'
           ),
         !isPremium &&
           React.createElement(
             'div',
             { className: 'sector-hint' },
-            'במסלול החינמי ניתן לבחור עד ' + MAX_FREE_SECTORS + ' סקטורים. לשינוי המסלול יש לבחור שדרוג.'
+            'Free tier: up to ' + MAX_FREE_SECTORS + ' sectors. Choose Upgrade to change your plan.'
           )
       ),
 
@@ -545,13 +549,13 @@ export default function MAScannerPage({
         React.createElement(
           'div',
           null,
-          React.createElement('div', { className: 'ma-limit-title' }, 'מכסת הסריקות הסתיימה'),
+          React.createElement('div', { className: 'ma-limit-title' }, 'Scan limit reached'),
           React.createElement(
             'div',
             { className: 'ma-limit-sub' },
             scanMeta && scanMeta.tier === 'premium'
-              ? 'כל חמש הסריקות הזמינות נוצלו. המכסה מתחדשת בתוך 24 שעות. במסלול Elite ניתן לבצע סריקות ללא הגבלה.'
-              : 'תקופת הניסיון הסתיימה. Premium כולל עד חמש סריקות ב־24 שעות, ו־Elite כולל סריקות ללא הגבלה והתראות.'
+              ? "You've used all five available scans. Your allowance renews within 24 hours. Elite includes unlimited scans."
+              : 'Your trial has ended. Premium includes up to five scans per 24 hours. Elite includes unlimited scans and alerts.'
           )
         )
       ),
@@ -560,13 +564,13 @@ export default function MAScannerPage({
     loading &&
       progress &&
       React.createElement(ScanLoader, {
-        label: progress.phase === 1 ? 'בודקים את המניות' : 'מחשבים ממוצעים נעים',
+        label: progress.phase === 1 ? 'Checking stocks' : 'Calculating moving averages',
         matches: progress.found || 0,
         statusMessages: [
-          'משווים את המחיר לממוצע הנע…',
-          'בודקים התאמות בסקטורים השונים…',
-          'מאתרים מניות בטווח המרחק שנבחר…',
-          'בודקים נתוני מסחר יומיים ושבועיים…',
+          'Comparing prices with moving averages…',
+          'Checking matches across sectors…',
+          'Finding stocks within your selected distance…',
+          'Checking daily and weekly trading data…',
         ],
       }),
 
@@ -583,8 +587,8 @@ export default function MAScannerPage({
         React.createElement(
           'div',
           { className: 'error-bar-actions' },
-          React.createElement('button', { className: 'error-retry-btn', onClick: startScan }, 'ניסיון נוסף'),
-          React.createElement('button', { className: 'error-dismiss-btn', onClick: () => setError(null) }, 'סגירה')
+          React.createElement('button', { className: 'error-retry-btn', onClick: startScan }, 'Try again'),
+          React.createElement('button', { className: 'error-dismiss-btn', onClick: () => setError(null) }, 'Close')
         )
       ),
 
@@ -605,15 +609,15 @@ export default function MAScannerPage({
               React.createElement(
                 'h2',
                 null,
-                `קרבה לממוצע SMA${ma} — ±${distance}% (${intervalLabel})` +
+                `SMA proximity${ma} — ±${distance}% (${intervalLabel})` +
                   (selectedMarket ? ` · ${selectedMarket.label}` : '')
               ),
               React.createElement(
                 'span',
                 { className: 'table-bar-sub' },
                 sorted.length +
-                  ' תוצאות' +
-                  (filtered.length < results.length ? ` · ${results.length - filtered.length} סוננו` : '')
+                  ' Results' +
+                  (filtered.length < results.length ? ` · ${results.length - filtered.length} filtered` : '')
               )
             )
           ),
@@ -624,17 +628,17 @@ export default function MAScannerPage({
               'div',
               { className: 'data-status-banner ' + dataStatus, role: 'status' },
               dataStatus === 'unavailable'
-                ? 'נתוני השוק אינם זמינים כרגע. אפשר לנסות שוב בעוד כמה דקות.'
-                : 'הנתונים עשויים להיות מעוכבים או חלקיים. יש לבדוק אותם באופן עצמאי.'
+                ? 'Market data is currently unavailable. Please try again in a few minutes.'
+                : 'Market data may be delayed or incomplete; verify independently.'
             ),
 
           React.createElement(MobileResultSort, {
             options: [
-              { value: 'symbol', label: 'סימול' },
-              { value: 'name', label: 'שם' },
-              { value: 'price', label: 'מחיר' },
+              { value: 'symbol', label: 'Ticker' },
+              { value: 'name', label: 'Name' },
+              { value: 'price', label: 'Price' },
               { value: 'maValue', label: `SMA${ma}` },
-              { value: 'maDistance', label: 'מרחק' },
+              { value: 'maDistance', label: 'Distance' },
             ],
             value: sortField,
             direction: sortDir,
@@ -691,7 +695,7 @@ export default function MAScannerPage({
                       React.createElement(
                         'div',
                         { className: 'mobile-result-card-quote-item' },
-                        React.createElement('span', { className: 'mobile-result-card-label' }, 'מחיר'),
+                        React.createElement('span', { className: 'mobile-result-card-label' }, 'Price'),
                         React.createElement(
                           'span',
                           { className: 'mobile-card-price', dir: 'ltr' },
@@ -701,7 +705,7 @@ export default function MAScannerPage({
                       React.createElement(
                         'div',
                         { className: 'mobile-result-card-quote-item mobile-result-card-quote-item-end' },
-                        React.createElement('span', { className: 'mobile-result-card-label' }, 'מרחק'),
+                        React.createElement('span', { className: 'mobile-result-card-label' }, 'Distance'),
                         React.createElement(
                           'span',
                           { className: 'mobile-card-change', style: { color: distColor }, dir: 'ltr' },
@@ -740,11 +744,11 @@ export default function MAScannerPage({
                   'tr',
                   null,
                   React.createElement('th', { className: 'result-rank-col' }, '#'),
-                  React.createElement(TH, { label: 'סימול', field: 'symbol' }),
-                  React.createElement(TH, { label: 'שם', field: 'name' }),
-                  React.createElement(TH, { label: 'מחיר', field: 'price' }),
+                  React.createElement(TH, { label: 'Ticker', field: 'symbol' }),
+                  React.createElement(TH, { label: 'Name', field: 'name' }),
+                  React.createElement(TH, { label: 'Price', field: 'price' }),
                   React.createElement(TH, { label: `SMA${ma}`, field: 'maValue' }),
-                  React.createElement(TH, { label: 'מרחק באחוזים', field: 'maDistance' }),
+                  React.createElement(TH, { label: 'Distance (%)', field: 'maDistance' }),
                   React.createElement('th', { className: 'result-actions-col' })
                 )
               ),

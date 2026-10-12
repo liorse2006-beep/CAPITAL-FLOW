@@ -13,36 +13,38 @@ const ROUTE_METADATA = Object.freeze({
       'כלי חינוכי לסריקת מניות לפי נפח מסחר חריג, ממוצעים נעים ופעילות בסקטורים. נתוני שוק עשויים להיות מעוכבים או חלקיים ויש לאמת מידע באופן עצמאי.',
   },
   '/scanner': {
-    title: 'סורק נפח מסחר חריג | Capital Flow',
+    title: 'Unusual Volume Stock Scanner | Capital Flow',
     description:
-      'סריקת מניות לפי יחס נפח מסחר, שווי שוק ונפח מינימלי. נתוני שוק עשויים להיות מעוכבים או חלקיים; המידע למטרות לימוד בלבד.',
+      'Screen selected stock universes for unusual trading volume with volume-ratio, market-cap and volume filters. Market data may be delayed or incomplete; educational use only.',
   },
   '/ma': {
-    title: 'סורק ממוצעים נעים | Capital Flow',
+    title: 'Moving Average Stock Scanner | Capital Flow',
     description:
-      'סריקת מניות בארה״ב לפי מרחק מממוצעים נעים 9, 20, 50 ו־150, בטווח יומי או שבועי. נתוני השוק עשויים להיות מעוכבים או חלקיים.',
+      'Scan selected U.S. stock universes for proximity to 9, 20, 50 and 150 simple moving averages on daily or weekly timeframes. Market data may be delayed or incomplete.',
   },
   '/flow': {
-    title: 'פעילות בסקטורים | Capital Flow',
+    title: 'Stock Sector Performance | Capital Flow',
     description:
-      'סקירת שינויי מחיר ונפח מסחר בסקטורים. נתוני השוק עשויים להיות מעוכבים או חלקיים; יש לאמת מידע באופן עצמאי.',
+      'Review price and volume movement across market sectors with Capital Flow. Market data may be delayed or incomplete; verify information independently.',
   },
   '/fundamentals': {
-    title: 'נתונים פיננסיים למניות | Capital Flow',
+    title: 'Fundamental Stock Analysis | Capital Flow',
     description:
-      'סקירת מכפילי רווח, צמיחה, חוב, מניות סחירות ונתונים פיננסיים זמינים. זמינות הנתונים משתנה בין מניות והמידע עשוי להיות מעוכב או חלקי.',
+      'Review available P/E, forward P/E, PEG, debt-to-equity, growth, float, short interest, and earnings data. Availability varies by symbol; data may be delayed or incomplete.',
   },
   '/watchlist': {
-    title: 'רשימת מעקב והתראות | Capital Flow',
-    description: 'מעקב אחר מניות נבחרות וניהול התראות מחיר או נפח מסחר. נתוני השוק עשויים להיות מעוכבים או חלקיים.',
+    title: 'Stock Watchlist & Alerts | Capital Flow',
+    description:
+      'Track selected stock symbols, review available quote information, and manage supported price or volume alerts. Market data may be delayed or incomplete.',
   },
   '/policy': {
-    title: 'תנאי שימוש ומדיניות פרטיות | Capital Flow',
-    description: 'תנאי השימוש, פרטיות, תשלומים, החזרים ודרכי יצירת קשר עם Capital Flow.',
+    title: 'Terms of Use and Privacy Policy | Capital Flow',
+    description: "Capital Flow's terms of use, privacy, payments, refunds and contact information.",
   },
   '/accessibility': {
-    title: 'הצהרת נגישות | Capital Flow',
-    description: 'תכונות הנגישות ב־Capital Flow, מגבלות ידועות ודרכי יצירת קשר.',
+    title: 'Accessibility Statement | Capital Flow',
+    description:
+      "Read Capital Flow's accessibility statement, available features, known limitations, and contact details.",
   },
 });
 
@@ -75,7 +77,7 @@ function replaceHrefAttribute(html, selector, value) {
   return html.replace(expression, `$1${escapeHtml(value)}$2`);
 }
 
-function renderSeoContent(content) {
+function renderSeoContent(content, language = 'en') {
   if (!content) return '';
 
   const sections = content.sections
@@ -92,7 +94,9 @@ function renderSeoContent(content) {
     })
     .join('');
 
-  return `<h2 id="${escapeHtml(content.id)}-title">${escapeHtml(content.title)}</h2><p class="seo-discovery-intro">${escapeHtml(content.intro)}</p><div class="seo-discovery-sections">${sections}</div><p class="seo-discovery-disclaimer">${escapeHtml(content.disclaimer)}</p><nav class="seo-discovery-links" aria-label="כלי מחקר נוספים"><span>כלים נוספים</span>${links}</nav>`;
+  const label = language === 'he' ? 'כלי מחקר נוספים' : 'Explore Capital Flow tools';
+  const caption = language === 'he' ? 'כלים נוספים' : 'Explore other tools';
+  return `<h2 id="${escapeHtml(content.id)}-title">${escapeHtml(content.title)}</h2><p class="seo-discovery-intro">${escapeHtml(content.intro)}</p><div class="seo-discovery-sections">${sections}</div><p class="seo-discovery-disclaimer">${escapeHtml(content.disclaimer)}</p><nav class="seo-discovery-links" aria-label="${label}"><span>${caption}</span>${links}</nav>`;
 }
 
 function renderPublicMetadata(html, pathname) {
@@ -100,7 +104,9 @@ function renderPublicMetadata(html, pathname) {
   if (!metadata) return html;
 
   const canonical = SITE_URL + normalizePath(pathname);
-  let rendered = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(metadata.title)}</title>`);
+  const language = normalizePath(pathname) === '/' ? 'he' : 'en';
+  let rendered = language === 'he' ? html : englishDocument(html, metadata.description);
+  rendered = rendered.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(metadata.title)}</title>`);
   rendered = replaceContentAttribute(rendered, `meta\\s+name=["']description["']`, metadata.description);
   rendered = replaceContentAttribute(rendered, `meta\\s+property=["']og:title["']`, metadata.title);
   rendered = replaceContentAttribute(rendered, `meta\\s+property=["']og:description["']`, metadata.description);
@@ -108,19 +114,48 @@ function renderPublicMetadata(html, pathname) {
   rendered = replaceContentAttribute(rendered, `meta\\s+name=["']twitter:title["']`, metadata.title);
   rendered = replaceContentAttribute(rendered, `meta\\s+name=["']twitter:description["']`, metadata.description);
   rendered = replaceHrefAttribute(rendered, `link\\s+rel=["']canonical["']`, canonical);
-  for (const language of ['he', 'x-default']) {
+  for (const alternateLanguage of [language, 'x-default']) {
     rendered = replaceHrefAttribute(
       rendered,
-      `link\\s+rel=["']alternate["']\\s+hreflang=["']${language}["']`,
+      `link\\s+rel=["']alternate["']\\s+hreflang=["']${alternateLanguage}["']`,
       canonical
     );
   }
-  const contentMarkup = renderSeoContent(SEO_CONTENT[normalizePath(pathname)]);
+  const contentMarkup = renderSeoContent(SEO_CONTENT[normalizePath(pathname)], language);
   rendered = rendered.replace(
     /(<section\s+id=["']seo-route-content["'][^>]*>)[\s\S]*?(<\/section>)/i,
     (_match, open, close) => `${open}${contentMarkup}${close}`
   );
   return rendered;
+}
+
+function englishDocument(
+  html,
+  description = 'Capital Flow stock research and scanning tools. Market data may be delayed or partial.'
+) {
+  return html
+    .replace(
+      /<html\b([^>]*)>/i,
+      (_tag, attrs) => `<html${attrs.replace(/\s+(?:lang|dir)=["'][^"']*["']/gi, '')} lang="en" dir="ltr">`
+    )
+    .replace(/hreflang=["']he["']/gi, 'hreflang="en"')
+    .replace(/he_IL/g, 'en_US')
+    .replace(
+      /(<script\b[^>]*type=["']application\/ld\+json["'][^>]*>)([\s\S]*?)(<\/script>)/gi,
+      (all, open, json, close) => {
+        try {
+          const value = JSON.parse(json);
+          if (value['@type'] === 'SoftwareApplication') {
+            value.inLanguage = 'en';
+            value.description = description;
+          }
+          return open + JSON.stringify(value) + close;
+        } catch {
+          return all;
+        }
+      }
+    )
+    .replace(/aria-label=["']מידע על Capital Flow["']/g, 'aria-label="About Capital Flow"');
 }
 
 function servePublicApp(req, res, serveDir) {
@@ -131,8 +166,8 @@ function servePublicApp(req, res, serveDir) {
     if (error) return res.status(isKnownRoute ? 200 : 404).sendFile(indexPath);
     if (!isKnownRoute) {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-      const notFoundHtml = html
-        .replace(/<title>[\s\S]*?<\/title>/i, '<title>העמוד לא נמצא | Capital Flow</title>')
+      const notFoundHtml = englishDocument(html)
+        .replace(/<title>[\s\S]*?<\/title>/i, '<title>Page not found | Capital Flow</title>')
         .replace(/<link\s+[^>]*rel=["']canonical["'][^>]*>/gi, '')
         .replace(/<link\s+[^>]*rel=["']alternate["'][^>]*>/gi, '')
         .replace(/(<meta\s+name=["']robots["'][^>]*content=["'])[^"']*/i, '$1noindex, nofollow');

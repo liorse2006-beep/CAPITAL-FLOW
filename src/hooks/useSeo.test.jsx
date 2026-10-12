@@ -79,27 +79,27 @@ describe('useSeo', () => {
     });
     const content = document.querySelector('#seo-route-content');
 
-    expect(content.textContent).toContain('סורק נפח מסחר חריג');
+    expect(content.textContent).toContain('Unusual Volume Stock Scanner');
     expect(content.querySelector('a[href="/ma"]')).not.toBeNull();
 
     rerender({ title: 'Moving Average', description: 'MA description', path: '/ma' });
-    expect(content.textContent).toContain('סורק ממוצעים נעים');
-    expect(content.textContent).not.toContain('סורק נפח מסחר חריג');
+    expect(content.textContent).toContain('MA Scanner');
+    expect(content.textContent).not.toContain('Unusual Volume Stock Scanner');
 
     unmount();
     expect(content.innerHTML).toBe('');
   });
-  it('adds Hebrew locale and language alternatives without inventing an English route', () => {
-    const { unmount } = renderHook(() => useSeo({ title: 'סורק', path: '/scanner' }));
-    expect(document.querySelector('meta[property="og:locale"]')).toHaveAttribute('content', 'he_IL');
+  it('uses English locale and alternates for the application without inventing a Hebrew app route', () => {
+    const { unmount } = renderHook(() => useSeo({ title: 'Scanner', path: '/scanner' }));
+    expect(document.querySelector('meta[property="og:locale"]')).toHaveAttribute('content', 'en_US');
     expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'index, follow');
-    for (const language of ['he', 'x-default']) {
+    for (const language of ['en', 'x-default']) {
       expect(document.querySelector(`link[rel="alternate"][hreflang="${language}"]`)).toHaveAttribute(
         'href',
         'https://capitalflow.vip/scanner'
       );
     }
-    expect(document.querySelector('link[hreflang="en"]')).toBeNull();
+    expect(document.querySelector('link[hreflang="he"]')).toBeNull();
     unmount();
     expect(document.querySelector('meta[property="og:locale"]')).toBeNull();
     expect(document.querySelector('meta[name="robots"]')).toBeNull();
@@ -112,7 +112,7 @@ describe('useSeo', () => {
     alternate.hreflang = 'he';
     alternate.href = ORIGINAL_CANONICAL;
     document.head.appendChild(alternate);
-    const { unmount } = renderHook(() => useSeo({ title: 'העמוד לא נמצא', path: '/missing', noIndex: true }));
+    const { unmount } = renderHook(() => useSeo({ title: 'Page not found', path: '/missing', noIndex: true }));
     expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow');
     expect(document.querySelector('link[rel="canonical"]')).toBeNull();
     expect(document.querySelector('link[rel="alternate"]')).toBeNull();
@@ -124,7 +124,7 @@ describe('useSeo', () => {
 
   it('creates a canonical when head metadata is missing and cleans it up', () => {
     document.querySelector('link[rel="canonical"]').remove();
-    const { unmount } = renderHook(() => useSeo({ title: 'סריקה', path: '/scanner' }));
+    const { unmount } = renderHook(() => useSeo({ title: 'Scan', path: '/scanner' }));
     expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', 'https://capitalflow.vip/scanner');
     unmount();
     expect(document.querySelector('link[rel="canonical"]')).toBeNull();

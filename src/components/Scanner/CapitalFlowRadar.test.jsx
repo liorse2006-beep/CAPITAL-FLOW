@@ -33,10 +33,10 @@ describe('CapitalFlowRadar schedule picker', () => {
     const user = userEvent.setup();
     render(<CapitalFlowRadar {...baseProps()} />);
 
-    await user.click(await screen.findByRole('button', { name: /הפעלת הסריקה כרדאר/i }));
+    await user.click(await screen.findByRole('button', { name: /activate this scan as radar/i }));
 
-    const first = screen.getByRole('combobox', { name: /שעת הסריקה הראשונה/i });
-    const second = screen.getByRole('combobox', { name: /שעת הסריקה השנייה/i });
+    const first = screen.getByRole('combobox', { name: /First scan time/i });
+    const second = screen.getByRole('combobox', { name: /Second scan time/i });
     const expectedValues = Array.from({ length: 25 }, (_, index) => {
       const totalMinutes = 11 * 60 + index * 30;
       const hour = Math.floor(totalMinutes / 60);
@@ -62,14 +62,14 @@ describe('CapitalFlowRadar schedule picker', () => {
     const user = userEvent.setup();
     render(<CapitalFlowRadar {...baseProps()} />);
 
-    await user.click(await screen.findByRole('button', { name: /הפעלת הסריקה כרדאר/i }));
-    await user.click(screen.getByRole('button', { name: /הפעלת רדאר/i }));
-    expect(screen.getByRole('alert')).toHaveTextContent('יש לבחור לפחות שעת סריקה אחת.');
+    await user.click(await screen.findByRole('button', { name: /activate this scan as radar/i }));
+    await user.click(screen.getByRole('button', { name: /activate radar/i }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose at least one scan time.');
 
-    await user.click(screen.getByRole('button', { name: 'ביטול', exact: true }));
+    await user.click(screen.getByRole('button', { name: 'Cancel', exact: true }));
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /הפעלת רדאר/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /activate radar/i })).not.toBeInTheDocument();
   });
 
   it('makes the one-or-both condition rule explicit before the scan filters', async () => {
@@ -80,28 +80,26 @@ describe('CapitalFlowRadar schedule picker', () => {
     const user = userEvent.setup();
     render(<CapitalFlowRadar {...baseProps()} />);
 
-    await user.click(await screen.findByRole('button', { name: /הפעלת הסריקה כרדאר/i }));
+    await user.click(await screen.findByRole('button', { name: /activate this scan as radar/i }));
 
-    const both = screen.getByRole('radio', { name: /שני התנאים/i });
-    const either = screen.getByRole('radio', { name: /אחד התנאים/i });
+    const both = screen.getByRole('radio', { name: /Both conditions/i });
+    const either = screen.getByRole('radio', { name: /Either condition/i });
     expect(both).toBeChecked();
     expect(either).not.toBeChecked();
     expect(both.closest('label')).toHaveClass('active');
     expect(either.closest('label')).not.toHaveClass('active');
-    expect(screen.getByText(/^תנאי ההתראה$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Alert conditions$/)).toBeInTheDocument();
     expect(
       screen.queryByText(/capital flow and moving average must both match before an alert/i)
     ).not.toBeInTheDocument();
-    expect(screen.getByText(/התראה נשלחת רק אם שני התנאים מתקיימים\./i)).toBeInTheDocument();
+    expect(screen.getByText(/only when both conditions match/i)).toBeInTheDocument();
 
     await user.click(either);
     expect(either).toBeChecked();
     expect(both).not.toBeChecked();
     expect(either.closest('label')).toHaveClass('active');
     expect(both.closest('label')).not.toHaveClass('active');
-    expect(
-      screen.getByText(/התאמה אחת מספיקה להתראה\. גם אם שני התנאים מתקיימים, נשלחת התראה אחת\./i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/one match is enough to trigger an alert/i)).toBeInTheDocument();
     expect(screen.queryByText(/^OR$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/^AND$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/^01$/)).not.toBeInTheDocument();
@@ -117,16 +115,16 @@ describe('CapitalFlowRadar schedule picker', () => {
     const user = userEvent.setup();
     render(<CapitalFlowRadar {...baseProps()} />);
 
-    await user.click(await screen.findByRole('button', { name: /הפעלת הסריקה כרדאר/i }));
+    await user.click(await screen.findByRole('button', { name: /activate this scan as radar/i }));
 
     expect(screen.getByRole('button', { name: '20', exact: true })).toHaveClass('active');
     expect(screen.getByRole('button', { name: '9', exact: true })).not.toHaveClass('active');
     expect(screen.getByRole('button', { name: '±2%', exact: true })).toHaveClass('active');
     expect(screen.getByRole('button', { name: '±1%', exact: true })).not.toHaveClass('active');
-    expect(screen.getByRole('button', { name: 'הכול', exact: true })).toHaveClass('active');
-    expect(screen.getByRole('button', { name: 'מעל', exact: true })).not.toHaveClass('active');
-    expect(screen.getByRole('button', { name: 'יומי', exact: true })).toHaveClass('active');
-    expect(screen.getByRole('button', { name: 'שבועי', exact: true })).not.toHaveClass('active');
+    expect(screen.getByRole('button', { name: 'All', exact: true })).toHaveClass('active');
+    expect(screen.getByRole('button', { name: 'Above', exact: true })).not.toHaveClass('active');
+    expect(screen.getByRole('button', { name: 'Daily', exact: true })).toHaveClass('active');
+    expect(screen.getByRole('button', { name: 'Weekly', exact: true })).not.toHaveClass('active');
   });
 
   it('keeps optional Capital Flow filters collapsed until the customer opens them', async () => {
@@ -137,19 +135,19 @@ describe('CapitalFlowRadar schedule picker', () => {
     const user = userEvent.setup();
     render(<CapitalFlowRadar {...baseProps()} />);
 
-    await user.click(await screen.findByRole('button', { name: /הפעלת הסריקה כרדאר/i }));
+    await user.click(await screen.findByRole('button', { name: /activate this scan as radar/i }));
 
-    const moreFilters = screen.getByRole('button', { name: /מסננים נוספים/i });
+    const moreFilters = screen.getByRole('button', { name: /Additional filters/i });
     expect(moreFilters).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByLabelText('נפח מסחר מינימלי')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('מחיר מינימלי')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('מחיר מקסימלי')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Minimum trading volume')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Minimum price')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Maximum price')).not.toBeInTheDocument();
 
     await user.click(moreFilters);
     expect(moreFilters).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByLabelText('נפח מסחר מינימלי')).toBeInTheDocument();
-    expect(screen.getByLabelText('מחיר מינימלי')).toBeInTheDocument();
-    expect(screen.getByLabelText('מחיר מקסימלי')).toBeInTheDocument();
+    expect(screen.getByLabelText('Minimum trading volume')).toBeInTheDocument();
+    expect(screen.getByLabelText('Minimum price')).toBeInTheDocument();
+    expect(screen.getByLabelText('Maximum price')).toBeInTheDocument();
   });
 
   it('shows the concise waiting state and removes the extra Radar marketing copy', async () => {
@@ -186,7 +184,7 @@ describe('CapitalFlowRadar schedule picker', () => {
 
     render(<CapitalFlowRadar {...baseProps()} />);
 
-    expect(await screen.findByText('ממתינים להתאמה')).toBeInTheDocument();
+    expect(await screen.findByText('WAITING FOR A SIGNAL')).toBeInTheDocument();
     expect(screen.queryByText(/choose up to two daily check times/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/one alert per new entry/i)).not.toBeInTheDocument();
   });
@@ -243,10 +241,10 @@ describe('CapitalFlowRadar schedule picker', () => {
 
     render(<CapitalFlowRadar {...baseProps()} />);
 
-    expect(await screen.findByText('למה המניה מתאימה?')).toBeInTheDocument();
-    expect(screen.getByRole('article', { name: 'התאמת רדאר עבור LEN' })).toBeInTheDocument();
-    expect(screen.getByText('RVOL 2.48x ≥ 1.5x מינימלי')).toBeInTheDocument();
-    expect(screen.getByText('המחיר 1.34% מעל SMA20 · טווח ±2%')).toBeInTheDocument();
+    expect(await screen.findByText('WHY RADAR SURFACED THIS')).toBeInTheDocument();
+    expect(screen.getByRole('article', { name: 'Radar match for LEN' })).toBeInTheDocument();
+    expect(screen.getByText('RVOL 2.48x ≥ 1.5x minimum')).toBeInTheDocument();
+    expect(screen.getByText('Price 1.34% above SMA20 · limit ±2%')).toBeInTheDocument();
     expect(screen.getByText('$84.21')).toBeInTheDocument();
     expect(screen.getByText('+2.14%')).toBeInTheDocument();
     expect(screen.getByText('2.48x')).toBeInTheDocument();
@@ -288,7 +286,7 @@ describe('CapitalFlowRadar schedule picker', () => {
 
     render(<CapitalFlowRadar {...baseProps()} />);
 
-    const card = await screen.findByRole('article', { name: 'התאמת רדאר עבור MISSING' });
+    const card = await screen.findByRole('article', { name: 'Radar match for MISSING' });
     expect(within(card).getAllByText('—').length).toBeGreaterThanOrEqual(3);
     expect(within(card).queryByText('0.00x')).not.toBeInTheDocument();
     expect(within(card).queryByText('$0.00')).not.toBeInTheDocument();
@@ -328,7 +326,7 @@ describe('CapitalFlowRadar schedule picker', () => {
     render(<CapitalFlowRadar {...baseProps()} />);
 
     expect(await screen.findByText('Existing Radar')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /הפעלת הסריקה כרדאר/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /activate this scan as radar/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /save another radar/i })).not.toBeInTheDocument();
   });
 
@@ -364,20 +362,20 @@ describe('CapitalFlowRadar schedule picker', () => {
     const user = userEvent.setup();
     render(<CapitalFlowRadar {...baseProps()} />);
 
-    await user.click(await screen.findByRole('button', { name: 'הסרה', exact: true }));
+    await user.click(await screen.findByRole('button', { name: 'Remove', exact: true }));
 
-    const dialog = screen.getByRole('alertdialog', { name: /להסיר את הרדאר הזה\?/i });
+    const dialog = screen.getByRole('alertdialog', { name: /remove this radar/i });
     expect(dialog).toBeInTheDocument();
     expect(confirmSpy).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    await user.click(within(dialog).getByRole('button', { name: 'שמירת הרדאר', exact: true }));
+    await user.click(within(dialog).getByRole('button', { name: 'Keep Radar', exact: true }));
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole('button', { name: 'הסרה', exact: true }));
-    const secondDialog = screen.getByRole('alertdialog', { name: /להסיר את הרדאר הזה\?/i });
-    await user.click(within(secondDialog).getByRole('button', { name: 'הסרת רדאר', exact: true }));
+    await user.click(screen.getByRole('button', { name: 'Remove', exact: true }));
+    const secondDialog = screen.getByRole('alertdialog', { name: /remove this radar/i });
+    await user.click(within(secondDialog).getByRole('button', { name: 'Remove Radar', exact: true }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/radars/2', expect.objectContaining({ method: 'DELETE' }));

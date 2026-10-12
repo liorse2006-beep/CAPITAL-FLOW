@@ -44,33 +44,33 @@ export default function PushPermissionPrompt({ user, canNotify, pushSupported, p
       onClick={markPrompted}
       role="dialog"
       aria-modal="true"
-      aria-label="הפעלת התראות למכשיר"
+      aria-label="Enable push notifications"
     >
       <div className="push-prompt-modal" onClick={(e) => e.stopPropagation()}>
         <div className="push-prompt-glow" aria-hidden="true" />
 
         <div className="push-prompt-icon-wrap">
           <div className="push-prompt-icon-ring">
-            <span className="push-prompt-bell" role="img" aria-label="פעמון">
+            <span className="push-prompt-bell" role="img" aria-label="bell">
               🔔
             </span>
           </div>
         </div>
 
-        <h2 className="push-prompt-headline">הישאר מעודכן</h2>
+        <h2 className="push-prompt-headline">Never miss a move</h2>
         <p className="push-prompt-subtext">
-          קבל התראה כשמניה עוברת את הסף שהגדרת — <strong>גם כשהאפליקציה סגורה.</strong> אפשר גם לתזמן סריקות לקבלת
-          תוצאות אוטומטית.
+          Get notified when a stock crosses your alert threshold — <strong>even with the app closed.</strong> You can
+          also schedule scans to receive results automatically.
         </p>
 
         <button className="push-prompt-enable-btn" onClick={handleEnable} disabled={pushBusy}>
-          {pushBusy ? 'מפעילים…' : '🔔  הפעלת התראות'}
+          {pushBusy ? 'Enabling…' : '🔔  Enable notifications'}
         </button>
 
         {pushError && <div className="notif-settings-error">{pushError}</div>}
 
         <button className="push-prompt-dismiss" onClick={markPrompted}>
-          לא עכשיו
+          Not now — I&#39;ll enable later
         </button>
       </div>
     </div>

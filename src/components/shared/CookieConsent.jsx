@@ -1,3 +1,5 @@
+import { useUiLanguage } from '../../context/UiLanguageContext';
+import { copyFor } from '../../utils/landingUiCopy';
 import { useState } from 'react';
 import { hasAnswered, giveConsent, revokeConsent } from '../../analytics';
 
@@ -7,7 +9,7 @@ const styles = `
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 .cc-card {
-  direction: rtl;
+  direction: inherit;
   text-align: start;
   position: fixed;
   bottom: 24px;
@@ -102,6 +104,7 @@ const styles = `
 `;
 
 export default function CookieConsent() {
+  const language = useUiLanguage();
   const [visible, setVisible] = useState(() => !hasAnswered());
 
   if (!visible) return null;
@@ -119,23 +122,34 @@ export default function CookieConsent() {
   return (
     <>
       <style>{styles}</style>
-      <div role="dialog" aria-label="העדפות פרטיות" lang="he" dir="rtl" className="cc-card">
+      <div
+        role="dialog"
+        aria-label={copyFor(language, 'Privacy preferences')}
+        lang={language}
+        dir={language === 'he' ? 'rtl' : 'ltr'}
+        className="cc-card"
+      >
         <div className="cc-top">
           <div className="cc-dot" />
-          <span className="cc-title">העדפות פרטיות</span>
+          <span className="cc-title">{copyFor(language, 'Privacy preferences')}</span>
         </div>
-        <p className="cc-body">עוגיות חיוניות מאפשרות להתחבר. אנליטיקה לשיפור השירות מופעלת רק באישור שלך.</p>
+        <p className="cc-body">
+          {copyFor(
+            language,
+            'Essential cookies support sign-in. Analytics to improve the service are enabled only with your consent.'
+          )}
+        </p>
         <div className="cc-footer">
           <div className="cc-left">
             <button className="cc-decline" onClick={handleDecline}>
-              ללא אנליטיקה
+              {copyFor(language, 'No analytics')}
             </button>
             <a className="cc-policy" href="/policy">
-              מדיניות פרטיות
+              {copyFor(language, '\n              Privacy Policy\n            ')}
             </a>
           </div>
           <button className="cc-accept" onClick={handleAccept}>
-            אישור אנליטיקה
+            {copyFor(language, 'Allow analytics')}
           </button>
         </div>
       </div>

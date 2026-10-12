@@ -27,8 +27,8 @@ function ChartLink({ symbol }) {
       href={'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(symbol)}
       target="_blank"
       rel="noopener noreferrer"
-      title="פתיחה ב־TradingView"
-      aria-label={'פתיחת ' + symbol + ' ב־TradingView'}
+      title="Open in TradingView"
+      aria-label={'Open ' + symbol + ' on TradingView'}
     >
       <svg
         viewBox="0 0 24 24"
@@ -53,8 +53,8 @@ function AlertButton({ symbol, price, alertLevels, promptCreateAlert }) {
     <button
       className={'alert-create-btn' + (level ? ' active' : '')}
       onClick={() => promptCreateAlert(symbol, price)}
-      title={level ? 'התראה מוגדרת ב־' + alertLevelLabel(level) + ' — לחיצה לעריכה' : 'יצירת התראה'}
-      aria-label={level ? 'עריכת התראה עבור ' + symbol : 'יצירת התראה עבור ' + symbol}
+      title={level ? 'Alert set at ' + alertLevelLabel(level) + ' — click to edit' : 'Create alert'}
+      aria-label={level ? 'Edit alert for ' + symbol : 'Create an alert for ' + symbol}
     >
       <svg
         viewBox="0 0 24 24"
@@ -98,8 +98,9 @@ export default function WatchlistPage({
   onCreateAccount,
 }) {
   useSeo({
-    title: 'רשימת מעקב והתראות | Capital Flow',
-    description: 'מעקב אחר מניות, מחירים והתראות מחיר או נפח מסחר. נתוני השוק עשויים להיות מעוכבים או חלקיים.',
+    title: 'Stock Watchlist & Alerts | Capital Flow',
+    description:
+      'Track selected stock symbols, review available quote information, and manage supported price or volume alerts. Market data may be delayed or incomplete.',
     path: '/watchlist',
   });
 
@@ -115,8 +116,8 @@ export default function WatchlistPage({
     <div className="page-content watchlist-page">
       <div className="flow-header">
         <div>
-          <h2 className="flow-title">רשימת מעקב</h2>
-          <p className="flow-sub">כל המניות שמעניינות אותך במקום אחד</p>
+          <h2 className="flow-title">Watchlist</h2>
+          <p className="flow-sub">Track your favorite tickers across sessions</p>
         </div>
       </div>
 
@@ -127,13 +128,13 @@ export default function WatchlistPage({
         <div className="notif-settings-panel notif-settings-upsell">
           <div className="notif-settings-row">
             <div>
-              <div className="notif-settings-title">התראות וסריקות מתוזמנות</div>
+              <div className="notif-settings-title">Push Notifications & Scheduled Scans</div>
               <div className="notif-settings-sub">
-                כלול במסלול Elite — קבלת התראה כשמניה עוברת את הסף שלך, גם כשהאפליקציה סגורה.
+                Elite feature — get notified the instant a ticker crosses your threshold, even with the app closed.
               </div>
             </div>
             <button className="notif-toggle-btn" onClick={() => setShowUpgradeModal(true)}>
-              שדרוג ל־Elite
+              Upgrade to Elite
             </button>
           </div>
         </div>
@@ -156,19 +157,19 @@ export default function WatchlistPage({
               </svg>
             </div>
             <div>
-              <div className="notif-settings-title">התראות למכשיר</div>
+              <div className="notif-settings-title">Push Notifications</div>
               <div className="notif-settings-sub">
-                קבלת התראות כשמניה ברשימת המעקב עוברת את הסף שהגדרת — גם כשהאפליקציה סגורה.
+                Get notified the moment a watchlist ticker crosses its alert threshold — even when the app is closed.
               </div>
             </div>
             <div className="notif-settings-action">
               {!pushSupported ? (
                 isIosNotInstalled() ? (
                   <span className="notif-settings-unsupported">
-                    באייפון: שיתוף ← הוספה למסך הבית. יש לפתוח משם ולהפעיל התראות.
+                    Tap Share → &quot;Add to Home Screen&quot; to enable notifications on iPhone
                   </span>
                 ) : (
-                  <span className="notif-settings-unsupported">התראות אינן נתמכות בדפדפן הזה</span>
+                  <span className="notif-settings-unsupported">Not supported in this browser</span>
                 )
               ) : (
                 <button
@@ -176,7 +177,7 @@ export default function WatchlistPage({
                   onClick={pushEnabled ? disablePush : enablePush}
                   disabled={pushBusy}
                 >
-                  {pushBusy ? '...' : pushEnabled ? 'מופעלות' : 'הפעלה'}
+                  {pushBusy ? '...' : pushEnabled ? 'Enabled' : 'Enable'}
                 </button>
               )}
             </div>
@@ -206,10 +207,10 @@ export default function WatchlistPage({
           </div>
           <div className="error-bar-actions">
             <button className="error-retry-btn" onClick={refreshWatchlist}>
-              ניסיון נוסף
+              Retry
             </button>
             <button className="error-dismiss-btn" onClick={() => setWatchlistError(null)}>
-              סגירה
+              Dismiss
             </button>
           </div>
         </div>
@@ -232,34 +233,34 @@ export default function WatchlistPage({
               </div>
               {user ? (
                 <>
-                  <h3>רשימת המעקב שלך</h3>
-                  <p>לחיצה על הכוכב לצד מניה שומרת אותה ברשימת המעקב</p>
+                  <h3>Your Watchlist</h3>
+                  <p>STAR ANY TICKER TO TRACK IT ACROSS EVERY SESSION</p>
                   <div className="empty-rich-pills">
-                    <span className="empty-rich-pill">נשמר בחשבון שלך</span>
-                    <span className="empty-rich-pill">מחירי מניות</span>
-                    <span className="empty-rich-pill">הוספה בלחיצה</span>
+                    <span className="empty-rich-pill">SAVED ACROSS SESSIONS</span>
+                    <span className="empty-rich-pill">LIVE QUOTES</span>
+                    <span className="empty-rich-pill">ONE-TAP ADD</span>
                   </div>
                   <button className="empty-rich-cta" onClick={() => setShowAddModal(true)}>
-                    + הוספת מניה
+                    + Add Ticker
                   </button>
                 </>
               ) : (
                 <>
-                  <span className="empty-rich-kicker">רשימת מעקב</span>
-                  <h3>המניות שלך, תמיד בהישג יד.</h3>
-                  <p>שמור מניות שמעניינות אותך, עקוב אחר המחירים והגדר התראות.</p>
+                  <span className="empty-rich-kicker">Watchlist</span>
+                  <h3>Keep every signal in view.</h3>
+                  <p>Save the tickers that matter, follow live quotes, and build alerts around your next move.</p>
                   <div className="empty-rich-pills">
-                    <span className="empty-rich-pill">נשמר בחשבון שלך</span>
-                    <span className="empty-rich-pill">מחירי מניות</span>
-                    <span className="empty-rich-pill">הוספה בלחיצה</span>
+                    <span className="empty-rich-pill">SAVED ACROSS SESSIONS</span>
+                    <span className="empty-rich-pill">LIVE QUOTES</span>
+                    <span className="empty-rich-pill">ONE-TAP ADD</span>
                   </div>
                   <button className="empty-rich-cta" onClick={onCreateAccount || onRequireAuth}>
-                    יצירת חשבון <span aria-hidden="true">→</span>
+                    Create account <span aria-hidden="true">→</span>
                   </button>
                   <div className="empty-rich-signin">
-                    <span>כבר יש לך חשבון?</span>{' '}
+                    <span>Already have an account?</span>{' '}
                     <button type="button" onClick={onRequireAuth}>
-                      התחברות
+                      Sign in
                     </button>
                   </div>
                 </>
@@ -271,19 +272,19 @@ export default function WatchlistPage({
         <div className="table-card watchlist-results">
           <div className="table-bar">
             <div>
-              <h2>{watchlist.length + ' מניות'}</h2>
+              <h2>{watchlist.length + ' Ticker'}</h2>
               <span className="table-bar-sub">
                 {watchlistData ? (
                   hasQuoteTime ? (
                     <>
-                      {watchlistQuoteStatus === 'stale' ? 'המחירים עשויים להיות מעוכבים · ' : 'מחירים נכון ל־'}
+                      {watchlistQuoteStatus === 'stale' ? 'Prices may be delayed · ' : 'Prices as of'}
                       <time dateTime={watchlistDataAsOf}>{new Date(asOf).toLocaleString()}</time>
                     </>
                   ) : (
-                    'מועד המחיר אינו זמין'
+                    'Quote time unavailable'
                   )
                 ) : (
-                  'לחץ על מחיר עדכני לטעינת המחירים'
+                  'Click Active Price to load prices'
                 )}
               </span>
             </div>
@@ -291,10 +292,10 @@ export default function WatchlistPage({
               <button className="scan-btn active-price-btn" onClick={refreshWatchlist} disabled={watchlistLoading}>
                 {watchlistLoading ? (
                   <>
-                    <div className="spinner" /> מעדכנים…
+                    <div className="spinner" /> Refreshing...
                   </>
                 ) : (
-                  'מחיר עדכני'
+                  'Active Price'
                 )}
               </button>
               <button className="scan-btn add-ticker-btn" onClick={() => setShowAddModal(true)}>
@@ -310,7 +311,7 @@ export default function WatchlistPage({
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
-                הוספת מניה
+                Add Ticker
               </button>
             </div>
           </div>
@@ -318,12 +319,12 @@ export default function WatchlistPage({
             <table className="results-table watchlist-results-table">
               <thead>
                 <tr>
-                  <th>סימול</th>
-                  <th>שם</th>
-                  <th>מחיר</th>
-                  <th>שינוי</th>
-                  <th>יחס נפח</th>
-                  <th>שווי שוק</th>
+                  <th>Ticker</th>
+                  <th>Name</th>
+                  <th>Price</th>
+                  <th>Change</th>
+                  <th>Volume ratio</th>
+                  <th>Market cap</th>
                   <th style={{ width: 120 }}></th>
                 </tr>
               </thead>
@@ -382,7 +383,7 @@ export default function WatchlistPage({
                       ) : (
                         <>
                           <td className="col-name" style={{ color: 'var(--text-3)' }}>
-                            {watchlistData ? 'מחיר אינו זמין' : '—'}
+                            {watchlistData ? 'Quote unavailable' : '—'}
                           </td>
                           <td>—</td>
                           <td>—</td>
@@ -402,8 +403,8 @@ export default function WatchlistPage({
                           <button
                             className="star-btn-remove"
                             onClick={() => toggleWatchlistTicker(sym)}
-                            title="הסרה"
-                            aria-label={'הסרת ' + sym + ' מרשימת המעקב'}
+                            title="Remove"
+                            aria-label={'Remove ' + sym + ' from your watchlist'}
                           >
                             {'\xd7'}
                           </button>
@@ -452,7 +453,7 @@ export default function WatchlistPage({
                       <button
                         className="star-btn-remove"
                         onClick={() => toggleWatchlistTicker(sym)}
-                        aria-label={'הסרת ' + sym + ' מרשימת המעקב'}
+                        aria-label={'Remove ' + sym + ' from your watchlist'}
                       >
                         {'\xd7'}
                       </button>
@@ -461,13 +462,13 @@ export default function WatchlistPage({
                   {d && (
                     <div className="mobile-result-card-quote">
                       <div className="mobile-result-card-quote-item">
-                        <span className="mobile-result-card-label">מחיר</span>
+                        <span className="mobile-result-card-label">Price</span>
                         <span className="mobile-card-price">
                           <bdi dir="ltr">{formatPrice(d.price)}</bdi>
                         </span>
                       </div>
                       <div className="mobile-result-card-quote-item mobile-result-card-quote-item-end">
-                        <span className="mobile-result-card-label">שינוי</span>
+                        <span className="mobile-result-card-label">Change</span>
                         <span
                           className={'mobile-card-change ' + (d.change == null ? '' : d.change >= 0 ? 'pos' : 'neg')}
                         >
@@ -482,19 +483,19 @@ export default function WatchlistPage({
                       <span className="skel skel-num" />
                     </div>
                   )}
-                  {!d && !watchlistLoading && watchlistData && <div className="mobile-card-mid">מחיר אינו זמין</div>}
+                  {!d && !watchlistLoading && watchlistData && <div className="mobile-card-mid">Quote unavailable</div>}
                   {d && (
                     <div className="mobile-result-card-grid">
                       <div className="mobile-result-card-stat">
-                        <span className="mobile-result-card-label">יחס נפח</span>
+                        <span className="mobile-result-card-label">Volume ratio</span>
                         <RatioPill ratio={d.volumeRatio} />
                       </div>
                       <div className="mobile-result-card-stat">
-                        <span className="mobile-result-card-label">שווי שוק</span>
+                        <span className="mobile-result-card-label">Market cap</span>
                         <span className="mobile-result-card-value">{d.marketCap > 0 ? fmt(d.marketCap) : '—'}</span>
                       </div>
                       <div className="mobile-result-card-stat mobile-result-card-stat-wide">
-                        <span className="mobile-result-card-label">שם</span>
+                        <span className="mobile-result-card-label">Name</span>
                         <span className="mobile-result-card-sector-name">{d.name || '—'}</span>
                       </div>
                     </div>
@@ -504,7 +505,7 @@ export default function WatchlistPage({
             })}
           </div>
 
-          {watchlistLoading && <div className="table-footer">טוענים מחירים…</div>}
+          {watchlistLoading && <div className="table-footer">Loading quotes...</div>}
         </div>
       )}
     </div>

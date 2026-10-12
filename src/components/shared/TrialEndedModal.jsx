@@ -90,12 +90,12 @@ export default function TrialEndedModal({ onClose, onUpgrade }) {
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label="תקופת הניסיון הסתיימה"
-        dir="rtl"
-        lang="he"
+        aria-label="Trial ended"
+        dir="ltr"
+        lang="en"
         onClick={(e) => e.stopPropagation()}
       >
-        <button className="upgrade-close" onClick={onClose} aria-label="סגירה">
+        <button className="upgrade-close" onClick={onClose} aria-label="Close">
           ×
         </button>
 
@@ -106,25 +106,25 @@ export default function TrialEndedModal({ onClose, onUpgrade }) {
           </div>
           <span className="trial-ended-status">
             <span className="trial-ended-status-dot" />
-            הניסיון לשבעה ימים הסתיים
+            7-DAY TRIAL COMPLETE
           </span>
         </div>
 
         <div className="trial-ended-hero">
-          <div className="trial-ended-eyebrow">המניות וההגדרות שלך נשמרו</div>
-          <h2 className="trial-ended-title">ממשיכים גם אחרי הניסיון.</h2>
+          <div className="trial-ended-eyebrow">Your market workspace is still here</div>
+          <h2 className="trial-ended-title">Keep your edge after day seven.</h2>
         </div>
 
-        <div className="trial-ended-proof" aria-label="תכונות תקופת הניסיון">
-          <div className="trial-ended-proof-heading">הכלים שהיו זמינים בניסיון</div>
+        <div className="trial-ended-proof" aria-label="What your trial included">
+          <div className="trial-ended-proof-heading">What you just had access to</div>
           <div className="trial-ended-proof-grid">
             <div className="trial-ended-proof-item">
               <span className="trial-ended-proof-icon">
                 <SignalIcon type="scan" />
               </span>
               <span>
-                <strong>גישה לסריקות</strong>
-                <small>זיהוי תנועות מעניינות בשוק</small>
+                <strong>Full scan access</strong>
+                <small>Find the signal before the crowd</small>
               </span>
             </div>
             <div className="trial-ended-proof-item">
@@ -132,8 +132,8 @@ export default function TrialEndedModal({ onClose, onUpgrade }) {
                 <SignalIcon type="alert" />
               </span>
               <span>
-                <strong>התראות למעקב</strong>
-                <small>פוש, רשימת מעקב וסריקות מתוזמנות</small>
+                <strong>Alerts that follow through</strong>
+                <small>Push, watchlists, and scheduled scans</small>
               </span>
             </div>
             <div className="trial-ended-proof-item">
@@ -141,37 +141,37 @@ export default function TrialEndedModal({ onClose, onUpgrade }) {
                 <SignalIcon type="context" />
               </span>
               <span>
-                <strong>מידע להמשך מחקר</strong>
-                <small>נתונים פיננסיים, גרפים וסקירת שוק</small>
+                <strong>Decision-ready context</strong>
+                <small>Fundamentals, charts, and market context</small>
               </span>
             </div>
           </div>
         </div>
 
-        <div className="trial-ended-lifetime" aria-label="תשלום חד־פעמי וגישה ללא הגבלת זמן">
+        <div className="trial-ended-lifetime" aria-label="One-time payment with lifetime access">
           <span className="trial-ended-lifetime-icon" aria-hidden="true">
             ∞
           </span>
           <span>
-            <strong>תשלום חד־פעמי · גישה ללא הגבלת זמן</strong>
-            <small>בלי חיוב חודשי. ההגדרות שלך נשמרות.</small>
+            <strong>One-time purchase · Lifetime access</strong>
+            <small>Pay once. No recurring billing. Your workspace stays yours.</small>
           </span>
         </div>
 
         <button className="upgrade-cta trial-ended-primary" onClick={onUpgrade}>
-          <span>למסלולים ולהמשך סריקה</span>
+          <span>See plans and keep scanning</span>
           <ArrowIcon />
         </button>
         <button className="trial-ended-secondary" onClick={onClose}>
-          אולי מאוחר יותר
+          Maybe later
         </button>
 
         <div className="trial-ended-trust">
-          <span>תשלום מאובטח</span>
+          <span>Secure checkout</span>
           <span className="trial-ended-trust-separator" />
-          <span>Apple Pay ו־Google Pay במכשירים נתמכים</span>
+          <span>Apple Pay / Google Pay when supported</span>
           <span className="trial-ended-trust-separator" />
-          <span>ללא חיוב חוזר</span>
+          <span>No recurring billing</span>
         </div>
       </div>
     </div>

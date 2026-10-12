@@ -137,8 +137,8 @@ function App() {
       if (prev.length >= limit) {
         showToast(
           isPremium
-            ? 'ב־Premium ניתן לסרוק עד ' + MAX_PREMIUM_SECTORS + ' סקטורים יחד. ב־Elite אין הגבלה.'
-            : 'במסלול החינמי ניתן לסרוק עד ' + MAX_FREE_SECTORS + ' סקטורים יחד. ניתן לשדרג לבחירת סקטורים נוספים.'
+            ? 'Premium lets you scan up to ' + MAX_PREMIUM_SECTORS + ' sectors at a time. Elite has no limit.'
+            : 'Free lets you scan up to ' + MAX_FREE_SECTORS + ' sectors at a time. Upgrade to select more sectors.'
         );
         return prev;
       }
@@ -543,7 +543,7 @@ function App() {
       } else if (data.type === 'volume' && Number.isFinite(Number(data.minRatio)) && Number(data.minRatio) > 0) {
         savedAlert = { type: 'volume', minRatio: Number(data.minRatio) };
       } else {
-        throw new Error('לא הצלחנו לאשר את ההתראה. אפשר לנסות שוב.');
+        throw new Error('The alert could not be verified. Please try again.');
       }
       setAlertLevels(function (prev) {
         const updated = Object.assign({}, prev, { [symbol]: savedAlert });
@@ -552,7 +552,7 @@ function App() {
       });
       return true;
     } catch (error) {
-      showToast('לא הצלחנו לשמור את ההתראה. אפשר לנסות שוב.');
+      showToast("We couldn't save your alert. Please try again.");
       return false;
     }
   }
@@ -571,7 +571,7 @@ function App() {
       clearAlertLevelLocal(symbol);
       return true;
     } catch (error) {
-      showToast('לא הצלחנו להסיר את ההתראה. אפשר לנסות שוב.');
+      showToast("We couldn't remove your alert. Please try again.");
       return false;
     }
   }
@@ -684,7 +684,7 @@ function App() {
         var wasGoogleAuth = sessionStorage.getItem('google_auth_pending');
         if (wasGoogleAuth) {
           sessionStorage.removeItem('google_auth_pending');
-          showToast('התחברת בתור ' + user.email);
+          showToast('Signed in as ' + user.email);
         }
       }
       prevUserRef.current = user;
@@ -698,10 +698,10 @@ function App() {
   useEffect(
     function () {
       if (authError === 'session_replaced') {
-        showToast('החשבון התחבר במכשיר אחר. יש להתחבר מחדש.');
+        showToast('Your account was signed in on another device. Please sign in again.');
         clearAuthError();
       } else if (authError) {
-        showToast('ההתחברות באמצעות Google לא הצליחה. אפשר לנסות שוב.');
+        showToast('Google sign-in was unsuccessful. Please try again.');
         clearAuthError();
       }
     },
@@ -762,7 +762,7 @@ function App() {
         // this browser. Otherwise a later, unrelated success callback could
         // open the wrong welcome screen.
         localStorage.removeItem('vs_pending_tier');
-        showToast('התשלום לא הושלם. אפשר לנסות שוב.');
+        showToast('Checkout was not completed. Please try again.');
         return;
       }
       if (handledStatusRef.current) return;
@@ -776,7 +776,7 @@ function App() {
         // checkout was completed in another tab. Refresh once, but do not
         // start a long tier-specific polling loop when there is no tier to
         // verify.
-        showToast('התשלום התקבל. מעדכנים את הגישה שלך…');
+        showToast('Payment received. Updating your access…');
         refreshUser().catch(() => {});
         return;
       }
@@ -1078,7 +1078,7 @@ function App() {
           }
           setScanning(false);
           setProgress(null);
-          setError('הסריקה ארכה יותר מהצפוי. אפשר לנסות שוב.');
+          setError('The scan took too long to return a verified result. Please try again.');
         },
         10 * 60 * 1000
       );
@@ -1092,7 +1092,8 @@ function App() {
       }
 
       function applyCompletedScan(d) {
-        if (!d || !Array.isArray(d.results)) throw new Error('לא הצלחנו להשלים את הסריקה. אפשר לנסות שוב.');
+        if (!d || !Array.isArray(d.results))
+          throw new Error('The scan returned no complete result set. Please try again.');
         setResults(d.results);
         setScanTime(d.scanTime);
         setScanDataStatus(d.dataStatus || null);
@@ -1112,7 +1113,7 @@ function App() {
         clearScanPolling();
         setScanning(false);
         setProgress(null);
-        setError(message || 'לא הצלחנו לאמת את תוצאות הסריקה. אפשר לנסות שוב.');
+        setError(message || 'The scan could not return a verified result. Please try again.');
       }
 
       function fetchCompletedAsyncResult() {
@@ -1125,7 +1126,7 @@ function App() {
             if (r.status === 409) return null; // completion state and result write are adjacent; retry on the next poll
             if (!r.ok)
               return r.json().then(function (d) {
-                throw new Error(d.error || 'לא הצלחנו לטעון את תוצאות הסריקה.');
+                throw new Error(d.error || 'The completed scan could not be loaded.');
               });
             return r.json();
           })
@@ -1386,7 +1387,7 @@ function App() {
       )}
 
       {isGuestLanding ? (
-        <Suspense fallback={<div className="page-loading">טוענים…</div>}>
+        <Suspense fallback={<div className="page-loading">Loading…</div>}>
           <LandingPage onGetStarted={landingGetStarted} />
         </Suspense>
       ) : (
@@ -1435,7 +1436,7 @@ function App() {
             <Route
               path="/ma"
               element={
-                <Suspense fallback={<div className="page-loading">טוענים…</div>}>
+                <Suspense fallback={<div className="page-loading">Loading…</div>}>
                   <MAScannerPage
                     onSignIn={() => openAuthModal('login')}
                     onCreateAccount={() => openAuthModal('signup')}
@@ -1458,7 +1459,7 @@ function App() {
             <Route
               path="/flow"
               element={
-                <Suspense fallback={<div className="page-loading">טוענים…</div>}>
+                <Suspense fallback={<div className="page-loading">Loading…</div>}>
                   <MoneyFlow
                     setShowUpgradeModal={setShowUpgradeModal}
                     onSignIn={() => openAuthModal('login')}
@@ -1479,7 +1480,7 @@ function App() {
             <Route
               path="/fundamentals"
               element={
-                <Suspense fallback={<div className="page-loading">טוענים…</div>}>
+                <Suspense fallback={<div className="page-loading">Loading…</div>}>
                   <FundamentalsPage
                     onUpgrade={() => openUpgradeModal()}
                     onSignIn={() => openAuthModal('login')}
@@ -1593,7 +1594,7 @@ function App() {
             <Route
               path="/policy"
               element={
-                <Suspense fallback={<div className="page-loading">טוענים…</div>}>
+                <Suspense fallback={<div className="page-loading">Loading…</div>}>
                   <PolicyPage />
                 </Suspense>
               }
@@ -1602,7 +1603,7 @@ function App() {
             <Route
               path="/accessibility"
               element={
-                <Suspense fallback={<div className="page-loading">טוענים…</div>}>
+                <Suspense fallback={<div className="page-loading">Loading…</div>}>
                   <AccessibilityStatementPage />
                 </Suspense>
               }
@@ -1614,10 +1615,10 @@ function App() {
           <footer className="site-footer">
             <div className="site-footer-col">
               <button className="site-footer-link" onClick={() => setPage('policy')}>
-                תנאי שימוש ופרטיות
+                Privacy Policy
               </button>
               <p className="site-footer-disclaimer">
-                מידע למטרות לימוד ומחקר בלבד, ולא ייעוץ השקעות. נתוני השוק עשויים להיות מעוכבים או מוערכים.
+                Info & Education Only. Not intended as investment advice. Market data may be delayed or estimated.
               </p>
             </div>
           </footer>
@@ -1648,14 +1649,14 @@ function App() {
             </svg>
           </span>
           <div className="live-alert-body">
-            <span className="live-alert-kicker">התראה חדשה</span>
+            <span className="live-alert-kicker">LIVE ALERT</span>
             <strong>{liveAlert.title}</strong>
             <span>{liveAlert.body}</span>
           </div>
           <button
             className="live-alert-close"
             type="button"
-            aria-label="סגירת ההתראה"
+            aria-label="Dismiss notification"
             onClick={() => setLiveAlert(null)}
           >
             ✕

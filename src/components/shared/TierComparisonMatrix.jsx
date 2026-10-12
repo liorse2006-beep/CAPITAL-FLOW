@@ -1,3 +1,5 @@
+import { useUiLanguage } from '../../context/UiLanguageContext';
+import { copyFor } from '../../utils/landingUiCopy';
 import React from 'react';
 import { TIER_COLUMNS, TIER_ROWS } from '../../constants/tierFeatures';
 import planCopy from '../../utils/planCopy';
@@ -42,10 +44,14 @@ function CrossIcon() {
 }
 
 function AccessCell({ value }) {
+  const language = useUiLanguage();
   const included = value !== false;
   return (
     <span className={'tier-matrix-access ' + (included ? 'is-included' : 'is-excluded')}>
-      <span className="tier-matrix-status" aria-label={included ? 'כלול' : 'לא כלול'}>
+      <span
+        className="tier-matrix-status"
+        aria-label={included ? copyFor(language, 'Included') : copyFor(language, 'Not included')}
+      >
         {included ? <CheckIcon /> : <CrossIcon />}
       </span>
     </span>
@@ -58,40 +64,42 @@ function getVisibleFeatureDetail(value) {
 }
 
 function PlanAction({ column, userTier, trialEnded, payingTier, onCheckout }) {
+  const language = useUiLanguage();
   if (userTier === column.key) {
-    return <span className="tier-matrix-current">המסלול שלך</span>;
+    return <span className="tier-matrix-current">{copyFor(language, 'Your plan')}</span>;
   }
   if (TIER_RANK[userTier] > TIER_RANK[column.key]) return null;
   const label = trialEnded
     ? column.key === 'elite'
-      ? 'מעבר ל־Elite'
-      : 'המשך סריקה עם Premium'
-    : 'בחירת ' + column.label;
+      ? copyFor(language, 'Get Elite')
+      : copyFor(language, 'Continue with Premium')
+    : copyFor(language, 'Get ') + column.label;
   return (
     <button
       className={'upgrade-cta tier-matrix-cta tier-matrix-cta-' + column.key}
       onClick={() => onCheckout(column.key)}
       disabled={payingTier === column.key}
     >
-      {payingTier === column.key ? 'טוענים…' : label}
+      {payingTier === column.key ? copyFor(language, 'Loading…') : label}
     </button>
   );
 }
 
 function PlanCard({ column, userTier, trialEnded, payingTier, onCheckout }) {
+  const language = useUiLanguage();
   const headingId = 'tier-matrix-' + column.key + '-heading';
 
   return (
     <article className={'tier-matrix-plan ' + (column.featured ? 'is-featured' : '')} aria-labelledby={headingId}>
       <header className="tier-matrix-plan-heading">
-        {column.featured && <span className="tier-matrix-popular">הכי פופולרי</span>}
+        {column.featured && <span className="tier-matrix-popular">{copyFor(language, 'Most popular')}</span>}
         <h3 id={headingId} className="tier-matrix-plan-name">
           {column.label}
         </h3>
         <strong className="tier-matrix-plan-price" dir="ltr">
           {column.price}
         </strong>
-        <span className="tier-matrix-plan-details">{planCopy(column.details)}</span>
+        <span className="tier-matrix-plan-details">{planCopy(column.details, language)}</span>
       </header>
 
       <ul className="tier-matrix-feature-list">
@@ -103,8 +111,10 @@ function PlanCard({ column, userTier, trialEnded, payingTier, onCheckout }) {
             <li key={row.label} className={'tier-matrix-feature ' + (featureValue === false ? 'is-excluded' : '')}>
               <AccessCell value={featureValue} />
               <span className="tier-matrix-feature-name">
-                {planCopy(row.label)}
-                {specificValue && <span className="tier-matrix-feature-specific"> · {planCopy(specificValue)}</span>}
+                {planCopy(row.label, language)}
+                {specificValue && (
+                  <span className="tier-matrix-feature-specific"> · {planCopy(specificValue, language)}</span>
+                )}
               </span>
             </li>
           );
@@ -125,9 +135,10 @@ function PlanCard({ column, userTier, trialEnded, payingTier, onCheckout }) {
 }
 
 export default function TierComparisonMatrix({ userTier = 'free', trialEnded = false, payingTier, onCheckout }) {
+  const language = useUiLanguage();
   return (
-    <div className="tier-matrix-scroll" dir="rtl" lang="he">
-      <div className="tier-matrix" role="group" aria-label="השוואת מסלולי Premium ו־Elite">
+    <div className="tier-matrix-scroll" dir={language === 'he' ? 'rtl' : 'ltr'} lang={language}>
+      <div className="tier-matrix" role="group" aria-label={copyFor(language, 'Premium and Elite feature comparison')}>
         {UPGRADE_COLUMNS.map((column) => (
           <PlanCard
             key={column.key}

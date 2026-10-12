@@ -7,16 +7,16 @@ import React from 'react';
  * bringing the wide table back.
  */
 export default function MobileResultSort({ options, value, direction, onSort }) {
-  const directionLabel = direction === 'asc' ? 'מהנמוך לגבוה' : 'מהגבוה לנמוך';
+  const directionLabel = direction === 'asc' ? 'Low to high' : 'High to low';
 
   return (
-    <div className="mobile-results-sort" aria-label="מיון תוצאות">
-      <span className="mobile-results-sort-label">מיון</span>
+    <div className="mobile-results-sort" aria-label="Sort results">
+      <span className="mobile-results-sort-label">SORT</span>
       <select
         className="mobile-results-sort-select"
         value={value}
         onChange={(event) => onSort(event.target.value)}
-        aria-label="מיון תוצאות לפי"
+        aria-label="Sort results by"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -28,7 +28,7 @@ export default function MobileResultSort({ options, value, direction, onSort }) 
         type="button"
         className="mobile-results-sort-direction"
         onClick={() => onSort(value)}
-        aria-label={'מיון ' + directionLabel.toLowerCase()}
+        aria-label={'Sort ' + directionLabel.toLowerCase()}
         title={directionLabel}
       >
         <span aria-hidden="true">{direction === 'asc' ? '↑' : '↓'}</span>

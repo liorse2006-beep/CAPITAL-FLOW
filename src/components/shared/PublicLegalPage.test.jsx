@@ -10,8 +10,8 @@ afterEach(() => {
 
 describe('public legal pages without a session', () => {
   it.each([
-    ['/policy', 'תנאי שימוש ומדיניות פרטיות'],
-    ['/accessibility', 'הצהרת נגישות'],
+    ['/policy', 'Terms of Service & Privacy Policy'],
+    ['/accessibility', 'Accessibility Statement'],
   ])('renders %s immediately without authentication, data requests or a paywall', (path, title) => {
     const fetchMock = vi.fn(() => new Promise(() => {}));
     vi.stubGlobal('fetch', fetchMock);
@@ -21,8 +21,8 @@ describe('public legal pages without a session', () => {
       </MemoryRouter>
     );
     expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
-    expect(screen.getByRole('main')).toHaveAttribute('dir', 'rtl');
-    expect(screen.getByRole('link', { name: 'Capital Flow — חזרה לאתר' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('main')).toHaveAttribute('dir', 'ltr');
+    expect(screen.getByRole('link', { name: 'Capital Flow — back to the app' })).toHaveAttribute('href', '/');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });

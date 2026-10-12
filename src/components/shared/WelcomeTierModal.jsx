@@ -5,12 +5,12 @@ const COPY = {
   premium: {
     planName: 'Premium',
     badgeClass: 'tier-premium',
-    readyBody: 'מסלול Premium שלך פעיל. אפשר להתחיל לסרוק.',
+    readyBody: 'Your Premium access is active. You can start scanning now.',
   },
   elite: {
     planName: 'Elite',
     badgeClass: 'tier-elite',
-    readyBody: 'מסלול Elite שלך פעיל. אפשר להתחיל לסרוק.',
+    readyBody: 'Your Elite access is active. You can start scanning now.',
   },
 };
 
@@ -71,12 +71,12 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        dir="rtl"
-        lang="he"
-        aria-label={isPending ? 'התשלום התקבל — מפעילים את הגישה' : 'תודה על הרכישה'}
+        dir="ltr"
+        lang="en"
+        aria-label={isPending ? 'Payment received — activating access' : 'Thank you for your purchase'}
         onClick={(event) => event.stopPropagation()}
       >
-        <button className="upgrade-close" onClick={onClose} aria-label="סגירה">
+        <button className="upgrade-close" onClick={onClose} aria-label="Close">
           ×
         </button>
 
@@ -92,26 +92,26 @@ export default function WelcomeTierModal({ tier, confirmed, onClose }) {
           </div>
         )}
 
-        <div className="welcome-tier-eyebrow">{isPending ? 'התשלום התקבל' : 'הגישה מוכנה'}</div>
-        <h2 className="upgrade-title welcome-tier-headline">תודה על הרכישה</h2>
+        <div className="welcome-tier-eyebrow">{isPending ? 'PAYMENT RECEIVED' : 'ACCESS READY'}</div>
+        <h2 className="upgrade-title welcome-tier-headline">Thank you for your purchase</h2>
 
         {!isPending ? (
           <>
             <p className="upgrade-desc welcome-tier-body">{copy.readyBody}</p>
             <button className="upgrade-cta welcome-tier-cta" onClick={onClose}>
-              התחלת סריקה
+              START SCANNING
             </button>
-            <p className="welcome-tier-close-note">אפשר גם לסגור את ההודעה ולהמשיך.</p>
+            <p className="welcome-tier-close-note">Or close this message with × to continue.</p>
           </>
         ) : (
           <>
             <p className="upgrade-desc welcome-tier-body welcome-tier-pending-body">
-              מפעילים את מסלול {copy.planName} שלך. זה בדרך כלל לוקח כמה שניות.
+              Activating your {copy.planName} plan. This usually takes a few seconds.
             </p>
-            <p className="welcome-tier-pending-supporting">מאמתים את התשלום ומכינים את סביבת העבודה שלך.</p>
+            <p className="welcome-tier-pending-supporting">We&#39;re activating your access securely.</p>
             <div className="welcome-tier-pending-status" role="status" aria-live="polite">
               <span className="welcome-tier-spinner" aria-hidden="true" />
-              <span>מפעילים את הגישה</span>
+              <span>ACTIVATING ACCESS</span>
             </div>
           </>
         )}

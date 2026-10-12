@@ -34,34 +34,34 @@ const ICONS = {
 const SELECTABLE_METRICS = [
   {
     key: 'floatShares',
-    label: 'מניות סחירות',
-    sub: 'כמות מניות זמינה למסחר',
+    label: 'Float',
+    sub: 'Tradable shares',
     icon: ICONS.float,
     fmt: fmtShares,
     hint: hintFloat,
   },
   {
     key: 'shortPercent',
-    label: 'שורט',
-    sub: 'אחוז מהמניות הסחירות',
+    label: 'Short Interest',
+    sub: '% of float',
     icon: ICONS.short,
     fmt: (v) => fmtPct(v * 100),
     hint: hintShort,
   },
-  { key: 'peRatio', label: 'מכפיל רווח', sub: 'מחיר ביחס לרווח', icon: ICONS.pe, fmt: fmtRatio, hint: hintPE },
-  { key: 'pegRatio', label: 'מכפיל צמיחה', sub: 'מכפיל רווח ביחס לצמיחה', icon: ICONS.peg, fmt: fmtRatio },
+  { key: 'peRatio', label: 'P/E Ratio', sub: 'Price / earnings', icon: ICONS.pe, fmt: fmtRatio, hint: hintPE },
+  { key: 'pegRatio', label: 'PEG Ratio', sub: 'P/E / growth', icon: ICONS.peg, fmt: fmtRatio },
   {
     key: 'debtToEquity',
-    label: 'חוב להון',
-    sub: 'מבנה המימון',
+    label: 'Debt / Equity',
+    sub: 'Balance-sheet risk',
     icon: ICONS.debt,
     fmt: fmtRatio,
     hint: hintDebt,
   },
   {
     key: 'revenueGrowth5Y',
-    label: 'צמיחת הכנסות',
-    sub: 'ממוצע חמש שנים',
+    label: 'Revenue Growth',
+    sub: '5-year average',
     icon: ICONS.growth,
     fmt: fmtGrowth,
     hint: hintGrowth,
@@ -69,8 +69,8 @@ const SELECTABLE_METRICS = [
   },
   {
     key: 'nextEarningsDate',
-    label: 'פרסום הדוחות הבא',
-    sub: 'מועד דוחות צפוי',
+    label: 'Next Earnings',
+    sub: 'Volatility catalyst',
     icon: ICONS.earnings,
     fmt: fmtEarnings,
     hint: hintEarnings,
@@ -132,32 +132,32 @@ function fmtEarnings(v) {
 // ── Qualitative hints — plain-language, swing-relevant reads ────────────────
 function hintFloat(v) {
   if (!v) return null;
-  if (v < 20e6) return { text: 'כמות מצומצמת של מניות סחירות', tone: 'warn' };
-  if (v > 500e6) return { text: 'כמות גדולה של מניות סחירות', tone: 'muted' };
+  if (v < 20e6) return { text: 'Low float — moves fast', tone: 'warn' };
+  if (v > 500e6) return { text: 'Very liquid', tone: 'muted' };
   return null;
 }
 function hintShort(v) {
   if (!v) return null;
   const pct = v * 100;
-  if (pct >= 20) return { text: 'שורט גבוה — סיכון לתנודתיות', tone: 'warn' };
-  if (pct >= 10) return { text: 'שורט גבוה יחסית', tone: 'warn' };
+  if (pct >= 20) return { text: 'Heavily shorted — squeeze risk', tone: 'warn' };
+  if (pct >= 10) return { text: 'Elevated short interest', tone: 'warn' };
   return null;
 }
 function hintPE(v) {
   if (!v) return null;
-  if (v > 50) return { text: 'מכפיל רווח גבוה', tone: 'warn' };
-  if (v < 10) return { text: 'מכפיל רווח נמוך', tone: 'muted' };
+  if (v > 50) return { text: 'Richly valued', tone: 'warn' };
+  if (v < 10) return { text: 'Low multiple', tone: 'muted' };
   return null;
 }
 function hintDebt(v) {
   if (!v) return null;
-  if (v > 2) return { text: 'מינוף גבוה', tone: 'warn' };
+  if (v > 2) return { text: 'High leverage', tone: 'warn' };
   return null;
 }
 function hintGrowth(v) {
   if (v == null) return null;
-  if (v < 0) return { text: 'ירידה בהכנסות', tone: 'bad' };
-  if (v >= 20) return { text: 'צמיחה גבוהה', tone: 'good' };
+  if (v < 0) return { text: 'Shrinking revenue', tone: 'bad' };
+  if (v >= 20) return { text: 'Strong growth', tone: 'good' };
   return null;
 }
 function toneGrowth(v) {
@@ -168,8 +168,8 @@ function hintEarnings(v) {
   if (!v) return null;
   const days = Math.round((new Date(v + 'T00:00:00') - new Date()) / 86400000);
   if (days < 0) return null;
-  if (days <= 7) return { text: 'הדוחות בעוד ' + days + ' ימים — תיתכן תנודתיות', tone: 'warn' };
-  if (days <= 21) return { text: 'הדוחות בעוד ' + days + ' ימים', tone: 'muted' };
+  if (days <= 7) return { text: 'In ' + days + ' days — volatility may increase', tone: 'warn' };
+  if (days <= 21) return { text: 'In ' + days + ' days', tone: 'muted' };
   return null;
 }
 
@@ -179,8 +179,8 @@ function ForwardMultiple({ result }) {
   if (unverified) {
     return (
       <div className="fund-tile-secondary is-unverified">
-        <span>מכפיל רווח עתידי</span>
-        <span>הנתון לא אומת. אפשר לנסות שוב בהמשך</span>
+        <span>Forward P/E</span>
+        <span>Not verified — try again in a few minutes</span>
       </div>
     );
   }
@@ -189,7 +189,7 @@ function ForwardMultiple({ result }) {
 
   return (
     <div className="fund-tile-secondary">
-      <span>מכפיל רווח עתידי</span>
+      <span>Forward P/E</span>
       <span>{fmtRatio(result.forwardPE)}</span>
     </div>
   );
@@ -235,9 +235,9 @@ function removeRecentTicker(userId, symbol) {
 
 export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount }) {
   useSeo({
-    title: 'נתונים פיננסיים למניות | Capital Flow',
+    title: 'Fundamental Stock Analysis | Capital Flow',
     description:
-      'סקירת מכפילי רווח, צמיחה, חוב להון, מניות סחירות ונתוני שורט. זמינות הנתונים משתנה בין מניות והמידע עשוי להיות מעוכב או חלקי.',
+      'Review available P/E, forward P/E, PEG, debt-to-equity, growth, float, short interest, and earnings data. Availability varies by symbol; data may be delayed or incomplete.',
     path: '/fundamentals',
   });
 
@@ -284,7 +284,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
       return;
     }
     if (!SYMBOL_RE.test(symbol)) {
-      setError('יש להזין סימול מניה תקין.');
+      setError('Enter a valid ticker symbol.');
       return;
     }
 
@@ -354,23 +354,23 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
               <div className="empty-rich-icon">
                 <img src="/icon-192.png" alt="" />
               </div>
-              <span className="empty-rich-kicker">מחקר פיננסי</span>
-              <h3 id="fund-guest-title">להכיר את המניה לפני שמחליטים.</h3>
-              <p>בדוק נתוני שווי, מינוף, צמיחה ומועדי דוחות לפני המשך המחקר.</p>
+              <span className="empty-rich-kicker">FUNDAMENTALS DESK</span>
+              <h3 id="fund-guest-title">Know what you&#39;re trading.</h3>
+              <p>Review the key fundamentals behind any ticker — valuation, leverage, growth, and the next catalyst.</p>
               <div className="empty-rich-pills">
-                <span className="empty-rich-pill">מדדים פיננסיים</span>
-                <span className="empty-rich-pill">חיפוש לפי סימול</span>
-                <span className="empty-rich-pill">מידע ברור</span>
+                <span className="empty-rich-pill">KEY FUNDAMENTALS</span>
+                <span className="empty-rich-pill">TICKER LOOKUPS</span>
+                <span className="empty-rich-pill">CLEAR CONTEXT</span>
               </div>
               <button className="empty-rich-cta" onClick={user ? onUpgrade : onCreateAccount || onSignIn}>
-                {user ? 'שדרוג ל־Premium' : 'יצירת חשבון'}
+                {user ? 'Upgrade to Premium' : 'Create Account'}
                 {!user && <span aria-hidden="true">→</span>}
               </button>
               {!user && (
                 <div className="empty-rich-signin">
-                  <span>כבר יש לך חשבון?</span>{' '}
+                  <span>Already have an account?</span>{' '}
                   <button type="button" onClick={onSignIn}>
-                    התחברות
+                    Sign in
                   </button>
                 </div>
               )}
@@ -382,7 +382,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
           <span className="fund-guest-note-icon" aria-hidden="true">
             i
           </span>
-          המידע הפיננסי מיועד ללימוד ולמחקר בלבד ואינו ייעוץ השקעות.
+          Fundamentals are for education and research only — not investment advice.
         </div>
       </div>
     );
@@ -393,8 +393,8 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
   return (
     <div className="page-content fund-page">
       <header className="fund-workspace-head">
-        <h1>נתונים פיננסיים</h1>
-        <p>תמונת החברה לפני המשך המחקר.</p>
+        <h1>Fundamentals</h1>
+        <p>Build a focused company read before you trade.</p>
       </header>
       <div className="fund-panel">
         <form className="fund-search-row" onSubmit={runLookup}>
@@ -419,20 +419,20 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
               type="text"
               value={symbolInput}
               onChange={(e) => setSymbolInput(e.target.value)}
-              placeholder="סימול מניה — לדוגמה AAPL"
+              placeholder="Enter a ticker — e.g. AAPL"
               maxLength={10}
               autoCapitalize="characters"
               spellCheck={false}
             />
           </div>
           <button className="scan-btn fund-analyze-btn" type="submit" disabled={loading || !symbolInput.trim()}>
-            {loading ? 'בודקים…' : 'בדיקת מניה'}
+            {loading ? 'Checking…' : 'Analyze'}
           </button>
         </form>
 
         {recentTickers.length > 0 && (
           <div className="fund-recent">
-            <span className="fund-recent-label">חיפושים אחרונים</span>
+            <span className="fund-recent-label">Recent</span>
             {recentTickers.map((sym) => (
               <div key={sym} className="fund-recent-chip">
                 <button type="button" className="fund-recent-open" disabled={loading} onClick={() => lookupRecent(sym)}>
@@ -443,8 +443,8 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
                   className="fund-recent-remove"
                   disabled={loading}
                   onClick={() => removeRecent(sym)}
-                  aria-label={`הסרת ${sym} מהחיפושים האחרונים`}
-                  title={`הסרת ${sym}`}
+                  aria-label={`Remove ${sym} from recent searches`}
+                  title={`Remove ${sym}`}
                 >
                   ×
                 </button>
@@ -455,13 +455,13 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
 
         <div className="fund-picker">
           <div className="fund-picker-head">
-            <span className="fund-picker-title">בחירת מדדים</span>
+            <span className="fund-picker-title">Select Attributes</span>
             <span className="fund-picker-count">
               {selectedMetrics.size} <span className="fund-picker-count-total">/ {ALL_METRIC_KEYS.length}</span>
             </span>
           </div>
           <button type="button" className="fund-picker-toggle-all" onClick={toggleAll}>
-            {allSelected ? 'ניקוי הבחירה' : 'בחירת הכול'}
+            {allSelected ? 'Clear all' : 'Select all'}
           </button>
           <div className="fund-toggles">
             {SELECTABLE_METRICS.map((m) => {
@@ -513,7 +513,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
             ))}
           </div>
           <div className="fund-loading-caption">
-            טוענים נתונים עבור <span className="mono">{symbolInput.trim().toUpperCase()}</span>…
+            Pulling verified data for <span className="mono">{symbolInput.trim().toUpperCase()}</span>…
           </div>
         </div>
       )}
@@ -538,23 +538,25 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
                   ? '—'
                   : (result.change >= 0 ? '▲ ' : '▼ ') + Math.abs(result.change).toFixed(2) + '%'}
               </span>
-              <span className="fund-result-cap">{fmtCap(result.marketCap)} שווי שוק</span>
+              <span className="fund-result-cap">{fmtCap(result.marketCap)} cap</span>
             </div>
           </div>
 
           {dataStatus && dataStatus !== 'complete' && (
             <div className={'data-status-banner ' + dataStatus} role="status">
               <strong>
-                {dataStatus === 'unavailable' ? 'נתוני השוק אינם זמינים כרגע.' : 'חלק מהנתונים לא אומתו.'}
+                {dataStatus === 'unavailable'
+                  ? 'Market data is currently unavailable.'
+                  : 'Some data could not be verified.'}
               </strong>{' '}
               {quoteDataStatus === 'stale'
-                ? 'המחיר המוצג אינו עדכני. אפשר לבדוק שוב בעוד כמה דקות.'
-                : 'יש לבדוק שוב את הנתונים לפני הסתמכות עליהם.'}
+                ? 'The displayed price is not current. Please check again in a few minutes.'
+                : 'Please verify the data before relying on it.'}
             </div>
           )}
 
           {visibleMetrics.length === 0 ? (
-            <div className="fund-empty-hint">לא נבחרו מדדים. אפשר לבחור למעלה או ללחוץ על ״בחירת הכול״.</div>
+            <div className="fund-empty-hint">No metrics selected — pick some above, or hit “Select all”.</div>
           ) : (
             <div className="fund-grid">
               {visibleMetrics.map((m) => {
@@ -571,7 +573,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
                     {unverified ? (
                       <>
                         <div className="fund-tile-value is-unverified">—</div>
-                        <div className="fund-tile-hint tone-warn">הנתון לא אומת. אפשר לנסות שוב בהמשך</div>
+                        <div className="fund-tile-hint tone-warn">Not verified — try again in a few minutes</div>
                       </>
                     ) : (
                       <>

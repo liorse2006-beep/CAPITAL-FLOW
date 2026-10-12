@@ -12,61 +12,69 @@ function Section({ title, children }) {
 
 export default function PolicyPage() {
   useSeo({
-    title: 'תנאי שימוש ומדיניות פרטיות | Capital Flow',
-    description: 'תנאי השימוש, פרטיות, תשלומים, החזרים ודרכי יצירת קשר עם Capital Flow.',
+    title: 'Terms of Use and Privacy Policy | Capital Flow',
+    description: "Capital Flow's terms of use, privacy, payments, refunds and contact information.",
     path: '/policy',
   });
   return (
-    <article className="page-content policy-page" lang="he" dir="rtl">
-      <h2 className="flow-title policy-title">תנאי שימוש ומדיניות פרטיות</h2>
+    <article className="page-content policy-page" lang="en" dir="ltr">
+      <h2 className="flow-title policy-title">Terms of Service & Privacy Policy</h2>
       <div className="policy-card">
-        <p className="policy-paragraph policy-updated">עודכן ב־11 באוקטובר 2026</p>
-        <p className="policy-paragraph">מסמך זה מסביר את תנאי השימוש ואת אופן הטיפול במידע ב־Capital Flow.</p>
-        <Section title="השירות אינו ייעוץ השקעות">
+        <p className="policy-paragraph policy-updated">Updated October 11, 2026</p>
+        <p className="policy-paragraph">
+          This document explains the terms of use and how Capital Flow handles information.
+        </p>
+        <Section title="Not investment advice">
           <p className="policy-paragraph">
-            Capital Flow מציגה נתוני שוק וכלי סריקה למטרות חינוך ומחקר בלבד. המידע אינו ייעוץ השקעות, ייעוץ פיננסי או
-            המלצה לקנייה או למכירה של נייר ערך. השירות אינו מספק ייעוץ השקעות מורשה. נתוני מחיר, נפח מסחר וממוצעים נעים
-            עשויים להיות מעוכבים, מוערכים, חלקיים או שגויים. אין להסתמך עליהם כמקור יחיד. החלטות השקעה ותוצאותיהן הן
-            באחריות המשתמש, ומומלץ להתייעץ עם בעל רישיון מתאים.
+            Capital Flow provides market data and scanning tools for education and research only. Information is not
+            investment advice, financial advice or a recommendation to buy or sell securities. The service does not
+            provide licensed investment advice. Prices, trading volumes and moving averages may be delayed, estimated,
+            partial or incorrect. Do not rely on them as your only source. You are responsible for investment decisions
+            and their outcomes, and should consider consulting an appropriately licensed professional.
           </p>
         </Section>
-        <Section title="זמינות ואחריות">
+        <Section title="Availability and responsibility">
           <p className="policy-paragraph">
-            השירות ניתן כפי שהוא וכפי שהוא זמין. אין התחייבות לפעילות רציפה, להיעדר שגיאות או לשלמות ולעדכניות של כל
-            נתון. בכפוף לדין החל, מפעילי השירות אינם אחראים לנזקים הנובעים מהשימוש או מחוסר היכולת להשתמש בו, לרבות
-            הפסדי מסחר. אין בתנאים אלה כדי לשלול זכות שלא ניתן להתנות עליה לפי דין.
+            The service is provided as is and as available. Continuous operation, freedom from errors, and complete or
+            current data are not guaranteed. Subject to applicable law, the operators are not responsible for damage
+            resulting from use or inability to use the service, including trading losses. These terms do not exclude
+            rights that cannot legally be waived.
           </p>
         </Section>
-        <Section title="תשלום ובקשות להחזר">
+        <Section title="Payments and refund requests">
           <p className="policy-paragraph">
-            מסלולי Premium ו־Elite הם רכישה חד־פעמית, ללא חיוב חודשי חוזר. המחיר הסופי מוצג בתשלום המאובטח שמספקת Whop.
-            איננו שומרים את מלוא פרטי הכרטיס.
+            Premium and Elite are one-time purchases with no recurring monthly billing. The final price is shown in
+            Whop&#39;s secure checkout. We do not store full card details.
           </p>
           <p className="policy-paragraph">
-            בנוסף לזכויות לפי דין, ניתן לבקש החזר בשל תקלה בתפקוד המוצר שנמסרה לטיפולנו ולא תוקנה בתוך 14 ימים מהדיווח.
-            מדיניות זו אינה מגבילה זכויות ביטול או החזר החלות לפי חוק. בקשת ביטול או החזר אפשר לשלוח לכתובת המייל
-            המופיעה למטה; אין צורך להמתין 14 ימים כדי לממש זכות חוקית.
+            In addition to your statutory rights, you may request a refund for a product-functionality issue reported to
+            us and not resolved within 14 days. This policy does not limit cancellation or refund rights under
+            applicable law. Send cancellation or refund requests to the email below; you do not need to wait 14 days to
+            exercise a statutory right.
           </p>
         </Section>
-        <Section title="איזה מידע נשמר">
+        <Section title="Information we store">
           <ul className="policy-list">
-            <li>כתובת מייל, פרטי התחברות מאובטחים ומסלול החשבון.</li>
-            <li>מניות ברשימת המעקב, סריקות שמורות, תזמונים והגדרות התראות.</li>
-            <li>אם מפעילים פוש: פרטי מינוי של הדפדפן או המכשיר הדרושים למשלוח. ניתן לבטל את הפוש בהגדרות.</li>
+            <li>Email address, secured sign-in information and account plan.</li>
+            <li>Watchlist stocks, saved scans, schedules and alert settings.</li>
             <li>
-              אנליטיקה אופציונלית: אירועים כגון ביקורים ושימוש בתכונות, רק לאחר אישור מפורש. ניטור תקלות טכני, כאשר
-              מוגדר, משמש לאיתור בעיות ולא לפרסום.
+              If you enable push: browser or device subscription details needed for delivery. You can disable push in
+              settings.
+            </li>
+            <li>
+              Optional analytics: events such as visits and feature use, only after explicit consent. Technical error
+              monitoring, when configured, is used to identify problems, not for advertising.
             </li>
           </ul>
           <p className="policy-paragraph">
-            איננו מוכרים מידע אישי למטרות שיווק או פרסום. מסירת המידע היא מרצון; מידע חיוני נדרש כדי ליצור חשבון ולהפעיל
-            את התכונות שבחרת.
+            We do not sell personal information for marketing or advertising. Providing information is voluntary;
+            essential information is required to create an account and operate your chosen features.
           </p>
         </Section>
-        <Section title="עוגיות ואנליטיקה">
+        <Section title="Cookies and analytics">
           <p className="policy-paragraph">
-            עוגיות חיוניות מאפשרות התחברות ואבטחה. אנליטיקה באמצעות PostHog מופעלת רק באישור שלך, וניתן לדחות אותה בלי
-            לפגוע בשימוש הרגיל באתר. כאשר מאשרים אנליטיקה, המידע עשוי להישמר בארצות הברית.
+            Essential cookies support sign-in and security. PostHog analytics are enabled only with your consent;
+            declining does not affect normal use. When you consent, analytics data may be stored in the United States.
           </p>
           <button
             type="button"
@@ -76,44 +84,49 @@ export default function PolicyPage() {
               window.location.reload();
             }}
           >
-            שינוי העדפות פרטיות
+            reopening the consent banner
           </button>
         </Section>
-        <Section title="ספקי שירות ועיבוד מידע">
+        <Section title="Service providers and data processing">
           <ul className="policy-list">
-            <li>Google — התחברות לפי בחירתך.</li>
-            <li>Resend — מיילים חיוניים לאימות חשבון ולאיפוס סיסמה.</li>
-            <li>Whop — עיבוד תשלומים וניהול פרטי העסקה.</li>
+            <li>Google — optional sign-in.</li>
+            <li>Resend — essential account-verification and password-reset emails.</li>
+            <li>Whop — payment processing and transaction details.</li>
             <li>
-              שירותי אירוח, אחסון וגיבוי — להפעלת השירות ולהתאוששות מתקלות. גיבוי תפעולי נשלח למפעיל במייל כקובץ מוצפן;
-              מפתח השחזור נשמר בנפרד ואינו נשלח עם הקובץ.
+              Hosting, storage and backup services — to operate the service and recover from failures. An operational
+              backup is emailed to the operator as an encrypted file; the recovery key is stored separately and is not
+              sent with the file.
             </li>
-            <li>PostHog וספק ניטור תקלות, אם מופעל — בהתאם להגדרות ולבחירת הפרטיות.</li>
+            <li>PostHog and an error-monitoring provider, if enabled — according to settings and privacy choices.</li>
           </ul>
           <p className="policy-paragraph">
-            האימות המקומי בהרשמה אינו דורש פנייה לשירות CAPTCHA חיצוני. ספקי התשתית עשויים לעבד מידע מחוץ למדינת מגוריך,
-            לרבות בארצות הברית ובאירופה, בהתאם לשירות ולמדיניות הספק.
+            Local sign-up verification does not require an external CAPTCHA service. Infrastructure providers may
+            process information outside your country of residence, including in the United States and Europe, according
+            to the service and provider policies.
           </p>
         </Section>
-        <Section title="שמירה, מחיקה והזכויות שלך">
+        <Section title="Retention, deletion and your rights">
           <p className="policy-paragraph">
-            מידע פעיל נשמר כל עוד החשבון פעיל. ניתן לבקש עיון ותיקון, לבטל התראות ולמחוק את החשבון דרך הגדרות החשבון או
-            בפנייה אלינו. המחיקה מסירה את החשבון ואת הרשומות המקושרות ממסד הנתונים הפעיל. עותקים קודמים עשויים להישאר
-            בגיבויים תפעוליים, ונתוני עסקאות אצל ספק התשלום כפופים למדיניותו ולדין החל.
+            Active information is retained while your account is active. You may request access or corrections, disable
+            notifications, and delete your account through account settings or by contacting us. Deletion removes your
+            account and linked records from the active database. Earlier copies may remain in operational backups;
+            payment-provider transaction data is subject to its policies and applicable law.
           </p>
         </Section>
-        <Section title="אבטחת מידע">
+        <Section title="Information security">
           <p className="policy-paragraph">
-            אנו משתמשים בחיבורים מוצפנים ובהגבלת גישה למידע. אין שיטת אחסון או העברה שמבטיחה אבטחה מוחלטת.
+            We use encrypted connections and restrict access to information. No storage or transmission method
+            guarantees absolute security.
           </p>
         </Section>
-        <Section title="עדכונים ויצירת קשר">
+        <Section title="Updates and contact">
           <p className="policy-paragraph">
-            שינויים מהותיים במסמך ישתקפו בתאריך העדכון. לפניות בנושא השירות, ביטול, פרטיות או נגישות:{' '}
+            Material changes to this document will be reflected in its update date. For service, cancellation, privacy
+            or accessibility requests:{' '}
             <a className="policy-inline-link" href="mailto:liormenaiot@gmail.com" dir="ltr">
               liormenaiot@gmail.com
             </a>
-            . אפשר לפנות גם דרך{' '}
+            . You can also contact us on{' '}
             <a
               className="policy-inline-link"
               href="https://instagram.com/capital_flow555"
