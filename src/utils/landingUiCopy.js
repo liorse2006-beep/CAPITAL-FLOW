@@ -1,5 +1,14 @@
 // Preserve the existing Hebrew landing chrome; application copy is English.
 const HEBREW_COPY = {
+  'Add to Home Screen': 'הוספה למסך הבית',
+  'Add Capital Flow to your Home Screen for notifications': 'לקבלת התראות באייפון, הוסף את Capital Flow למסך הבית',
+  'Open it from the new icon, then allow notifications.': 'פתח מהאייקון החדש ואשר התראות.',
+  More: 'אפשרויות נוספות',
+  Share: 'שיתוף',
+  'Add Home': 'הוספה למסך הבית',
+  'Add Capital Flow to your home screen': 'הוספת Capital Flow למסך הבית',
+  'One tap — instant access, no app store needed.': 'גישה מהירה, ללא התקנה מחנות אפליקציות.',
+  Install: 'הוספה',
   'Preparing your workspace…': 'מכינים את סביבת העבודה…',
   'If loading takes longer, please try again in a moment': 'אם הטעינה מתעכבת, אפשר לנסות שוב בעוד רגע',
   'Almost ready…': 'כמעט מוכנים…',

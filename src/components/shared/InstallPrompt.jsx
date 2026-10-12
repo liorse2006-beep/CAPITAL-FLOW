@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import useInstallPrompt from '../../hooks/useInstallPrompt';
+import { useUiLanguage } from '../../context/UiLanguageContext';
+import { copyFor } from '../../utils/landingUiCopy';
 
 export default function InstallPrompt() {
+  const language = useUiLanguage();
+  const copy = (value) => copyFor(language, value);
   const { canShow, isIOS, triggerInstall, dismiss } = useInstallPrompt();
   const [visible, setVisible] = useState(false);
 
@@ -25,7 +29,13 @@ export default function InstallPrompt() {
   }
 
   return (
-    <div className="install-prompt" role="banner" aria-label="Add to Home Screen">
+    <div
+      className="install-prompt"
+      role="banner"
+      aria-label={copy('Add to Home Screen')}
+      lang={language}
+      dir={language === 'he' ? 'rtl' : 'ltr'}
+    >
       <div className="install-prompt-icon" aria-hidden="true">
         <img src="/favicon.svg" alt="" width="36" height="36" />
       </div>
@@ -33,10 +43,10 @@ export default function InstallPrompt() {
       <div className="install-prompt-body">
         {isIOS ? (
           <>
-            <p className="install-prompt-title">Add Capital Flow to your Home Screen for notifications</p>
-            <p className="install-prompt-sub">Open it from the new icon, then allow notifications.</p>
+            <p className="install-prompt-title">{copy('Add Capital Flow to your Home Screen for notifications')}</p>
+            <p className="install-prompt-sub">{copy('Open it from the new icon, then allow notifications.')}</p>
             <div className="install-prompt-steps">
-              <span className="install-prompt-step install-prompt-step-icon-only" aria-label="More">
+              <span className="install-prompt-step install-prompt-step-icon-only" aria-label={copy('More')}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                   <circle cx="5" cy="12" r="2" />
                   <circle cx="12" cy="12" r="2" />
@@ -71,7 +81,7 @@ export default function InstallPrompt() {
                   <path d="M7 8l5-5 5 5" />
                   <rect x="5" y="13" width="14" height="8" rx="2" />
                 </svg>
-                Share
+                {copy('Share')}
               </span>
               <svg
                 className="install-prompt-step-arrow"
@@ -100,25 +110,25 @@ export default function InstallPrompt() {
                   <rect x="3" y="3" width="18" height="18" rx="4" />
                   <path d="M12 8v8M8 12h8" />
                 </svg>
-                Add Home
+                {copy('Add Home')}
               </span>
             </div>
           </>
         ) : (
           <>
-            <p className="install-prompt-title">Add Capital Flow to your home screen</p>
-            <p className="install-prompt-sub">One tap — instant access, no app store needed.</p>
+            <p className="install-prompt-title">{copy('Add Capital Flow to your home screen')}</p>
+            <p className="install-prompt-sub">{copy('One tap — instant access, no app store needed.')}</p>
           </>
         )}
       </div>
 
       {!isIOS && (
         <button className="install-prompt-cta" onClick={handleInstall}>
-          Install
+          {copy('Install')}
         </button>
       )}
 
-      <button className="install-prompt-close" onClick={handleDismiss} aria-label="Close">
+      <button className="install-prompt-close" onClick={handleDismiss} aria-label={copy('Close')}>
         ✕
       </button>
     </div>

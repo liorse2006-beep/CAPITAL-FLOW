@@ -1,12 +1,16 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { UiLanguageContext } from '../../context/UiLanguageContext';
 import TierComparisonMatrix from './TierComparisonMatrix';
 import CookieConsent from './CookieConsent';
 import AccessibilityWidget from './AccessibilityWidget';
 import ErrorBoundary from './ErrorBoundary';
+import InstallPrompt from './InstallPrompt';
+import useInstallPrompt from '../../hooks/useInstallPrompt';
 import { BILLING_COUNTRIES } from '../../utils/billingCountries';
+
+vi.mock('../../hooks/useInstallPrompt', () => ({ default: vi.fn() }));
 
 function renderChrome(language) {
   return render(
@@ -22,6 +26,7 @@ function renderChrome(language) {
 
 beforeEach(() => localStorage.clear());
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   localStorage.clear();
   document.documentElement.classList.remove('a11y-high-contrast');
@@ -29,6 +34,27 @@ afterEach(() => {
 });
 
 describe('application / landing language boundary', () => {
+  it.each([
+    ['en', false, 'Add Capital Flow to your home screen'],
+    ['en', true, 'Add Capital Flow to your Home Screen for notifications'],
+    ['he', false, 'הוספת Capital Flow למסך הבית'],
+    ['he', true, 'לקבלת התראות באייפון, הוסף את Capital Flow למסך הבית'],
+  ])('keeps the install prompt in %s (iOS=%s)', (language, isIOS, title) => {
+    vi.useFakeTimers();
+    vi.mocked(useInstallPrompt).mockReturnValue({ canShow: true, isIOS, triggerInstall: vi.fn(), dismiss: vi.fn() });
+    const view = render(
+      <UiLanguageContext.Provider value={language}>
+        <InstallPrompt />
+      </UiLanguageContext.Provider>
+    );
+    act(() => vi.advanceTimersByTime(2500));
+    expect(screen.getByText(title)).toBeInTheDocument();
+    expect(screen.getByRole('banner')).toHaveAttribute('lang', language);
+    expect(screen.getByRole('banner')).toHaveAttribute('dir', language === 'he' ? 'rtl' : 'ltr');
+    if (language === 'en') expect(view.container.textContent).not.toMatch(/[\u0590-\u05ff]/);
+    else expect(screen.getByRole('button', { name: 'סגירה' })).toBeInTheDocument();
+  });
+
   it.each([
     ['/scanner', 'en', 'ltr', "We couldn't display this screen", 'Reload'],
     ['/', 'he', 'rtl', 'לא הצלחנו להציג את המסך', 'טעינה מחדש'],
