@@ -3,6 +3,39 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { toPostgresSql } = require('../server/db/postgres');
+const { createPostgresDatabase } = require('../server/db/postgres');
+
+test('read-only PostgreSQL snapshots use repeatable-read and release or roll back without changing write transactions', async (t) => {
+  const calls = [];
+  let released = 0;
+  let fail = false;
+  const connection = {
+    query: async (sql) => {
+      calls.push(sql);
+      if (fail && sql.startsWith('SELECT')) throw new Error('synthetic failure');
+      return { rows: sql.startsWith('SELECT') ? [{ one: 1 }] : [], rowCount: 1 };
+    },
+    release: () => released++,
+  };
+  t.mock.method(require('pg').Pool.prototype, 'connect', async () => connection);
+  const database = createPostgresDatabase('postgresql://synthetic:synthetic@127.0.0.1:1/test');
+  t.after(() => database.close());
+  await database.transaction([{ sql: 'SELECT 1 AS one', args: [] }], { readOnly: true });
+  assert.deepEqual(calls, ['BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY', 'SELECT 1 AS one', 'COMMIT']);
+  calls.length = 0;
+  fail = true;
+  await assert.rejects(database.transaction([{ sql: 'SELECT 1', args: [] }], { readOnly: true }), /synthetic failure/);
+  assert.equal(calls.at(-1), 'ROLLBACK');
+  assert.equal(released, 2);
+  calls.length = 0;
+  fail = false;
+  await database.transaction([{ sql: 'SELECT 1', args: [] }]);
+  assert.equal(calls[0], 'BEGIN');
+  await assert.rejects(
+    database.transaction(() => {}, { readOnly: true }),
+    /statement list/
+  );
+});
 
 test('PostgreSQL adapter converts positional placeholders without changing literals', () => {
   assert.equal(

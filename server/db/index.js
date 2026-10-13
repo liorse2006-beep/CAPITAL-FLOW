@@ -116,16 +116,19 @@ async function exec(sql) {
 // a small wrapper around libSQL's write transaction mode so routes that touch
 // multiple user-owned tables cannot leave a partial state after a transient
 // database failure.
-function transaction(statementsOrCallback) {
-  if (isPostgresDatabase) return postgresDb.transaction(statementsOrCallback);
+function transaction(statementsOrCallback, options = {}) {
+  if (options.readOnly && typeof statementsOrCallback === 'function') {
+    throw new TypeError('Read-only snapshots require a statement list');
+  }
+  if (isPostgresDatabase) return postgresDb.transaction(statementsOrCallback, options);
   // Local SQLite callbacks share a connection: keep concurrent asynchronous
   // writes outside each other's BEGIN/COMMIT window. The bounded queue also
   // makes registration capacity checks atomic without extra infrastructure.
-  return runSqlite(() => executeTransaction(statementsOrCallback));
+  return runSqlite(() => executeTransaction(statementsOrCallback, options));
 }
 
-async function executeTransaction(statementsOrCallback) {
-  if (isPostgresDatabase) return postgresDb.transaction(statementsOrCallback);
+async function executeTransaction(statementsOrCallback, { readOnly = false } = {}) {
+  if (isPostgresDatabase) return postgresDb.transaction(statementsOrCallback, { readOnly });
   if (typeof statementsOrCallback === 'function') {
     let tx;
     if (isLocalSqlite) {
@@ -191,8 +194,26 @@ async function executeTransaction(statementsOrCallback) {
   if (!Array.isArray(statementsOrCallback) || statementsOrCallback.length === 0) return [];
   return client.batch(
     statementsOrCallback.map((statement) => ({ sql: statement.sql, args: statement.args || [] })),
-    'write'
+    readOnly ? 'read' : 'write'
   );
+}
+
+async function readSnapshot(statements) {
+  if (
+    !Array.isArray(statements) ||
+    statements.length === 0 ||
+    statements.length > 64 ||
+    statements.some(
+      (statement) =>
+        typeof statement?.sql !== 'string' ||
+        !/^SELECT\b/i.test(statement.sql.trim()) ||
+        /;|--|\/\*/.test(statement.sql)
+    )
+  ) {
+    throw new TypeError('Read snapshots require a bounded list of single SELECT statements');
+  }
+  const results = await transaction(statements, { readOnly: true });
+  return results.map((result) => result.rows.map(toPlainObject));
 }
 
 async function tableInfo(table) {
@@ -206,6 +227,7 @@ const db = {
   prepare,
   exec,
   transaction,
+  readSnapshot,
   tableInfo,
   dialect: isPostgresDatabase ? 'postgres' : 'sqlite',
   resetSequences: postgresDb ? postgresDb.resetSequences : async () => {},

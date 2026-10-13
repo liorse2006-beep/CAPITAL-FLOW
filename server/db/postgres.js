@@ -244,11 +244,14 @@ function createPostgresDatabase(databaseUrl) {
     return results;
   }
 
-  async function transaction(statementsOrCallback) {
+  async function transaction(statementsOrCallback, { readOnly = false } = {}) {
+    if (readOnly && typeof statementsOrCallback === 'function') {
+      throw new TypeError('Read-only snapshots require a statement list');
+    }
     const connection = await pool.connect();
     const commitHooks = [];
     try {
-      await connection.query('BEGIN');
+      await connection.query(readOnly ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN');
       let result;
       if (typeof statementsOrCallback === 'function') {
         result = await statementsOrCallback({

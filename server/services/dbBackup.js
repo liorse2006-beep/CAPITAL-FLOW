@@ -43,8 +43,11 @@ function createTransport() {
 
 async function dumpTables() {
   const dump = { createdAt: new Date().toISOString(), tables: {} };
-  for (const table of TABLES) {
-    dump.tables[table] = await db.prepare(`SELECT * FROM ${table}`).all();
+  // A payment/entitlement commit must never be split between table reads.
+  // One read-only snapshot also avoids 26 separate hosted round trips.
+  const rowsByTable = await db.readSnapshot(TABLES.map((table) => ({ sql: `SELECT * FROM ${table}`, args: [] })));
+  for (const [index, table] of TABLES.entries()) {
+    dump.tables[table] = rowsByTable[index];
   }
   return dump;
 }

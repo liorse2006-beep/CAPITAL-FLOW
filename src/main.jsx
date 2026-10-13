@@ -12,6 +12,7 @@ import UpdateToast from './components/shared/UpdateToast';
 import AccessibilityWidget from './components/shared/AccessibilityWidget';
 import PublicLegalPage from './components/shared/PublicLegalPage';
 import ScanLoader from './components/shared/ScanLoader';
+import { hasCriticalFlow, installStaleChunkRecovery } from './utils/staleChunkRecovery';
 import './sentry';
 import './analytics';
 import './styles/index.css';
@@ -69,8 +70,15 @@ if ('serviceWorker' in navigator) {
 
 function Root() {
   const language = useUiLanguage();
-  const { isLoading, user, authLoadError } = useAuth();
+  const { isLoading, user, authLoadError, pendingGoogleToken } = useAuth();
   const { pathname } = useLocation();
+  useEffect(
+    () =>
+      installStaleChunkRecovery({
+        canReload: () => !pendingGoogleToken && !hasCriticalFlow(),
+      }),
+    [pendingGoogleToken]
+  );
   // Most loads resolve in well under a second — only switch to the fuller
   // animated "waking up" screen once the wait has gone on long enough that
   // it's plausibly a cold Render instance, not a flash on every visit.
