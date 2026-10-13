@@ -71,7 +71,7 @@ export default function SectorHeatmap(props) {
     };
   });
 
-  // Show "last session" banner when market is closed and server fell back to prior-day data
+  // Prior-session data describes freshness, not whether the market is open now.
   var showingLastSession =
     cells.length > 0 &&
     cells.some(function (c) {
@@ -489,7 +489,7 @@ export default function SectorHeatmap(props) {
           : 'Sector data is partial — some values could not be verified.'
       ),
 
-    // Last-session banner (shown when market is closed and data is from prior day)
+    // Last-session fallback can also occur while the market is open.
     showingLastSession &&
       React.createElement(
         'div',
@@ -508,7 +508,7 @@ export default function SectorHeatmap(props) {
           },
         },
         React.createElement('span', { style: { fontSize: 12 } }, '🕐'),
-        'MARKET CLOSED — showing last session data'
+        'Showing last available session data'
       ),
 
     // Grid
