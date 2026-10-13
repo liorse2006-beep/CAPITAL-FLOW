@@ -795,7 +795,10 @@ async function runScanForType(scanType) {
   const params =
     scanType === 'sectorMoving'
       ? { minVolumeRatio: 2.0, minMarketCap: 500_000_000 }
-      : { minVolumeRatio: 2.5, minMarketCap: 1_000_000_000 };
+      : // Match the Capital Flow screen's default scan. A hidden 2.5x filter
+        // produced an empty scheduled result while the default 1.5x table had
+        // matches, making a correctly worded notification look like a failure.
+        { minVolumeRatio: 1.5, minMarketCap: 1_000_000_000 };
   const res = await scanTickers(ALL_TICKERS, params);
   return normalizeScheduledScanResult(res);
 }

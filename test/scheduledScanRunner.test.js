@@ -73,6 +73,33 @@ test('scheduled scan cycle waits for database schema readiness before querying',
 
 // ── one shared scan per type ────────────────────────────────────────────────
 
+test('scheduled Capital Flow uses the visible default volume threshold and not a hidden stricter threshold', async (t) => {
+  const inserted = await db
+    .prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)')
+    .run('sched-visible-default@test.local');
+  const userId = inserted.lastInsertRowid;
+  await db
+    .prepare("INSERT INTO scheduled_scans (user_id, scan_type, scan_time, active) VALUES (?, 'capitalFlow', ?, 1)")
+    .run(userId, nowHHMM());
+  const row = { symbol: 'NVDA', volumeRatio: 1.6, marketCap: 2e9, price: 100 };
+  const scanMock = t.mock.method(scanner, 'scanTickers', async (_tickers, options) => ({
+    results: [row].filter(
+      (result) => result.volumeRatio >= options.minVolumeRatio && result.marketCap >= options.minMarketCap
+    ),
+    errors: ['OTHER'],
+    processed: 2,
+    dataStatus: 'partial',
+  }));
+  t.mock.method(webPush, 'sendPushToUser', async () => ({ configured: false, devices: 0, delivered: 0 }));
+  await runScheduledScans();
+  assert.strictEqual(scanMock.mock.calls[0].arguments[1].minVolumeRatio, 1.5);
+  const notification = await db
+    .prepare('SELECT body, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+    .get(userId);
+  assert.strictEqual(notification.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.deepStrictEqual(JSON.parse(notification.results_json), [row]);
+});
+
 test('two users scheduled for the same window share ONE scan and both get pushed', async (t) => {
   const u1 = await db.prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)').run('sched-a@test.local');
   const u2 = await db.prepare('INSERT INTO users (email, is_verified) VALUES (?, 1)').run('sched-b@test.local');
