@@ -73,22 +73,30 @@ describe('useSeo', () => {
     expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', ORIGINAL_CANONICAL);
   });
 
-  it('updates crawl copy on client navigation and clears it when the route unmounts', () => {
+  it('removes the explanation block completely during application navigation', () => {
+    document.querySelector('#seo-route-content').innerHTML = '<p>Old explanation block</p>';
     const { rerender, unmount } = renderHook((props) => useSeo(props), {
       initialProps: { title: 'Scanner', description: 'Scanner description', path: '/scanner' },
     });
-    const content = document.querySelector('#seo-route-content');
-
-    expect(content.textContent).toContain('Unusual Volume Stock Scanner');
-    expect(content.querySelector('a[href="/ma"]')).not.toBeNull();
+    expect(document.querySelector('#seo-route-content')).toBeNull();
+    expect(document.body).not.toHaveTextContent('Old explanation block');
 
     rerender({ title: 'Moving Average', description: 'MA description', path: '/ma' });
-    expect(content.textContent).toContain('MA Scanner');
-    expect(content.textContent).not.toContain('Unusual Volume Stock Scanner');
+    expect(document.querySelector('#seo-route-content')).toBeNull();
 
     unmount();
-    expect(content.innerHTML).toBe('');
+    expect(document.querySelector('#seo-route-content')).toBeNull();
   });
+
+  it.each(['/scanner', '/ma', '/flow', '/fundamentals', '/watchlist', '/policy', '/accessibility'])(
+    'does not leave an explanation section on %s',
+    (path) => {
+      renderHook(() => useSeo({ title: 'Capital Flow', path }));
+      expect(document.querySelector('#seo-route-content')).toBeNull();
+      expect(document.querySelector('.seo-discovery-content')).toBeNull();
+      expect(document.getElementById('root')).not.toBeNull();
+    }
+  );
   it('uses English locale and alternates for the application without inventing a Hebrew app route', () => {
     const { unmount } = renderHook(() => useSeo({ title: 'Scanner', path: '/scanner' }));
     expect(document.querySelector('meta[property="og:locale"]')).toHaveAttribute('content', 'en_US');
@@ -116,7 +124,7 @@ describe('useSeo', () => {
     expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow');
     expect(document.querySelector('link[rel="canonical"]')).toBeNull();
     expect(document.querySelector('link[rel="alternate"]')).toBeNull();
-    expect(document.querySelector('#seo-route-content')).toBeEmptyDOMElement();
+    expect(document.querySelector('#seo-route-content')).toBeNull();
     unmount();
     expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', ORIGINAL_CANONICAL);
     expect(document.querySelector('link[rel="alternate"]')).toBe(alternate);

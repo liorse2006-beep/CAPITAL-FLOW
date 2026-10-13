@@ -39,11 +39,7 @@ test('server-rendered route metadata replaces the SPA defaults without trusting 
   assert.match(rendered, /name="description" content="Review available P\/E/);
   assert.match(rendered, /property="og:url" content="https:\/\/capitalflow\.vip\/fundamentals"/);
   assert.match(rendered, /rel="canonical" href="https:\/\/capitalflow\.vip\/fundamentals"/);
-  assert.match(
-    rendered,
-    /<section id="seo-route-content"[^>]*><h2 id="stock-fundamentals-title">Stock Fundamentals Research<\/h2>/
-  );
-  assert.match(rendered, /available company/i);
+  assert.doesNotMatch(rendered, /seo-route-content|Stock Fundamentals Research/);
   assert.match(rendered, /hreflang="en" href="https:\/\/capitalflow\.vip\/fundamentals"/);
   assert.match(rendered, /hreflang="x-default" href="https:\/\/capitalflow\.vip\/fundamentals"/);
   assert.match(rendered, /property="og:locale" content="en_US"/);
@@ -62,13 +58,15 @@ test('the homepage has Hebrew crawlable content and links to the main research t
   assert.match(rendered, /אינו ייעוץ השקעות/);
 });
 
-test('route-specific crawl copy is present in the initial HTML and links only to internal paths', () => {
-  const rendered = renderPublicMetadata(SHELL, '/scanner');
-
-  assert.match(rendered, /<h2 id="volume-scanner-title">Unusual Volume Stock Scanner<\/h2>/);
-  assert.match(rendered, /Market data may be delayed, estimated or partial/);
-  assert.match(rendered, /href="\/ma">MA Scanner<\/a>/);
-  assert.doesNotMatch(rendered, /Data provenance|Yahoo Finance|Finnhub|Massive/);
+test('application HTML omits the complete explanation section on every route', () => {
+  for (const route of ['/scanner', '/ma', '/flow', '/fundamentals', '/watchlist', '/policy', '/accessibility']) {
+    const metadata = getPublicMetadata(route);
+    const rendered = renderPublicMetadata(SHELL, route);
+    assert.doesNotMatch(rendered, /seo-route-content|seo-discovery|Explore other tools/, route);
+    assert.match(rendered, /<div id="root"><\/div>/);
+    assert.ok(rendered.includes(`<title>${metadata.title.replace(/&/g, '&amp;')}</title>`), route);
+    assert.ok(rendered.includes(`href="https://capitalflow.vip${route}"`));
+  }
 });
 
 test('scanner metadata describes available screening tools without claiming live or complete coverage', () => {

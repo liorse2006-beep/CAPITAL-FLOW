@@ -121,12 +121,18 @@ function renderPublicMetadata(html, pathname) {
       canonical
     );
   }
-  const contentMarkup = renderSeoContent(SEO_CONTENT[normalizePath(pathname)], language);
+  if (normalizePath(pathname) !== '/') return removeAppExplanation(rendered);
+
+  const contentMarkup = renderSeoContent(SEO_CONTENT['/'], language);
   rendered = rendered.replace(
     /(<section\s+id=["']seo-route-content["'][^>]*>)[\s\S]*?(<\/section>)/i,
     (_match, open, close) => `${open}${contentMarkup}${close}`
   );
   return rendered;
+}
+
+function removeAppExplanation(html) {
+  return html.replace(/<section\s+id=["']seo-route-content["'][^>]*>[\s\S]*?<\/section>/gi, '');
 }
 
 function englishDocument(
@@ -166,7 +172,7 @@ function servePublicApp(req, res, serveDir) {
     if (error) return res.status(isKnownRoute ? 200 : 404).sendFile(indexPath);
     if (!isKnownRoute) {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-      const notFoundHtml = englishDocument(html)
+      const notFoundHtml = englishDocument(removeAppExplanation(html))
         .replace(/<title>[\s\S]*?<\/title>/i, '<title>Page not found | Capital Flow</title>')
         .replace(/<link\s+[^>]*rel=["']canonical["'][^>]*>/gi, '')
         .replace(/<link\s+[^>]*rel=["']alternate["'][^>]*>/gi, '')
