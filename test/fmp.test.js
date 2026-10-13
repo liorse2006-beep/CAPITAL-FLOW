@@ -10,6 +10,64 @@ const fmp = require('../server/services/fmp');
 
 test.after(() => fmp.clearCache());
 
+test('scan metadata uses an explicit matching profile and ten completed sessions, never current-day volume', async (t) => {
+  fmp.clearCache();
+  const { previousTradingDateKey, sessionDateForTimestamp } = require('../server/services/marketCalendar');
+  const symbol = 'AAPL';
+  const timestamp = Math.floor(Date.now() / 1000);
+  const quoteDate = sessionDateForTimestamp(timestamp * 1000);
+  const history = [{ symbol, date: quoteDate, volume: 99999999 }];
+  let date = quoteDate;
+  for (let i = 1; i <= 10; i++) {
+    date = previousTradingDateKey(date);
+    history.push({ symbol, date, volume: i * 10 });
+  }
+  const urls = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    urls.push(String(url));
+    assert.equal(options.headers.apikey, process.env.FMP_API_KEY);
+    const path = new URL(url).pathname;
+    const body = path.endsWith('/profile')
+      ? [{ symbol, currency: 'USD' }]
+      : path.endsWith('/historical-price-eod/full')
+        ? history
+        : [{ symbol, price: 100, volume: 1000, marketCap: 2000000000, timestamp }];
+    return { ok: true, status: 200, json: async () => body };
+  });
+
+  const [row] = await fmp.fetchFmpQuotes([symbol], { requireScanMetadata: true });
+  assert.equal(row.currency, 'USD');
+  assert.equal(row.averageDailyVolume10Day, 55);
+  assert.equal(row.regularMarketTime, timestamp);
+  assert.ok(urls.every((url) => !url.includes(process.env.FMP_API_KEY)));
+});
+
+test('single quotes and scan metadata share the existing minute budget', async (t) => {
+  fmp.clearCache();
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    const parsed = new URL(url);
+    if (parsed.pathname.endsWith('/batch-quote')) return { ok: false, status: 402, json: async () => ({}) };
+    requests++;
+    const symbol = parsed.searchParams.get('symbol');
+    const body = parsed.pathname.endsWith('/profile')
+      ? [{ symbol, currency: 'USD' }]
+      : parsed.pathname.endsWith('/historical-price-eod/full')
+        ? []
+        : [{ symbol, price: 100, volume: 1000, timestamp: Math.floor(Date.now() / 1000) }];
+    return { ok: true, status: 200, json: async () => body };
+  });
+  for (let batch = 0; batch < 10; batch++) {
+    await fmp.fetchFmpQuotes(
+      Array.from({ length: 100 }, (_, index) => `BUDGET${batch}_${index}`),
+      { requireScanMetadata: true }
+    );
+  }
+  assert.ok(requests <= 240, `quote + metadata requests must stay bounded: ${requests}`);
+  assert.ok(requests > 0);
+  fmp.clearCache();
+});
+
 test('supported concurrent batches receive their own requested symbols, not the probe batch rows', async (t) => {
   fmp.clearCache();
   let calls = 0;

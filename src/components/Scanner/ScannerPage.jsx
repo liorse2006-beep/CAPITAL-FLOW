@@ -721,6 +721,7 @@ export default function ScannerPage({
                 {scanTime &&
                   currentTime &&
                   (() => {
+                    if (scanDataStatus === 'unavailable' && !scanDataAsOf) return null;
                     const freshnessTime = scanDataAsOf || scanTime;
                     const ageMs = currentTime.getTime() - new Date(freshnessTime).getTime();
                     const ageMins = Math.round(ageMs / 60000);

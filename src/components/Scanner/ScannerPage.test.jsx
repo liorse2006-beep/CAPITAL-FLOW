@@ -177,6 +177,23 @@ describe('ScannerPage optional browser storage', () => {
 });
 
 describe('ScannerPage restored-last-scan label', () => {
+  it('does not label a failed request time as the observation time of unavailable data', () => {
+    render(
+      <ScannerPage
+        {...baseProps({
+          results: [],
+          sorted: [],
+          scanTime: new Date().toISOString(),
+          scanDataStatus: 'unavailable',
+          scanDataAsOf: null,
+        })}
+      />
+    );
+    expect(screen.queryByText(/Data as of|Data from .* minutes/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Market data is currently unavailable. Please try again in a few minutes.')
+    ).toBeInTheDocument();
+  });
   // A plain page refresh auto-restores the customer's last scan (see
   // App.jsx's /api/last-results effect) instead of a blank screen — without
   // a label, that data looks like it appeared from nowhere.

@@ -248,12 +248,11 @@ function isFresh(entry) {
 async function fmpRecovery(symbols, staleSymbols) {
   if (!fmp.isConfigured() || !symbols.length) return [];
   try {
-    const rows = await fmp.fetchFmpQuotes(symbols.slice(0, MAX_FMP_FALLBACK_SYMBOLS));
-    // FMP's single-quote response may omit currency. Its adapter deliberately
-    // preserves that uncertainty; do not count the row as a verified USD
-    // quote and thereby suppress Yahoo/Chart recovery for the same instrument.
-    // The complementary path must provide its own explicitly denominated,
-    // timestamped values. Never stamp USD onto an unknown FMP price.
+    const rows = await fmp.fetchFmpQuotes(symbols.slice(0, MAX_FMP_FALLBACK_SYMBOLS), { requireScanMetadata: true });
+    // The scan adapter resolves missing denomination only from a matching
+    // explicit FMP company profile, and volume from completed daily sessions.
+    // Unresolved rows still fall through to complementary providers; neither
+    // a ticker nor an exchange name is enough to manufacture USD.
     return filterFreshProviderRows(
       rows.filter((row) => row?.currency === 'USD'),
       staleSymbols

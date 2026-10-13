@@ -1,6 +1,7 @@
 const { FMP_API_KEY } = require('../config');
 const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
 const { createCircuitBreaker } = require('../utils/circuitBreaker');
+const { createScanMetadataLoader } = require('./fmpScanMetadata');
 
 // FMP is the primary quote provider. Prefer one bounded batch request when the
 // subscription permits it; if that endpoint is restricted, use the permitted
@@ -26,6 +27,15 @@ let singleQuoteRequestTimes = [];
 let batchProbePromise = null;
 let batchCapabilityConfirmedUntil = 0;
 const inFlightBatches = new Map();
+const scanMetadata = createScanMetadataLoader((path) => {
+  const now = Date.now();
+  singleQuoteRequestTimes = singleQuoteRequestTimes.filter((timestamp) => now - timestamp < SINGLE_QUOTE_WINDOW_MS);
+  // Metadata shares the same conservative minute budget as single quotes.
+  // This enrichment must not multiply requests beyond the existing limit.
+  if (singleQuoteRequestTimes.length >= SINGLE_QUOTE_BUDGET_PER_WINDOW) return Promise.resolve(null);
+  singleQuoteRequestTimes.push(now);
+  return requestJson(path);
+});
 
 function normalizeSymbol(value) {
   return (typeof value === 'string' ? value : '').trim().toUpperCase();
@@ -266,17 +276,19 @@ async function loadQuotes(symbols) {
   return symbols.map((symbol) => result.get(symbol)).filter(Boolean);
 }
 
-function fetchFmpQuotes(symbols) {
+function fetchFmpQuotes(symbols, { requireScanMetadata = false } = {}) {
   if (!FMP_API_KEY) return Promise.resolve([]);
   const normalized = [...new Set((symbols || []).map(normalizeSymbol).filter(Boolean))].slice(0, MAX_BATCH_SYMBOLS);
   if (normalized.length === 0) return Promise.resolve([]);
-  const key = [...normalized].sort().join('\u0000');
+  const key = `${requireScanMetadata ? 'scan:' : 'quote:'}${[...normalized].sort().join('\u0000')}`;
   const existing = inFlightRequests.get(key);
   if (existing) return existing;
 
-  const request = loadQuotes(normalized).finally(() => {
-    if (inFlightRequests.get(key) === request) inFlightRequests.delete(key);
-  });
+  const request = loadQuotes(normalized)
+    .then((rows) => (requireScanMetadata ? scanMetadata.enrich(rows) : rows))
+    .finally(() => {
+      if (inFlightRequests.get(key) === request) inFlightRequests.delete(key);
+    });
   inFlightRequests.set(key, request);
   return request;
 }
@@ -293,6 +305,7 @@ function clearCache() {
   batchProbePromise = null;
   batchCapabilityConfirmedUntil = 0;
   inFlightBatches.clear();
+  scanMetadata.clear();
 }
 
 module.exports = {
