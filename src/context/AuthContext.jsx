@@ -126,7 +126,7 @@ export function AuthProvider({ children }) {
   );
 
   const fetchMe = useCallback(
-    async (token, isRevalidation, epoch = sessionEpochRef.current) => {
+    async function resolveAccount(token, isRevalidation, epoch = sessionEpochRef.current, allowTokenRefresh = true) {
       const isCurrent = () => isCurrentEpoch(epoch) && accessTokenRef.current === token;
       // A sleeping Render free instance can take 30-50s to answer the very
       // first request while it wakes up. The old 8s timeout aborted long
@@ -165,6 +165,22 @@ export function AuthProvider({ children }) {
           // into data loss/dead-end UX and would leave the refresh cookie
           // needlessly hidden behind a login screen.
           if (res.status === 401 || res.status === 403) {
+            // An expired short-lived bearer is not a revoked cookie session.
+            // Suspended tabs can miss the 45-minute refresh timer, while the
+            // 90-second /me check resumes first. Renew once before clearing
+            // the account; transient refresh failures must preserve it.
+            if (allowTokenRefresh) {
+              const renewed = await silentRefresh({ retryTransient: !isRevalidation });
+              if (!isCurrentEpoch(epoch)) return;
+              if (renewed.status === 'authenticated' && accessTokenRef.current === renewed.token) {
+                return resolveAccount(renewed.token, isRevalidation, epoch, false);
+              }
+              if (!isCurrent() || renewed.status === 'superseded') return;
+              if (renewed.status === 'unavailable') {
+                if (!isRevalidation) setAuthLoadError(true);
+                return;
+              }
+            }
             setAccessToken(null);
             setUser(null);
             if (isRevalidation) setAuthError('session_replaced');
@@ -191,7 +207,7 @@ export function AuthProvider({ children }) {
         }
       }
     },
-    [setAccessToken, isCurrentEpoch, startRequest]
+    [setAccessToken, isCurrentEpoch, startRequest, silentRefresh]
   );
 
   useEffect(() => {

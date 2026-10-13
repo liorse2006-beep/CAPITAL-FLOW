@@ -11,6 +11,7 @@ import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-li
 import { AuthProvider, useAuth } from './AuthContext';
 
 afterEach(() => {
+  vi.useRealTimers();
   localStorage.clear();
   window.history.replaceState({}, '', '/');
   vi.unstubAllGlobals();
@@ -53,6 +54,105 @@ function StrictAuthProvider({ children }) {
 }
 
 describe('AuthContext — Google OAuth pending-token handoff', () => {
+  it.each([200, 503, 401])(
+    'rechecks the refresh cookie before treating an expired access token as logout (refresh %s)',
+    async (refreshStatus) => {
+      let established = false;
+      const fetchMock = vi.fn((url, options) => {
+        if (url === '/api/auth/refresh')
+          return Promise.resolve(
+            established
+              ? {
+                  ok: refreshStatus === 200,
+                  status: refreshStatus,
+                  json: async () => ({ token: 'synthetic-renewed-token' }),
+                }
+              : { ok: false, status: 401 }
+          );
+        if (url === '/api/auth/me')
+          return Promise.resolve(
+            options.headers.Authorization === 'Bearer synthetic-renewed-token'
+              ? { ok: true, json: async () => ({ user: { id: 7, tier: 'elite' } }) }
+              : { ok: false, status: 401 }
+          );
+        throw new Error('Unexpected authentication route');
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      const view = renderHook(() => useAuth(), { wrapper: AuthProvider });
+      await waitFor(() => expect(view.result.current.isLoading).toBe(false));
+      established = true;
+      fetchMock.mockClear();
+      vi.useFakeTimers();
+      act(() => view.result.current.login('synthetic-expired-token', { id: 7, tier: 'elite' }));
+      await act(async () => vi.advanceTimersByTimeAsync(90000));
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/refresh', expect.objectContaining({ credentials: 'include' }));
+      expect(fetchMock.mock.calls.filter(([url]) => url === '/api/auth/refresh')).toHaveLength(1);
+      if (refreshStatus === 401) {
+        expect(view.result.current.user).toBeNull();
+        expect(view.result.current.getToken()).toBeNull();
+      } else {
+        expect(view.result.current.user?.id).toBe(7);
+        expect(view.result.current.user?.tier).toBe('elite');
+        expect(view.result.current.getToken()).toBe(
+          refreshStatus === 200 ? 'synthetic-renewed-token' : 'synthetic-expired-token'
+        );
+        expect(view.result.current.authError).toBeNull();
+      }
+      view.unmount();
+    }
+  );
+
+  it('a refreshed bearer rejected by /me fails closed without an infinite refresh loop', async () => {
+    let established = false;
+    const fetchMock = vi.fn((url) =>
+      Promise.resolve(
+        url === '/api/auth/refresh' && established
+          ? { ok: true, json: async () => ({ token: 'synthetic-rejected-token' }) }
+          : { ok: false, status: 401 }
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const view = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(view.result.current.isLoading).toBe(false));
+    established = true;
+    fetchMock.mockClear();
+    act(() => view.result.current.login('synthetic-old-token', { id: 7 }));
+    await act(async () => view.result.current.refreshUser());
+    expect(view.result.current.user).toBeNull();
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/auth/refresh')).toHaveLength(1);
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/auth/me')).toHaveLength(2);
+    view.unmount();
+  });
+
+  it('a stale cookie-renewal failure cannot clear a newer account login', async () => {
+    let established = false;
+    let finishRefresh;
+    const pending = new Promise((resolve) => {
+      finishRefresh = resolve;
+    });
+    const fetchMock = vi.fn((url) =>
+      url === '/api/auth/refresh' && established ? pending : Promise.resolve({ ok: false, status: 401 })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const view = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(view.result.current.isLoading).toBe(false));
+    established = true;
+    act(() => view.result.current.login('synthetic-old-token', { id: 7 }));
+    let refresh;
+    await act(async () => {
+      refresh = view.result.current.refreshUser();
+    });
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/auth/refresh')).toHaveLength(2);
+    act(() => view.result.current.login('synthetic-new-login', { id: 8 }));
+    await act(async () => {
+      finishRefresh({ ok: false, status: 401 });
+      await refresh;
+    });
+    expect(view.result.current.user?.id).toBe(8);
+    expect(view.result.current.getToken()).toBe('synthetic-new-login');
+    view.unmount();
+  });
+
   it('restores the refresh-cookie session under the real StrictMode lifecycle', async () => {
     vi.stubGlobal(
       'fetch',

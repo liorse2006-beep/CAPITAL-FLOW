@@ -86,6 +86,7 @@ async function main() {
       const generatorDelay = monitorEventLoopDelay({ resolution: 10 });
       generatorDelay.enable();
       const generatorCpu = process.cpuUsage();
+      const beganStageEpochMs = Date.now();
       const beganStage = performance.now();
       const timings = [];
       const statuses = {};
@@ -178,6 +179,8 @@ async function main() {
       report.runtime = after.runtime;
       report.providerOperations = after.providerOperations;
       const stage = {
+        startedAtEpochMs: beganStageEpochMs,
+        finishedAtEpochMs: Date.now(),
         virtualUsers: concurrency,
         cyclesPerUser: 3,
         requests: timings.length,
