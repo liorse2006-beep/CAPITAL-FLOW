@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ScheduleScan from './ScheduleScan';
@@ -90,5 +90,23 @@ describe('ScheduleScan', () => {
 
     await waitFor(() => expect(mocks.addSchedule).toHaveBeenCalledTimes(1));
     expect(onEnablePush).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a failed save inside the active notification-choice dialog and keeps retry available', async () => {
+    const user = userEvent.setup();
+    mocks.addSchedule.mockImplementation(async () => {
+      mocks.error = 'Failed to create schedule';
+      return false;
+    });
+    renderScheduler({ initiallyOpen: true });
+    await user.click(screen.getByRole('button', { name: '+ Add' }));
+    await user.click(screen.getByRole('button', { name: 'Continue without push' }));
+
+    const choice = within(screen.getByRole('dialog', { name: "Notifications aren't enabled" }));
+    await waitFor(() =>
+      expect(choice.getByRole('alert')).toHaveTextContent("We couldn't save your schedule. Please try again.")
+    );
+    expect(choice.getByRole('button', { name: 'Continue without push' })).toBeEnabled();
+    expect(screen.getByRole('dialog', { name: 'Schedule scan' })).toBeInTheDocument();
   });
 });

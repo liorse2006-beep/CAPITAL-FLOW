@@ -202,6 +202,7 @@ export default function ScheduleScan({
                     pushBusy={pushBusy}
                     pushError={pushError}
                     actionBusy={adding}
+                    actionError={error}
                     onEnable={enablePushAndSaveSchedule}
                     onContinue={() => persistSchedule(pendingSchedule)}
                     onCancel={() => setPendingSchedule(null)}

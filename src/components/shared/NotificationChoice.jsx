@@ -15,6 +15,7 @@ export default function NotificationChoice({
   onContinue,
   onCancel,
   actionBusy = false,
+  actionError = null,
   title = "Notifications aren't enabled",
   supportedDescription = 'Would you like to enable push notifications so you receive this result even when the app is closed? If not, it will still be saved in Notifications.',
   unsupportedDescription = 'Push notifications are not available in this browser. On iPhone: add Capital Flow to your Home Screen, open it from the new icon, and allow notifications.',
@@ -56,9 +57,9 @@ export default function NotificationChoice({
         <h2 className="notification-choice-title">{title}</h2>
         <p className="notification-choice-copy">{pushSupported ? supportedDescription : unsupportedDescription}</p>
 
-        {(enableError || pushError) && (
+        {(enableError || actionError || pushError) && (
           <p className="notification-choice-error" role="alert">
-            {enableError || friendlyError(pushError)}
+            {enableError || friendlyError(actionError || pushError)}
           </p>
         )}
 

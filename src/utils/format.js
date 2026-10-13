@@ -34,6 +34,7 @@ const USER_ERROR_COPY = Object.freeze({
     'Your watchlist is full. Remove a stock before adding another.',
   'Could not load scheduled scans': "We couldn't load your scheduled scans. Please try again.",
   'Failed to create schedule': "We couldn't save your schedule. Please try again.",
+  'That date and time have already passed': 'Choose a future date and time.',
   'Failed to update schedule': "We couldn't update your schedule. Please try again.",
   'Failed to remove schedule': "We couldn't remove your schedule. Please try again.",
   'Push notifications are not supported in this browser.':

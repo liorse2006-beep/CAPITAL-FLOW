@@ -43,6 +43,12 @@ describe('parseVolInput', () => {
 });
 
 describe('friendlyError', () => {
+  it('explains a past schedule time without exposing arbitrary backend details', () => {
+    expect(friendlyError('That date and time have already passed')).toBe('Choose a future date and time.');
+    expect(friendlyError('That date and time have already passed; database user id 42')).toBe(
+      'Something went wrong. Please try again.'
+    );
+  });
   it('gives a default message when there is no error', () => {
     expect(friendlyError(null)).toMatch(/went wrong/);
   });
