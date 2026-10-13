@@ -3,6 +3,10 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('../db');
 const { JWT_SECRET, ADMIN_EMAIL } = require('../config');
+// Parse the existing symmetric secret once. jsonwebtoken otherwise attempts
+// public/private-key parsing for every signature operation before falling back
+// to HMAC. Signature checks, expiry and live session/entitlement reads remain.
+const accessTokenKey = crypto.createSecretKey(Buffer.from(JWT_SECRET, 'utf8'));
 
 // The users.email column is a plain case-sensitive TEXT UNIQUE — without
 // normalizing at every entry point, "User@Gmail.com" and "user@gmail.com"
@@ -77,7 +81,7 @@ function hashRefreshToken(token) {
 }
 
 function generateToken(user, sessionId) {
-  return jwt.sign({ id: user.id, email: user.email, is_premium: user.is_premium, sid: sessionId }, JWT_SECRET, {
+  return jwt.sign({ id: user.id, email: user.email, is_premium: user.is_premium, sid: sessionId }, accessTokenKey, {
     expiresIn: ACCESS_TOKEN_TTL,
   });
 }
@@ -248,7 +252,7 @@ async function clearLoginFailures(userId) {
 }
 
 function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET);
+  return jwt.verify(token, accessTokenKey);
 }
 
 function generateOTP() {

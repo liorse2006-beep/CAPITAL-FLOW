@@ -6,6 +6,18 @@
 // explicit environment overrides when announced by the exchange.
 
 const NEW_YORK = 'America/New_York';
+// Reuse the immutable formatter, not a date/session result. DST and the current
+// instant are still evaluated on every call, without allocating ICU per request.
+const newYorkFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: NEW_YORK,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  weekday: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
 
 // Published cash-equity early closes, verified against NYSE on 2026-10-08:
 // https://www.nyse.com/trade/hours-calendars
@@ -20,16 +32,7 @@ const PUBLISHED_EARLY_CLOSES = [
 ];
 
 function newYorkParts(now = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: NEW_YORK,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(now);
+  const parts = newYorkFormatter.formatToParts(now);
   const map = {};
   parts.forEach((part) => {
     map[part.type] = part.value;
