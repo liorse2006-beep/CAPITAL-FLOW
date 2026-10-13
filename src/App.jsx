@@ -21,6 +21,7 @@ import TrialEndedModal from './components/shared/TrialEndedModal';
 import PilotGate from './components/shared/PilotGate';
 import AlertThresholdModal from './components/shared/AlertThresholdModal';
 import Topbar from './components/shared/Topbar';
+import ScheduleScan from './components/shared/ScheduleScan';
 import WatchlistPage from './components/Watchlist/WatchlistPage';
 import ScannerPage from './components/Scanner/ScannerPage';
 import PolicyPage from './pages/PolicyPage';
@@ -81,27 +82,16 @@ function App() {
     navigate(p === 'scanner' ? '/scanner' : '/' + p);
   }
 
-  // Profile has one scheduling action, but the product already owns a real
-  // scheduler beside each scanner. Navigate to the relevant scanner and ask
-  // its mounted ScheduleScan component to open its existing modal.
+  // The page-level control is absent while results are shown, and lazy pages
+  // may not have mounted yet. Own the profile dialog here rather than sending
+  // a one-shot DOM event to a listener that might not exist.
   const [profileScheduleRequest, setProfileScheduleRequest] = useState(null);
   function openSchedulingFromProfile() {
     const target = page === 'ma' ? 'ma' : page === 'flow' ? 'flow' : 'scanner';
     const scanType = target === 'ma' ? 'maScanner' : target === 'flow' ? 'sectorMoving' : 'capitalFlow';
-    setProfileScheduleRequest({ target, scanType, id: Date.now() });
+    setProfileScheduleRequest({ target, scanType, id: Date.now(), ownerId: user?.id });
     if (page !== target) setPage(target);
   }
-
-  useEffect(() => {
-    if (!profileScheduleRequest || page !== profileScheduleRequest.target) return undefined;
-    const timer = window.setTimeout(() => {
-      window.dispatchEvent(
-        new CustomEvent('capital-flow:open-schedule', { detail: { scanType: profileScheduleRequest.scanType } })
-      );
-      setProfileScheduleRequest(null);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [page, profileScheduleRequest]);
 
   // Manual pageview tracking — capture_pageview is off in src/analytics.js
   // specifically so this is the one place it happens, on every route change.
@@ -1623,6 +1613,24 @@ function App() {
             </div>
           </footer>
         </div>
+      )}
+
+      {user && profileScheduleRequest?.ownerId === user.id && page === profileScheduleRequest.target && (
+        <ScheduleScan
+          key={profileScheduleRequest.id}
+          scanType={profileScheduleRequest.scanType}
+          user={user}
+          initiallyOpen
+          hideTrigger
+          onClose={() => setProfileScheduleRequest(null)}
+          onUpgrade={() => openUpgradeModal()}
+          onSignIn={() => openAuthModal('login')}
+          pushSupported={pushSupported}
+          pushEnabled={pushEnabled}
+          pushBusy={pushBusy}
+          pushError={pushError}
+          onEnablePush={enablePush}
+        />
       )}
 
       {chartOpen && (

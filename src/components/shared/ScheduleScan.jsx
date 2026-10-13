@@ -39,13 +39,16 @@ export default function ScheduleScan({
   pushBusy,
   pushError,
   onEnablePush,
+  initiallyOpen = false,
+  hideTrigger = false,
+  onClose,
 }) {
   // Scheduled scans are a full כלול ב־Elite, included in the 7-day free
   // trial — user.elite_access is true for Elite AND in-trial free accounts.
   const hasAccess = !!(user && (user.tier === 'elite' || user.elite_access));
   const { mySchedules, loading, error, addSchedule, toggleSchedule, removeSchedule } = useScheduledScans(scanType);
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   const [timeInput, setTimeInput] = useState('09:30');
   // "once" is the default on purpose — a schedule the customer sets should
   // run once for the date+time they actually chose, not silently turn into
@@ -72,6 +75,7 @@ export default function ScheduleScan({
   function closeSchedule() {
     setOpen(false);
     setPendingSchedule(null);
+    onClose?.();
   }
 
   async function persistSchedule(schedule) {
@@ -107,31 +111,33 @@ export default function ScheduleScan({
 
   return (
     <>
-      <button
-        className="schedule-scan-btn"
-        onClick={() => (user ? setOpen(true) : onSignIn && onSignIn())}
-        title="Schedule automatic scan"
-        aria-label="Schedule automatic scan"
-      >
-        <svg
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
+      {!hideTrigger && (
+        <button
+          className="schedule-scan-btn"
+          onClick={() => (user ? setOpen(true) : onSignIn && onSignIn())}
+          title="Schedule automatic scan"
+          aria-label="Schedule automatic scan"
         >
-          <circle cx="12" cy="12" r="10" />
-          <polyline points="12 6 12 12 16 14" />
-        </svg>
-        Schedule
-        {mySchedules.filter((s) => s.active).length > 0 && (
-          <span className="schedule-scan-badge">{mySchedules.filter((s) => s.active).length}</span>
-        )}
-      </button>
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+          Schedule
+          {mySchedules.filter((s) => s.active).length > 0 && (
+            <span className="schedule-scan-badge">{mySchedules.filter((s) => s.active).length}</span>
+          )}
+        </button>
+      )}
 
       {open && (
         <div className="upgrade-overlay" onClick={closeSchedule}>

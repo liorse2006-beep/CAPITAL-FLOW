@@ -76,6 +76,52 @@ function CheckoutRepeatHarness() {
 }
 
 describe('App routing', () => {
+  it('opens scheduling from account center even when the destination scanner has no mounted schedule control', async () => {
+    vi.stubGlobal(
+      'EventSource',
+      class {
+        close() {}
+        addEventListener() {}
+      }
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        if (url === '/api/auth/refresh') return { ok: false, status: 401 };
+        if (url === '/api/account/summary')
+          return {
+            ok: true,
+            json: async () => ({
+              user: { id: 81, email: 'owner@test.local', tier: 'elite', is_verified: 1 },
+              plan: { tier: 'elite', access: 'Full access' },
+              usage: { quota: {} },
+              security: {},
+            }),
+          };
+        if (url === '/api/scheduled-scans') return { ok: true, json: async () => ({ schedules: [] }) };
+        if (url === '/api/watchlist') return { ok: true, json: async () => [] };
+        if (url === '/api/stream-ticket')
+          return { ok: true, json: async () => ({ ticket: 'local-test-ticket', expiresIn: 600 }) };
+        return { ok: true, json: async () => ({ notifications: [], symbols: [], levels: [], tier: 'elite' }) };
+      })
+    );
+    render(
+      <AuthProvider>
+        <MemoryRouter initialEntries={['/watchlist']}>
+          <LiveAccessHarness />
+          <App />
+        </MemoryRouter>
+      </AuthProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Test sign in' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open profile menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Schedules and alerts' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Schedule scans' }));
+    expect(await screen.findByRole('dialog', { name: 'Schedule scan' })).toBeInTheDocument();
+    expect(screen.getByText('Schedule Capital Flow')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Account center' })).not.toBeInTheDocument();
+  });
+
   it('does not keep the previous account notification detail visible after account switching', async () => {
     const streams = [];
     vi.stubGlobal(

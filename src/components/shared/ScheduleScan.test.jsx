@@ -49,6 +49,17 @@ describe('ScheduleScan', () => {
     mocks.addSchedule.mockResolvedValue(undefined);
   });
 
+  it('opens the existing dialog immediately for the profile without a second trigger', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    renderScheduler({ initiallyOpen: true, hideTrigger: true, onClose });
+    expect(screen.getByRole('dialog', { name: 'Schedule scan' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Schedule automatic scan' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('dialog', { name: 'Schedule scan' })).not.toBeInTheDocument();
+  });
+
   it('saves a schedule on a browser without push support', async () => {
     const user = userEvent.setup();
     renderScheduler();
