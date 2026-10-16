@@ -20,6 +20,7 @@ const { sendStatusIncidentAlert, sendStatusRecoveryAlert } = require('./email');
 const { fetchWithTimeout } = require('../utils/fetchWithTimeout');
 const { reportError, safeErrorSummary } = require('../utils/reportError');
 const { getComponentDefinitions, getStatusTargetUrl } = require('./statusConfig');
+const { checkAuthentication } = require('./statusAuthentication');
 const { backgroundInterval, backgroundTimeout, runBackgroundTask } = require('./backgroundRuntime');
 
 const FAILURE_CONFIRMATIONS = STATUS_FAILURE_CONFIRMATIONS;
@@ -167,10 +168,6 @@ async function readHttpCheck(component) {
       errorMessage = 'Database health response was not structurally valid.';
     }
   }
-  if (success && component.type === 'auth-route' && response.status !== 401) {
-    success = false;
-    errorMessage = 'Anonymous authentication probe returned an unexpected status.';
-  }
   if (success && component.type === 'market-data' && (!json || json.ok !== true || !json.sample)) {
     success = false;
     errorMessage = 'Known-symbol market-data response was not structurally valid.';
@@ -307,6 +304,8 @@ async function checkComponent(component) {
   try {
     let result;
     if (component.type === 'external-yahoo') result = await checkYahoo(component);
+    else if (component.type === 'auth-route')
+      result = await checkAuthentication(getStatusTargetUrl(), component.timeoutMs);
     else if (component.type === 'dns') result = await checkDns(component);
     else if (component.type === 'ssl') result = await checkSsl(component);
     else result = await readHttpCheck(component);
@@ -347,7 +346,7 @@ async function recordCheck(component, cycleId, attempt, result, finalResult) {
       component.key,
       checkedAt,
       attempt,
-      component.path || component.type,
+      result.endpoint || component.path || component.type,
       component.type,
       result.success ? 1 : 0,
       result.state,

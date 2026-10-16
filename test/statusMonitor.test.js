@@ -20,6 +20,8 @@ const originalFetch = global.fetch;
 let healthFails = false;
 let marketDataFails = false;
 let marketDataDegraded = false;
+let authChallengeFails = false;
+let anonymousAccountAllowed = false;
 
 function jsonResponse(status, body) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -38,7 +40,24 @@ global.fetch = async function (url) {
   }
   if (value.endsWith('/health'))
     return jsonResponse(healthFails ? 503 : 200, healthFails ? { status: 'error' } : { status: 'ok' });
-  if (value.endsWith('/api/auth/login')) return jsonResponse(401, { error: 'Unauthorized' });
+  if (value.endsWith('/api/auth/login-challenge'))
+    if (authChallengeFails) return jsonResponse(503, { error: 'Verification unavailable' });
+    else
+      return new Response(
+        JSON.stringify({
+          parameters: { algorithm: 'PBKDF2/SHA-256', data: { purpose: 'login' } },
+          signature: 'test-challenge',
+        }),
+        {
+          status: 200,
+          headers: { 'set-cookie': 'vs_login_verification=' + 'a'.repeat(64) + '; HttpOnly; Path=/api/auth' },
+        }
+      );
+  if (value.endsWith('/api/auth/me'))
+    return anonymousAccountAllowed
+      ? jsonResponse(200, { user: { id: 1 } })
+      : jsonResponse(401, { error: 'Unauthorized' });
+  if (value.endsWith('/api/auth/login')) return jsonResponse(400, { error: 'CAPTCHA verification failed' });
   if (value.endsWith('/status/internal/market-data')) {
     if (marketDataFails) return jsonResponse(503, { ok: false });
     return jsonResponse(200, {
@@ -68,6 +87,66 @@ test('status email policy alerts only for user-impacting components', () => {
   assert.equal(shouldEmailIncident({ key: 'yahoo', group: 'External dependencies', emailOnIncident: false }), false);
   assert.equal(shouldEmailIncident({ key: 'market-data', group: 'Critical functionality' }), true);
   assert.equal(shouldEmailIncident({ key: 'website', group: 'Core platform' }), true);
+});
+
+test('authentication stays operational with the production login-proof requirement, without posting credentials', async () => {
+  await clearStatusTables();
+  await runStatusCycle();
+  const latest = await db
+    .prepare(
+      "SELECT success, endpoint FROM status_checks WHERE component_key = 'authentication' AND final_result = 1 ORDER BY id DESC LIMIT 1"
+    )
+    .get();
+  assert.equal(latest.success, 1);
+  assert.equal(latest.endpoint, '/api/auth/login-challenge');
+  const incidents = await db
+    .prepare(
+      "SELECT COUNT(*) AS n FROM status_incidents WHERE component_key = 'authentication' AND status != 'resolved'"
+    )
+    .get();
+  assert.equal(incidents.n, 0);
+});
+
+test('a real login-verification outage is confirmed and resolved only after successful recovery checks', async () => {
+  await clearStatusTables();
+  authChallengeFails = true;
+  try {
+    await runStatusCycle();
+    await runStatusCycle();
+    let incident = await db
+      .prepare("SELECT * FROM status_incidents WHERE component_key = 'authentication' ORDER BY id DESC LIMIT 1")
+      .get();
+    assert.ok(incident && incident.status !== 'resolved');
+    authChallengeFails = false;
+    await runStatusCycle();
+    incident = await db.prepare('SELECT status FROM status_incidents WHERE id = ?').get(incident.id);
+    assert.equal(incident.status, 'monitoring');
+    await runStatusCycle();
+    incident = await db
+      .prepare("SELECT status FROM status_incidents WHERE component_key = 'authentication' ORDER BY id DESC LIMIT 1")
+      .get();
+    assert.equal(incident.status, 'resolved');
+  } finally {
+    authChallengeFails = false;
+  }
+});
+
+test('anonymous account exposure is a failed check with the exact failing endpoint recorded', async () => {
+  await clearStatusTables();
+  anonymousAccountAllowed = true;
+  try {
+    await runStatusCycle();
+    const latest = await db
+      .prepare(
+        "SELECT success, endpoint, status_code FROM status_checks WHERE component_key = 'authentication' AND final_result = 1 ORDER BY id DESC LIMIT 1"
+      )
+      .get();
+    assert.equal(latest.success, 0);
+    assert.equal(latest.status_code, 200);
+    assert.equal(latest.endpoint, '/api/auth/me');
+  } finally {
+    anonymousAccountAllowed = false;
+  }
 });
 
 test('status monitor sends the shared probe token only to protected probes', async () => {

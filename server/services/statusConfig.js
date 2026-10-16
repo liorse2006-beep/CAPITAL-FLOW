@@ -59,14 +59,15 @@ const COMPONENT_DEFINITIONS = [
   {
     key: 'authentication',
     name: 'Authentication',
-    description: 'Authentication route is reachable and rejects an anonymous request safely.',
+    description: 'Login verification is available and the account endpoint rejects anonymous access.',
     group: 'Core platform',
     criticality: 'major',
     type: 'auth-route',
-    path: '/api/auth/login',
-    method: 'POST',
-    body: { email: 'status-probe@example.invalid', password: 'status-probe-only' },
-    expectedStatus: 401,
+    // Do not submit fake credentials: production requires a browser-bound
+    // proof before credential checks, and probes must not use login budgets.
+    path: '/api/auth/login-challenge',
+    method: 'GET',
+    expectedStatus: 200,
     timeoutMs: STATUS_CHECK_TIMEOUT_MS,
     slowMs: 2500,
     verySlowMs: 5000,
