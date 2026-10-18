@@ -2,7 +2,10 @@
 
 This Worker handles only `GET /api/scan`. It validates the signed access token,
 keeps shared scan snapshots at the edge, and re-checks the caller's quota on
-cache hits. All other paths remain on the application origin.
+cache hits. All other application paths must use the application origin;
+the Worker itself rejects them without reading the cache or proxying credentials.
+Only public scan fields are shared: job identifiers and account/quota fields
+never enter the cache. Private/no-store origin responses are not cached.
 
 ## Deploy
 
@@ -24,3 +27,7 @@ VITE_SCAN_WORKER_URL=https://capital-flow-scan-cache.<account>.workers.dev
 After deployment, verify an authenticated scan from the production app and
 confirm both cache misses and cache hits still return the caller's own quota
 metadata. Do not put `JWT_SECRET` in this repository.
+
+The `__shared_scan_v2` cache namespace makes older entries unreachable as soon
+as this script is deployed. The Worker deployment is separate from the app's
+Render deployment; updating the app alone does not update an existing Worker.

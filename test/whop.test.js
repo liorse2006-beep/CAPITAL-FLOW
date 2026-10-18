@@ -54,6 +54,7 @@ function paymentData(userId, tier, extra = {}) {
     metadata: whop.createCheckoutMetadata({
       userId: String(userId),
       tier,
+      planId,
       couponCode: metadataExtra.couponCode || '',
     }),
   };
@@ -223,7 +224,7 @@ test('webhook refuses to grant access when the signed payment plan is missing or
     type: 'payment.succeeded',
     data: {
       plan: { id: 'plan_not_configured' },
-      metadata: whop.createCheckoutMetadata({ userId: String(user.id), tier: 'elite' }),
+      metadata: whop.createCheckoutMetadata({ userId: String(user.id), tier: 'elite', planId: 'plan_elite_test' }),
     },
   });
 
@@ -684,7 +685,9 @@ test('refund.updated revokes access only after Whop confirms the refund succeede
     assert.strictEqual(succeededRes.status, 200);
     state = await db.prepare('SELECT tier FROM users WHERE id = ?').get(user.id);
     assert.strictEqual(state.tier, 'free', 'succeeded refund must revoke its paid tier');
-    const entitlement = await db.prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?').get(paymentId);
+    const entitlement = await db
+      .prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?')
+      .get(paymentId);
     assert.strictEqual(entitlement.status, 'refunded');
   } finally {
     server.close();
@@ -821,7 +824,9 @@ test('dispute_alert.created is acknowledged without revoking access before a for
     const unchanged = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
     assert.strictEqual(unchanged.tier, 'elite');
     assert.strictEqual(unchanged.is_premium, 1);
-    const entitlement = await db.prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?').get(paymentId);
+    const entitlement = await db
+      .prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?')
+      .get(paymentId);
     assert.strictEqual(entitlement.status, 'active');
   } finally {
     server.close();
@@ -865,15 +870,22 @@ test('out-of-order dispute.updated won cannot be overwritten by a late dispute.c
     const unchanged = await db.prepare('SELECT tier, is_premium FROM users WHERE id = ?').get(user.id);
     assert.strictEqual(unchanged.tier, 'elite');
     assert.strictEqual(unchanged.is_premium, 1);
-    const entitlement = await db.prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?').get(paymentId);
+    const entitlement = await db
+      .prepare('SELECT status FROM whop_payment_entitlements WHERE payment_id = ?')
+      .get(paymentId);
     assert.strictEqual(entitlement.status, 'dispute_won');
   } finally {
     server.close();
   }
 });
 
-test('refund.created still identifies a pre-Elements payment from provider-signed legacy metadata', async () => {
+test('refund.created identifies a pre-Elements purchase through its verified payment mapping', async () => {
   const user = await makeUser('webhook-legacy-refund@test.local', 'elite');
+  await db
+    .prepare(
+      'INSERT INTO whop_payment_entitlements (payment_id, user_id, tier, plan_id, created_at) VALUES (?, ?, ?, ?, ?)'
+    )
+    .run('pay_legacy_purchase', user.id, 'elite', 'plan_elite_test', 1);
   const payload = JSON.stringify({
     type: 'refund.created',
     data: {
@@ -1099,7 +1111,11 @@ test('eliteUpgrade returns its configured plan with signed Elite entitlement met
     const body = await res.json();
     assert.strictEqual(body.planId, 'plan_elite_upgrade_test');
     assert.strictEqual(body.tier, 'elite');
-    assert.strictEqual(body.metadata.tier, 'elite', 'must grant the real Elite tier only after the webhook confirms payment');
+    assert.strictEqual(
+      body.metadata.tier,
+      'elite',
+      'must grant the real Elite tier only after the webhook confirms payment'
+    );
     assert.strictEqual(body.metadata.userId, String(user.id));
     assert.strictEqual(whop.verifyCheckoutMetadata(body.metadata), true);
     assert.strictEqual(body.sessionId, undefined);

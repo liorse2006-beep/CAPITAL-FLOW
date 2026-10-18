@@ -1,13 +1,15 @@
 const crypto = require('crypto');
 const { JWT_SECRET, WHOP_WEBHOOK_SECRET } = require('../config');
 
-const CHECKOUT_METADATA_VERSION = 'elements-v1';
+const CHECKOUT_METADATA_VERSION = 'elements-v2';
 const CHECKOUT_TIERS = new Set(['premium', 'elite']);
 
-function checkoutMetadataPayload({ userId, tier, couponCode }) {
+function checkoutMetadataPayload({ userId, tier, couponCode, checkoutVersion, planId }) {
   // Fixed-order, domain-separated serialization prevents the same HMAC from
   // being usable as a token for a different feature or field combination.
-  return JSON.stringify(['capital-flow:whop-checkout', CHECKOUT_METADATA_VERSION, userId, tier, couponCode || '']);
+  const fields = ['capital-flow:whop-checkout', checkoutVersion, userId, tier, couponCode || ''];
+  if (checkoutVersion === CHECKOUT_METADATA_VERSION) fields.push(planId);
+  return JSON.stringify(fields);
 }
 
 /**
@@ -15,7 +17,7 @@ function checkoutMetadataPayload({ userId, tier, couponCode }) {
  * session in the browser, so metadata itself is client-visible; the HMAC
  * makes the account, entitlement and optional campaign code tamper-evident.
  */
-function createCheckoutMetadata({ userId, tier, couponCode = '' }) {
+function createCheckoutMetadata({ userId, tier, planId, couponCode = '' }) {
   const normalizedUserId = String(userId || '').trim();
   if (!normalizedUserId || normalizedUserId.length > 128 || !CHECKOUT_TIERS.has(tier)) {
     throw new TypeError('Invalid Whop checkout metadata');
@@ -23,10 +25,14 @@ function createCheckoutMetadata({ userId, tier, couponCode = '' }) {
   if (couponCode && (typeof couponCode !== 'string' || couponCode.length > 32)) {
     throw new TypeError('Invalid Whop checkout metadata');
   }
+  if (typeof planId !== 'string' || !/^plan_[A-Za-z0-9_-]{1,128}$/.test(planId)) {
+    throw new TypeError('Invalid Whop checkout plan');
+  }
 
   const metadata = {
     userId: normalizedUserId,
     tier,
+    planId,
     checkoutVersion: CHECKOUT_METADATA_VERSION,
     ...(couponCode ? { couponCode } : {}),
   };
@@ -47,7 +53,10 @@ function verifyCheckoutMetadata(metadata) {
     !metadata.userId.trim() ||
     metadata.userId.length > 128 ||
     !CHECKOUT_TIERS.has(metadata.tier) ||
-    metadata.checkoutVersion !== CHECKOUT_METADATA_VERSION ||
+    !['elements-v1', CHECKOUT_METADATA_VERSION].includes(metadata.checkoutVersion) ||
+    (metadata.checkoutVersion === CHECKOUT_METADATA_VERSION &&
+      (typeof metadata.planId !== 'string' || !/^plan_[A-Za-z0-9_-]{1,128}$/.test(metadata.planId))) ||
+    (metadata.checkoutVersion === 'elements-v1' && metadata.planId !== undefined) ||
     (metadata.couponCode !== undefined &&
       (typeof metadata.couponCode !== 'string' || metadata.couponCode.length > 32)) ||
     typeof metadata.metadataSignature !== 'string' ||
@@ -56,10 +65,7 @@ function verifyCheckoutMetadata(metadata) {
     return false;
   }
 
-  const expected = crypto
-    .createHmac('sha256', JWT_SECRET)
-    .update(checkoutMetadataPayload(metadata), 'utf8')
-    .digest();
+  const expected = crypto.createHmac('sha256', JWT_SECRET).update(checkoutMetadataPayload(metadata), 'utf8').digest();
   const actual = Buffer.from(metadata.metadataSignature, 'base64url');
   return actual.length === expected.length && crypto.timingSafeEqual(expected, actual);
 }

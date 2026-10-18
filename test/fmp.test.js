@@ -12,10 +12,12 @@ test.after(() => fmp.clearCache());
 
 test('scan metadata uses an explicit matching profile and ten completed sessions, never current-day volume', async (t) => {
   fmp.clearCache();
-  const { previousTradingDateKey, sessionDateForTimestamp } = require('../server/services/marketCalendar');
+  const { previousTradingDateKey, latestCompletedSessionDate } = require('../server/services/marketCalendar');
   const symbol = 'AAPL';
-  const timestamp = Math.floor(Date.now() / 1000);
-  const quoteDate = sessionDateForTimestamp(timestamp * 1000);
+  // A real equity quote belongs to a trading session, even when CI runs on
+  // a weekend or holiday. Keep production's non-session rejection intact.
+  const quoteDate = latestCompletedSessionDate();
+  const timestamp = Date.parse(`${quoteDate}T18:00:00Z`) / 1000;
   const history = [{ symbol, date: quoteDate, volume: 99999999 }];
   let date = quoteDate;
   for (let i = 1; i <= 10; i++) {

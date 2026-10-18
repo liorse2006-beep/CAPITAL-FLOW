@@ -64,7 +64,7 @@ router.post('/checkout/transaction', checkoutLimiter, requireAuth, async (req, r
     return res.json({
       planId: WHOP_ELITE_UPGRADE_PLAN_ID,
       tier: 'elite',
-      metadata: whop.createCheckoutMetadata({ userId: req.user.id, tier: 'elite' }),
+      metadata: whop.createCheckoutMetadata({ userId: req.user.id, tier: 'elite', planId: WHOP_ELITE_UPGRADE_PLAN_ID }),
     });
   }
 
@@ -96,7 +96,7 @@ router.post('/checkout/transaction', checkoutLimiter, requireAuth, async (req, r
     res.json({
       planId,
       tier,
-      metadata: whop.createCheckoutMetadata({ userId: req.user.id, tier, couponCode }),
+      metadata: whop.createCheckoutMetadata({ userId: req.user.id, tier, planId, couponCode }),
       ...(couponCode ? { couponCode } : {}),
     });
   } catch (err) {

@@ -34,6 +34,20 @@ test('volume baseline excludes the current incomplete session and requires ten c
   }
 });
 
+test('metadata refuses a weekend quote without inventing a trading-session baseline', async () => {
+  assert.equal(tenSessionAverage(history(), quote.symbol, '2026-10-18'), null);
+  let requests = 0;
+  const loader = createScanMetadataLoader(async () => {
+    requests++;
+    return history();
+  });
+  const [result] = await loader.enrich([
+    { ...quote, currency: 'USD', regularMarketTime: Date.parse('2026-10-18T18:00:00Z') / 1000 },
+  ]);
+  assert.equal(result.averageDailyVolume10Day, null);
+  assert.equal(requests, 0);
+});
+
 test('metadata never invents USD for a mismatched or unknown company profile', async () => {
   for (const profile of [
     { symbol: 'META', currency: 'USD' },

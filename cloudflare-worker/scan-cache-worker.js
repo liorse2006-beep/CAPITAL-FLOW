@@ -53,6 +53,7 @@
 
 const CACHE_TTL_SECONDS = 60; // matches how often a shared scan is worth recomputing under load
 const QUOTA_PATH = '/api/scan-quota';
+const CACHE_NAMESPACE = '/__shared_scan_v2';
 
 // This Worker is called cross-origin (from capitalflow.vip's own JS, via its
 // workers.dev URL) rather than through a same-domain route — see the "safer
@@ -106,12 +107,35 @@ async function verifyJwtHS256(token, secret) {
   }
 }
 
-// Strips the per-user quota fields out of a /api/scan response before it's
-// allowed into the shared edge cache — quota must never be shared across
-// users. quotaFor() (server/services/scanQuota.js) always includes `tier`.
-function stripPersonalFields(body) {
-  const { tier, isPremium, premium, free, ...shared } = body;
-  return shared;
+// A scan contains a private job ID as well as quotas. Share only the market
+// snapshot contract; new origin fields must not become public by default.
+function sharedScanFields(body) {
+  if (!body || !Array.isArray(body.results) || body.queued) return null;
+  const fields = [
+    'results',
+    'scanTime',
+    'tickersScanned',
+    'errors',
+    'dataStatus',
+    'dataAsOf',
+    'dataProvenance',
+    'fromCache',
+    'cacheAge',
+    'marketClosed',
+  ];
+  return Object.fromEntries(fields.filter((key) => Object.hasOwn(body, key)).map((key) => [key, body[key]]));
+}
+
+function originResponse(response, cors) {
+  // Do not relay origin cookies into the separate workers.dev origin.
+  return new Response(response.body, {
+    status: response.status,
+    headers: {
+      'Content-Type': response.headers.get('Content-Type') || 'application/json',
+      'Cache-Control': response.headers.get('Cache-Control') || 'no-store',
+      ...cors,
+    },
+  });
 }
 
 // Mirrors server/middleware/authMiddleware.js's requireScanQuota gate.
@@ -133,6 +157,16 @@ export function hasQuotaRemaining(quota) {
 export default {
   async fetch(request, env, ctx) {
     const cors = corsHeaders(request.headers.get('Origin') || '');
+    const url = new URL(request.url);
+
+    // Enforce the advertised scan-only boundary BEFORE cache lookup, even
+    // when an older deployment has already cached a private account route.
+    if (url.pathname !== '/api/scan') {
+      return new Response(JSON.stringify({ error: 'Not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors },
+      });
+    }
 
     if (!env.JWT_SECRET || !env.ORIGIN) {
       return new Response(JSON.stringify({ error: 'Worker is not configured' }), {
@@ -147,7 +181,12 @@ export default {
       // check belongs here; it's not the real request.
       return new Response(null, { status: 204, headers: cors });
     }
-    if (request.method !== 'GET') return fetch(request); // pass through anything else untouched
+    if (request.method !== 'GET') {
+      return new Response(null, {
+        status: 405,
+        headers: { Allow: 'GET, OPTIONS', 'Cache-Control': 'no-store', ...cors },
+      });
+    }
 
     const auth = request.headers.get('Authorization') || '';
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
@@ -160,19 +199,16 @@ export default {
       });
     }
 
-    const url = new URL(request.url);
     // A queued scan response is user-specific and short-lived. Never put its
     // scan id or queued state into the shared edge cache; the app's UI uses
     // the origin progress/result endpoints for this mode.
     if (url.pathname === '/api/scan' && url.searchParams.get('async') === '1') {
       const originResp = await fetch(env.ORIGIN + url.pathname + url.search, { headers: { Authorization: auth } });
-      const body = await originResp.text();
-      return new Response(body, {
-        status: originResp.status,
-        headers: { 'Content-Type': originResp.headers.get('Content-Type') || 'application/json', ...cors },
-      });
+      return originResponse(originResp, cors);
     }
-    const cacheKeyUrl = new URL(url.origin + url.pathname + '?' + new URLSearchParams([...url.searchParams].sort()));
+    // Version the key so old scan entries containing a customer's job ID
+    // are unreachable immediately; waiting for their TTL is not sufficient.
+    const cacheKeyUrl = new URL(url.origin + CACHE_NAMESPACE + '?' + new URLSearchParams([...url.searchParams].sort()));
     const cacheKey = new Request(cacheKeyUrl.toString(), { method: 'GET' });
     const cache = caches.default;
 
@@ -180,8 +216,13 @@ export default {
     let sharedJson;
 
     if (sharedBody) {
-      sharedJson = await sharedBody.json();
-    } else {
+      try {
+        sharedJson = sharedScanFields(await sharedBody.json());
+      } catch {
+        sharedJson = null;
+      }
+    }
+    if (!sharedJson) {
       // Cache miss — full round trip through the real app, with the
       // caller's own token, exactly as if this Worker weren't here.
       const originUrl = env.ORIGIN + url.pathname + url.search;
@@ -190,15 +231,26 @@ export default {
         // 401/403/429/500 — pass origin's own answer straight through,
         // uncached, but re-wrapped so the CORS headers still apply (a
         // fetch() response from another origin doesn't carry them).
-        const errBody = await originResp.text();
-        return new Response(errBody, {
-          status: originResp.status,
-          headers: { 'Content-Type': originResp.headers.get('Content-Type') || 'application/json', ...cors },
-        });
+        return originResponse(originResp, cors);
       }
 
-      const fullJson = await originResp.json();
-      sharedJson = stripPersonalFields(fullJson);
+      const cacheControl = originResp.headers.get('Cache-Control') || '';
+      if (
+        originResp.status !== 200 ||
+        originResp.headers.has('Set-Cookie') ||
+        /(?:^|,)\s*(?:private|no-store|no-cache)(?:[=,\s]|$)/i.test(cacheControl) ||
+        !/^application\/json\b/i.test(originResp.headers.get('Content-Type') || '')
+      ) {
+        return originResponse(originResp, cors);
+      }
+      let fullJson;
+      try {
+        fullJson = await originResp.clone().json();
+      } catch {
+        return originResponse(originResp, cors);
+      }
+      sharedJson = sharedScanFields(fullJson);
+      if (!sharedJson) return originResponse(originResp, cors);
       ctx.waitUntil(
         cache.put(
           cacheKey,
@@ -209,7 +261,9 @@ export default {
       );
       // This request itself already has real, live quota data from the
       // origin call it just made — no need for the extra hop below.
-      return new Response(JSON.stringify(fullJson), { headers: { 'Content-Type': 'application/json', ...cors } });
+      return new Response(JSON.stringify(fullJson), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors },
+      });
     }
 
     // Cache hit — the heavy scan never ran for this request. Still fetch the
@@ -225,12 +279,12 @@ export default {
       // left must be rejected here too, not just on a cache MISS.
       return new Response(JSON.stringify({ error: 'Scan limit reached', code: 'SCAN_LIMIT', ...(quota || {}) }), {
         status: 403,
-        headers: { 'Content-Type': 'application/json', ...cors },
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors },
       });
     }
 
     return new Response(JSON.stringify({ ...sharedJson, ...quota, fromCache: true }), {
-      headers: { 'Content-Type': 'application/json', ...cors },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors },
     });
   },
 };
