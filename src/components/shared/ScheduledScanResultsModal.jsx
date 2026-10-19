@@ -1,6 +1,10 @@
 import React from 'react';
 import { fmt, formatPrice, formatRatio, formatSignedPercent } from '../../utils/format';
 import useModalA11y from '../../hooks/useModalA11y';
+import { SECTOR_ETFS } from '../../constants';
+import { flowLabel } from '../../utils/marketCopy';
+
+const SECTOR_BY_TICKER = Object.fromEntries(SECTOR_ETFS.map((sector) => [sector.ticker, sector]));
 
 var SCAN_LABEL = {
   capitalFlow: 'Capital Flow',
@@ -32,12 +36,8 @@ function dataTime(value) {
   return formatWhen(timestamp / 1000);
 }
 
-/* Shown when a scheduled scan's push/bell notification is tapped — the exact
-   results that scan found, not the current (possibly empty or unrelated)
-   page. Works across all three scan types since capitalFlow/sectorMoving
-   (scanTickers) and maScanner (scanMA) share enough of a shape: symbol,
-   name, price, change, marketCap, plus either volumeRatio or maDistance as
-   the "why it showed up" signal. */
+/* Push and bell clicks show the saved run, never a fresh scan. Hot Sectors
+   snapshots contain sector ETFs, not the stock scanner's result shape. */
 export default function ScheduledScanResultsModal(props) {
   if (!props.notification) return null;
   return <ScheduledScanResultsPanel {...props} />;
@@ -46,6 +46,14 @@ export default function ScheduledScanResultsModal(props) {
 function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggleWatchlistTicker }) {
   const panelRef = useModalA11y(onClose);
   var results = Array.isArray(notification.results) ? notification.results : [];
+  var isSectorScan = notification.scanType === 'sectorMoving';
+  // Older releases incorrectly saved stock scans as Hot Sectors. Those
+  // historical sector results cannot be reconstructed from today's data.
+  var legacySectorScan =
+    isSectorScan &&
+    results.some(
+      (row) => !SECTOR_BY_TICKER[row?.symbol] || !['inflow', 'outflow', 'neutral', 'unavailable'].includes(row?.flow)
+    );
   var label = SCAN_LABEL[notification.scanType] || 'Scheduled scan';
   var observedAt = dataTime(notification.dataAsOf);
   var qualityNotice =
@@ -62,7 +70,7 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="scheduled-results-modal"
+        className={'scheduled-results-modal' + (isSectorScan ? ' scheduled-sector-results-modal' : '')}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -74,11 +82,13 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
               {label} — {formatWhen(notification.createdAt)}
             </h2>
             <p className="scheduled-results-sub">
-              {results.length > 0
-                ? 'New market signal detected. Open Capital Flow to view it.'
-                : "We couldn't verify a market signal this time."}
+              {legacySectorScan
+                ? "This older alert doesn't include a saved sector scan."
+                : results.length > 0
+                  ? 'New market signal detected. Open Capital Flow to view it.'
+                  : "We couldn't verify a market signal this time."}
             </p>
-            {results.length > 0 && (
+            {results.length > 0 && !legacySectorScan && (
               <div className="scheduled-results-quality" role="note">
                 {qualityNotice && <p>{qualityNotice}</p>}
                 <p>{observedAt ? 'Market data as of ' + observedAt + '.' : 'Market data time is unavailable.'}</p>
@@ -90,29 +100,43 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
           </button>
         </div>
 
-        {results.length === 0 ? (
+        {legacySectorScan ? (
+          <div className="scheduled-results-empty">
+            <a className="btn-secondary" href="/flow" onClick={onClose}>
+              Open Hot Sectors to run a new scan
+            </a>
+          </div>
+        ) : results.length === 0 ? (
           <div className="scheduled-results-empty">{"We couldn't verify a market signal this time."}</div>
         ) : (
           <div className="scheduled-results-list">
             <div className="scheduled-results-col-header">
-              <span>Symbol</span>
-              <span>Market cap</span>
+              <span>{isSectorScan ? 'Sector' : 'Symbol'}</span>
+              <span>{isSectorScan ? 'Activity' : 'Market cap'}</span>
               <span>Price</span>
               <span>Change</span>
-              <span>Signal</span>
+              <span>{isSectorScan ? 'Volume ratio' : 'Signal'}</span>
               <span></span>
             </div>
             {results.map(function (r) {
-              var hasRatio = hasNumber(r.volumeRatio) && Number(r.volumeRatio) > 0;
+              var ratio = isSectorScan ? r.volRatio : r.volumeRatio;
+              var hasRatio = hasNumber(ratio) && Number(ratio) > 0;
               var hasMaDistance = hasNumber(r.maDistance);
+              var sector = isSectorScan && SECTOR_BY_TICKER[r.symbol];
               return (
                 <div key={r.symbol} className="scheduled-results-row">
                   <div className="scheduled-results-row-main">
-                    <span className="scheduled-results-symbol">{r.symbol}</span>
-                    {r.name && <span className="scheduled-results-name">{r.name}</span>}
+                    <span className="scheduled-results-symbol">{sector ? sector.name : r.symbol}</span>
+                    {(sector || r.name) && <span className="scheduled-results-name">{sector ? r.symbol : r.name}</span>}
                   </div>
-                  <span className="scheduled-results-cap" data-label="Market cap">
-                    {r.marketCap > 0 ? fmt(r.marketCap) : '—'}
+                  <span className="scheduled-results-cap" data-label={isSectorScan ? 'Activity' : 'Market cap'}>
+                    {isSectorScan ? (
+                      <span className={'flow-badge ' + r.flow}>{flowLabel(r.flow)}</span>
+                    ) : r.marketCap > 0 ? (
+                      fmt(r.marketCap)
+                    ) : (
+                      '—'
+                    )}
                   </span>
                   <span className="scheduled-results-price" data-label="Price">
                     <bdi dir="ltr">{formatPrice(r.price)}</bdi>
@@ -125,17 +149,26 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
                   >
                     <bdi dir="ltr">{formatSignedPercent(r.change)}</bdi>
                   </span>
-                  <span className="scheduled-results-signal" data-label="Signal">
+                  <span className="scheduled-results-signal" data-label={isSectorScan ? 'Volume ratio' : 'Signal'}>
                     {hasRatio ? (
                       <span
-                        className={'ratio-pill ' + (r.volumeRatio >= 5 ? 'hot' : r.volumeRatio >= 3.5 ? 'warm' : 'ok')}
+                        className={
+                          'ratio-pill ' +
+                          (ratio >= (isSectorScan ? 2 : 5)
+                            ? 'hot'
+                            : ratio >= (isSectorScan ? 1.2 : 3.5)
+                              ? 'warm'
+                              : 'ok')
+                        }
                       >
-                        <bdi dir="ltr">{formatRatio(r.volumeRatio)}</bdi>
+                        <bdi dir="ltr">{formatRatio(ratio)}</bdi>
                       </span>
-                    ) : hasMaDistance ? (
+                    ) : !isSectorScan && hasMaDistance ? (
                       <span className="scheduled-results-ma">
                         {(r.direction === 'above' ? '+' : '') + Number(r.maDistance).toFixed(2) + '% from MA'}
                       </span>
+                    ) : isSectorScan ? (
+                      '—'
                     ) : null}
                   </span>
                   <div className="scheduled-results-row-actions">

@@ -12,6 +12,94 @@ function notificationWithResults(results) {
 }
 
 describe('ScheduledScanResultsModal', () => {
+  const sectorRows = [
+    { symbol: 'XLK', price: 42, change: 1.25, volRatio: 1.8, flow: 'inflow', dataStatus: 'partial' },
+    { symbol: 'XLE', price: 85, change: -1.5, volRatio: 2.1, flow: 'outflow', dataStatus: 'complete' },
+  ];
+
+  it('opens the saved Hot Sectors snapshot with sector names, activity and the sector volume ratio', () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    try {
+      render(
+        <ScheduledScanResultsModal
+          notification={{ ...notificationWithResults(sectorRows), scanType: 'sectorMoving', dataStatus: 'partial' }}
+          onClose={vi.fn()}
+        />
+      );
+      expect(screen.getByRole('dialog', { name: 'Hot Sectors results' })).toBeInTheDocument();
+      expect(screen.getByText('Technology')).toBeInTheDocument();
+      expect(screen.getByText('Energy')).toBeInTheDocument();
+      expect(screen.getByText('Positive activity')).toBeInTheDocument();
+      expect(screen.getByText('Negative activity')).toBeInTheDocument();
+      expect(screen.getByText('$42.00')).toBeInTheDocument();
+      expect(screen.getByText('1.80x')).toBeInTheDocument();
+      expect(screen.getByText('2.10x')).toBeInTheDocument();
+      expect(screen.queryByText('Market cap')).not.toBeInTheDocument();
+      expect(screen.getByText('New market signal detected. Open Capital Flow to view it.')).toBeInTheDocument();
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('switches between two sector alerts without replacing their saved values with current market data', () => {
+    const view = render(
+      <ScheduledScanResultsModal
+        notification={{ ...notificationWithResults(sectorRows), scanType: 'sectorMoving' }}
+        onClose={vi.fn()}
+      />
+    );
+    view.rerender(
+      <ScheduledScanResultsModal
+        notification={{
+          ...notificationWithResults([{ ...sectorRows[0], price: 51, flow: 'neutral' }]),
+          scanType: 'sectorMoving',
+        }}
+        onClose={vi.fn()}
+      />
+    );
+    expect(screen.queryByText('$42.00')).not.toBeInTheDocument();
+    expect(screen.queryByText('Energy')).not.toBeInTheDocument();
+    expect(screen.getByText('$51.00')).toBeInTheDocument();
+    expect(screen.getByText('No notable change')).toBeInTheDocument();
+  });
+
+  it('does not mislabel old stock-only alerts as sector results or silently fetch a new scan', () => {
+    render(
+      <ScheduledScanResultsModal
+        notification={{
+          ...notificationWithResults([{ symbol: 'CZR', price: 28.8, volumeRatio: 2.81 }]),
+          scanType: 'sectorMoving',
+        }}
+        onClose={vi.fn()}
+      />
+    );
+    expect(screen.queryByText('CZR')).not.toBeInTheDocument();
+    expect(screen.getByText("This older alert doesn't include a saved sector scan.")).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Hot Sectors to run a new scan' })).toHaveAttribute('href', '/flow');
+  });
+
+  it('keeps an empty sector run empty and preserves the MA-specific result display', () => {
+    const view = render(
+      <ScheduledScanResultsModal
+        notification={{ ...notificationWithResults([]), scanType: 'sectorMoving' }}
+        onClose={vi.fn()}
+      />
+    );
+    expect(screen.getAllByText("We couldn't verify a market signal this time.")).toHaveLength(2);
+    view.rerender(
+      <ScheduledScanResultsModal
+        notification={{
+          ...notificationWithResults([{ symbol: 'AAPL', price: 200, maDistance: 1.2, direction: 'above' }]),
+          scanType: 'maScanner',
+        }}
+        onClose={vi.fn()}
+      />
+    );
+    expect(screen.getByText('+1.20% from MA')).toBeInTheDocument();
+    expect(screen.getByText('Market cap')).toBeInTheDocument();
+  });
+
   it('closes on Escape using the current close handler', () => {
     const firstClose = vi.fn();
     const latestClose = vi.fn();

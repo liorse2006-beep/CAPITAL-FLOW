@@ -12185,6 +12185,24 @@ html.a11y-highlight-links a {
   flex-shrink: 0;
   justify-content: flex-end;
 }
+/* Sector snapshots use the same responsive cards, with sector activity
+   instead of stock market capitalization. Keep long sector names readable. */
+.scheduled-sector-results-modal {
+  width: 760px;
+}
+.scheduled-sector-results-modal .scheduled-results-symbol {
+  overflow-wrap: anywhere;
+}
+.scheduled-sector-results-modal .flow-badge {
+  white-space: normal;
+}
+@media (min-width: 769px) {
+  .scheduled-sector-results-modal .scheduled-results-row,
+  .scheduled-sector-results-modal .scheduled-results-col-header {
+    grid-template-columns: minmax(100px, 1.4fr) minmax(94px, 1fr) 70px 66px 78px auto;
+    gap: 8px;
+  }
+}
 @media (max-width: 600px) {
   .scheduled-results-col-header {
     display: none;

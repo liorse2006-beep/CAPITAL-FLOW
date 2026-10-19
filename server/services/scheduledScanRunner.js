@@ -785,6 +785,16 @@ let scheduledScanCycleRunning = false;
 // window — ten Elite users scheduled for 16:30 used to trigger ten separate
 // full-market scans back-to-back.
 async function runScanForType(scanType) {
+  if (scanType === 'sectorMoving') {
+    const { getSectorFlow } = require('./sectorFlow');
+    const { payload } = await getSectorFlow();
+    // Unavailable ETF placeholders are not actual results. Keep every
+    // available sector, including partial/neutral rows, in this run's snapshot.
+    return normalizeScheduledScanResult({
+      ...payload,
+      results: payload.results.filter((row) => row.dataStatus !== 'unavailable'),
+    });
+  }
   const { ALL_TICKERS } = require('../../tickers');
   if (scanType === 'maScanner') {
     const { scanMA } = require('./maScanner');
@@ -792,13 +802,8 @@ async function runScanForType(scanType) {
     return normalizeScheduledScanResult(res);
   }
   const { scanTickers } = require('./scanner');
-  const params =
-    scanType === 'sectorMoving'
-      ? { minVolumeRatio: 2.0, minMarketCap: 500_000_000 }
-      : // Match the Capital Flow screen's default scan. A hidden 2.5x filter
-        // produced an empty scheduled result while the default 1.5x table had
-        // matches, making a correctly worded notification look like a failure.
-        { minVolumeRatio: 1.5, minMarketCap: 1_000_000_000 };
+  // Match the Capital Flow screen's visible default scan.
+  const params = { minVolumeRatio: 1.5, minMarketCap: 1_000_000_000 };
   const res = await scanTickers(ALL_TICKERS, params);
   return normalizeScheduledScanResult(res);
 }

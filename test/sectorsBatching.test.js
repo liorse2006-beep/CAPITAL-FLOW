@@ -102,10 +102,11 @@ test('GET /api/sector-flow batches all 15 ETF quotes into a single Yahoo call', 
 
 test('GET /api/sector-flow degrades per-symbol via the chart fallback if the batch quote call fails entirely', async (t) => {
   // /api/sector-flow has its own 60s shared-response cache (module-level
-  // flowCache in sectors.js). The previous test already populated it, so
+  // flowCache in sectorFlow.js). The previous test already populated it, so
   // reusing the same router instance here would just return that test's
   // cached results without exercising these mocks at all — force a fresh
   // module instance (fresh, empty flowCache) instead.
+  delete require.cache[require.resolve('../server/services/sectorFlow')];
   delete require.cache[require.resolve('../server/routes/sectors')];
   const freshSectorsRouter = require('../server/routes/sectors');
 
@@ -133,6 +134,7 @@ test('GET /api/sector-flow degrades per-symbol via the chart fallback if the bat
 });
 
 test('five concurrent sector requests share one batch and fifteen charts', async (t) => {
+  delete require.cache[require.resolve('../server/services/sectorFlow')];
   delete require.cache[require.resolve('../server/routes/sectors')];
   const router = require('../server/routes/sectors');
   let quoteCalls = 0;
@@ -179,6 +181,7 @@ test('five concurrent sector requests share one batch and fifteen charts', async
 });
 
 test('undated sector data is unavailable rather than falsely complete', async (t) => {
+  delete require.cache[require.resolve('../server/services/sectorFlow')];
   delete require.cache[require.resolve('../server/routes/sectors')];
   const router = require('../server/routes/sectors');
   t.mock.method(yahoo, 'quote', async (symbols) =>
@@ -205,6 +208,7 @@ test('undated sector data is unavailable rather than falsely complete', async (t
 });
 
 test('duplicate daily bars and mismatched chart identities do not become verified sector results', async (t) => {
+  delete require.cache[require.resolve('../server/services/sectorFlow')];
   delete require.cache[require.resolve('../server/routes/sectors')];
   const router = require('../server/routes/sectors');
   t.mock.method(yahoo, 'quote', async () => []);
@@ -230,6 +234,7 @@ test('duplicate daily bars and mismatched chart identities do not become verifie
 });
 
 test('GET /api/sector-flow marks a total provider outage unavailable instead of returning zeroes', async (t) => {
+  delete require.cache[require.resolve('../server/services/sectorFlow')];
   delete require.cache[require.resolve('../server/routes/sectors')];
   const freshSectorsRouter = require('../server/routes/sectors');
 
@@ -259,6 +264,7 @@ test('GET /api/sector-flow marks a total provider outage unavailable instead of 
 });
 
 test('a missing historical session remains partial even with a valid current quote', async (t) => {
+  delete require.cache[require.resolve('../server/services/sectorFlow')];
   delete require.cache[require.resolve('../server/routes/sectors')];
   const router = require('../server/routes/sectors');
   t.mock.method(yahoo, 'quote', async (symbols) =>
@@ -295,6 +301,7 @@ test('a missing historical session remains partial even with a valid current quo
 });
 
 test('weekend observations are excluded from the sector volume baseline', async (t) => {
+  delete require.cache[require.resolve('../server/services/sectorFlow')];
   delete require.cache[require.resolve('../server/routes/sectors')];
   const router = require('../server/routes/sectors');
   t.mock.method(yahoo, 'quote', async () => []);
@@ -315,6 +322,40 @@ test('weekend observations are excluded from the sector volume baseline', async 
     const body = await response.json();
     assert.strictEqual(body.dataStatus, 'partial');
     assert.ok(body.results.every((row) => row.avgVolume === 900000 && row.lastSession));
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('manual and background callers share the same sector work and freshness cache', async (t) => {
+  delete require.cache[require.resolve('../server/services/sectorFlow')];
+  delete require.cache[require.resolve('../server/routes/sectors')];
+  const service = require('../server/services/sectorFlow');
+  const router = require('../server/routes/sectors');
+  const quoteMock = t.mock.method(yahoo, 'quote', async () => {
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    return [];
+  });
+  const chartMock = t.mock.method(yahoo, 'chart', async (symbol) => chartFixture(symbol));
+  const backgroundRun = service.getSectorFlow();
+  const user = await makeEliteUser('sector-background-shared@test.local');
+  const server = await startTestApp(router);
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/api/sector-flow`, {
+      headers: { Authorization: 'Bearer ' + (await issueToken(user)).accessToken },
+    });
+    const manual = await response.json();
+    const background = await backgroundRun;
+    assert.strictEqual(response.status, 200);
+    assert.deepStrictEqual(manual.results, background.payload.results);
+    assert.strictEqual(manual.dataAsOf, background.payload.dataAsOf);
+    assert.strictEqual(manual.fromCache, true);
+    assert.strictEqual(quoteMock.mock.callCount(), 1);
+    assert.strictEqual(chartMock.mock.callCount(), 15);
+    const cached = await service.getSectorFlow();
+    assert.strictEqual(cached.shared, true);
+    assert.deepStrictEqual(cached.payload, background.payload);
+    assert.strictEqual(quoteMock.mock.callCount(), 1);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
