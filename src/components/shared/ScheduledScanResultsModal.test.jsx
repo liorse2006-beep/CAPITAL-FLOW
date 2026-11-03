@@ -128,7 +128,7 @@ describe('ScheduledScanResultsModal', () => {
         />
       );
       const dialog = screen.getByRole('dialog');
-      const share = screen.getByRole('button', { name: 'Share' });
+      const share = screen.getByRole('button', { name: 'Share Results' });
       const lastLink = screen.getByRole('link', { name: 'Open ONE on TradingView' });
       expect(dialog).toContainElement(share);
       expect(share).toHaveFocus();

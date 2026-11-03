@@ -46,8 +46,26 @@ export default function ShareScanResults({ report }) {
 
   return (
     <>
-      <button type="button" className="share-results-trigger" aria-haspopup="dialog" onClick={open}>
-        Share
+      <button
+        type="button"
+        className="share-results-trigger share-results-trigger--toolbar"
+        aria-haspopup="dialog"
+        onClick={open}
+      >
+        <svg
+          aria-hidden="true"
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M12 15V3m-4 4 4-4 4 4M7 11H5v9h14v-9h-2" />
+        </svg>
+        <span>Share Results</span>
       </button>
       <dialog
         ref={dialog}

@@ -15,6 +15,45 @@
   cursor: default;
 }
 
+.share-results-trigger--toolbar {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0 12px;
+  border-color: color-mix(in srgb, var(--accent) 52%, transparent);
+  border-radius: 4px;
+  background: linear-gradient(180deg, var(--accent-dim), transparent);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.share-results-trigger--toolbar:hover {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.share-results-trigger--toolbar:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 360px) {
+  .share-results-trigger--toolbar {
+    gap: 4px;
+    padding-inline: 8px;
+    font-size: 9px;
+  }
+}
+
 .share-results-dialog {
   width: min(420px, calc(100% - 32px));
   margin: auto;
