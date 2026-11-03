@@ -16,6 +16,7 @@ function newState() {
     progress: null,
     liveResults: [],
     lastResults: null,
+    lastUniverseKey: null,
     lastScanId: null,
     lastScanError: null,
     lastScanTime: null,

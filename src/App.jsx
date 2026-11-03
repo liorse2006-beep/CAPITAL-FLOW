@@ -924,7 +924,7 @@ function App() {
                   var stock = d.results.find(function (r) {
                     return r.symbol === sym;
                   });
-                  if (!stock) return;
+                  if (!stock || stock.previousMatch || stock.quoteDataStatus === 'stale') return;
                   var notification = marketSignalNotificationFor([stock]);
                   var title = notification.title;
                   var body = notification.body;
@@ -943,6 +943,7 @@ function App() {
               levels = JSON.parse(localStorage.getItem(scopedStorageKey('vs-alert-levels'))) || {};
             } catch (e) {}
             d.results.forEach(function (stock) {
+              if (stock.previousMatch || stock.quoteDataStatus === 'stale') return;
               var alertData = levels[stock.symbol];
               if (!alertData || alertFired.current[stock.symbol]) return;
 

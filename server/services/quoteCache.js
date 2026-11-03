@@ -241,6 +241,10 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function isRateLimit(error) {
+  return Number(error?.status ?? error?.statusCode) === 429 || /429|too many|rate limit/i.test(error?.message || '');
+}
+
 function isFresh(entry) {
   return entry && Date.now() - entry.fetchedAt < CACHE_TTL_MS && !isProviderTimestampStale(entry.data);
 }
@@ -263,18 +267,14 @@ async function fmpRecovery(symbols, staleSymbols) {
 }
 
 async function fetchBatch(symbols) {
+  // Retry the complementary feed, not the already completed primary request.
+  // This also preserves primary rows while the complementary feed is throttled.
+  const fmpPrimaryStaleSymbols = new Set();
+  const fmpPrimaryRows = await fmpRecovery(symbols, fmpPrimaryStaleSymbols);
+  const fmpReturned = new Set(fmpPrimaryRows.map((quote) => normalizeSymbol(quote.symbol)));
+  const yahooSymbols = symbols.filter((symbol) => !fmpReturned.has(normalizeSymbol(symbol)));
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    let fmpPrimaryRows = [];
-    let fmpPrimaryStaleSymbols = new Set();
     try {
-      // FMP is the configured primary quote provider. It is queried first in
-      // one bounded batch; Yahoo is only asked for symbols FMP did not
-      // verify. This keeps the provider order explicit without ever turning
-      // incomplete FMP data into a synthetic result.
-      fmpPrimaryStaleSymbols = new Set();
-      fmpPrimaryRows = await fmpRecovery(symbols, fmpPrimaryStaleSymbols);
-      const fmpReturned = new Set(fmpPrimaryRows.map((quote) => normalizeSymbol(quote.symbol)));
-      const yahooSymbols = symbols.filter((symbol) => !fmpReturned.has(normalizeSymbol(symbol)));
       let arr = fmpPrimaryRows.slice();
       const providerStaleSymbols = new Set(fmpPrimaryStaleSymbols);
 
@@ -347,15 +347,24 @@ async function fetchBatch(symbols) {
         .filter((symbol) => !new Set(arr.map((quote) => normalizeSymbol(quote.symbol))).has(normalizeSymbol(symbol)))
         .slice(0, MAX_SUMMARY_RECOVERY_SYMBOLS);
       if (stillMissing.length > 0) {
+        let throttled = false;
         const summaryRows = await mapWithConcurrency(stillMissing, SUMMARY_RECOVERY_CONCURRENCY, async (symbol) => {
-          const summary = await yahooBreaker.execute(() =>
-            yahooFinance.quoteSummary(
-              toYahooSymbol(symbol),
-              { modules: ['price', 'summaryDetail'] },
-              { validateResult: false }
-            )
-          );
-          return normalizeSummaryQuote(summary, symbol);
+          if (throttled) return null;
+          try {
+            const summary = await yahooBreaker.execute(() =>
+              yahooFinance.quoteSummary(
+                toYahooSymbol(symbol),
+                { modules: ['price', 'summaryDetail'] },
+                { validateResult: false }
+              )
+            );
+            return normalizeSummaryQuote(summary, symbol);
+          } catch (error) {
+            // A single recovery failure must not discard successful batch
+            // rows or force the rest of the group through the same retries.
+            if (isRateLimit(error)) throttled = true;
+            return null;
+          }
         });
         arr = arr.concat(keepFreshProviderRows(summaryRows.filter(Boolean)));
       }
@@ -374,6 +383,7 @@ async function fetchBatch(symbols) {
       }
 
       const returnedSymbols = new Set(arr.map((quote) => normalizeSymbol(quote.symbol)));
+      for (const symbol of returnedSymbols) providerStaleSymbols.delete(symbol);
       const taggedProviders = new Set(
         arr
           .filter((quote) => quote?.quoteProvider)
@@ -402,7 +412,7 @@ async function fetchBatch(symbols) {
     } catch (err) {
       const msg = (err && err.message) || '';
       const safeMsg = redact(msg);
-      const is429 = msg.includes('429') || msg.includes('Too Many') || msg.includes('rate limit');
+      const is429 = isRateLimit(err);
       if (is429 && attempt < MAX_RETRIES) {
         const delay = 3000 * Math.pow(2, attempt); // 3 s → 6 s
         console.warn(`[QuoteCache] Yahoo rate limited — retry ${attempt + 1}/${MAX_RETRIES} in ${delay}ms`);
@@ -428,22 +438,6 @@ async function fetchBatch(symbols) {
       // Before using stale cache, try a bounded timestamped chart recovery.
       // This is the no-cost failover path; it is still rejected when any
       // required field is missing, so it cannot manufacture scan rows.
-      const fmpStaleSymbols = new Set();
-      const fmpRows = await fmpRecovery(symbols, fmpStaleSymbols);
-      if (fmpRows.length > 0) {
-        const recovered = new Set(fmpRows.map((quote) => normalizeSymbol(quote.symbol)));
-        const now = Date.now();
-        fmpRows.forEach((quote) => cache.set(normalizeSymbol(quote.symbol), { data: quote, fetchedAt: now }));
-        return {
-          quotes: fmpRows,
-          providerStaleSymbols: [...fmpStaleSymbols],
-          staleSymbols: [],
-          usedStaleFallback: false,
-          providerFailure: recovered.size < new Set(symbols.map(normalizeSymbol)).size,
-          fallbackProvider: 'FMP',
-        };
-      }
-
       const directRows = await directChartRecovery(symbols);
       const staleDirectSymbols = new Set();
       const freshDirectRows = filterFreshProviderRows(directRows, staleDirectSymbols);

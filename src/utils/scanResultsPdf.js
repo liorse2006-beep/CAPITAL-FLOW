@@ -53,6 +53,7 @@ export function createScanResultsPdf({ type, rows, title, scanTime, dataAsOf, da
   const isMA = type === 'movingAverage';
   const isSector = type === 'sectorMoving';
   const fields = isMA ? columns.movingAverage(averageLabel || 'Moving average') : columns[type] || columns.capitalFlow;
+  const hasPreviousMatches = !isMA && !isSector && rows.some((row) => row.previousMatch);
   const lastNumericColumn = isMA ? fields.length : fields.length - 1;
   const appUrl = 'https://capitalflow.vip/' + (isMA ? 'ma' : isSector ? 'flow' : 'scanner');
   const doc = new jsPDF({
@@ -89,12 +90,21 @@ export function createScanResultsPdf({ type, rows, title, scanTime, dataAsOf, da
     rows.length + (rows.length === 1 ? ' result' : ' results'),
     asOf ? 'Market data as of ' + asOf : scannedAt && 'Scan recorded ' + scannedAt,
     status,
+    hasPreviousMatches && 'Includes earlier matches',
   ].filter(Boolean);
 
   doc.setProperties({ title, author: 'Capital Flow', subject: 'Stock scanner results' });
   autoTable(doc, {
     head: [['#', ...fields.map(([label]) => label)]],
-    body: rows.map((row, index) => [String(index + 1), ...fields.map(([, format]) => cell(format(row)))]),
+    body: rows.map((row, index) => [
+      String(index + 1),
+      ...fields.map(([label, format]) => {
+        const value = cell(format(row));
+        if (label !== 'Name' || !row.previousMatch) return value;
+        const earlierAt = utcDate(row.quoteAsOf);
+        return value + '\nEarlier match' + (earlierAt ? ' - ' + earlierAt : '');
+      }),
+    ]),
     tableWidth,
     margin: { top: tableTop, right: margin, bottom: 54, left: margin },
     styles: {

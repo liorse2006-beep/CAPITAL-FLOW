@@ -3,6 +3,10 @@ const { marketSignalNotificationFor } = require('./marketSignalNotification');
 const { SP500, NASDAQ100, ALL_TICKERS } = require('../../tickers');
 const { reportError } = require('../utils/reportError');
 const { isMarketOpen, isPreMarket } = require('./marketCalendar');
+const { retainFullMarketMatches, displayFullMarketScan } = require('./fullMarketContinuity');
+
+const FULL_MARKET_FLOOR = { minVolumeRatio: 1.5, minMarketCap: 500_000_000 };
+let marketContinuity = null;
 
 var backgroundCache = {
   results: null,
@@ -76,6 +80,54 @@ function filterCachedResults(cached, opts) {
     if (minVolNum > 0 && r.volume < minVolNum) return false;
     return true;
   });
+}
+
+function getFullMarketDisplay() {
+  const retained = marketContinuity?.rawResults === backgroundCache.results ? marketContinuity.retained : [];
+  return displayFullMarketScan({ results: backgroundCache.results || [], dataStatus: backgroundCache.dataStatus }, retained);
+}
+
+async function recordFullMarketScan(scan, startedAt) {
+  const dataStatus = scan.dataStatus || (scan.errors?.length ? 'partial' : 'complete');
+  const { retained, observed } = await retainFullMarketMatches(
+    { ...scan, dataStatus },
+    marketContinuity?.observed || [],
+    startedAt
+  );
+  const scanTime = new Date().toISOString();
+  if (marketContinuity && marketContinuity.rawResults === backgroundCache.results && startedAt < marketContinuity.startedAt) {
+    return {
+      ...getFullMarketDisplay(),
+      rawDataStatus: backgroundCache.dataStatus,
+      dataAsOf: backgroundCache.dataAsOf,
+      scanTime: backgroundCache.scanTime,
+      superseded: true,
+    };
+  }
+  marketContinuity = { startedAt, rawResults: scan.results, retained, observed };
+  backgroundCache.results = scan.results;
+  backgroundCache.scanTime = scanTime;
+  backgroundCache.dataStatus = dataStatus;
+  backgroundCache.dataAsOf = scan.dataAsOf || null;
+  backgroundCache.quoteProvider = scan.quoteProvider || null;
+  backgroundCache.coverage = null;
+  if (Array.isArray(scan.checkedSymbols)) {
+    const requestedSymbols = Number(scan.processed) > 0 ? Number(scan.processed) : ALL_TICKERS.length;
+    const stale = new Set(scan.staleSymbols || []);
+    const verifiedSymbols = new Set(scan.checkedSymbols.filter((symbol) => !stale.has(symbol))).size;
+    backgroundCache.coverage = {
+      requestedSymbols,
+      verifiedSymbols,
+      missingSymbols: Math.max(0, requestedSymbols - verifiedSymbols),
+      coveragePercent: Number(((verifiedSymbols / requestedSymbols) * 100).toFixed(2)),
+    };
+  }
+  return {
+    ...displayFullMarketScan({ results: scan.results, dataStatus }, retained),
+    rawDataStatus: dataStatus,
+    dataAsOf: scan.dataAsOf || null,
+    scanTime,
+  };
 }
 
 // True once the alert's condition is met for this cycle's quote — volume
@@ -357,7 +409,8 @@ async function runBackgroundScan(options = {}) {
   if (backgroundCache.running || backgroundCache.inFlight) return;
   backgroundCache.running = true;
   backgroundCache.runStatus = 'running';
-  backgroundCache.lastAttemptAt = new Date().toISOString();
+  const startedAt = Date.now();
+  backgroundCache.lastAttemptAt = new Date(startedAt).toISOString();
   backgroundCache.lastError = null;
   backgroundCache.lastErrorAt = null;
   var broadcast = getBroadcast();
@@ -367,7 +420,7 @@ async function runBackgroundScan(options = {}) {
     broadcast('scan-status', { running: true });
 
     const scanPromise = Promise.resolve().then(() =>
-      scanner.scanTickers(ALL_TICKERS, { minVolumeRatio: 1.5, minMarketCap: 500000000 })
+      scanner.scanTickers(ALL_TICKERS, FULL_MARKET_FLOOR)
     );
     backgroundCache.inFlight = scanPromise;
     scanPromise.then(
@@ -387,48 +440,26 @@ async function runBackgroundScan(options = {}) {
       'Background scan'
     );
 
-    backgroundCache.results = res.results;
-    backgroundCache.scanTime = new Date().toISOString();
-    backgroundCache.lastSuccessAt = backgroundCache.scanTime;
-    backgroundCache.dataStatus = res.dataStatus || (res.errors && res.errors.length ? 'partial' : 'complete');
-    backgroundCache.dataAsOf = res.dataAsOf || null;
-    backgroundCache.quoteProvider = res.quoteProvider || null;
-    if (Array.isArray(res.checkedSymbols)) {
-      const requestedSymbols = Number(res.processed) > 0 ? Number(res.processed) : ALL_TICKERS.length;
-      const verifiedSymbols = new Set(
-        res.checkedSymbols
-          .map((symbol) =>
-            String(symbol || '')
-              .trim()
-              .toUpperCase()
-          )
-          .filter(Boolean)
-      ).size;
-      const missingSymbols = Math.max(0, requestedSymbols - verifiedSymbols);
-      backgroundCache.coverage = {
-        requestedSymbols,
-        verifiedSymbols,
-        missingSymbols,
-        coveragePercent: Number(((verifiedSymbols / requestedSymbols) * 100).toFixed(2)),
-      };
-    }
+    const display = await recordFullMarketScan(res, startedAt);
+    backgroundCache.lastSuccessAt = new Date().toISOString();
     console.log(
-      `[Background] ${res.results.length} results at ${backgroundCache.scanTime} ` +
-        `(data=${backgroundCache.dataStatus}, asOf=${backgroundCache.dataAsOf})`
+      `[Background] ${res.results.length} results at ${backgroundCache.lastSuccessAt} ` +
+        `(data=${res.dataStatus}, asOf=${res.dataAsOf || null}, previousMatches=${display.results.filter((row) => row.previousMatch).length})`
     );
 
-    // Push the complete snapshot to connected SSE clients. Truncating this to
-    // the first 50 rows made a background refresh look like a partial scan;
-    // the client is responsible for the responsive presentation, not the
-    // background worker.
-    broadcast('scan-update', {
-      results: res.results,
-      resultCount: res.results.length,
-      scanTime: backgroundCache.scanTime,
-      dataStatus: backgroundCache.dataStatus,
-      dataAsOf: backgroundCache.dataAsOf,
-      coverage: backgroundCache.coverage,
-    });
+    // Only default All Markets views consume this event. Apply their same
+    // thresholds, not the broader thresholds used to populate the cache.
+    if (!display.superseded) {
+      const displayedResults = filterCachedResults(display.results, { minVolumeRatio: 1.5, minMarketCap: 1e9 });
+      broadcast('scan-update', {
+        results: displayedResults,
+        resultCount: displayedResults.length,
+        scanTime: display.scanTime,
+        dataStatus: display.dataStatus,
+        dataAsOf: display.dataAsOf,
+        coverage: backgroundCache.coverage,
+      });
+    }
 
     // Check thresholds against market-wide matches and hydrate any still-armed
     // alert symbols filtered out of the public scan. The quote-cache fallback
@@ -475,6 +506,9 @@ function startBackgroundScheduler() {
 
 module.exports = {
   backgroundCache,
+  FULL_MARKET_FLOOR,
+  getFullMarketDisplay,
+  recordFullMarketScan,
   isMarketOpen,
   isPreMarket,
   filterCachedResults,

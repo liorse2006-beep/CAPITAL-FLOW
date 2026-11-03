@@ -303,6 +303,18 @@ describe('ScannerPage mobile result surface', () => {
 });
 
 describe('ScannerPage result table integrity', () => {
+  it('labels retained rows with their own observation time on desktop and mobile', () => {
+    const quoteAsOf = '2026-11-03T18:12:33Z';
+    const prior = { ...mockRow, previousMatch: true, quoteAsOf };
+    render(<ScannerPage {...baseProps({ results: [prior], sorted: [prior], scanDataStatus: 'partial' })} />);
+    const labels = screen.getAllByText('Earlier match');
+    expect(labels).toHaveLength(2);
+    labels.forEach((label) => expect(label.querySelector('time')).toHaveAttribute('datetime', quoteAsOf));
+    const alertButtons = screen.getAllByTitle('Refresh this match before setting an alert');
+    expect(alertButtons).toHaveLength(2);
+    alertButtons.forEach((button) => expect(button).toBeDisabled());
+  });
+
   it('does not describe an incomplete empty scan as a verified no-match', () => {
     render(
       <ScannerPage

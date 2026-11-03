@@ -11,6 +11,21 @@ import { fmt, friendlyError, alertLevelLabel, formatSignedPercent, formatPrice, 
 import useSeo from '../../hooks/useSeo';
 import { sectorName } from '../../utils/marketCopy';
 
+function EarlierMatch({ row }) {
+  if (!row.previousMatch) return null;
+  const observed = new Date(row.quoteAsOf);
+  return (
+    <span className="earlier-scan-match">
+      Earlier match
+      {row.quoteAsOf && Number.isFinite(observed.getTime()) && (
+        <time dateTime={row.quoteAsOf}>
+          {' · ' + observed.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}
+        </time>
+      )}
+    </span>
+  );
+}
+
 const ALL_SECTORS = [
   'Technology',
   'Financials',
@@ -985,6 +1000,7 @@ export default function ScannerPage({
                           </td>
                           <td className="col-name" title={r.name}>
                             {r.name}
+                            <EarlierMatch row={r} />
                           </td>
                           <td style={{ color: 'var(--text-2)', fontSize: 12 }}>
                             {r.marketCap > 0 ? fmt(r.marketCap) : '—'}
@@ -1052,9 +1068,12 @@ export default function ScannerPage({
                               </button>
                               <button
                                 className={'alert-create-btn' + (alertLevels && alertLevels[r.symbol] ? ' active' : '')}
+                                disabled={r.previousMatch}
                                 onClick={() => promptCreateAlert(r.symbol, r.price)}
                                 title={
-                                  alertLevels && alertLevels[r.symbol]
+                                  r.previousMatch
+                                    ? 'Refresh this match before setting an alert'
+                                    : alertLevels && alertLevels[r.symbol]
                                     ? 'Alert set at ' + alertLevelLabel(alertLevels[r.symbol]) + ' — click to edit'
                                     : 'Create alert'
                                 }
@@ -1151,12 +1170,15 @@ export default function ScannerPage({
                             </button>
                             <button
                               className={'alert-create-btn' + (alertLevels && alertLevels[r.symbol] ? ' active' : '')}
+                              disabled={r.previousMatch}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 promptCreateAlert(r.symbol, r.price);
                               }}
                               title={
-                                alertLevels && alertLevels[r.symbol]
+                                r.previousMatch
+                                  ? 'Refresh this match before setting an alert'
+                                  : alertLevels && alertLevels[r.symbol]
                                   ? 'Alert set at ' + alertLevelLabel(alertLevels[r.symbol]) + ' — click to edit'
                                   : 'Create alert'
                               }
@@ -1178,6 +1200,7 @@ export default function ScannerPage({
                             <span className="mobile-card-rank">{'#' + (i + 1)}</span>
                           </div>
                         </div>
+                        <EarlierMatch row={r} />
                         <div className="mobile-card-mid">
                           <span className="mobile-card-price">
                             <bdi dir="ltr">{formatPrice(r.price)}</bdi>

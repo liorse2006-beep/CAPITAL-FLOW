@@ -2,20 +2,26 @@ const router = require('express').Router();
 const crypto = require('crypto');
 const scanner = require('../services/scanner');
 const fmp = require('../services/fmp');
-const { backgroundCache, filterCachedResults, isMarketOpen } = require('../services/backgroundScan');
+const {
+  backgroundCache,
+  filterCachedResults,
+  getFullMarketDisplay,
+  recordFullMarketScan,
+  FULL_MARKET_FLOOR,
+  isMarketOpen,
+} = require('../services/backgroundScan');
 const { getUserScanState } = require('../state');
 const { SP500, NASDAQ100, ALL_TICKERS, SECTOR_TICKERS } = require('../../tickers');
 const { requireAuth, requireScanQuota } = require('../middleware/authMiddleware');
 const { refundScan, quotaFor } = require('../services/scanQuota');
 const { reportError } = require('../utils/reportError');
 const { buildFinancialProvenance, CAPITAL_FLOW_SOURCES } = require('../services/financialProvenance');
+const { displayPrivateFullMarketScan } = require('../services/fullMarketContinuity');
 
 // The broadest (most permissive) filter set a shared scan runs with. Any
 // request at-or-above this floor can be served by one shared scan and
-// filtered down per user; a below-floor request (custom API callers only —
-// the UI never goes below these) runs privately with its own filters.
-const FLOOR_RATIO = 1.5;
-const FLOOR_CAP = 500_000_000;
+// filtered down per user; a below-floor request runs privately with its own filters.
+const { minVolumeRatio: FLOOR_RATIO, minMarketCap: FLOOR_CAP } = FULL_MARKET_FLOOR;
 
 // One in-flight scan per ticker universe, shared by every user who asks for
 // that universe while it runs. Two users clicking "Run Scan" seconds apart
@@ -67,11 +73,11 @@ function universeKeyFor(list, sectors) {
 function joinSharedScan(universeKey, tickers, state, opts) {
   let entry = inFlightScans.get(universeKey);
   if (!entry) {
+    const startedAt = Date.now();
     entry = { subscribers: new Set() };
     entry.promise = scanner
       .scanTickers(tickers, {
-        minVolumeRatio: FLOOR_RATIO,
-        minMarketCap: FLOOR_CAP,
+        ...FULL_MARKET_FLOOR,
         onProgress: (p) => {
           entry.subscribers.forEach((sub) => {
             sub.state.progress = p;
@@ -83,6 +89,7 @@ function joinSharedScan(universeKey, tickers, state, opts) {
           });
         },
       })
+      .then(async (raw) => ({ raw, snapshot: universeKey === 'all' ? await recordFullMarketScan(raw, startedAt) : null }))
       .finally(() => inFlightScans.delete(universeKey));
     inFlightScans.set(universeKey, entry);
   }
@@ -182,7 +189,8 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
   ) {
     const cacheAgeMs = Date.now() - new Date(backgroundCache.scanTime).getTime();
     if (cacheAgeMs < maxCacheAge && minVolumeRatio >= FLOOR_RATIO && minMarketCap >= FLOOR_CAP) {
-      const cachedFiltered = filterCachedResults(backgroundCache.results, {
+      const display = getFullMarketDisplay();
+      const cachedFiltered = filterCachedResults(display.results, {
         minVolumeRatio,
         minMarketCap,
         minPrice,
@@ -192,12 +200,13 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
         sectors,
       });
       state.lastResults = cachedFiltered;
+      state.lastUniverseKey = 'all';
       const scanId = crypto.randomUUID();
       state.lastScanId = scanId;
       state.lastScanError = null;
       state.lastScanTime = backgroundCache.scanTime;
       state.lastMarketClosed = !marketOpen;
-      state.lastDataStatus = backgroundCache.dataStatus || 'complete';
+      state.lastDataStatus = display.dataStatus || 'complete';
       state.lastDataAsOf = backgroundCache.dataAsOf || null;
       // Served from cache — no real work happened, so it costs no quota.
       // Premium's 5/day pool only ever pays for scans that hit the market.
@@ -211,12 +220,12 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
         scanTime: backgroundCache.scanTime,
         tickersScanned: ALL_TICKERS.length,
         errors: 0,
-        dataStatus: backgroundCache.dataStatus || 'complete',
+        dataStatus: state.lastDataStatus,
         dataAsOf: backgroundCache.dataAsOf || null,
         dataProvenance: buildFinancialProvenance({
           dataAsOf: backgroundCache.dataAsOf || null,
           capturedAt: backgroundCache.scanTime,
-          status: backgroundCache.dataStatus || 'complete',
+          status: state.lastDataStatus,
           quoteStatus: backgroundCache.dataStatus || 'complete',
           sources: CAPITAL_FLOW_SOURCES.map((source) => ({
             ...source,
@@ -254,6 +263,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
   // Do not let a refresh during a new run make the previous snapshot look
   // like the result of the current request. The final endpoint is populated
   // only after the complete scan has finished.
+  const previousFullMarketMatches = state.lastUniverseKey === 'all' ? state.lastResults || [] : [];
   state.lastResults = null;
   const scanId = state.activeScanId;
 
@@ -270,25 +280,18 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
       let dataStatus = 'complete';
       let quoteDataStatus = 'complete';
       let dataAsOf = null;
+      let snapshotTime = null;
 
       if (canShare) {
-        const raw = await joinSharedScan(universeKey, tickersToScan, state, userOpts);
+        const { raw, snapshot } = await joinSharedScan(universeKey, tickersToScan, state, userOpts);
         errors = raw.errors;
         processed = raw.processed;
-        dataStatus = raw.dataStatus || (errors.length ? 'partial' : 'complete');
-        quoteDataStatus = raw.quoteDataStatus || dataStatus;
-        dataAsOf = raw.dataAsOf || null;
-        results = raw.results.filter((r) => rowPasses(r, userOpts));
-        // The full-universe floor scan is byte-for-byte what the background
-        // scheduler produces — refresh the shared cache so the next caller
-        // gets an instant hit.
-        if (universeKey === 'all') {
-          backgroundCache.results = raw.results;
-          backgroundCache.scanTime = new Date().toISOString();
-          backgroundCache.dataStatus = dataStatus;
-          backgroundCache.dataAsOf = dataAsOf || null;
-          backgroundCache.quoteProvider = raw.quoteProvider || null;
-        }
+        const rawStatus = snapshot?.rawDataStatus || raw.dataStatus || (errors.length ? 'partial' : 'complete');
+        dataAsOf = snapshot ? snapshot.dataAsOf : raw.dataAsOf || null;
+        snapshotTime = snapshot?.scanTime;
+        results = (snapshot?.results || raw.results).filter((r) => rowPasses(r, userOpts));
+        dataStatus = results.some((row) => row.previousMatch) ? 'partial' : rawStatus;
+        quoteDataStatus = snapshot?.superseded ? rawStatus : raw.quoteDataStatus || rawStatus;
       } else {
         const raw = await scanner.scanTickers(tickersToScan, {
           minVolumeRatio,
@@ -309,10 +312,17 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
         quoteDataStatus = raw.quoteDataStatus || dataStatus;
         dataAsOf = raw.dataAsOf || null;
         results = raw.results;
+        if (universeKey === 'all') {
+          const previous = previousFullMarketMatches.filter((row) => rowPasses(row, userOpts));
+          const display = displayPrivateFullMarketScan({ ...raw, dataStatus }, previous);
+          results = display.results;
+          dataStatus = display.dataStatus;
+        }
       }
 
       state.lastResults = results;
-      state.lastScanTime = new Date().toISOString();
+      state.lastUniverseKey = universeKey;
+      state.lastScanTime = snapshotTime || new Date().toISOString();
       state.lastDataStatus = dataStatus;
       state.lastDataAsOf = dataAsOf || null;
       state.lastScanId = scanId;

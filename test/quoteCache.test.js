@@ -146,6 +146,27 @@ test('quoteCache recovers a missing quote from a complete timestamped Yahoo summ
   assert.match(result.dataAsOf, /^\d{4}-\d{2}-\d{2}T/);
 });
 
+test('a throttled per-symbol recovery preserves the usable rows already fetched', async (t) => {
+  const present = 'AUDIT_PARTIAL_BATCH_PRESENT';
+  const missing = 'AUDIT_PARTIAL_BATCH_MISSING';
+  const calls = [];
+  t.mock.method(fmp, 'isConfigured', () => false);
+  t.mock.method(yahoo, 'quote', async (symbols) => {
+    calls.push(symbols);
+    return symbols.includes(present)
+      ? [{ symbol: present, regularMarketPrice: 100, regularMarketTime: Math.floor(Date.now() / 1000) }]
+      : [];
+  });
+  t.mock.method(yahoo, 'quoteSummary', async () => {
+    throw Object.assign(new Error('Too Many Requests'), { status: 429 });
+  });
+
+  const result = await quoteCache.getQuotes([present, missing]);
+  assert.deepEqual([...result.keys()], [present]);
+  assert.equal(result.providerFailure, true);
+  assert.deepEqual(calls, [[present, missing], [missing]]);
+});
+
 test('quoteCache asks FMP first and uses Yahoo only for symbols FMP did not verify', async (t) => {
   const fmpSymbol = 'AUDIT_FMP_PRIMARY';
   const yahooSymbol = 'AUDIT_YAHOO_COMPLEMENT';
