@@ -5,6 +5,7 @@ import useSSE from './hooks/useSSE';
 import useStreamTicket from './hooks/useStreamTicket';
 import useNotificationDeepLink from './hooks/useNotificationDeepLink';
 import useScanQuota from './hooks/useScanQuota';
+import useResumableScan from './hooks/useResumableScan';
 import usePushSubscription from './hooks/usePushSubscription';
 import useWatchlist from './hooks/useWatchlist';
 import { parseVolInput } from './utils/format';
@@ -101,10 +102,35 @@ function App() {
     },
     [location.pathname]
   );
-  const [scanning, setScanning] = useState(false);
-  const [progress, setProgress] = useState(null);
   const [results, setResults] = useState(null);
-  const [liveResults, setLiveResults] = useState([]);
+  const { running: scanning, progress, liveResults, error, start, dismissError } = useResumableScan({
+    ownerId: user?.id,
+    getToken,
+    progressPath: '/api/progress',
+    resultsPath: '/api/last-results',
+    onComplete(data, restored) {
+      setResults(data.results);
+      setScanTime(data.scanTime || null);
+      setScanDataStatus(data.dataStatus || null);
+      setScanDataAsOf(data.dataAsOf || null);
+      setMarketClosed(!!data.marketClosed);
+      setFromCache(!!data.fromCache);
+      setCacheAge(data.cacheAge || 0);
+      setRestoredFromLastScan(restored);
+      setScanMeta({ tier: data.tier, isPremium: data.isPremium, premium: data.premium, free: data.free });
+      if (!restored) track('scan_run', { scanMode: scanMode || 'all', resultCount: data.results.length });
+    },
+    onStartError({ status, data }) {
+      if (status === 401) {
+        setShowAuthModal(true);
+        return true;
+      }
+      if (data?.code !== 'SCAN_LIMIT') return false;
+      if (isPremium) openUpgradeModal();
+      else setShowTrialEndedModal(true);
+      return true;
+    },
+  });
   const [selectedSectors, setSelectedSectors] = useState([]);
   const [scanMode, setScanMode] = useState(null);
   var MAX_FREE_SECTORS = 2;
@@ -154,20 +180,18 @@ function App() {
   const [sectorFilter] = useState('All');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
-  const [error, setError] = useState(null);
-  const poll = useRef(null);
-
-  // A scan can outlive the route that started it. Always tear down the
-  // progress poll when the app unmounts or a new scan starts so stale requests
-  // cannot keep updating an abandoned screen.
-  useEffect(function () {
-    return function () {
-      if (poll.current) {
-        clearInterval(poll.current);
-        poll.current = null;
-      }
-    };
-  }, []);
+  const [resultsOwner, setResultsOwner] = useState(storageScope);
+  if (resultsOwner !== storageScope) {
+    setResultsOwner(storageScope);
+    setResults(null);
+    setScanTime(null);
+    setScanDataStatus(null);
+    setScanDataAsOf(null);
+    setMarketClosed(false);
+    setFromCache(false);
+    setCacheAge(0);
+    setRestoredFromLastScan(false);
+  }
 
   /* ── Chart modal state ── */
   const [chartOpen, setChartOpen] = useState(false);
@@ -845,28 +869,6 @@ function App() {
     [pendingGoogleToken]
   );
 
-  useEffect(
-    function () {
-      if (!user) return; // don't auto-show cached results to guests
-      fetch('/api/last-results', { headers: { Authorization: 'Bearer ' + getToken() } })
-        .then(function (r) {
-          if (!r.ok) return null;
-          return r.json();
-        })
-        .then(function (d) {
-          if (d && d.results && d.results.length) {
-            setResults(d.results);
-            setScanTime(d.scanTime);
-            setScanDataStatus(d.dataStatus || null);
-            setScanDataAsOf(d.dataAsOf || null);
-            setRestoredFromLastScan(true);
-          }
-        })
-        .catch(function () {});
-    },
-    [getToken, user]
-  );
-
   /* ── Notification helpers ── */
   function playBeep() {
     try {
@@ -1034,222 +1036,33 @@ function App() {
     }
   }
 
-  const startScan = useCallback(
-    function () {
-      if (!user) {
-        setShowAuthModal(true);
-        return;
-      }
-      if (!isPremium && categoryQuota(scanMeta, 'capitalFlow').exhausted) {
-        setShowTrialEndedModal(true);
-        return;
-      }
-
-      setScanning(true);
-      setError(null);
-      setFromCache(false);
-      setRestoredFromLastScan(false);
-      setProgress({ processed: 0, total: 1, found: 0 });
-      setLiveResults([]);
-
-      if (poll.current) clearInterval(poll.current);
-      var activeScanId = null;
-      var resolvingAsyncResult = false;
-      var scanSettled = false;
-      var scanUiTimeout = window.setTimeout(
-        function () {
-          if (!activeScanId || scanSettled) return;
-          scanSettled = true;
-          activeScanId = null;
-          resolvingAsyncResult = false;
-          if (poll.current) {
-            clearInterval(poll.current);
-            poll.current = null;
-          }
-          setScanning(false);
-          setProgress(null);
-          setError('The scan took too long to return a verified result. Please try again.');
-        },
-        10 * 60 * 1000
-      );
-
-      function clearScanPolling() {
-        if (poll.current) {
-          clearInterval(poll.current);
-          poll.current = null;
-        }
-        window.clearTimeout(scanUiTimeout);
-      }
-
-      function applyCompletedScan(d) {
-        if (!d || !Array.isArray(d.results))
-          throw new Error('The scan returned no complete result set. Please try again.');
-        setResults(d.results);
-        setScanTime(d.scanTime);
-        setScanDataStatus(d.dataStatus || null);
-        setScanDataAsOf(d.dataAsOf || null);
-        if (typeof d.marketClosed === 'boolean') setMarketClosed(d.marketClosed);
-        setFromCache(!!d.fromCache);
-        setCacheAge(d.cacheAge || 0);
-        setScanMeta({ tier: d.tier, isPremium: d.isPremium, premium: d.premium, free: d.free });
-        track('scan_run', { scanMode: scanMode || 'all', resultCount: d.results.length });
-      }
-
-      function finishAsyncError(message) {
-        if (scanSettled) return;
-        scanSettled = true;
-        activeScanId = null;
-        resolvingAsyncResult = false;
-        clearScanPolling();
-        setScanning(false);
-        setProgress(null);
-        setError(message || 'The scan could not return a verified result. Please try again.');
-      }
-
-      function fetchCompletedAsyncResult() {
-        if (!activeScanId || resolvingAsyncResult || scanSettled) return;
-        resolvingAsyncResult = true;
-        fetch('/api/last-results?scanId=' + encodeURIComponent(activeScanId), {
-          headers: { Authorization: 'Bearer ' + getToken() },
-        })
-          .then(function (r) {
-            if (r.status === 409) return null; // completion state and result write are adjacent; retry on the next poll
-            if (!r.ok)
-              return r.json().then(function (d) {
-                throw new Error(d.error || 'The completed scan could not be loaded.');
-              });
-            return r.json();
-          })
-          .then(function (d) {
-            resolvingAsyncResult = false;
-            if (!d || scanSettled) return;
-            if (d.scanId !== activeScanId) return;
-            applyCompletedScan(d);
-            scanSettled = true;
-            activeScanId = null;
-            clearScanPolling();
-            setScanning(false);
-            setProgress(null);
-          })
-          .catch(function (e) {
-            finishAsyncError(e.message);
-          });
-      }
-
-      poll.current = setInterval(function () {
-        fetch('/api/progress', { headers: { Authorization: 'Bearer ' + getToken() } })
-          .then(function (r) {
-            return r.json();
-          })
-          .then(function (d) {
-            if (d.progress) setProgress(d.progress);
-            if (d.liveResults && d.liveResults.length) setLiveResults(d.liveResults);
-            // Before the start request returns there is no id to correlate,
-            // so an empty progress response must not stop the poller. Once a
-            // queued scan has an id, only its own completed result can settle
-            // the screen.
-            if (activeScanId && !d.running && d.lastScanId === activeScanId) {
-              if (d.error) finishAsyncError(d.error.message);
-              else fetchCompletedAsyncResult();
-            }
-          })
-          .catch(function () {});
-      }, 600);
-
-      var cap = parseFloat(minCap) * 1e9;
-      // The interactive UI uses the origin's async scan contract so a
-      // reverse-proxy timeout cannot leave the table in an ambiguous state.
-      // The optional edge cache remains available for legacy synchronous API
-      // callers, but must not cache a user-specific queued scan id.
-      var scanUrl = '/api/scan?async=1&minVolumeRatio=' + minRatio + '&minMarketCap=' + cap;
-      if (minPrice) scanUrl += '&minPrice=' + minPrice;
-      if (maxPrice) scanUrl += '&maxPrice=' + maxPrice;
-      if (minVol) scanUrl += '&minVol=' + encodeURIComponent(minVol);
-      if (scanMode === 'sectors' && selectedSectors.length > 0) {
-        scanUrl += '&sectors=' + encodeURIComponent(selectedSectors.join(','));
-      } else if (scanMode === 'nasdaq100') {
-        scanUrl += '&list=nasdaq100';
-      } else if (scanMode === 'sp500') {
-        scanUrl += '&list=sp500';
-      }
-      fetch(scanUrl, { headers: { Authorization: 'Bearer ' + getToken() } })
-        .then(function (r) {
-          if (r.status === 401) {
-            setShowAuthModal(true);
-            throw new Error('Sign in to run a scan');
-          }
-          if (r.status === 403)
-            return r.json().then(function (d) {
-              throw Object.assign(new Error(d.error || 'Limit reached'), { code: d.code });
-            });
-          if (!r.ok)
-            return r.json().then(function (d) {
-              throw new Error(d.error || 'Scan failed');
-            });
-          if (r.status === 202)
-            return r.json().then(function (d) {
-              if (!d.queued || !d.scanId) throw new Error('The scan could not be queued. Please try again.');
-              activeScanId = d.scanId;
-              if (d.progress) setProgress(d.progress);
-              return null;
-            });
-          return r.json();
-        })
-        .then(function (d) {
-          // 202 means the progress/result poller owns the remainder of the
-          // flow. It must not be finalized by this request's finally block.
-          if (d) applyCompletedScan(d);
-        })
-        .catch(function (e) {
-          if (activeScanId) {
-            finishAsyncError(e.message);
-            return;
-          }
-          if (e.code === 'SCAN_LIMIT') {
-            if (isPremium) openUpgradeModal();
-            else setShowTrialEndedModal(true);
-            return;
-          }
-          setError(e.message);
-        })
-        .finally(function () {
-          if (activeScanId) return;
-          scanSettled = true;
-          clearScanPolling();
-          setScanning(false);
-          setProgress(null);
-        });
-    },
-    [
-      minRatio,
-      minCap,
-      minPrice,
-      maxPrice,
-      minVol,
-      scanMode,
-      selectedSectors,
-      isPremium,
-      scanMeta,
-      user,
-      getToken,
-      setShowAuthModal,
-      setScanning,
-      setError,
-      setProgress,
-      setLiveResults,
-      setRestoredFromLastScan,
-      setResults,
-      setScanTime,
-      setScanDataStatus,
-      setScanDataAsOf,
-      setMarketClosed,
-      setFromCache,
-      setCacheAge,
-      setShowTrialEndedModal,
-      setScanMeta,
-      openUpgradeModal,
-    ]
-  );
+  function startScan() {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    if (!isPremium && categoryQuota(scanMeta, 'capitalFlow').exhausted) {
+      setShowTrialEndedModal(true);
+      return;
+    }
+    var cap = parseFloat(minCap) * 1e9;
+    // The interactive UI uses the origin's async scan contract so a
+    // reverse-proxy timeout cannot leave the table in an ambiguous state.
+    // The optional edge cache remains available for legacy synchronous API
+    // callers, but must not cache a user-specific queued scan id.
+    var scanUrl = '/api/scan?async=1&minVolumeRatio=' + minRatio + '&minMarketCap=' + cap;
+    if (minPrice) scanUrl += '&minPrice=' + minPrice;
+    if (maxPrice) scanUrl += '&maxPrice=' + maxPrice;
+    if (minVol) scanUrl += '&minVol=' + encodeURIComponent(minVol);
+    if (scanMode === 'sectors' && selectedSectors.length > 0) {
+      scanUrl += '&sectors=' + encodeURIComponent(selectedSectors.join(','));
+    } else if (scanMode === 'nasdaq100') {
+      scanUrl += '&list=nasdaq100';
+    } else if (scanMode === 'sp500') {
+      scanUrl += '&list=sp500';
+    }
+    void start(scanUrl);
+  }
 
   const handleSort = function (f) {
     setSortDir(sortField === f ? (sortDir === 'asc' ? 'desc' : 'asc') : 'desc');
@@ -1518,7 +1331,7 @@ function App() {
                   progress={progress}
                   liveResults={liveResults}
                   error={error}
-                  setError={setError}
+                  setError={dismissError}
                   startScan={startScan}
                   isPremium={premiumFeatureAccess}
                   isElite={eliteAccess}

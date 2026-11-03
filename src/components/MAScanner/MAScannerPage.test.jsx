@@ -35,6 +35,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -145,6 +146,56 @@ describe('MA scan request lifetime', () => {
     await act(() => vi.advanceTimersByTimeAsync(1500));
     expect(screen.getAllByText('FIXA')).toHaveLength(2);
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('resumes the same scan immediately on return from another app after the token refreshes', async () => {
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    const fetch = vi.fn(async (path) => {
+      if (path.startsWith('/api/scan-ma')) return jsonResponse({ queued: true, scanId: 'background-job' }, 202);
+      if (path === '/api/ma-progress') {
+        if (fixture.token === 'synthetic-owner-one') return never();
+        return jsonResponse({ running: false, scanId: 'background-job' });
+      }
+      return jsonResponse({ scanId: 'background-job', results: [row], dataStatus: 'complete' });
+    });
+    vi.stubGlobal('fetch', fetch);
+    begin();
+    await act(() => vi.advanceTimersByTimeAsync(1500));
+    const oldPoll = fetch.mock.calls.find(([path]) => path === '/api/ma-progress')[1].signal;
+    visibility.mockReturnValue('hidden');
+    fireEvent(document, new Event('visibilitychange'));
+    expect(oldPoll.aborted).toBe(true);
+    fixture.token = 'refreshed-same-account';
+    visibility.mockReturnValue('visible');
+    await act(async () => fireEvent(document, new Event('visibilitychange')));
+    expect(screen.getAllByText('FIXA')).toHaveLength(2);
+    expect(fetch.mock.calls.filter(([path]) => path.startsWith('/api/scan-ma'))).toHaveLength(1);
+  });
+
+  it('reattaches after reopening the scanner and loads the completed scan with its original settings', async () => {
+    let finished = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path) => {
+        if (path === '/api/ma-progress') return jsonResponse({ running: !finished, scanId: 'existing-job' });
+        if (path === '/api/ma-last-results?scanId=existing-job') {
+          return jsonResponse({
+            scanId: 'existing-job',
+            results: [row],
+            params: { ma: 50, distance: 1, interval: '1wk', market: 'sp500' },
+            dataStatus: 'complete',
+          });
+        }
+        throw new Error('Reopening must only read the existing scan');
+      })
+    );
+    render(<MAScannerPage {...props} />);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(screen.getByText('Fixture scan loading')).toBeInTheDocument();
+    finished = true;
+    await act(() => vi.advanceTimersByTimeAsync(1500));
+    expect(screen.getByRole('heading', { name: /SMA50 proximity.*Weekly/ })).toBeInTheDocument();
+    expect(screen.getAllByText('FIXA')).toHaveLength(2);
   });
 
   it('waits for a not-yet-published result without overlapping, then completes', async () => {

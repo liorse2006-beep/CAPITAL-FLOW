@@ -3,6 +3,7 @@ import SectorHeatmap from './SectorHeatmap';
 import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
 import MobileResultSort from '../shared/MobileResultSort';
+import ShareScanResults from '../shared/ShareScanResults';
 import { fmt, friendlyError, formatPrice, formatRatio, formatSignedPercent } from '../../utils/format';
 import { categoryQuota } from '../../utils/quota';
 import { SECTOR_ETFS } from '../../constants';
@@ -39,6 +40,7 @@ export default function MoneyFlow({
   const [flowData, setFlowData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [flowDataStatus, setFlowDataStatus] = useState(null);
+  const [flowTimestamps, setFlowTimestamps] = useState(null);
   const [error, setError] = useState(null);
   const [expandedETF, setExpandedETF] = useState(null);
   const [flowSort, setFlowSort] = useState('volRatio');
@@ -84,6 +86,7 @@ export default function MoneyFlow({
         .then(function (d) {
           setFlowData(d.results);
           setFlowDataStatus(d.dataStatus || 'complete');
+          setFlowTimestamps({ scanTime: d.fetchTime, dataAsOf: d.dataAsOf });
           setScanMeta({ tier: d.tier, isPremium: d.isPremium, premium: d.premium, free: d.free });
         })
         .catch(function (e) {
@@ -327,7 +330,20 @@ export default function MoneyFlow({
                     notable change
                   </span>
                 </div>
-                <span className="table-bar-count">{flowData.length} Sectors</span>
+                <div className="table-bar-right">
+                  <span className="table-bar-count">{flowData.length} Sectors</span>
+                  {user && sorted.length > 0 && (
+                    <ShareScanResults
+                      report={{
+                        type: 'sectorMoving',
+                        title: 'Hot Sectors scan results',
+                        rows: sorted,
+                        dataStatus: flowDataStatus,
+                        ...flowTimestamps,
+                      }}
+                    />
+                  )}
+                </div>
               </div>
               <MobileResultSort
                 options={[

@@ -128,16 +128,28 @@ describe('ScheduledScanResultsModal', () => {
         />
       );
       const dialog = screen.getByRole('dialog');
-      const close = screen.getByRole('button', { name: 'Close' });
+      const share = screen.getByRole('button', { name: 'Share' });
       const lastLink = screen.getByRole('link', { name: 'Open ONE on TradingView' });
-      expect(dialog).toHaveFocus();
+      expect(dialog).toContainElement(share);
+      expect(share).toHaveFocus();
       expect(document.body.style.overflow).toBe('hidden');
 
-      close.focus();
       fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
       expect(lastLink).toHaveFocus();
       fireEvent.keyDown(document, { key: 'Tab' });
-      expect(close).toHaveFocus();
+      expect(share).toHaveFocus();
+
+      const childDialog = dialog.querySelector('dialog');
+      const closeSavedResults = vi.fn();
+      view.rerender(
+        <ScheduledScanResultsModal
+          notification={notificationWithResults([{ symbol: 'ONE', price: 12 }])}
+          onClose={closeSavedResults}
+        />
+      );
+      childDialog.open = true;
+      fireEvent.keyDown(childDialog, { key: 'Escape' });
+      expect(closeSavedResults).not.toHaveBeenCalled();
 
       view.unmount();
       expect(opener).toHaveFocus();

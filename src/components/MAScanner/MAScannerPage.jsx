@@ -5,6 +5,7 @@ import useMovingAverageScan from '../../hooks/useMovingAverageScan';
 import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
 import MobileResultSort from '../shared/MobileResultSort';
+import ShareScanResults from '../shared/ShareScanResults';
 import { categoryQuota } from '../../utils/quota';
 import useSeo from '../../hooks/useSeo';
 import { sectorName } from '../../utils/marketCopy';
@@ -80,6 +81,9 @@ export default function MAScannerPage({
     error,
     setError,
     dataStatus,
+    resultParams,
+    scanTime,
+    dataAsOf,
     startScan: runScan,
   } = useMovingAverageScan({
     user,
@@ -224,10 +228,14 @@ export default function MAScannerPage({
     );
 
   const scanLimitReached = !isPremium && categoryQuota(scanMeta, 'maScanner').exhausted;
-  const intervalLabel = timeframe === '1d' ? 'Daily' : 'Weekly';
   const isLocked = !user;
 
-  const selectedMarket = MARKET_OPTIONS.find((m) => m.key === market);
+  const resultAverage = resultParams?.ma ? `SMA${resultParams.ma}` : 'Moving average';
+  const resultMarket = MARKET_OPTIONS.find((m) => m.key === resultParams?.market);
+  const resultTitle = resultParams
+    ? `${resultAverage} proximity - ±${resultParams.distance}% (${resultParams.interval === '1d' ? 'Daily' : 'Weekly'})` +
+      (resultMarket ? ` · ${resultMarket.label}` : '')
+    : 'Moving average scan results';
   const noResultsText =
     dataStatus === 'unavailable'
       ? 'Verified market data is currently unavailable. Please try again in a few minutes.'
@@ -606,12 +614,7 @@ export default function MAScannerPage({
             React.createElement(
               'div',
               null,
-              React.createElement(
-                'h2',
-                null,
-                `SMA proximity${ma} — ±${distance}% (${intervalLabel})` +
-                  (selectedMarket ? ` · ${selectedMarket.label}` : '')
-              ),
+              React.createElement('h2', null, resultTitle),
               React.createElement(
                 'span',
                 { className: 'table-bar-sub' },
@@ -619,7 +622,20 @@ export default function MAScannerPage({
                   ' Results' +
                   (filtered.length < results.length ? ` · ${results.length - filtered.length} filtered` : '')
               )
-            )
+            ),
+            !loading &&
+              sorted.length > 0 &&
+              React.createElement(ShareScanResults, {
+                report: {
+                  type: 'movingAverage',
+                  title: resultTitle,
+                  rows: sorted,
+                  scanTime,
+                  dataAsOf,
+                  dataStatus,
+                  averageLabel: resultAverage,
+                },
+              })
           ),
 
           dataStatus &&
@@ -637,7 +653,7 @@ export default function MAScannerPage({
               { value: 'symbol', label: 'Ticker' },
               { value: 'name', label: 'Name' },
               { value: 'price', label: 'Price' },
-              { value: 'maValue', label: `SMA${ma}` },
+              { value: 'maValue', label: resultAverage },
               { value: 'maDistance', label: 'Distance' },
             ],
             value: sortField,
@@ -719,7 +735,7 @@ export default function MAScannerPage({
                       React.createElement(
                         'div',
                         { className: 'mobile-result-card-stat mobile-result-card-stat-wide' },
-                        React.createElement('span', { className: 'mobile-result-card-label' }, `SMA${ma}`),
+                        React.createElement('span', { className: 'mobile-result-card-label' }, resultAverage),
                         React.createElement(
                           'span',
                           { className: 'mobile-result-card-value', dir: 'ltr' },
@@ -747,7 +763,7 @@ export default function MAScannerPage({
                   React.createElement(TH, { label: 'Ticker', field: 'symbol' }),
                   React.createElement(TH, { label: 'Name', field: 'name' }),
                   React.createElement(TH, { label: 'Price', field: 'price' }),
-                  React.createElement(TH, { label: `SMA${ma}`, field: 'maValue' }),
+                  React.createElement(TH, { label: resultAverage, field: 'maValue' }),
                   React.createElement(TH, { label: 'Distance (%)', field: 'maDistance' }),
                   React.createElement('th', { className: 'result-actions-col' })
                 )

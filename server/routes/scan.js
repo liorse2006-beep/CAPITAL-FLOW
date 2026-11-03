@@ -164,6 +164,11 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
   const backgroundProvider = String(backgroundCache.quoteProvider || '');
   const backgroundWasFmpVerified =
     !fmp.isConfigured() || backgroundProvider.split(' + ').some((provider) => provider.trim() === 'FMP');
+  const state = getUserScanState(req.user.id);
+  if (state.running) {
+    await refundScan(req.user, req.scanReservation);
+    return res.status(409).json({ error: 'Scan already in progress' });
+  }
   if (
     Array.isArray(backgroundCache.results) &&
     backgroundCache.scanTime &&
@@ -186,8 +191,9 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
         list,
         sectors,
       });
-      const state = getUserScanState(req.user.id);
       state.lastResults = cachedFiltered;
+      const scanId = crypto.randomUUID();
+      state.lastScanId = scanId;
       state.lastScanError = null;
       state.lastScanTime = backgroundCache.scanTime;
       state.lastMarketClosed = !marketOpen;
@@ -200,6 +206,7 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
       // for the race-fix to work at all) — refund it here.
       await refundScan(req.user, req.scanReservation);
       return res.json({
+        scanId,
         results: cachedFiltered,
         scanTime: backgroundCache.scanTime,
         tickersScanned: ALL_TICKERS.length,
@@ -237,13 +244,6 @@ router.get('/scan', requireScanQuota('capitalFlow'), async (req, res) => {
       if (ticks) ticks.forEach((t) => sectorSet.add(t));
     });
     tickersToScan = [...sectorSet];
-  }
-
-  const state = getUserScanState(req.user.id);
-  // Double-click protection only — scans by OTHER users never block this one.
-  if (state.running) {
-    await refundScan(req.user, req.scanReservation); // no scan actually happened for this request
-    return res.status(409).json({ error: 'Scan already in progress' });
   }
 
   state.running = true;
@@ -394,6 +394,9 @@ router.get('/progress', requireAuth, (req, res) => {
 
 router.get('/last-results', requireAuth, (req, res) => {
   const state = getUserScanState(req.user.id);
+  if (typeof req.query.scanId === 'string' && (state.lastScanId !== req.query.scanId || !state.lastResults)) {
+    return res.status(409).json({ error: 'Scan result is not ready' });
+  }
   res.json({
     scanId: state.lastScanId,
     results: state.lastResults,

@@ -3,6 +3,7 @@ import { fmt, formatPrice, formatRatio, formatSignedPercent } from '../../utils/
 import useModalA11y from '../../hooks/useModalA11y';
 import { SECTOR_ETFS } from '../../constants';
 import { flowLabel } from '../../utils/marketCopy';
+import ShareScanResults from './ShareScanResults';
 
 const SECTOR_BY_TICKER = Object.fromEntries(SECTOR_ETFS.map((sector) => [sector.ticker, sector]));
 
@@ -55,6 +56,11 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
       (row) => !SECTOR_BY_TICKER[row?.symbol] || !['inflow', 'outflow', 'neutral', 'unavailable'].includes(row?.flow)
     );
   var label = SCAN_LABEL[notification.scanType] || 'Scheduled scan';
+  var reportType = isSectorScan
+    ? 'sectorMoving'
+    : notification.scanType === 'maScanner'
+      ? 'movingAverage'
+      : 'capitalFlow';
   var observedAt = dataTime(notification.dataAsOf);
   var qualityNotice =
     notification.dataStatus === 'partial'
@@ -95,9 +101,24 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
               </div>
             )}
           </div>
-          <button className="scheduled-results-close" onClick={onClose} aria-label="Close">
-            &times;
-          </button>
+          <div className="table-bar-right">
+            {results.length > 0 && !legacySectorScan && (
+              <ShareScanResults
+                key={notification.id ?? notification.createdAt}
+                report={{
+                  type: reportType,
+                  title: label + ' scheduled scan results',
+                  rows: results,
+                  scanTime: notification.createdAt > 0 ? new Date(notification.createdAt * 1000) : null,
+                  dataAsOf: observedAt ? notification.dataAsOf : null,
+                  dataStatus: notification.dataStatus,
+                }}
+              />
+            )}
+            <button className="scheduled-results-close" onClick={onClose} aria-label="Close">
+              &times;
+            </button>
+          </div>
         </div>
 
         {legacySectorScan ? (

@@ -6,6 +6,7 @@ import SectorPickerModal from './SectorPickerModal';
 import CapitalFlowRadar from './CapitalFlowRadar';
 import useSmoothProgress from '../../hooks/useSmoothProgress';
 import MobileResultSort from '../shared/MobileResultSort';
+import ShareScanResults from '../shared/ShareScanResults';
 import { fmt, friendlyError, alertLevelLabel, formatSignedPercent, formatPrice, formatRatio } from '../../utils/format';
 import useSeo from '../../hooks/useSeo';
 import { sectorName } from '../../utils/marketCopy';
@@ -775,6 +776,18 @@ export default function ScannerPage({
                   })()}
               </div>
               <div className="table-bar-right">
+                {!scanning && sorted.length > 0 && (
+                  <ShareScanResults
+                    report={{
+                      type: 'capitalFlow',
+                      title: 'Capital Flow scan results',
+                      rows: sorted,
+                      scanTime,
+                      dataAsOf: scanDataAsOf,
+                      dataStatus: scanDataStatus,
+                    }}
+                  />
+                )}
                 {!scanning && (
                   <button
                     className="scan-btn table-new-scan-btn"

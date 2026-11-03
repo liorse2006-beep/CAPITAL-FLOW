@@ -107,17 +107,25 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
     return res.status(400).json({ error: 'Invalid moving-average scan filters' });
   }
 
+  const userId = req.user.id;
+  if (scanProgress.get(userId)?.running) {
+    await refundScan(req.user, req.scanReservation);
+    return res.status(409).json({ error: 'Scan already in progress' });
+  }
+
+  const params = { ma, distance, interval, direction, market, sectors };
   const cacheKey = cacheKeyFor(ma, distance, interval, direction, market, sectors);
   const cached = resultCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     // Cache hit — free, same policy as the main scanner. requireScanQuota
     // already reserved a slot before we knew this would be a cache hit —
     // refund it.
-    await refundScan(req.user, req.scanReservation);
-    return res.json({
+    const scanId = crypto.randomUUID();
+    const payload = {
+      scanId,
       results: cached.results,
       scanTime: cached.scanTime,
-      params: { ma, distance, interval, direction, market, sectors },
+      params,
       dataStatus: cached.dataStatus,
       dataAsOf: cached.dataAsOf,
       dataProvenance: buildFinancialProvenance({
@@ -134,8 +142,11 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
       errors: cached.errors,
       checkedSymbols: cached.checkedSymbols,
       fromCache: true,
-      ...quotaFor(req.user),
-    });
+    };
+    rememberLastResult(userId, payload);
+    scanProgress.set(userId, { running: false, scanId, error: null });
+    await refundScan(req.user, req.scanReservation);
+    return res.json({ ...payload, ...quotaFor(req.user) });
   }
 
   // Resolve ticker list based on selected market
@@ -154,14 +165,6 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
       });
     });
     tickersToScan = seen.size > 0 ? [...seen] : ALL_TICKERS;
-  }
-
-  const userId = req.user.id;
-
-  // Prevent duplicate concurrent scans for same user
-  if (scanProgress.get(userId)?.running) {
-    await refundScan(req.user, req.scanReservation); // no scan actually happened for this request
-    return res.status(409).json({ error: 'Scan already in progress' });
   }
 
   const scanId = crypto.randomUUID();
@@ -205,6 +208,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
         scanId,
         results,
         scanTime,
+        params,
         dataStatus: scan.dataStatus || (scan.errors && scan.errors.length ? 'partial' : 'complete'),
         dataAsOf: scan.dataAsOf || null,
         dataProvenance: buildFinancialProvenance({
@@ -251,7 +255,7 @@ router.get('/scan-ma', requireScanQuota('maScanner'), async (req, res) => {
     return res.status(202).json({
       queued: true,
       scanId,
-      params: { ma, distance, interval, direction, market, sectors },
+      params,
       progress: scanProgress.get(userId),
     });
   }

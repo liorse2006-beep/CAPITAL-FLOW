@@ -26,14 +26,19 @@ export default function useModalA11y(onClose, enabled = true) {
         panel.querySelectorAll(
           'a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, object, embed, [contenteditable="true"], [tabindex]:not([tabindex="-1"])'
         )
-      ).filter((element) => !element.hasAttribute('hidden') && element.getAttribute('aria-hidden') !== 'true');
+      ).filter(
+        (element) =>
+          !element.hasAttribute('hidden') &&
+          element.getAttribute('aria-hidden') !== 'true' &&
+          !element.closest('dialog:not([open])')
+      );
     }
 
     function handleKeyDown(e) {
       const panel = panelRef.current;
       if (!panel) return;
       const dialogs = document.querySelectorAll(
-        '[aria-modal="true"][role="dialog"], [aria-modal="true"][role="alertdialog"]'
+        'dialog[open], [aria-modal="true"][role="dialog"], [aria-modal="true"][role="alertdialog"]'
       );
       const topDialog = dialogs[dialogs.length - 1];
       if (topDialog && topDialog !== panel) return;
