@@ -69,7 +69,8 @@ export function createScanResultsPdf({ type, rows, title, scanTime, dataAsOf, da
   const right = width - margin;
   const tableWidth = right - margin;
   const titleY = 44;
-  const buttonHeight = 22;
+  const buttonHeight = 56;
+  const tapPadding = 4;
   doc.setFont('helvetica', 'bold').setFontSize(19);
   const titleLines = doc.splitTextToSize(cell(title), tableWidth - 74);
   const buttonTop = titleY + (titleLines.length - 1) * doc.getLineHeight() + 13;
@@ -148,15 +149,31 @@ export function createScanResultsPdf({ type, rows, title, scanTime, dataAsOf, da
       const linkLabel = 'OPEN CAPITAL FLOW';
       doc
         .setFont('helvetica', 'bold')
-        .setFontSize(9)
+        .setFontSize(11)
         .setTextColor(...gold);
-      const linkWidth = doc.getTextWidth(linkLabel) + 22;
+      const linkWidth = 196;
       doc
-        .setLineWidth(0.6)
+        .setLineWidth(0.8)
         .setDrawColor(...gold)
-        .roundedRect(margin, buttonTop, linkWidth, buttonHeight, 4, 4);
-      doc.text(linkLabel, margin + 11, buttonTop + 14);
-      doc.link(margin, buttonTop, linkWidth, buttonHeight, { url: appUrl });
+        .setFillColor(27, 22, 14)
+        .roundedRect(margin, buttonTop, linkWidth, buttonHeight, 6, 6, 'FD');
+      doc.text(linkLabel, margin + 14, buttonTop + 24);
+      // A literal, selectable URL also works as a fallback in viewers that
+      // detect URLs in text but do not expose the PDF's link annotations.
+      doc
+        .setFont('helvetica', 'normal')
+        .setFontSize(9)
+        .text(appUrl, margin + 14, buttonTop + 40);
+      // jsPDF flips page Y when it serializes a link. Starting at the bottom
+      // with a negative height emits the conventional [left, bottom, right,
+      // top] PDF rectangle, so readers don't have to normalize its corners.
+      doc.link(
+        margin - tapPadding,
+        buttonTop + buttonHeight + tapPadding,
+        linkWidth + 2 * tapPadding,
+        -(buttonHeight + 2 * tapPadding),
+        { url: appUrl }
+      );
 
       doc
         .setFont('helvetica', 'normal')
