@@ -10,7 +10,7 @@
 const db = require('../db');
 const yahoo = require('../services/yahoo');
 const { scanFundamentals } = require('../services/fundamentalsScanner');
-const { latestCompletedSessionDate, newYorkParts, isMarketOpen } = require('../services/marketCalendar');
+const { latestCompletedSessionDate, newYorkParts, sessionDateForTimestamp } = require('../services/marketCalendar');
 const { reportError } = require('../utils/reportError');
 const { SYMBOLS } = require('./universe');
 
@@ -61,10 +61,16 @@ async function fetchQuotes(symbols) {
   }
 }
 
-async function fetchCloses(symbol) {
+// Daily bars up to and including the given completed session. Price, change
+// and volume come from these bars rather than from the live quote, so the job
+// can run at any hour (including during trading) and the stored price is
+// always a real closing price for a finished session, never an intraday tick.
+async function fetchSessionBars(symbol, session) {
   const period1 = new Date(Date.now() - 270 * 24 * 60 * 60 * 1000);
   const chart = await yahoo.chart(toYahoo(symbol), { period1, interval: '1d' });
-  return (chart.quotes || []).map((bar) => finite(bar.close)).filter((close) => close !== null);
+  return (chart.quotes || [])
+    .map((bar) => ({ day: sessionDateForTimestamp(bar.date), close: finite(bar.close), volume: finite(bar.volume) }))
+    .filter((bar) => bar.day && bar.close !== null && bar.day <= session);
 }
 
 async function fetchProfile(symbol) {
@@ -117,16 +123,21 @@ async function buildChunk(symbols, session, existing) {
   const fundBySymbol = new Map((fundamentals.results || []).map((f) => [f.symbol, f]));
 
   for (const symbol of symbols) {
-    const quote = quoteBySymbol.get(symbol);
-    if (!quote || finite(quote.regularMarketPrice) === null) continue;
+    const quote = quoteBySymbol.get(symbol) || {};
     const previous = existing.get(symbol) || {};
     const fund = fundBySymbol.get(symbol) || {};
-    let closes = [];
+    let bars = [];
     try {
-      closes = await fetchCloses(symbol);
+      bars = await fetchSessionBars(symbol, session);
     } catch {
-      closes = [];
+      bars = [];
     }
+    // Without a closing price there is nothing honest to show; the symbol is
+    // retried on the next tick.
+    if (!bars.length) continue;
+    const last = bars[bars.length - 1];
+    const prior = bars.length > 1 ? bars[bars.length - 2] : null;
+    const closes = bars.map((bar) => bar.close);
     let profile = previous.profileAt && Date.now() - previous.profileAt < PROFILE_MAX_AGE_MS ? previous : null;
     if (!profile) profile = await fetchProfile(symbol).catch(() => previous);
 
@@ -135,11 +146,12 @@ async function buildChunk(symbols, session, existing) {
       symbol,
       session,
       asOf: Date.now(),
-      name: quote.longName || quote.shortName || symbol,
-      price: finite(quote.regularMarketPrice),
-      changePct: finite(quote.regularMarketChangePercent),
-      marketCap: finite(quote.marketCap),
-      volume: finite(quote.regularMarketVolume),
+      priceDate: last.day,
+      name: quote.longName || quote.shortName || previous.name || symbol,
+      price: last.close,
+      changePct: prior ? (last.close / prior.close - 1) * 100 : null,
+      marketCap: finite(quote.marketCap) ?? previous.marketCap ?? null,
+      volume: last.volume,
       avgVolume3m: finite(quote.averageDailyVolume3Month),
       high52: finite(quote.fiftyTwoWeekHigh),
       low52: finite(quote.fiftyTwoWeekLow),
@@ -183,22 +195,28 @@ async function runSnapshotJob({ session = latestCompletedSessionDate(), symbols 
       }
       if (pauseMs) await sleep(pauseMs);
     }
-    await db
-      .prepare(
-        `INSERT INTO app_meta (key, value) VALUES ('stock_snapshot_session', ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value`
-      )
-      .run(session);
-    return { processed, session };
+    // The session counts as done only when every symbol has it. Until then each
+    // tick retries just the missing symbols, so no page stays empty for long.
+    let missing = 0;
+    for (let i = 0; i < symbols.length; i += 100) {
+      const stored = await loadExisting(symbols.slice(i, i + 100));
+      missing += symbols.slice(i, i + 100).filter((symbol) => (stored.get(symbol) || {}).session !== session).length;
+    }
+    if (missing === 0) {
+      await db
+        .prepare(
+          `INSERT INTO app_meta (key, value) VALUES ('stock_snapshot_session', ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+        )
+        .run(session);
+    }
+    return { processed, missing, session };
   } finally {
     running = false;
   }
 }
 
 async function snapshotDue(now = new Date()) {
-  // During the regular session quotes are live, not closing prices, and would
-  // be mislabelled as the previous session's close.
-  if (isMarketOpen(now)) return null;
   const session = latestCompletedSessionDate(now);
   const row = await db.prepare("SELECT value FROM app_meta WHERE key = 'stock_snapshot_session'").get();
   if (row && row.value === session) return null;

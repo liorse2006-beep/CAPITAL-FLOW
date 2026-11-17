@@ -153,7 +153,7 @@ function renderStockPage(snapshot, all) {
 </div>
 ${topNote('he')}
 <p class="lead" style="font-size:15px;color:var(--muted)">${he ? `<span class="mono">${esc(snapshot.name)}</span> · ` : ''}מחיר סגירה ליום המסחר ${esc(
-    formatDate(snapshot.session)
+    formatDate(snapshot.priceDate || snapshot.session)
   )}</p>
 ${insightsHtml}
 <h2 id="ma">מחיר מול הממוצעים הנעים</h2>
@@ -237,7 +237,7 @@ function renderPendingStock(symbol) {
   const name = HEBREW_NAMES[symbol] ? `מניית ${HEBREW_NAMES[symbol]}` : symbol;
   const main = `<p class="crumb"><a href="/stocks">מניות</a></p><article><h1>${esc(name)} (<span class="mono">${esc(
     symbol
-  )}</span>)</h1>${topNote('he')}<p class="lead">הנתונים של המניה הזו עדיין לא עודכנו. הם יופיעו כאן אחרי יום המסחר הבא.</p><aside class="cta-box"><p>בינתיים אפשר לסרוק את השוק.</p><a class="btn" href="/scanner">התחל לסרוק ←</a></aside><p class="note">${esc(
+  )}</span>)</h1>${topNote('he')}<p class="lead">הנתונים של המניה הזו מתעדכנים כרגע ויופיעו כאן בקרוב.</p><aside class="cta-box"><p>בינתיים אפשר לסרוק את השוק.</p><a class="btn" href="/scanner">התחל לסרוק ←</a></aside><p class="note">${esc(
     UI.he.note
   )}</p></article>`;
   return layout({

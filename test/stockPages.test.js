@@ -98,10 +98,14 @@ test('a page is indexable only with core data', () => {
   assert.ok(!isIndexable({ ...NVDA, sma50: null, sma150: null }));
 });
 
-test('snapshots never run during the regular session and run once per session', async () => {
+test('snapshots target the last completed session and run once per session', async () => {
   await seed([]);
   await db.prepare("DELETE FROM app_meta WHERE key = 'stock_snapshot_session'").run();
-  assert.strictEqual(await snapshotDue(new Date('2026-11-17T17:00:00Z')), null, 'market open');
+  assert.strictEqual(
+    await snapshotDue(new Date('2026-11-17T17:00:00Z')),
+    '2026-11-16',
+    'during trading it fills the last completed session'
+  );
   assert.strictEqual(await snapshotDue(new Date('2026-11-17T21:30:00Z')), null, 'too soon after the close');
   assert.strictEqual(await snapshotDue(new Date('2026-11-17T23:00:00Z')), '2026-11-17');
   await db.prepare("INSERT INTO app_meta (key, value) VALUES ('stock_snapshot_session', '2026-11-17')").run();
