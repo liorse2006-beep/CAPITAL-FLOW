@@ -614,6 +614,15 @@ async function initDb() {
       value TEXT NOT NULL
     );
 
+    -- Daily public stock-page data, one JSON row per symbol (see
+    -- server/stocks/snapshot.js). Rebuilt from providers every session, so it
+    -- is deliberately not part of the backup allowlist.
+    CREATE TABLE IF NOT EXISTS stock_snapshots (
+      symbol     TEXT PRIMARY KEY,
+      data       TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     -- Lightweight daily site-visit counter — one row per calendar day (UTC),
     -- incremented once per browser session (see POST /api/visit). Aggregated,
     -- not per-request, so it never grows without bound the way a raw pageview

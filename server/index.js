@@ -242,6 +242,10 @@ app.use(passport.session());
 // with the site's CSP and service worker.
 app.get('/landing-logo/:symbol', require('./services/landingLogos').createLandingLogoHandler());
 
+// Generated sitemap (learning pages, plus stock pages that have data). Must
+// precede the static handler so an old built sitemap.xml can never shadow it.
+app.use('/', require('./routes/sitemap').router);
+
 // Serve static files — dist/ if built, else public/ fallback (checked at request time)
 const distDir = path.join(__dirname, '../dist');
 const publicDir = path.join(__dirname, '../public');
@@ -296,6 +300,9 @@ app.use('/', require('./routes/status'));
 
 // Hebrew learning center: crawlable, server-rendered content pages.
 app.use('/', require('./routes/learn'));
+
+// Public stock pages, rendered from the daily snapshot table only.
+app.use('/', require('./routes/stocks'));
 
 // API routes (all mounted at /api)
 app.use('/api', apiLimiter); // floor: every API route is throttled, not just the ones tuned individually
@@ -392,6 +399,7 @@ if (isSingletonWorker()) {
       require('./services/notificationOutbox').startNotificationOutbox();
       startScheduledBackup();
       startStatusMonitor();
+      require('./stocks/snapshot').startStockSnapshots();
     })
     .catch((err) => {
       console.error('[startup] Background services were not started:', safeErrorSummary(err));

@@ -4,32 +4,55 @@ const TOOLS = Object.freeze({
     href: '/scanner',
     label: 'לסורק הנפח',
     text: 'רוצים לראות אילו מניות נסחרות היום בנפח חריג?',
-    sub: 'סורק הנפח של Capital Flow מסנן מניות לפי יחס נפח, שווי שוק ונפח מינימלי.',
   },
   ma: {
     href: '/ma',
     label: 'לסורק הממוצעים',
     text: 'בדקו אילו מניות קרובות עכשיו לממוצע נע 9, 20, 50 או 150.',
-    sub: 'סורק הממוצעים הנעים עובד על גרף יומי או שבועי, עם בחירת כיוון ומרחק.',
   },
   flow: {
     href: '/flow',
     label: 'לתצוגת הסקטורים',
     text: 'אילו סקטורים זזים היום, ובאיזה נפח?',
-    sub: 'תצוגת הסקטורים משווה תנועת מחיר ונפח בין קרנות הסקטור המרכזיות.',
   },
   fundamentals: {
     href: '/fundamentals',
     label: 'לבדיקת פונדמנטלים',
     text: 'בדקו את המדדים הפיננסיים של מניה ספציפית.',
-    sub: 'P/E, Forward P/E, PEG, חוב להון, צמיחה, Float ו-Short Interest — במקום אחד, לפי זמינות הנתונים.',
   },
   watchlist: {
     href: '/watchlist',
     label: 'לרשימת המעקב',
     text: 'שמרו את המניות שמעניינות אתכם וקבלו התראה כשמשהו זז.',
-    sub: 'רשימת מעקב עם התראות מחיר ונפח, בחשבון אחד.',
   },
 });
 
-module.exports = { TOOLS };
+const TOOLS_EN = Object.freeze({
+  '/scanner': {
+    href: '/scanner',
+    label: 'Open volume scanner',
+    text: 'Which stocks are trading on unusual volume today?',
+  },
+  '/ma': {
+    href: '/ma',
+    label: 'Open MA scanner',
+    text: 'See which stocks are close to their 9, 20, 50 or 150-day moving average.',
+  },
+  '/flow': {
+    href: '/flow',
+    label: 'Open sector view',
+    text: 'Which sectors are moving today, and on how much volume?',
+  },
+  '/fundamentals': {
+    href: '/fundamentals',
+    label: 'Check fundamentals',
+    text: "Look up a single stock's valuation and balance-sheet numbers.",
+  },
+  '/watchlist': {
+    href: '/watchlist',
+    label: 'Open watchlist',
+    text: 'Save the stocks you follow and get an alert when something moves.',
+  },
+});
+
+module.exports = { TOOLS, TOOLS_EN };

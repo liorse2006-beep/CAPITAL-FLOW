@@ -4,5 +4,11 @@
     "package": "zod",
     "reason": "Fixed only in zod 4.6.6+, but yahoo-finance2, chromium-bidi and eslint-plugin-react-hooks still require zod 3. npm's only offered fix downgrades yahoo-finance2 (the market-data client). The issue is memory use when validating oversized collections; inputs are provider responses, not user-supplied payloads. Remove this entry once yahoo-finance2 ships with a patched zod.",
     "reviewBy": "2027-01-31"
+  },
+  {
+    "id": "GHSA-FC5Q-39XC-VJPF",
+    "package": "picomatch",
+    "reason": "No patched picomatch release exists yet (4.0.7 is the latest and is affected). It is reached only through build/test tooling (vite, vitest) with repository-controlled glob patterns; it is not in the production dependency tree (npm ls picomatch --omit=dev is empty). Remove this entry as soon as a fixed version ships.",
+    "reviewBy": "2026-12-31"
   }
 ]

@@ -1,4 +1,4 @@
-const { PAGES, CATEGORIES, getPage } = require('./content');
+const { PAGES, CATEGORIES, getPage, hasEnglish } = require('./content');
 const { renderDiagram } = require('./diagrams');
 
 const SITE_URL = 'https://capitalflow.vip';
@@ -13,16 +13,17 @@ function esc(value) {
     .replace(/'/g, '&#39;');
 }
 
-// Copy is trusted product text but is still escaped. Runs of Latin letters,
-// digits and symbols are isolated with <bdi> so numbers, tickers and ranges
-// keep their order inside right-to-left Hebrew sentences.
-// A token never ends in punctuation, and tokens only join across a single
-// space, so "10%. RVOL" stays two runs with the period in its Hebrew place.
+// Copy is trusted product text but is still escaped. In Hebrew, runs of Latin
+// letters, digits and symbols are isolated with <bdi> so numbers, tickers and
+// ranges keep their order inside right-to-left sentences. A token never ends
+// in punctuation and tokens only join across a single space, so "10%. RVOL"
+// stays two runs with the period in its Hebrew place.
 const TOKEN = String.raw`[A-Za-z0-9$%](?:[A-Za-z0-9$%.,:/+×÷=&'–\-]*[A-Za-z0-9$%×])?`;
 const LTR_RUN = new RegExp(`${TOKEN}(?: ${TOKEN})*`, 'g');
 
-function inline(value) {
+function inline(value, lang = 'he') {
   const raw = String(value);
+  if (lang === 'en') return esc(raw);
   let out = '';
   let last = 0;
   for (const match of raw.matchAll(LTR_RUN)) {
@@ -33,13 +34,78 @@ function inline(value) {
   return out + esc(raw.slice(last));
 }
 
-function plain(value) {
-  return String(value);
-}
-
 function jsonLd(value) {
   return `<script type="application/ld+json">${JSON.stringify(value).replace(/</g, '\\u003c')}</script>`;
 }
+
+// Shown at the top of every content page, in every language, with no
+// exceptions. Its wording is fixed by the owner; do not paraphrase it.
+const TOP_DISCLAIMER = {
+  he: 'התוכן לצורכי לימוד בלבד ואינו המלצה לפעולה. הנתונים עשויים להיות מעוכבים או לא מדויקים, ואין התחייבות לנכונותם.',
+  en: 'For educational purposes only and not a recommendation to act. Data may be delayed or inaccurate, and its accuracy is not guaranteed.',
+};
+
+const UI = {
+  he: {
+    skip: 'דלג לתוכן',
+    nav: 'ניווט ראשי',
+    learn: 'מרכז הידע',
+    scanners: 'סורקים',
+    sectors: 'סקטורים',
+    stocks: 'מניות',
+    cta: 'לסורק',
+    footer: 'Capital Flow · כלי חינוכי למחקר מניות',
+    policy: 'תנאי שימוש ופרטיות',
+    accessibility: 'נגישות',
+    keyPoints: 'מה חשוב לדעת',
+    right: '✓ נכון',
+    wrong: '✕ טעות נפוצה',
+    faq: 'שאלות נפוצות',
+    onPage: 'בעמוד הזה',
+    rightWrong: 'נכון / טעות',
+    related: 'קשור',
+    illustration: 'המחשה',
+    relevantTool: 'כלי רלוונטי',
+    pageNav: 'ניווט בעמוד',
+    otherLang: 'English',
+    note: 'תוכן חינוכי בלבד. זה לא ייעוץ השקעות ולא המלצה לקנות או למכור. נתוני שוק יכולים להיות מעוכבים או חלקיים, אז כדאי לאמת לפני כל החלטה.',
+    hubTitle: 'מרכז הידע של Capital Flow',
+    hubLead: 'נפח מסחר, ממוצעים נעים, מכפילים וסקטורים. כל מושג מוסבר בקצרה, עם דוגמה ועם הטעות שכדאי להימנע ממנה.',
+    hubMetaTitle: 'מרכז הידע — מדריכים לשוק ההון בעברית | Capital Flow',
+    hubMetaDescription:
+      'מדריכים קצרים בעברית: נפח מסחר חריג, RVOL, ממוצעים נעים, מכפיל רווח, PEG, Short Interest, סקטורים בשוק האמריקאי וסורקי מניות.',
+  },
+  en: {
+    skip: 'Skip to content',
+    nav: 'Main navigation',
+    learn: 'Learn',
+    scanners: 'Scanners',
+    sectors: 'Sectors',
+    stocks: 'Stocks',
+    cta: 'Open scanner',
+    footer: 'Capital Flow · educational stock research tools',
+    policy: 'Terms and privacy',
+    accessibility: 'Accessibility',
+    keyPoints: 'Key points',
+    right: '✓ Do',
+    wrong: '✕ Common mistake',
+    faq: 'FAQ',
+    onPage: 'On this page',
+    rightWrong: 'Do / common mistake',
+    related: 'Related',
+    illustration: 'Illustration',
+    relevantTool: 'Related tool',
+    pageNav: 'Page navigation',
+    otherLang: 'עברית',
+    note: 'Educational content only. Not investment advice and not a recommendation to buy or sell. Market data can be delayed or incomplete, so verify before any decision.',
+    hubTitle: 'Capital Flow learning center',
+    hubLead:
+      'Trading volume, moving averages, valuation ratios and sectors. Each concept explained briefly, with an example and the mistake to avoid.',
+    hubMetaTitle: 'Learning center — stock market guides | Capital Flow',
+    hubMetaDescription:
+      'Short guides on unusual volume, RVOL, moving averages, P/E, PEG, short interest, U.S. market sectors and how to use a stock screener.',
+  },
+};
 
 const STYLE = `
 @font-face{font-family:Heebo;src:url(/fonts/heebo-hebrew-variable.woff2) format("woff2");font-weight:100 900;font-display:swap;unicode-range:U+0590-05FF,U+200C-2010,U+20AA,U+25CC,U+FB1D-FB4F}
@@ -68,7 +134,8 @@ a:focus-visible,summary:focus-visible{outline:2px solid var(--gold-2);outline-of
 .crumb a{color:var(--muted);text-decoration:none}
 .crumb a:hover{color:var(--text)}
 .crumb span{margin:0 6px;color:#555}
-h1{font-size:clamp(28px,4.4vw,38px);line-height:1.2;font-weight:600;margin:0 0 10px;text-wrap:balance;letter-spacing:-.2px}
+h1{font-size:clamp(28px,4.4vw,38px);line-height:1.2;font-weight:600;margin:0 0 8px;text-wrap:balance;letter-spacing:-.2px}
+.top-note{font-size:13px;color:#8f8f99;margin:0 0 16px;line-height:1.55;max-width:70ch}
 .lead{font-size:18px;color:var(--soft);margin:0 0 24px;max-width:62ch}
 h2{font-size:19px;font-weight:600;margin:34px 0 4px}
 .panel{background:#0f0f0f;border:1px solid var(--line);border-radius:12px;padding:14px 16px 10px;margin:0 0 6px}
@@ -112,32 +179,71 @@ h2{font-size:19px;font-weight:600;margin:34px 0 4px}
 .card:hover{border-color:#6b4508}
 .card strong{display:block;font-weight:600;font-size:15px;margin-bottom:4px}
 .card span{display:block;color:var(--muted);font-size:14px;line-height:1.5}
+.mono{font-family:var(--mono);direction:ltr;unicode-bidi:isolate}
+.price-row{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.price{font-size:26px;font-weight:600}
+.up{color:#86efac}.down{color:#fca5a5}
+.insights{background:#1a1204;border:1px solid #5a3a06;border-radius:12px;padding:12px 16px;margin:4px 0 8px}
+.insights h2{margin:0 0 4px;font-size:13px;color:var(--gold-2);font-weight:600}
+.insights .points li{border-color:#3a2a0a;padding:10px 0}
+.stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:8px 0}
+.stat-grid div{background:#101010;padding:10px 12px}
+.stat-grid dt{font-size:12px;color:var(--muted);margin-bottom:2px}
+.stat-grid dt a{color:var(--muted)}
+.stat-grid dd{margin:0;font-size:16px;font-weight:600}
+.ma-rows{background:#0f0f0f;border:1px solid var(--line);border-radius:12px;padding:6px 16px;margin:8px 0}
+.ma-rows div{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #1b1b1b;font-size:15px}
+.ma-rows div:last-child{border-bottom:0}
+.chip{display:inline-block;font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid var(--line-2);background:#151515;color:var(--soft);text-decoration:none;margin:0 0 6px 6px}
+a.chip:hover{border-color:#6b4508}
+.tickers{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.tickers a{display:block;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;text-decoration:none;font-size:14px}
+.tickers a:hover{border-color:#6b4508}
+.tickers b{font-family:var(--mono);font-weight:600;margin-inline-end:6px}
+.tickers span{color:var(--muted)}
 .foot{border-top:1px solid var(--line);color:var(--muted);font-size:13px}
 .foot-in{max-width:1120px;margin:0 auto;padding:20px 22px;display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
 .foot a{color:var(--muted)}
 bdi{unicode-bidi:isolate}
 @media (max-width:860px){.wrap{grid-template-columns:minmax(0,1fr);gap:0}.side{position:static;border:0;padding:0;margin-top:30px;border-top:1px solid var(--line);padding-top:18px}.side .toc{display:none}}
-@media (max-width:560px){.top nav .wide{display:none}.verdict{grid-template-columns:minmax(0,1fr)}.lead{font-size:17px}}
+@media (max-width:560px){.top nav .wide{display:none}.verdict{grid-template-columns:minmax(0,1fr)}.lead{font-size:17px}.stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.card{transition:none}}
 `;
 
-function layout({ title, description, path, main, side, schema }) {
+function learnPath(lang, slug) {
+  const base = lang === 'en' ? '/en/learn' : '/learn';
+  return slug ? `${base}/${slug}` : base;
+}
+
+// alternates: { he: '/learn/x', en: '/en/learn/x' } — only languages that exist.
+function layout({ lang = 'he', title, description, path, main, side, schema, robots, alternates, type = 'article' }) {
+  const t = UI[lang];
   const canonical = SITE_URL + path;
+  const links = alternates || { [lang]: path };
+  const hreflang = Object.entries(links)
+    .map(([code, href]) => `<link rel="alternate" hreflang="${code}" href="${SITE_URL}${href}">`)
+    .concat(links.he ? [`<link rel="alternate" hreflang="x-default" href="${SITE_URL}${links.he}">`] : [])
+    .join('\n');
+  const otherLang = lang === 'he' ? 'en' : 'he';
+  const switcher = links[otherLang]
+    ? `<a class="wide" href="${links[otherLang]}" lang="${otherLang}">${t.otherLang}</a>`
+    : '';
+  const home = lang === 'en' ? '/en/learn' : '/';
   return `<!doctype html>
-<html lang="he" dir="rtl">
+<html lang="${lang}" dir="${lang === 'en' ? 'ltr' : 'rtl'}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">
-<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="robots" content="${robots || 'index, follow, max-image-preview:large'}">
 <meta name="theme-color" content="#0A0A0A">
 <link rel="canonical" href="${canonical}">
-<link rel="alternate" hreflang="he" href="${canonical}">
+${hreflang}
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="preload" href="/fonts/heebo-hebrew-variable.woff2" as="font" type="font/woff2" crossorigin>
-<meta property="og:locale" content="he_IL">
-<meta property="og:type" content="article">
+<link rel="preload" href="/fonts/heebo-${lang === 'en' ? 'latin' : 'hebrew'}-variable.woff2" as="font" type="font/woff2" crossorigin>
+<meta property="og:locale" content="${lang === 'en' ? 'en_US' : 'he_IL'}">
+<meta property="og:type" content="${type}">
 <meta property="og:site_name" content="Capital Flow">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
@@ -150,86 +256,99 @@ function layout({ title, description, path, main, side, schema }) {
 ${schema.map(jsonLd).join('\n')}
 </head>
 <body>
-<a class="skip" href="#content">דלג לתוכן</a>
+<a class="skip" href="#content">${t.skip}</a>
 <header class="top"><div class="top-in">
-<a class="brand" href="/"><img src="/icon-192.png" alt="" width="26" height="26">Capital Flow</a>
-<nav aria-label="ניווט ראשי">
-<a href="/learn">מרכז הידע</a>
-<a class="wide" href="/learn#scanners">סורקים</a>
-<a class="wide" href="/learn#sectors">סקטורים</a>
-<a class="cta" href="/scanner">לסורק</a>
+<a class="brand" href="${home}"><img src="/icon-192.png" alt="" width="26" height="26">Capital Flow</a>
+<nav aria-label="${t.nav}">
+<a href="${learnPath(lang)}">${t.learn}</a>
+${lang === 'he' ? `<a class="wide" href="/stocks">${t.stocks}</a>` : `<a class="wide" href="${learnPath(lang)}#scanners">${t.scanners}</a>`}
+<a class="wide" href="${learnPath(lang)}#sectors">${t.sectors}</a>
+${switcher}
+<a class="cta" href="/scanner">${t.cta}</a>
 </nav></div></header>
 <div class="wrap${side ? '' : ' single'}">
 <main id="content">${main}</main>
 ${side || ''}
 </div>
 <footer class="foot"><div class="foot-in">
-<span>© Capital Flow · כלי חינוכי למחקר מניות</span>
-<span><a href="/learn">מרכז הידע</a> · <a href="/policy">תנאי שימוש ופרטיות</a> · <a href="/accessibility">נגישות</a></span>
+<span>© ${t.footer}</span>
+<span><a href="${learnPath(lang)}">${t.learn}</a>${lang === 'he' ? ' · <a href="/stocks">מניות</a>' : ''} · <a href="/policy">${
+    t.policy
+  }</a> · <a href="/accessibility">${t.accessibility}</a></span>
 </div></footer>
 </body>
 </html>`;
 }
 
-const NOTE =
-  'תוכן חינוכי בלבד. זה לא ייעוץ השקעות ולא המלצה לקנות או למכור. נתוני שוק יכולים להיות מעוכבים או חלקיים, אז כדאי לאמת לפני כל החלטה.';
+function topNote(lang) {
+  return `<p class="top-note" role="note">${esc(TOP_DISCLAIMER[lang])}</p>`;
+}
 
-function renderPage(page) {
-  const category = CATEGORIES[page.category];
-  const path = `/learn/${page.slug}`;
+function alternatesFor(slug) {
+  const links = { he: learnPath('he', slug) };
+  if (hasEnglish(slug)) links.en = learnPath('en', slug);
+  return links;
+}
+
+function renderPage(page, lang = 'he') {
+  const t = UI[lang];
+  const category = CATEGORIES[lang][page.category];
+  const path = learnPath(lang, page.slug);
   const points = page.points
     .map(
       ([title, body], i) =>
-        `<li><span class="n">${String(i + 1).padStart(2, '0')}</span><div><strong>${inline(title)}</strong><p>${inline(
-          body
-        )}</p></div></li>`
+        `<li><span class="n">${String(i + 1).padStart(2, '0')}</span><div><strong>${inline(
+          title,
+          lang
+        )}</strong><p>${inline(body, lang)}</p></div></li>`
     )
     .join('');
   const faq = page.faq
-    .map(([q, a]) => `<details><summary>${inline(q)}</summary><p>${inline(a)}</p></details>`)
+    .map(([q, a]) => `<details><summary>${inline(q, lang)}</summary><p>${inline(a, lang)}</p></details>`)
     .join('');
   const related = page.related
-    .map(getPage)
+    .map((slug) => getPage(slug, lang))
     .filter(Boolean)
-    .map((other) => `<li><a href="/learn/${other.slug}">${esc(other.short || other.h1)}</a></li>`)
+    .map((other) => `<li><a href="${learnPath(lang, other.slug)}">${esc(other.short || other.h1)}</a></li>`)
     .join('');
   const tool = page.tool;
 
-  const main = `<p class="crumb"><a href="/learn">מרכז הידע</a><span>/</span><a href="/learn#${page.category}">${esc(
-    category.title
-  )}</a></p>
+  const main = `<p class="crumb"><a href="${learnPath(lang)}">${t.learn}</a><span>/</span><a href="${learnPath(
+    lang
+  )}#${page.category}">${esc(category.title)}</a></p>
 <article>
-<h1>${inline(page.h1)}</h1>
-<p class="lead">${inline(page.lead)}</p>
-<figure class="panel" style="margin:0"><div class="panel-head"><span>${esc(
-    page.diagram.caption
-  )}</span><span>המחשה</span></div>${renderDiagram(page.diagram)}</figure>
-<h2 id="key-points">מה חשוב לדעת</h2>
+<h1>${inline(page.h1, lang)}</h1>
+${topNote(lang)}
+<p class="lead">${inline(page.lead, lang)}</p>
+<figure class="panel" style="margin:0"><div class="panel-head"><span>${esc(page.diagram.caption)}</span><span>${
+    t.illustration
+  }</span></div>${renderDiagram(page.diagram, lang)}</figure>
+<h2 id="key-points">${t.keyPoints}</h2>
 <ol class="points">${points}</ol>
-<div class="verdict" id="right-wrong"><div class="ok"><b>✓ נכון</b>${inline(page.right)}</div><div class="no"><b>✕ טעות נפוצה</b>${inline(
-    page.wrong
-  )}</div></div>
-<aside class="cta-box" aria-label="כלי רלוונטי"><p>${inline(tool.text)}</p><a class="btn" href="${esc(tool.href)}">${esc(
-    tool.label
-  )} ←</a></aside>
-${faq ? `<section class="faq" aria-labelledby="faq"><h2 id="faq">שאלות נפוצות</h2>${faq}</section>` : ''}
-<p class="note">${NOTE}</p>
+<div class="verdict" id="right-wrong"><div class="ok"><b>${t.right}</b>${inline(page.right, lang)}</div><div class="no"><b>${
+    t.wrong
+  }</b>${inline(page.wrong, lang)}</div></div>
+<aside class="cta-box" aria-label="${t.relevantTool}"><p>${inline(tool.text, lang)}</p><a class="btn" href="${esc(
+    tool.href
+  )}">${esc(tool.label)} ${lang === 'en' ? '→' : '←'}</a></aside>
+${faq ? `<section class="faq" aria-labelledby="faq"><h2 id="faq">${t.faq}</h2>${faq}</section>` : ''}
+<p class="note">${esc(t.note)}</p>
 </article>`;
 
-  const side = `<aside class="side" aria-label="ניווט בעמוד">
-<div class="toc"><h3>בעמוד הזה</h3><ul><li><a href="#key-points">מה חשוב לדעת</a></li><li><a href="#right-wrong">נכון / טעות</a></li>${
-    faq ? '<li><a href="#faq">שאלות נפוצות</a></li>' : ''
-  }</ul></div>
-${related ? `<h3>קשור</h3><ul>${related}</ul>` : ''}
+  const side = `<aside class="side" aria-label="${t.pageNav}">
+<div class="toc"><h3>${t.onPage}</h3><ul><li><a href="#key-points">${t.keyPoints}</a></li><li><a href="#right-wrong">${
+    t.rightWrong
+  }</a></li>${faq ? `<li><a href="#faq">${t.faq}</a></li>` : ''}</ul></div>
+${related ? `<h3>${t.related}</h3><ul>${related}</ul>` : ''}
 </aside>`;
 
   const schema = [
     {
       '@context': 'https://schema.org',
       '@type': 'Article',
-      headline: plain(page.h1),
+      headline: page.h1,
       description: page.description,
-      inLanguage: 'he',
+      inLanguage: lang,
       datePublished: PUBLISHED,
       dateModified: PUBLISHED,
       mainEntityOfPage: SITE_URL + path,
@@ -245,9 +364,14 @@ ${related ? `<h3>קשור</h3><ul>${related}</ul>` : ''}
       '@context': 'https://schema.org',
       '@type': 'BreadcrumbList',
       itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'מרכז הידע', item: `${SITE_URL}/learn` },
-        { '@type': 'ListItem', position: 2, name: category.title, item: `${SITE_URL}/learn#${page.category}` },
-        { '@type': 'ListItem', position: 3, name: plain(page.h1), item: SITE_URL + path },
+        { '@type': 'ListItem', position: 1, name: t.learn, item: SITE_URL + learnPath(lang) },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: category.title,
+          item: `${SITE_URL}${learnPath(lang)}#${page.category}`,
+        },
+        { '@type': 'ListItem', position: 3, name: page.h1, item: SITE_URL + path },
       ],
     },
   ];
@@ -263,18 +387,31 @@ ${related ? `<h3>קשור</h3><ul>${related}</ul>` : ''}
     });
   }
 
-  return layout({ title: page.title, description: page.description, path, main, side, schema });
+  return layout({
+    lang,
+    title: page.title,
+    description: page.description,
+    path,
+    main,
+    side,
+    schema,
+    alternates: alternatesFor(page.slug),
+  });
 }
 
-function renderHub() {
-  const groups = Object.entries(CATEGORIES)
+function renderHub(lang = 'he') {
+  const t = UI[lang];
+  const groups = Object.entries(CATEGORIES[lang])
     .map(([key, category]) => {
       const cards = PAGES.filter((page) => page.category === key)
+        .map((page) => getPage(page.slug, lang))
+        .filter(Boolean)
         .map(
           (page) =>
-            `<li><a class="card" href="/learn/${page.slug}"><strong>${inline(page.short || page.h1)}</strong><span>${inline(
-              page.lead
-            )}</span></a></li>`
+            `<li><a class="card" href="${learnPath(lang, page.slug)}"><strong>${inline(
+              page.short || page.h1,
+              lang
+            )}</strong><span>${inline(page.lead, lang)}</span></a></li>`
         )
         .join('');
       return `<section class="hub-cat" id="${key}" aria-labelledby="${key}-t"><h2 id="${key}-t">${esc(
@@ -283,34 +420,37 @@ function renderHub() {
     })
     .join('');
 
-  const main = `<h1>מרכז הידע של Capital Flow</h1>
-<p class="lead">נפח מסחר, ממוצעים נעים, מכפילים וסקטורים. כל מושג מוסבר בקצרה, עם דוגמה ועם הטעות שכדאי להימנע ממנה.</p>
+  const main = `<h1>${esc(t.hubTitle)}</h1>
+${topNote(lang)}
+<p class="lead">${esc(t.hubLead)}</p>
 ${groups}
-<p class="note">${NOTE}</p>`;
+<p class="note">${esc(t.note)}</p>`;
 
   const schema = [
     {
       '@context': 'https://schema.org',
       '@type': 'CollectionPage',
-      name: 'מרכז הידע של Capital Flow',
-      inLanguage: 'he',
-      url: `${SITE_URL}/learn`,
-      hasPart: PAGES.map((page) => ({
+      name: t.hubTitle,
+      inLanguage: lang,
+      url: SITE_URL + learnPath(lang),
+      hasPart: PAGES.filter((page) => lang === 'he' || hasEnglish(page.slug)).map((page) => ({
         '@type': 'Article',
-        headline: page.h1,
-        url: `${SITE_URL}/learn/${page.slug}`,
+        headline: getPage(page.slug, lang).h1,
+        url: SITE_URL + learnPath(lang, page.slug),
       })),
     },
   ];
 
   return layout({
-    title: 'מרכז הידע — מדריכים לשוק ההון בעברית | Capital Flow',
-    description:
-      'מדריכים קצרים בעברית: נפח מסחר חריג, RVOL, ממוצעים נעים, מכפיל רווח, PEG, Short Interest, סקטורים בשוק האמריקאי וסורקי מניות.',
-    path: '/learn',
+    lang,
+    title: t.hubMetaTitle,
+    description: t.hubMetaDescription,
+    path: learnPath(lang),
     main,
     schema,
+    type: 'website',
+    alternates: { he: '/learn', en: '/en/learn' },
   });
 }
 
-module.exports = { renderPage, renderHub, SITE_URL };
+module.exports = { renderPage, renderHub, layout, inline, esc, topNote, learnPath, SITE_URL, PUBLISHED, UI };
