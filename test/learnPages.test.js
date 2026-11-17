@@ -22,6 +22,8 @@ test('every learning page has a unique slug and only links to pages that exist',
     assert.ok(page.title.length <= 75, `${page.slug} title too long`);
     assert.ok(page.description.length <= 165, `${page.slug} description too long`);
     for (const related of page.related) assert.ok(getPage(related), `${page.slug} -> ${related}`);
+    assert.ok(page.points.length >= 4 && page.points.length <= 5, page.slug + ' points');
+    assert.ok(page.right && page.wrong && page.lead, page.slug + ' copy');
     if (page.tool) assert.match(page.tool.href, /^\/(scanner|ma|flow|fundamentals|watchlist)$/);
   }
 });
@@ -54,11 +56,12 @@ test('GET /learn/:slug renders full article HTML with canonical, structured data
     const res = await fetch(`http://127.0.0.1:${server.address().port}/learn/relative-volume-rvol`);
     assert.strictEqual(res.status, 200);
     const html = await res.text();
-    assert.match(html, /<h1>RVOL/);
+    assert.ok(html.includes('<h1><bdi>RVOL</bdi> — נפח יחסי</h1>'), 'h1 isolates the Latin term');
+    assert.match(html, /<svg [^>]*role="img"/);
     assert.match(html, /<link rel="canonical" href="https:\/\/capitalflow\.vip\/learn\/relative-volume-rvol">/);
     assert.match(html, /"@type":"FAQPage"/);
     assert.match(html, /"@type":"BreadcrumbList"/);
-    assert.match(html, /אינו ייעוץ השקעות/);
+    assert.match(html, /זה לא ייעוץ השקעות/);
     assert.ok(!/<script(?![^>]*application\/ld\+json)/.test(html), 'no executable scripts on content pages');
   } finally {
     server.close();
