@@ -72,9 +72,13 @@ test('Linux capacity job is public-runner-only, offline and within the existing 
   assert.match(originalJob, /Audit all dependencies/);
   for (const file of ['ci.yml', 'deploy.yml']) {
     const releaseWorkflow = readFileSync(require.resolve(`../.github/workflows/${file}`), 'utf8');
-    assert.match(releaseWorkflow, /npm audit --audit-level=high/);
+    assert.match(releaseWorkflow, /node scripts\/audit-gate\.cjs/);
     assert.doesNotMatch(releaseWorkflow, /npm audit[^\n]*--omit=dev/);
   }
+  // The gate audits every dependency (dev included) and blocks high/critical.
+  const gate = readFileSync(require.resolve('../scripts/audit-gate.cjs'), 'utf8');
+  assert.match(gate, /npm audit --json'/);
+  assert.match(gate, /new Set\(\['high', 'critical'\]\)/);
   const job = workflow.slice(boundary).replace(/^\s*#.*$/gm, '');
   assert.match(job, /github\.event\.repository\.private == false/);
   assert.match(job, /runs-on: ubuntu-latest/);

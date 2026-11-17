@@ -1,0 +1,8 @@
+[
+  {
+    "id": "GHSA-MRHX-C7XC-M3W5",
+    "package": "zod",
+    "reason": "Fixed only in zod 4.6.6+, but yahoo-finance2, chromium-bidi and eslint-plugin-react-hooks still require zod 3. npm's only offered fix downgrades yahoo-finance2 (the market-data client). The issue is memory use when validating oversized collections; inputs are provider responses, not user-supplied payloads. Remove this entry once yahoo-finance2 ships with a patched zod.",
+    "reviewBy": "2027-01-31"
+  }
+]

@@ -53,7 +53,8 @@ jobs:
       - name: Audit all dependencies
         run: |
           for attempt in 1 2 3 4 5; do
-            npm audit --audit-level=high && exit 0
+            node scripts/audit-gate.cjs && exit 0
+            [ $? -eq 1 ] && exit 1 # real advisories: retrying cannot help
             echo "npm audit failed (possibly a transient registry timeout); retrying in $((attempt * 10))s (attempt $attempt/5)"
             sleep $((attempt * 10))
           done
