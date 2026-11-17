@@ -294,6 +294,9 @@ app.use('/', require('./routes/health'));
 // the status page remains available without the main React app bundle.
 app.use('/', require('./routes/status'));
 
+// Hebrew learning center: crawlable, server-rendered content pages.
+app.use('/', require('./routes/learn'));
+
 // API routes (all mounted at /api)
 app.use('/api', apiLimiter); // floor: every API route is throttled, not just the ones tuned individually
 app.use('/api/auth', require('./routes/auth'));

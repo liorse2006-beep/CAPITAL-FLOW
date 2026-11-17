@@ -1,0 +1,77 @@
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+const express = require('express');
+const { PAGES, getPage } = require('../server/learn/content');
+
+function startApp() {
+  const app = express();
+  app.use('/', require('../server/routes/learn'));
+  app.use((req, res) => res.status(404).send('not found'));
+  return new Promise((resolve) => {
+    const server = app.listen(0, '127.0.0.1', () => resolve(server));
+  });
+}
+
+test('every learning page has a unique slug and only links to pages that exist', () => {
+  const slugs = PAGES.map((page) => page.slug);
+  assert.strictEqual(new Set(slugs).size, slugs.length);
+  for (const page of PAGES) {
+    assert.match(page.slug, /^[a-z0-9-]+$/);
+    assert.ok(page.title.length <= 75, `${page.slug} title too long`);
+    assert.ok(page.description.length <= 165, `${page.slug} description too long`);
+    for (const related of page.related) assert.ok(getPage(related), `${page.slug} -> ${related}`);
+    if (page.tool) assert.match(page.tool.href, /^\/(scanner|ma|flow|fundamentals|watchlist)$/);
+  }
+});
+
+test('the sitemap lists the hub and every learning page', () => {
+  const sitemap = fs.readFileSync(path.join(__dirname, '../public/sitemap.xml'), 'utf8');
+  assert.ok(sitemap.includes('<loc>https://capitalflow.vip/learn</loc>'));
+  for (const page of PAGES) {
+    assert.ok(sitemap.includes(`<loc>https://capitalflow.vip/learn/${page.slug}</loc>`), page.slug);
+  }
+});
+
+test('GET /learn renders a crawlable Hebrew hub linking to every page', async () => {
+  const server = await startApp();
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/learn`);
+    assert.strictEqual(res.status, 200);
+    const html = await res.text();
+    assert.match(html, /<html lang="he" dir="rtl">/);
+    assert.match(html, /<link rel="canonical" href="https:\/\/capitalflow\.vip\/learn">/);
+    for (const page of PAGES) assert.ok(html.includes(`href="/learn/${page.slug}"`), page.slug);
+  } finally {
+    server.close();
+  }
+});
+
+test('GET /learn/:slug renders full article HTML with canonical, structured data and disclaimer', async () => {
+  const server = await startApp();
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/learn/relative-volume-rvol`);
+    assert.strictEqual(res.status, 200);
+    const html = await res.text();
+    assert.match(html, /<h1>RVOL/);
+    assert.match(html, /<link rel="canonical" href="https:\/\/capitalflow\.vip\/learn\/relative-volume-rvol">/);
+    assert.match(html, /"@type":"FAQPage"/);
+    assert.match(html, /"@type":"BreadcrumbList"/);
+    assert.match(html, /אינו ייעוץ השקעות/);
+    assert.ok(!/<script(?![^>]*application\/ld\+json)/.test(html), 'no executable scripts on content pages');
+  } finally {
+    server.close();
+  }
+});
+
+test('unknown or malformed learning slugs fall through instead of rendering', async () => {
+  const server = await startApp();
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    assert.strictEqual((await fetch(`${base}/learn/not-a-real-page`)).status, 404);
+    assert.strictEqual((await fetch(`${base}/learn/..%2Fpolicy`)).status, 404);
+  } finally {
+    server.close();
+  }
+});
