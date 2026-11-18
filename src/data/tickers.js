@@ -1,16 +1,17 @@
-// Nasdaq-100 constituents effective after the June 22, 2026 quarterly
-// rebalance. Keep the UI universe aligned with the server-side scan universe.
+// Nasdaq-100 constituents as published on 2026-10-22. Keep the UI universe
+// aligned with the server-side scan universe (tickers.js).
 export const NASDAQ100 = [
-  'ADBE', 'AMD', 'ABNB', 'ALAB', 'ALNY', 'GOOGL', 'GOOG', 'AMZN', 'AEP', 'AMGN',
-  'ADI', 'AAPL', 'AMAT', 'APP', 'ARM', 'ASML', 'ADSK', 'ADP', 'AXON', 'BKR',
-  'BKNG', 'AVGO', 'CDNS', 'CTAS', 'CSCO', 'CCEP', 'CMCSA', 'CEG', 'CPRT', 'CSGP',
+  'ADBE', 'AMD', 'ABNB', 'ALNY', 'GOOGL', 'GOOG', 'AMZN', 'AEP', 'AMGN', 'ADI',
+  'AAPL', 'AMAT', 'APP', 'ARM', 'ASML', 'ALAB', 'ADSK', 'ADP', 'AXON', 'BKR',
+  'BKNG', 'AVGO', 'CDNS', 'CTAS', 'CSCO', 'CCEP', 'CMCSA', 'CEG', 'CPRT', 'CRWV',
   'COST', 'CRWD', 'CSX', 'DDOG', 'DXCM', 'FANG', 'DASH', 'EXC', 'FAST', 'FER',
-  'FTNT', 'GEHC', 'GILD', 'HON', 'IDXX', 'INTC', 'INTU', 'ISRG', 'KDP', 'KLAC',
-  'KHC', 'LRCX', 'LIN', 'MAR', 'MRVL', 'MELI', 'META', 'MCHP', 'MU', 'MSFT', 'MDLZ',
-  'MPWR', 'MNST', 'NFLX', 'NVDA', 'NXPI', 'ORLY', 'ODFL', 'PCAR', 'PLTR', 'PANW',
-  'PAYX', 'PYPL', 'PDD', 'PEP', 'QCOM', 'REGN', 'ROP', 'ROST', 'RKLB', 'CRWV', 'NBIS',
-  'SNDK', 'STX', 'SHOP', 'SBUX', 'MSTR', 'SNPS', 'TMUS', 'TTWO', 'TSLA', 'TXN', 'TRI',
-  'VRTX', 'WMT', 'WDC', 'WDAY', 'WBD', 'XEL', 'TER',
+  'FTNT', 'GEHC', 'GILD', 'HONA', 'HON', 'IDXX', 'INTC', 'INTU', 'ISRG', 'KDP',
+  'KLAC', 'LRCX', 'LIN', 'LITE', 'MAR', 'MRVL', 'MELI', 'META', 'MCHP', 'MU',
+  'MSFT', 'MSTR', 'MRNA', 'MDLZ', 'MPWR', 'MNST', 'NBIS', 'NFLX', 'NVDA', 'NXPI',
+  'ORLY', 'ODFL', 'PCAR', 'PLTR', 'PANW', 'PAYX', 'PYPL', 'PDD', 'PEP', 'QCOM',
+  'REGN', 'RKLB', 'ROP', 'ROST', 'SNDK', 'STX', 'SHOP', 'SPCX', 'SBUX', 'SNPS',
+  'TMUS', 'TTWO', 'TER', 'TSLA', 'TXN', 'TRI', 'VRTX', 'WMT', 'WDC', 'WDAY',
+  'XEL',
 ];
 
 export const SP500_TOP = [
