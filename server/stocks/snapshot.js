@@ -225,6 +225,11 @@ async function buildChunk(symbols, session, existing) {
   }
 }
 
+// The "done" marker carries the size of the symbol list, so adding symbols
+// (new ETFs, index changes) makes the current session due again and the new
+// pages fill right away instead of waiting for the next close.
+const sessionMarker = (session, symbols = ALL_SYMBOLS) => `${session}#${symbols.length}`;
+
 let running = false;
 
 async function runSnapshotJob({
@@ -262,7 +267,7 @@ async function runSnapshotJob({
           `INSERT INTO app_meta (key, value) VALUES ('stock_snapshot_session', ?)
            ON CONFLICT(key) DO UPDATE SET value = excluded.value`
         )
-        .run(session);
+        .run(sessionMarker(session, symbols));
     }
     return { processed, missing, session };
   } finally {
@@ -273,7 +278,7 @@ async function runSnapshotJob({
 async function snapshotDue(now = new Date()) {
   const session = latestCompletedSessionDate(now);
   const row = await db.prepare("SELECT value FROM app_meta WHERE key = 'stock_snapshot_session'").get();
-  if (row && row.value === session) return null;
+  if (row && row.value === sessionMarker(session)) return null;
   // Same calendar day as the session: wait for the settle window after the
   // close. Any later day (weekend, holiday, a restart) can run immediately.
   const parts = newYorkParts(now);

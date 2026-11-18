@@ -6,6 +6,7 @@ const { insightsFor } = require('../server/stocks/insights');
 const { movingAverages, snapshotDue } = require('../server/stocks/snapshot');
 const { resetSnapshotCache, isIndexable } = require('../server/stocks/store');
 const { slugFor, symbolForSlug, SYMBOLS } = require('../server/stocks/universe');
+const { ETF_SYMBOLS } = require('../server/stocks/etfs');
 
 const TOP_DISCLAIMER_HE =
   'התוכן לצורכי לימוד בלבד ואינו המלצה לפעולה. הנתונים עשויים להיות מעוכבים או לא מדויקים, ואין התחייבות לנכונותם.';
@@ -109,6 +110,14 @@ test('snapshots target the last completed session and run once per session', asy
   assert.strictEqual(await snapshotDue(new Date('2026-11-17T21:30:00Z')), null, 'too soon after the close');
   assert.strictEqual(await snapshotDue(new Date('2026-11-17T23:00:00Z')), '2026-11-17');
   await db.prepare("INSERT INTO app_meta (key, value) VALUES ('stock_snapshot_session', '2026-11-17')").run();
+  assert.strictEqual(
+    await snapshotDue(new Date('2026-11-17T23:30:00Z')),
+    '2026-11-17',
+    'a marker from a smaller symbol list is not done'
+  );
+  await db
+    .prepare("UPDATE app_meta SET value = ? WHERE key = 'stock_snapshot_session'")
+    .run(`2026-11-17#${SYMBOLS.length + ETF_SYMBOLS.length}`);
   assert.strictEqual(await snapshotDue(new Date('2026-11-17T23:30:00Z')), null, 'already done');
 });
 
