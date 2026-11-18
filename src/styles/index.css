@@ -12719,6 +12719,105 @@ html.a11y-highlight-links a {
   }
 }
 
+/* Brand splash shown while the session resolves on first load. */
+.splash-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: #0a0a0a;
+  animation: splash-in 0.35s ease-out both;
+}
+.splash-mark {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 44px;
+}
+.splash-bar {
+  width: 8px;
+  border-radius: 2px;
+  background: var(--accent-vivid, #f59e0b);
+  transform-origin: bottom;
+  animation: splash-bar-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.splash-bar:nth-child(1) {
+  height: 26px;
+}
+.splash-bar:nth-child(2) {
+  height: 44px;
+  animation-delay: 0.12s;
+}
+.splash-bar:nth-child(3) {
+  height: 18px;
+  animation-delay: 0.24s;
+}
+.splash-word {
+  color: #e4e4e7;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  animation: splash-in 0.6s ease-out 0.3s both;
+}
+.splash-track {
+  width: 120px;
+  height: 2px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  animation: splash-in 0.6s ease-out 0.4s both;
+}
+.splash-track-fill {
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent-vivid, #f59e0b);
+  animation: splash-sweep 1.3s ease-in-out infinite;
+}
+@keyframes splash-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes splash-bar-rise {
+  from {
+    transform: scaleY(0.15);
+    opacity: 0;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+@keyframes splash-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .splash-screen,
+  .splash-bar,
+  .splash-word,
+  .splash-track {
+    animation: none;
+  }
+  .splash-track-fill {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}
+
 /* Recoverable startup failure state shown when auth/server initialization
    exhausts its retries instead of leaving the visitor on an infinite loader. */
 .startup-error-screen {

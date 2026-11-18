@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- this is the application entrypoint, not a refreshable component module. */
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, useLocation } from 'react-router-dom';
 import App from './App';
@@ -11,7 +11,7 @@ import CookieConsent from './components/shared/CookieConsent';
 import UpdateToast from './components/shared/UpdateToast';
 import AccessibilityWidget from './components/shared/AccessibilityWidget';
 import PublicLegalPage from './components/shared/PublicLegalPage';
-import ScanLoader from './components/shared/ScanLoader';
+import SplashLoader from './components/shared/SplashLoader';
 import { hasCriticalFlow, installStaleChunkRecovery } from './utils/staleChunkRecovery';
 import './sentry';
 import './analytics';
@@ -29,17 +29,6 @@ try {
 } catch (_) {
   /* private mode with no storage — skip silently */
 }
-
-// Same animated ticker-tape loader used during scans, reused here for the
-// (rare, but possible during a transient cold start) case where the initial /api/auth/me
-// check is slow because the server was asleep. Imported eagerly, not lazily
-// — ScannerPage already imports it statically, so it's in the main bundle
-// regardless; a dynamic import() here would just add an ineffective split.
-const COLD_START_MESSAGES = [
-  'Preparing your workspace…',
-  'If loading takes longer, please try again in a moment',
-  'Almost ready…',
-];
 
 // Push notifications depend on an active service worker — App.jsx waits on
 // navigator.serviceWorker.ready, which never resolves without a prior
@@ -79,60 +68,12 @@ function Root() {
       }),
     [pendingGoogleToken]
   );
-  // Most loads resolve in well under a second — only switch to the fuller
-  // animated "waking up" screen once the wait has gone on long enough that
-  // it's plausibly a cold Render instance, not a flash on every visit.
-  const [showColdStart, setShowColdStart] = useState(false);
-  useEffect(() => {
-    if (!isLoading) return undefined;
-    const t = setTimeout(() => setShowColdStart(true), 1200);
-    return () => clearTimeout(t);
-  }, [isLoading]);
-
-  const plainLoadingScreen = (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-        background: '#0A0A0A',
-      }}
-    >
-      <div style={{ color: '#F59E0B', fontFamily: 'monospace', fontSize: 13, letterSpacing: '0.1em' }} role="status">
-        {copyFor(language, 'Loading…')}
-      </div>
-    </div>
-  );
-
-  const loadingScreen = showColdStart ? (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-        background: '#0A0A0A',
-        padding: 24,
-      }}
-    >
-      <div style={{ width: '100%', maxWidth: 340 }}>
-        <ScanLoader
-          label="Capital Flow"
-          statusMessages={COLD_START_MESSAGES.map((message) => copyFor(language, message))}
-        />
-      </div>
-    </div>
-  ) : (
-    plainLoadingScreen
-  );
-
   if (pathname === '/policy' || pathname === '/accessibility') {
     return <PublicLegalPage path={pathname} />;
   }
 
   if (isLoading) {
-    return loadingScreen;
+    return <SplashLoader label={copyFor(language, 'Loading…')} />;
   }
 
   if (authLoadError) {
