@@ -53,6 +53,7 @@ const UI = {
     scanners: 'סורקים',
     sectors: 'סקטורים',
     stocks: 'מניות',
+    etfs: 'קרנות סל',
     cta: 'לסורק',
     footer: 'Capital Flow · כלי חינוכי למחקר מניות',
     policy: 'תנאי שימוש ופרטיות',
@@ -82,6 +83,7 @@ const UI = {
     scanners: 'Scanners',
     sectors: 'Sectors',
     stocks: 'Stocks',
+    etfs: 'ETFs',
     cta: 'Open scanner',
     footer: 'Capital Flow · educational stock research tools',
     policy: 'Terms and privacy',
@@ -182,6 +184,7 @@ h2{font-size:19px;font-weight:600;margin:34px 0 4px}
 .mono{font-family:var(--mono);direction:ltr;unicode-bidi:isolate}
 .price-row{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
 .price{font-size:26px;font-weight:600}
+.price-row>div{display:flex;align-items:baseline;gap:10px}
 .up{color:#86efac}.down{color:#fca5a5}
 .insights{background:#1a1204;border:1px solid #5a3a06;border-radius:12px;padding:12px 16px;margin:4px 0 8px}
 .insights h2{margin:0 0 4px;font-size:13px;color:var(--gold-2);font-weight:600}
@@ -261,8 +264,8 @@ ${schema.map(jsonLd).join('\n')}
 <a class="brand" href="${home}"><img src="/icon-192.png" alt="" width="26" height="26">Capital Flow</a>
 <nav aria-label="${t.nav}">
 <a href="${learnPath(lang)}">${t.learn}</a>
-${lang === 'he' ? `<a class="wide" href="/stocks">${t.stocks}</a>` : `<a class="wide" href="${learnPath(lang)}#scanners">${t.scanners}</a>`}
-<a class="wide" href="${learnPath(lang)}#sectors">${t.sectors}</a>
+<a class="wide" href="${lang === 'en' ? '/en' : ''}/stocks">${t.stocks}</a>
+<a class="wide" href="${lang === 'en' ? '/en' : ''}/etfs">${t.etfs}</a>
 ${switcher}
 <a class="cta" href="/scanner">${t.cta}</a>
 </nav></div></header>
@@ -272,7 +275,7 @@ ${side || ''}
 </div>
 <footer class="foot"><div class="foot-in">
 <span>© ${t.footer}</span>
-<span><a href="${learnPath(lang)}">${t.learn}</a>${lang === 'he' ? ' · <a href="/stocks">מניות</a>' : ''} · <a href="/policy">${
+<span><a href="${learnPath(lang)}">${t.learn}</a>${lang === 'he' ? ' · <a href="/stocks">מניות</a> · <a href="/etfs">קרנות סל</a>' : ' · <a href="/en/stocks">Stocks</a> · <a href="/en/etfs">ETFs</a>'} · <a href="/policy">${
     t.policy
   }</a> · <a href="/accessibility">${t.accessibility}</a></span>
 </div></footer>

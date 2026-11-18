@@ -152,3 +152,89 @@ test('stocks without data are noindex and left out of the sitemap', async () => 
     server.close();
   }
 });
+
+const TOP_DISCLAIMER_EN =
+  'For educational purposes only and not a recommendation to act. Data may be delayed or inaccurate, and its accuracy is not guaranteed.';
+
+const SPY = {
+  symbol: 'SPY',
+  kind: 'etf',
+  session: '2026-11-16',
+  asOf: Date.parse('2026-11-16T23:00:00Z'),
+  name: 'SPDR S&P 500 ETF Trust',
+  price: 640.12,
+  changePct: 0.4,
+  volume: 70e6,
+  avgVolume3m: 65e6,
+  high52: 690,
+  low52: 520,
+  sma20: 650,
+  sma50: 645,
+  sma150: 620,
+  sma150Prev20: 610,
+  holdings: [
+    { symbol: 'NVDA', name: 'NVIDIA Corp', weight: 0.075 },
+    { symbol: 'MSFT', name: 'Microsoft Corp', weight: 0.065 },
+    { symbol: 'AAPL', name: 'Apple Inc', weight: 0.06 },
+  ],
+  family: 'State Street',
+  expenseRatio: 0.000945,
+  totalAssets: 6.5e11,
+  yield: 0.012,
+};
+
+test('English stock pages mirror the Hebrew ones with their own disclaimer and hreflang', async () => {
+  await seed([NVDA, { ...NVDA, symbol: 'AMD', name: 'Advanced Micro Devices', marketCap: 3e11 }]);
+  const server = await startApp();
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const html = await (await fetch(`${base}/en/stocks/nvda`)).text();
+    assert.match(html, /<html lang="en" dir="ltr">/);
+    assert.match(html, /<title>NVIDIA \(NVDA\) Stock/);
+    assert.ok(html.includes(TOP_DISCLAIMER_EN), 'top disclaimer');
+    assert.ok(html.includes('Start scanning'), 'scan CTA');
+    assert.ok(html.includes('href="/en/stocks/amd"'), 'English peer link');
+    assert.ok(html.includes('hreflang="he" href="https://capitalflow.vip/stocks/nvda"'));
+    assert.ok(!/[\u0590-\u05FF]/.test(html.split('<main')[1].split('</main>')[0]), 'no Hebrew in the English body');
+    const hub = await (await fetch(`${base}/en/stocks`)).text();
+    assert.ok(hub.includes(TOP_DISCLAIMER_EN));
+    assert.ok(hub.includes('href="/en/stocks/nvda"'));
+  } finally {
+    server.close();
+  }
+});
+
+test('ETF pages show holdings, link to stock pages and enter the sitemap only with data', async () => {
+  await seed([NVDA, SPY]);
+  const server = await startApp();
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    for (const [path, disclaimer, stockLink] of [
+      ['/etfs/spy', TOP_DISCLAIMER_HE, 'href="/stocks/nvda"'],
+      ['/en/etfs/spy', TOP_DISCLAIMER_EN, 'href="/en/stocks/nvda"'],
+    ]) {
+      const res = await fetch(base + path);
+      assert.strictEqual(res.status, 200, path);
+      const html = await res.text();
+      assert.ok(html.includes(disclaimer), `${path} disclaimer`);
+      assert.ok(html.includes(stockLink), `${path} holding links to the stock page`);
+      assert.ok(html.includes('7.5%'), `${path} holding weight`);
+      assert.match(html, /<meta name="robots" content="index, follow/);
+    }
+    assert.strictEqual((await fetch(`${base}/etfs/SPY`, { redirect: 'manual' })).status, 301);
+    assert.strictEqual((await fetch(`${base}/etfs/nope`)).status, 404);
+    const pending = await (await fetch(`${base}/etfs/qqq`)).text();
+    assert.match(pending, /<meta name="robots" content="noindex, follow">/);
+    assert.ok(pending.includes(TOP_DISCLAIMER_HE));
+    for (const hubPath of ['/etfs', '/en/etfs']) {
+      const hub = await (await fetch(base + hubPath)).text();
+      assert.ok(hub.includes(hubPath === '/etfs' ? TOP_DISCLAIMER_HE : TOP_DISCLAIMER_EN), hubPath);
+    }
+    const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
+    for (const loc of ['/etfs/spy', '/en/etfs/spy', '/en/stocks/nvda', '/etfs', '/en/stocks'])
+      assert.ok(sitemap.includes(`<loc>https://capitalflow.vip${loc}</loc>`), loc);
+    assert.ok(!sitemap.includes('/etfs/qqq'));
+  } finally {
+    server.close();
+  }
+});

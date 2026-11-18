@@ -13,6 +13,9 @@ const { scanFundamentals } = require('../services/fundamentalsScanner');
 const { latestCompletedSessionDate, newYorkParts, sessionDateForTimestamp } = require('../services/marketCalendar');
 const { reportError } = require('../utils/reportError');
 const { SYMBOLS } = require('./universe');
+const { ETF_SYMBOLS, etfMeta } = require('./etfs');
+
+const ALL_SYMBOLS = Object.freeze([...SYMBOLS, ...ETF_SYMBOLS]);
 
 const CHUNK_SIZE = 5;
 const PAUSE_MS = 4000;
@@ -87,6 +90,32 @@ async function fetchProfile(symbol) {
   };
 }
 
+// ETF facts: top holdings with weights, expense ratio, assets and yield.
+async function fetchFundProfile(symbol) {
+  const summary = await yahoo.quoteSummary(toYahoo(symbol), {
+    modules: ['topHoldings', 'fundProfile', 'summaryDetail'],
+  });
+  const top = summary.topHoldings || {};
+  const fund = summary.fundProfile || {};
+  const detail = summary.summaryDetail || {};
+  return {
+    holdings: (top.holdings || [])
+      .map((h) => ({
+        symbol: h.symbol ? String(h.symbol).replace(/-/g, '.') : null,
+        name: h.holdingName || null,
+        weight: finite(h.holdingPercent),
+      }))
+      .filter((h) => (h.symbol || h.name) && h.weight !== null)
+      .slice(0, 10),
+    family: fund.family || null,
+    category: fund.categoryName || null,
+    expenseRatio: finite(fund.feesExpensesInvestment && fund.feesExpensesInvestment.annualReportExpenseRatio),
+    totalAssets: finite(detail.totalAssets),
+    yield: finite(detail.yield),
+    profileAt: Date.now(),
+  };
+}
+
 async function loadExisting(symbols) {
   const placeholders = symbols.map(() => '?').join(', ');
   const rows = await db
@@ -115,9 +144,10 @@ async function saveSnapshot(symbol, data) {
 // Builds a snapshot for one chunk. A field a provider did not report is
 // stored as null and rendered as "not available"; nothing is estimated.
 async function buildChunk(symbols, session, existing) {
+  const stockSymbols = symbols.filter((symbol) => !etfMeta(symbol));
   const [quotes, fundamentals] = await Promise.all([
     fetchQuotes(symbols),
-    scanFundamentals(symbols).catch(() => ({ results: [] })),
+    stockSymbols.length ? scanFundamentals(stockSymbols).catch(() => ({ results: [] })) : { results: [] },
   ]);
   const quoteBySymbol = new Map(quotes.filter(Boolean).map((q) => [String(q.symbol).replace(/-/g, '.'), q]));
   const fundBySymbol = new Map((fundamentals.results || []).map((f) => [f.symbol, f]));
@@ -138,11 +168,11 @@ async function buildChunk(symbols, session, existing) {
     const last = bars[bars.length - 1];
     const prior = bars.length > 1 ? bars[bars.length - 2] : null;
     const closes = bars.map((bar) => bar.close);
+    const isEtf = !!etfMeta(symbol);
     let profile = previous.profileAt && Date.now() - previous.profileAt < PROFILE_MAX_AGE_MS ? previous : null;
-    if (!profile) profile = await fetchProfile(symbol).catch(() => previous);
+    if (!profile) profile = await (isEtf ? fetchFundProfile(symbol) : fetchProfile(symbol)).catch(() => previous);
 
-    const verified = (key) => (fund.unverified && fund.unverified[key] ? null : finite(fund[key]));
-    await saveSnapshot(symbol, {
+    const market = {
       symbol,
       session,
       asOf: Date.now(),
@@ -150,12 +180,32 @@ async function buildChunk(symbols, session, existing) {
       name: quote.longName || quote.shortName || previous.name || symbol,
       price: last.close,
       changePct: prior ? (last.close / prior.close - 1) * 100 : null,
-      marketCap: finite(quote.marketCap) ?? previous.marketCap ?? null,
       volume: last.volume,
       avgVolume3m: finite(quote.averageDailyVolume3Month),
       high52: finite(quote.fiftyTwoWeekHigh),
       low52: finite(quote.fiftyTwoWeekLow),
       ...movingAverages(closes),
+    };
+    if (isEtf) {
+      await saveSnapshot(symbol, {
+        ...market,
+        kind: 'etf',
+        holdings: profile.holdings || [],
+        family: profile.family || null,
+        category: profile.category || null,
+        expenseRatio: profile.expenseRatio ?? null,
+        totalAssets: profile.totalAssets ?? null,
+        yield: profile.yield ?? null,
+        profileAt: profile.profileAt || null,
+      });
+      continue;
+    }
+
+    const verified = (key) => (fund.unverified && fund.unverified[key] ? null : finite(fund[key]));
+    await saveSnapshot(symbol, {
+      ...market,
+      kind: 'stock',
+      marketCap: finite(quote.marketCap) ?? previous.marketCap ?? null,
       sector: profile.sector || null,
       industry: profile.industry || null,
       city: profile.city || null,
@@ -177,7 +227,11 @@ async function buildChunk(symbols, session, existing) {
 
 let running = false;
 
-async function runSnapshotJob({ session = latestCompletedSessionDate(), symbols = SYMBOLS, pauseMs = PAUSE_MS } = {}) {
+async function runSnapshotJob({
+  session = latestCompletedSessionDate(),
+  symbols = ALL_SYMBOLS,
+  pauseMs = PAUSE_MS,
+} = {}) {
   if (running) return { skipped: true };
   running = true;
   let processed = 0;

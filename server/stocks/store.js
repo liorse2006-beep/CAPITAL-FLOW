@@ -44,7 +44,9 @@ function resetSnapshotCache() {
 // A page is worth indexing only with its core data: price, size, a trend
 // reference and a sector. Anything less is served with noindex.
 function isIndexable(snapshot) {
-  return !!(snapshot && snapshot.price && snapshot.marketCap && (snapshot.sma50 || snapshot.sma150) && snapshot.sector);
+  if (!snapshot || !snapshot.price || !(snapshot.sma50 || snapshot.sma150)) return false;
+  if (snapshot.kind === 'etf') return Array.isArray(snapshot.holdings) && snapshot.holdings.length > 0;
+  return !!(snapshot.marketCap && snapshot.sector);
 }
 
 module.exports = { getSnapshots, resetSnapshotCache, isIndexable };

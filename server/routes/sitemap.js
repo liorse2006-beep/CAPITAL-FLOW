@@ -3,6 +3,7 @@ const { PAGES, hasEnglish } = require('../learn/content');
 const { PUBLISHED } = require('../learn/render');
 const { getSnapshots, isIndexable } = require('../stocks/store');
 const { SYMBOLS, slugFor } = require('../stocks/universe');
+const { ETF_SYMBOLS } = require('../stocks/etfs');
 
 // Generated so the sitemap always matches what is actually indexable: a stock
 // page is listed only once its snapshot has core data (pages without it are
@@ -34,12 +35,23 @@ async function buildSitemap() {
     body += entry(`/learn/${page.slug}`, PUBLISHED, 'monthly', priority);
     if (hasEnglish(page.slug)) body += entry(`/en/learn/${page.slug}`, PUBLISHED, 'monthly', '0.5');
   }
-  body += entry('/stocks', new Date().toISOString().slice(0, 10), 'daily', '0.8');
+  const today = new Date().toISOString().slice(0, 10);
+  body += entry('/stocks', today, 'daily', '0.8');
+  body += entry('/en/stocks', today, 'daily', '0.7');
+  body += entry('/etfs', today, 'daily', '0.7');
+  body += entry('/en/etfs', today, 'daily', '0.6');
+  const lastmodOf = (snapshot) => new Date(snapshot.asOf || Date.now()).toISOString().slice(0, 10);
   for (const symbol of SYMBOLS) {
     const snapshot = snapshots.get(symbol);
     if (!isIndexable(snapshot)) continue;
-    const lastmod = new Date(snapshot.asOf || Date.now()).toISOString().slice(0, 10);
-    body += entry(`/stocks/${slugFor(symbol)}`, lastmod, 'daily', '0.6');
+    body += entry(`/stocks/${slugFor(symbol)}`, lastmodOf(snapshot), 'daily', '0.6');
+    body += entry(`/en/stocks/${slugFor(symbol)}`, lastmodOf(snapshot), 'daily', '0.5');
+  }
+  for (const symbol of ETF_SYMBOLS) {
+    const snapshot = snapshots.get(symbol);
+    if (!isIndexable(snapshot)) continue;
+    body += entry(`/etfs/${symbol.toLowerCase()}`, lastmodOf(snapshot), 'daily', '0.6');
+    body += entry(`/en/etfs/${symbol.toLowerCase()}`, lastmodOf(snapshot), 'daily', '0.5');
   }
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}</urlset>\n`;
 }

@@ -1,0 +1,163 @@
+// ETF pages: the four headline index funds plus every sector/industry fund
+// the /flow view already tracks (server/services/sectorFlow.js). `learn` is the
+// matching learning page, when one exists.
+const ETFS = Object.freeze([
+  {
+    symbol: 'SPY',
+    he: 'קרן S&P 500',
+    en: 'S&P 500 ETF',
+    tracksHe: 'מדד S&P 500 — כ-500 החברות הגדולות בארה"ב',
+    tracksEn: 'the S&P 500 index — about 500 of the largest U.S. companies',
+    learn: 'sp500',
+  },
+  {
+    symbol: 'QQQ',
+    he: 'קרן נאסד"ק 100',
+    en: 'Nasdaq-100 ETF',
+    tracksHe: 'מדד נאסד"ק 100 — 100 החברות הגדולות בנאסד"ק, בלי פיננסים',
+    tracksEn: 'the Nasdaq-100 index — the 100 largest non-financial Nasdaq companies',
+    learn: 'nasdaq-100',
+  },
+  {
+    symbol: 'DIA',
+    he: 'קרן הדאו ג׳ונס',
+    en: 'Dow Jones ETF',
+    tracksHe: 'מדד דאו ג׳ונס — 30 חברות אמריקאיות גדולות, משוקלל לפי מחיר',
+    tracksEn: 'the Dow Jones Industrial Average — 30 large U.S. companies, price-weighted',
+  },
+  {
+    symbol: 'IWM',
+    he: 'קרן ראסל 2000',
+    en: 'Russell 2000 ETF',
+    tracksHe: 'מדד ראסל 2000 — כ-2,000 חברות קטנות בארה"ב',
+    tracksEn: 'the Russell 2000 index — about 2,000 U.S. small-cap companies',
+    learn: 'market-cap',
+  },
+  {
+    symbol: 'XLK',
+    he: 'קרן סקטור הטכנולוגיה',
+    en: 'Technology Sector ETF',
+    tracksHe: 'סקטור הטכנולוגיה ב-S&P 500',
+    tracksEn: 'the S&P 500 technology sector',
+    learn: 'technology-sector',
+  },
+  {
+    symbol: 'XLF',
+    he: 'קרן סקטור הפיננסים',
+    en: 'Financials Sector ETF',
+    tracksHe: 'סקטור הפיננסים ב-S&P 500',
+    tracksEn: 'the S&P 500 financials sector',
+    learn: 'financials-sector',
+  },
+  {
+    symbol: 'XLV',
+    he: 'קרן סקטור הבריאות',
+    en: 'Health Care Sector ETF',
+    tracksHe: 'סקטור הבריאות ב-S&P 500',
+    tracksEn: 'the S&P 500 health care sector',
+    learn: 'healthcare-sector',
+  },
+  {
+    symbol: 'XLY',
+    he: 'קרן סקטור הצריכה המחזורית',
+    en: 'Consumer Discretionary Sector ETF',
+    tracksHe: 'סקטור הצריכה המחזורית ב-S&P 500',
+    tracksEn: 'the S&P 500 consumer discretionary sector',
+    learn: 'consumer-discretionary-sector',
+  },
+  {
+    symbol: 'XLP',
+    he: 'קרן סקטור הצריכה הבסיסית',
+    en: 'Consumer Staples Sector ETF',
+    tracksHe: 'סקטור הצריכה הבסיסית ב-S&P 500',
+    tracksEn: 'the S&P 500 consumer staples sector',
+    learn: 'consumer-staples-sector',
+  },
+  {
+    symbol: 'XLE',
+    he: 'קרן סקטור האנרגיה',
+    en: 'Energy Sector ETF',
+    tracksHe: 'סקטור האנרגיה ב-S&P 500',
+    tracksEn: 'the S&P 500 energy sector',
+    learn: 'energy-sector',
+  },
+  {
+    symbol: 'XLI',
+    he: 'קרן סקטור התעשייה',
+    en: 'Industrials Sector ETF',
+    tracksHe: 'סקטור התעשייה ב-S&P 500',
+    tracksEn: 'the S&P 500 industrials sector',
+    learn: 'industrials-sector',
+  },
+  {
+    symbol: 'XLB',
+    he: 'קרן סקטור החומרים',
+    en: 'Materials Sector ETF',
+    tracksHe: 'סקטור החומרים ב-S&P 500',
+    tracksEn: 'the S&P 500 materials sector',
+    learn: 'materials-sector',
+  },
+  {
+    symbol: 'XLRE',
+    he: 'קרן סקטור הנדל"ן',
+    en: 'Real Estate Sector ETF',
+    tracksHe: 'סקטור הנדל"ן ב-S&P 500',
+    tracksEn: 'the S&P 500 real estate sector',
+    learn: 'real-estate-sector',
+  },
+  {
+    symbol: 'XLU',
+    he: 'קרן סקטור התשתיות',
+    en: 'Utilities Sector ETF',
+    tracksHe: 'סקטור התשתיות ב-S&P 500',
+    tracksEn: 'the S&P 500 utilities sector',
+    learn: 'utilities-sector',
+  },
+  {
+    symbol: 'XLC',
+    he: 'קרן סקטור שירותי התקשורת',
+    en: 'Communication Services Sector ETF',
+    tracksHe: 'סקטור שירותי התקשורת ב-S&P 500',
+    tracksEn: 'the S&P 500 communication services sector',
+    learn: 'communication-services-sector',
+  },
+  {
+    symbol: 'SOXX',
+    he: 'קרן השבבים',
+    en: 'Semiconductor ETF',
+    tracksHe: 'ענף המוליכים למחצה בארה"ב',
+    tracksEn: 'U.S.-listed semiconductor companies',
+    learn: 'semiconductors-sector',
+  },
+  {
+    symbol: 'XOP',
+    he: 'קרן חיפוש והפקת נפט וגז',
+    en: 'Oil & Gas Exploration ETF',
+    tracksHe: 'חברות חיפוש והפקה של נפט וגז, בשקלול כמעט שוויוני',
+    tracksEn: 'oil and gas exploration and production companies, close to equal-weighted',
+    learn: 'oil-gas-exploration-sector',
+  },
+  {
+    symbol: 'XTL',
+    he: 'קרן הטלקום',
+    en: 'Telecom ETF',
+    tracksHe: 'חברות טלקום וציוד רשת, בשקלול כמעט שוויוני',
+    tracksEn: 'telecom and network equipment companies, close to equal-weighted',
+    learn: 'telecom-sector',
+  },
+  {
+    symbol: 'IGV',
+    he: 'קרן התוכנה',
+    en: 'Software ETF',
+    tracksHe: 'חברות תוכנה וענן אמריקאיות',
+    tracksEn: 'U.S. software and cloud companies',
+    learn: 'software-sector',
+  },
+]);
+
+const ETF_SYMBOLS = Object.freeze(ETFS.map((etf) => etf.symbol));
+const BY_SYMBOL = new Map(ETFS.map((etf) => [etf.symbol, etf]));
+const etfMeta = (symbol) => BY_SYMBOL.get(symbol) || null;
+const etfForSlug = (slug) => BY_SYMBOL.get(String(slug).toUpperCase()) || null;
+
+module.exports = { ETFS, ETF_SYMBOLS, etfMeta, etfForSlug };
