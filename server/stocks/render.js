@@ -50,7 +50,8 @@ const S = {
     etfs: 'קרנות סל',
     unavailable: 'לא זמין',
     insights: 'מה הנתונים מראים',
-    close: (d) => `מחיר סגירה ליום המסחר ${d}`,
+    close: 'סגירה אחרונה',
+    asOf: (d) => `הנתונים נכונים לסגירת יום המסחר ${d}.`,
     maTitle: 'מחיר מול הממוצעים הנעים',
     ma: (n) => `ממוצע נע <span class="mono">${n}</span>`,
     range: 'טווח 52 שבועות',
@@ -96,7 +97,8 @@ const S = {
     etfs: 'ETFs',
     unavailable: 'N/A',
     insights: 'What the data shows',
-    close: (d) => `Closing price for the session of ${d}`,
+    close: 'Last close',
+    asOf: (d) => `Data as of the close of the ${d} session.`,
     maTitle: 'Price vs. moving averages',
     ma: (n) => `<span class="mono">${n}</span>-day moving average`,
     range: '52-week range',
@@ -234,6 +236,12 @@ function insightsBlock(t, s, lang) {
     .join('')}</ol></section>`;
 }
 
+function asOfLine(s, lang) {
+  return `<p style="margin:14px 0 0;font-size:12px;color:var(--muted)">${esc(
+    S[lang].asOf(formatDate(s.priceDate || s.session, lang))
+  )}</p>`;
+}
+
 function priceHeader(s, h1Html, lang) {
   const t = S[lang];
   const change =
@@ -243,9 +251,7 @@ function priceHeader(s, h1Html, lang) {
   const englishName = lang === 'he' && HEBREW_NAMES[s.symbol] ? `<span class="mono">${esc(s.name)}</span> · ` : '';
   return `<div class="price-row"><h1>${h1Html}</h1><div><span class="mono price">${esc(
     money(s.price) || ''
-  )}</span> ${change}</div></div>${topNote(lang)}<p class="lead" style="font-size:15px;color:var(--muted)">${englishName}${esc(
-    t.close(formatDate(s.priceDate || s.session, lang))
-  )}</p>`;
+  )}</span> ${change}</div></div>${topNote(lang)}<p class="lead" style="font-size:15px;color:var(--muted)">${englishName}${esc(t.close)}</p>`;
 }
 
 function peersFor(snapshot, all) {
@@ -277,20 +283,23 @@ function aboutSentence(s, lang) {
   return parts.join(' ');
 }
 
+// Titles and descriptions stay true between crawls: no price or date, since
+// Google can show a cached snippet for days and a stale number looks outdated.
+function stockLabel(s, lang) {
+  return (lang === 'he' && HEBREW_NAMES[s.symbol]) || cleanName(s.name) || s.symbol;
+}
+
 function stockTitle(s, lang) {
-  const sym = s.symbol;
-  if (lang === 'en') return `${cleanName(s.name)} (${sym}) Stock: Volume, Trend and Key Data | Capital Flow`;
-  const he = HEBREW_NAMES[sym];
-  return he
-    ? `מניית ${he} (${sym}): נפח, ממוצעים נעים ונתונים | Capital Flow`
-    : `${cleanName(s.name)} (${sym}): נפח, ממוצעים נעים ונתונים | Capital Flow`;
+  return lang === 'en'
+    ? `${stockLabel(s, lang)} (${s.symbol}) Stock Price | Capital Flow`
+    : `מחיר מניית ${stockLabel(s, lang)} | Capital Flow`;
 }
 
 function stockDescription(s, lang) {
-  if (lang === 'en')
-    return `${cleanName(s.name)} (${s.symbol}) stock: price, volume, 20, 50 and 150-day moving averages, 52-week range, P/E, PEG, float and short interest.`;
-  const he = HEBREW_NAMES[s.symbol];
-  return `${he ? `מניית ${he}` : cleanName(s.name)} (${s.symbol}): מחיר, נפח מסחר, ממוצעים נעים 20, 50 ו-150, טווח 52 שבועות, מכפיל רווח, PEG, Float ו-Short Interest.`;
+  const name = stockLabel(s, lang);
+  return lang === 'en'
+    ? `${name} stock price, trading volume vs. average, 20, 50 and 150-day moving averages and 52-week range. Updated after every trading session.`
+    : `מחיר מניית ${name}, נפח המסחר מול הממוצע, ממוצעים נעים 20, 50 ו-150 וטווח 52 שבועות. מתעדכן אחרי כל יום מסחר.`;
 }
 
 function renderStockPage(snapshot, all, lang = 'he') {
@@ -355,6 +364,7 @@ ${peersHtml}
 <aside class="cta-box" aria-label="${UI[lang].relevantTool}"><p>${esc(t.stockCta(sym))}</p><a class="btn" href="/scanner">${
     t.scanBtn
   }</a></aside>
+${asOfLine(snapshot, lang)}
 <p class="note">${esc(UI[lang].note)}</p>
 </article>`;
 
@@ -368,7 +378,6 @@ ${peersHtml}
       description,
       inLanguage: lang,
       url: SITE_URL + path,
-      dateModified: new Date(snapshot.asOf || Date.now()).toISOString().slice(0, 10),
       about: { '@type': 'Corporation', name: snapshot.name, tickerSymbol: sym },
     },
     {
@@ -396,14 +405,14 @@ ${peersHtml}
 
 function etfTitle(meta, lang) {
   return lang === 'en'
-    ? `${meta.symbol} — ${meta.en}: Holdings, Volume and Trend | Capital Flow`
-    : `${meta.symbol} — ${meta.he}: אחזקות, נפח וממוצעים נעים | Capital Flow`;
+    ? `${meta.en} (${meta.symbol}) Price | Capital Flow`
+    : `מחיר ${meta.he} – ${meta.symbol} | Capital Flow`;
 }
 
 function etfDescription(meta, lang) {
   return lang === 'en'
-    ? `${meta.symbol} (${meta.en}): top holdings and weights, expense ratio, assets, volume, moving averages and 52-week range.`
-    : `${meta.symbol} (${meta.he}): האחזקות הגדולות והמשקל שלהן, דמי ניהול, נכסים מנוהלים, נפח, ממוצעים נעים וטווח 52 שבועות.`;
+    ? `${meta.symbol} price, top holdings and their weights, expense ratio, volume vs. average and moving averages. Updated after every trading session.`
+    : `מחיר ${meta.he}, האחזקות הגדולות ומשקלן, דמי ניהול, נפח מול הממוצע וממוצעים נעים. מתעדכן אחרי כל יום מסחר.`;
 }
 
 const ETF_STYLE = `<style>.holdings{background:#0f0f0f;border:1px solid var(--line);border-radius:12px;padding:4px 16px;margin:6px 0}
@@ -467,6 +476,7 @@ ${stat(t, t.vol, big(snapshot.volume), learnHref(lang, 'relative-volume-rvol'))}
 <aside class="cta-box" aria-label="${UI[lang].relevantTool}"><p>${esc(t.etfCta)}</p><a class="btn" href="/flow">${
     t.etfBtn
   }</a></aside>
+${asOfLine(snapshot, lang)}
 <p class="note">${esc(UI[lang].note)}</p>
 </article>`;
 
@@ -479,7 +489,6 @@ ${stat(t, t.vol, big(snapshot.volume), learnHref(lang, 'relative-volume-rvol'))}
       description: etfDescription(meta, lang),
       inLanguage: lang,
       url: SITE_URL + path,
-      dateModified: new Date(snapshot.asOf || Date.now()).toISOString().slice(0, 10),
     },
     {
       '@context': 'https://schema.org',

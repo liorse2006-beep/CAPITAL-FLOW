@@ -128,7 +128,8 @@ test('GET /stocks/:slug renders data, the fixed top disclaimer, the scan CTA and
     const res = await fetch(`http://127.0.0.1:${server.address().port}/stocks/nvda`);
     assert.strictEqual(res.status, 200);
     const html = await res.text();
-    assert.match(html, /<title>מניית אנבידיה \(NVDA\)/);
+    assert.match(html, /<title>מחיר מניית אנבידיה \| Capital Flow<\/title>/);
+    assert.ok(!html.includes('dateModified'), 'no date for Google to show as stale');
     assert.ok(html.includes(TOP_DISCLAIMER_HE), 'top disclaimer');
     assert.ok(html.indexOf(TOP_DISCLAIMER_HE) < html.indexOf('מה הנתונים מראים'), 'disclaimer above the data');
     assert.ok(html.includes('התחל לסרוק'), 'scan CTA');
@@ -199,7 +200,7 @@ test('English stock pages mirror the Hebrew ones with their own disclaimer and h
     const base = `http://127.0.0.1:${server.address().port}`;
     const html = await (await fetch(`${base}/en/stocks/nvda`)).text();
     assert.match(html, /<html lang="en" dir="ltr">/);
-    assert.match(html, /<title>NVIDIA \(NVDA\) Stock/);
+    assert.match(html, /<title>NVIDIA \(NVDA\) Stock Price \| Capital Flow<\/title>/);
     assert.ok(html.includes(TOP_DISCLAIMER_EN), 'top disclaimer');
     assert.ok(html.includes('Start scanning'), 'scan CTA');
     assert.ok(html.includes('href="/en/stocks/amd"'), 'English peer link');

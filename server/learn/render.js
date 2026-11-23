@@ -1,5 +1,7 @@
 const { PAGES, CATEGORIES, getPage, hasEnglish } = require('./content');
 const { renderDiagram } = require('./diagrams');
+const { ETFS } = require('../stocks/etfs');
+const HEBREW_NAMES = require('../stocks/names');
 
 const SITE_URL = 'https://capitalflow.vip';
 const PUBLISHED = '2026-11-17';
@@ -293,6 +295,61 @@ function alternatesFor(slug) {
   return links;
 }
 
+// Learning pages point at the live stock and ETF pages that show the same
+// concept on real data, so readers (and crawlers) move from the explanation to
+// the numbers. Only terms that actually appear on those pages get links.
+const DATA_TERMS = new Set([
+  'unusual-volume',
+  'relative-volume-rvol',
+  'average-volume',
+  'volume-and-price',
+  'moving-average',
+  'sma-vs-ema',
+  'moving-average-20',
+  'moving-average-50',
+  'moving-average-150',
+  'market-cap',
+  'pe-ratio',
+  'forward-pe',
+  'peg-ratio',
+  'debt-to-equity',
+  'float',
+  'short-interest',
+  'eps',
+  'week-52-high-low',
+  'stock-screener',
+  'institutional-money',
+]);
+const EXAMPLE_STOCKS = ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'TSLA', 'META'];
+const SECTOR_ANCHORS = new Set(ETFS.filter((e) => /^XL/.test(e.symbol)).map((e) => e.learn));
+const LIVE = {
+  he: { title: 'רואים את זה על נתונים אמיתיים', sector: 'כל המניות בסקטור', etfs: 'כל קרנות הסל' },
+  en: { title: 'See it on real data', sector: 'All stocks in this sector', etfs: 'All ETFs' },
+};
+
+function liveLinks(page, lang) {
+  const pre = lang === 'en' ? '/en' : '';
+  const chip = (href, label) => `<li><a href="${href}">${label}</a></li>`;
+  const etfChip = (e) =>
+    chip(`${pre}/etfs/${e.symbol.toLowerCase()}`, `<b>${esc(e.symbol)}</b><span>${esc(e[lang])}</span>`);
+  const items = [];
+  for (const e of ETFS.filter((etf) => etf.learn === page.slug)) items.push(etfChip(e));
+  if (SECTOR_ANCHORS.has(page.slug))
+    items.push(chip(`${pre}/stocks#${page.slug}`, `<b>→</b><span>${LIVE[lang].sector}</span>`));
+  if (page.slug === 'etf') {
+    for (const e of ETFS.slice(0, 4)) items.push(etfChip(e));
+    items.push(chip(`${pre}/etfs`, `<b>→</b><span>${LIVE[lang].etfs}</span>`));
+  }
+  if (DATA_TERMS.has(page.slug)) {
+    for (const sym of EXAMPLE_STOCKS) {
+      const name = lang === 'he' && HEBREW_NAMES[sym] ? HEBREW_NAMES[sym] : sym;
+      items.push(chip(`${pre}/stocks/${sym.toLowerCase()}`, `<b>${sym}</b><span>${esc(name)}</span>`));
+    }
+  }
+  if (!items.length) return '';
+  return `<h2 id="live-data">${LIVE[lang].title}</h2><ul class="tickers">${items.join('')}</ul>`;
+}
+
 function renderPage(page, lang = 'he') {
   const t = UI[lang];
   const category = CATEGORIES[lang][page.category];
@@ -334,6 +391,7 @@ ${topNote(lang)}
 <aside class="cta-box" aria-label="${t.relevantTool}"><p>${inline(tool.text, lang)}</p><a class="btn" href="${esc(
     tool.href
   )}">${esc(tool.label)} ${lang === 'en' ? '→' : '←'}</a></aside>
+${liveLinks(page, lang)}
 ${faq ? `<section class="faq" aria-labelledby="faq"><h2 id="faq">${t.faq}</h2>${faq}</section>` : ''}
 <p class="note">${esc(t.note)}</p>
 </article>`;

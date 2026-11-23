@@ -377,7 +377,7 @@ module.exports = {
   'market-cap': {
     short: 'Market capitalization',
     h1: 'Market cap: large, mid and small caps explained',
-    title: 'Market Cap Explained — Calculation and Categories | Capital Flow',
+    title: 'What Is Market Cap? Meaning, Formula and Examples | Capital Flow',
     description:
       'What market capitalization is, how it is calculated, the difference between large, mid and small caps, and why it matters for risk.',
     lead: 'How much the market values the whole company right now. The first thing to know about any stock.',
@@ -522,7 +522,7 @@ module.exports = {
   'debt-to-equity': {
     short: 'Debt-to-equity ratio',
     h1: 'Debt-to-equity: how leveraged a company is',
-    title: 'Debt-to-Equity Ratio Explained | Capital Flow',
+    title: 'What Is the Debt-to-Equity Ratio? Formula and Meaning | Capital Flow',
     description:
       'What the debt-to-equity ratio is, how to calculate it, what counts as high in each industry, and why it matters when rates rise.',
     lead: "How much of the company is funded by debt versus shareholders' money.",
@@ -780,7 +780,7 @@ module.exports = {
   'stock-screener': {
     short: 'What a stock screener is',
     h1: 'Stock screeners: what they are and how to use one well',
-    title: 'Stock Screener — What It Is and How to Use It | Capital Flow',
+    title: 'What Is a Stock Screener and How to Use One | Capital Flow',
     description:
       'What a stock screener is, what kinds of filters exist, how to build a good scan, and how to avoid common mistakes.',
     lead: 'Thousands of stocks trade in the U.S. A screener returns only the ones that meet your conditions.',
