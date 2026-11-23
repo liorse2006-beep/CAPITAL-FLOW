@@ -3,6 +3,11 @@
 // listed; every other ticker is shown under its English name, never a guess.
 module.exports = Object.freeze({
   AAPL: 'אפל',
+  RDDT: 'רדיט',
+  HOOD: 'רובינהוד',
+  COIN: 'קוינבייס',
+  SNOW: 'סנופלייק',
+  APP: 'אפלוביין',
   MSFT: 'מיקרוסופט',
   NVDA: 'אנבידיה',
   AMZN: 'אמזון',
