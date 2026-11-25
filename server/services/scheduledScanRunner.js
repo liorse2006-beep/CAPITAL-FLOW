@@ -132,14 +132,16 @@ async function refreshScheduledScanCache(options = {}) {
       const today = israelToday();
       const [scans, radars] = await Promise.all([
         db.prepare('SELECT * FROM scheduled_scans WHERE active = 1').all(),
-        db
-          .prepare(
-            `SELECT id, mode, schedule_time_1, schedule_time_2, expires_on,
+        !require('./radarFeature').radarEnabled()
+          ? []
+          : db
+              .prepare(
+                `SELECT id, mode, schedule_time_1, schedule_time_2, expires_on,
                     ma_period, ma_distance, ma_interval, ma_direction, condition_mode, condition_version
                FROM capital_flow_radars
               WHERE active = 1 AND expires_on >= ?`
-          )
-          .all(today),
+              )
+              .all(today),
       ]);
       schedulerCache = {
         loaded: true,

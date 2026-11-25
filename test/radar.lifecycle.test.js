@@ -1,3 +1,4 @@
+process.env.RADAR_ENABLED = 'true';
 require('./helpers/testEnv');
 const { test, before, afterEach } = require('node:test');
 const assert = require('node:assert/strict');

@@ -1,3 +1,4 @@
+process.env.RADAR_ENABLED = 'true';
 require('./helpers/testEnv');
 const { test, before } = require('node:test');
 const assert = require('node:assert/strict');
@@ -224,5 +225,16 @@ test("Radar delete cannot remove another user's state or schedule history", asyn
     assert.equal(Number(run.radar_id), radarId);
   } finally {
     server.close();
+  }
+});
+
+test('the retired Radar stays off unless explicitly enabled', () => {
+  const { radarEnabled } = require('../server/services/radarFeature');
+  const saved = process.env.RADAR_ENABLED;
+  delete process.env.RADAR_ENABLED;
+  try {
+    assert.strictEqual(radarEnabled(), false);
+  } finally {
+    process.env.RADAR_ENABLED = saved;
   }
 });
