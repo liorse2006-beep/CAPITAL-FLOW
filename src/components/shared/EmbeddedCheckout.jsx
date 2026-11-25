@@ -26,7 +26,7 @@ export default function EmbeddedCheckout({ planId, metadata, promoCode, buyerEma
 
   function handleComplete(result) {
     if (result?.result !== 'payment') {
-      onError?.(new Error('Payment was not completed.'));
+      onError?.(new Error('התשלום לא הושלם.'));
       return;
     }
     setPaymentReceived(true);
@@ -39,22 +39,22 @@ export default function EmbeddedCheckout({ planId, metadata, promoCode, buyerEma
 
   function handleElementError() {
     // Do not surface provider internals or raw errors in the customer UI.
-    onError?.(new Error('Secure checkout is temporarily unavailable.'));
+    onError?.(new Error('התשלום המאובטח אינו זמין כרגע.'));
   }
 
   if (!countryConfirmed) {
     return (
       <form
         className="embedded-checkout"
-        lang="en"
-        dir="ltr"
+        lang="he"
+        dir="rtl"
         onSubmit={(event) => {
           event.preventDefault();
           if (billingCountry) setCountryConfirmed(true);
         }}
       >
         <label className="auth-label" htmlFor="checkout-billing-country">
-          Billing country
+          מדינת כתובת החיוב
         </label>
         <select
           id="checkout-billing-country"
@@ -63,16 +63,16 @@ export default function EmbeddedCheckout({ planId, metadata, promoCode, buyerEma
           value={billingCountry}
           onChange={(event) => setBillingCountry(event.target.value)}
         >
-          <option value="">Select country</option>
+          <option value="">בחירת מדינה</option>
           {BILLING_COUNTRIES.map(({ code, name }) => (
             <option key={code} value={code}>
               {name}
             </option>
           ))}
         </select>
-        <p className="policy-paragraph">Select the country of your billing address.</p>
+        <p className="policy-paragraph">יש לבחור את המדינה של כתובת החיוב שלך.</p>
         <button className="upgrade-cta" type="submit" disabled={!billingCountry}>
-          Continue to secure checkout
+          המשך לתשלום מאובטח
         </button>
       </form>
     );
@@ -99,7 +99,7 @@ export default function EmbeddedCheckout({ planId, metadata, promoCode, buyerEma
             fallback={
               <div className="embedded-checkout-loading" role="status" aria-live="polite">
                 <div className="spinner" />
-                Loading secure checkout…
+                טוענים את התשלום המאובטח…
               </div>
             }
           />
@@ -107,7 +107,7 @@ export default function EmbeddedCheckout({ planId, metadata, promoCode, buyerEma
       </WhopElements>
       {loadFailure && (
         <div className="embedded-checkout-error" role="alert">
-          <p>We couldn’t load secure checkout. Check your connection and try again.</p>
+          <p>לא הצלחנו לטעון את התשלום. יש לבדוק את החיבור ולנסות שוב.</p>
           <button
             type="button"
             onClick={() => {
@@ -116,17 +116,17 @@ export default function EmbeddedCheckout({ planId, metadata, promoCode, buyerEma
               retryLoad();
             }}
           >
-            Try again
+            ניסיון נוסף
           </button>
         </div>
       )}
       {paymentReceived && (
         <p className="embedded-checkout-confirmation" role="status" aria-live="polite">
-          Payment received. We’re confirming your access now…
+          התשלום התקבל. מפעילים את הגישה שלך…
         </p>
       )}
       <div className="embedded-checkout-powered-by">
-        Powered by <span className="embedded-checkout-whop-mark">Whop</span>
+        תשלום מאובטח באמצעות <span className="embedded-checkout-whop-mark">Whop</span>
       </div>
     </div>
   );

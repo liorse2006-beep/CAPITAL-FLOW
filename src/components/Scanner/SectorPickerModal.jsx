@@ -29,18 +29,18 @@ export default function SectorPickerModal({
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label="Select sectors"
+        aria-label="בחירת סקטורים"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sector-modal-header">
-          <h2 className="upgrade-title">Select sectors</h2>
+          <h2 className="upgrade-title">בחירת סקטורים</h2>
           {selectedSectors.length > 0 && (
             <button className="sector-clear" onClick={() => setSelectedSectors([])}>
-              Clear all
+              ניקוי הבחירה
             </button>
           )}
         </div>
-        <div className="sector-modal-subhead">Scans top 5 holdings per sector</div>
+        <div className="sector-modal-subhead">סריקת חמש המניות המובילות בכל סקטור</div>
 
         <div className="sector-modal-grid">
           {allSectors.map((s, i) => {
@@ -62,22 +62,22 @@ export default function SectorPickerModal({
         </div>
 
         {selectedSectors.length === 0 && (
-          <div className="sector-hint">No sectors selected — will scan top 5 from all sectors</div>
+          <div className="sector-hint">לא נבחרו סקטורים — נסרוק את חמש המניות המובילות בכל סקטור</div>
         )}
         {!isElite && (
           <div className="sector-hint">
             {isPremium
-              ? 'Premium: up to ' + maxPremiumSectors + ' sectors. Elite has no limit.'
-              : 'Free tier: up to ' + maxFreeSectors + ' sectors. Upgrade to select more sectors.'}
+              ? 'ב־Premium ניתן לבחור עד ' + maxPremiumSectors + ' סקטורים. ב־Elite אין הגבלה.'
+              : 'במסלול החינמי ניתן לבחור עד ' + maxFreeSectors + ' סקטורים. ניתן לשדרג לבחירת סקטורים נוספים.'}
           </div>
         )}
         {!isElite && selectedSectors.length >= sectorLimit() && (
-          <div className="sector-limit-badge">{selectedSectors.length + '/' + sectorLimit() + ' sectors selected'}</div>
+          <div className="sector-limit-badge">{selectedSectors.length + '/' + sectorLimit() + ' סקטורים נבחרו'}</div>
         )}
 
         <div className="sector-modal-footer">
           <button className="upgrade-cta sector-modal-done" onClick={onDone}>
-            {selectedSectors.length > 0 ? 'Done — ' + selectedSectors.length + ' sectors selected' : 'Done'}
+            {selectedSectors.length > 0 ? 'סיום — ' + selectedSectors.length + ' סקטורים נבחרו' : 'סיום'}
           </button>
         </div>
       </div>

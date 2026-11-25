@@ -123,14 +123,14 @@ test('Capital Flow Radar push opens the exact notification snapshot', async (t) 
     )
     .get(user.id);
   assert.ok(notification);
-  assert.strictEqual(notification.title, 'Market Signal Detected');
-  assert.strictEqual(notification.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.strictEqual(notification.title, 'זוהה אות בשוק');
+  assert.strictEqual(notification.body, 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.');
   assert.match(notification.results_json, /"quoteStatus":"partial"/);
   assert.strictEqual(pushMock.mock.calls[0].arguments[1].data.url, '/scanner?notif=srv-' + notification.id);
-  assert.strictEqual(pushMock.mock.calls[0].arguments[1].title, 'Market Signal Detected');
+  assert.strictEqual(pushMock.mock.calls[0].arguments[1].title, 'זוהה אות בשוק');
   assert.strictEqual(
     pushMock.mock.calls[0].arguments[1].body,
-    'New market signal detected. Open Capital Flow to view it.'
+    'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.'
   );
 });
 

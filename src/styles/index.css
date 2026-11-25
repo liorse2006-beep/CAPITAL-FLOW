@@ -9924,8 +9924,8 @@ html.a11y-highlight-links a {
    Scanner and Watchlist) — terminal readout style. ── */
 .alert-modal {
   width: 340px;
-  direction: ltr;
-  text-align: left;
+  direction: rtl;
+  text-align: right;
 }
 .alert-modal-header {
   display: flex;
@@ -9960,23 +9960,23 @@ html.a11y-highlight-links a {
   color: var(--text-2);
   line-height: 1.6;
   margin: 0 0 14px;
-  direction: ltr;
-  text-align: left;
+  direction: rtl;
+  text-align: right;
 }
 .alert-modal-sublabel {
   display: block;
   font-size: 12px;
   color: var(--text-1);
   margin-bottom: 8px;
-  direction: ltr;
-  text-align: left;
+  direction: rtl;
+  text-align: right;
 }
 .alert-modal-current-price {
   font-size: 11.5px;
   color: var(--text-2);
   text-align: center;
   margin: -4px 0 14px;
-  direction: ltr;
+  direction: rtl;
   unicode-bidi: plaintext;
 }
 .alert-modal-back {
@@ -9989,8 +9989,8 @@ html.a11y-highlight-links a {
   padding: 0;
   margin-bottom: 12px;
   transition: color var(--transition);
-  direction: ltr;
-  text-align: left;
+  direction: rtl;
+  text-align: right;
 }
 .alert-modal-back:hover {
   color: var(--accent);
@@ -15915,4 +15915,12 @@ html.a11y-highlight-links a {
     line-height: 1.4;
     letter-spacing: 0;
   }
+}
+
+/* Hebrew app copy inside the left-to-right app grid: each text line takes
+   its direction from its own first letter, so Hebrew sentences read and
+   punctuate right-to-left while tickers, prices and English terms stay
+   left-to-right. Layout (flex/grid order) is unaffected. */
+#root :is(h1, h2, h3, h4, p, label, li, td, th, button, .toast, .error-bar-content > span):not(.cf-landing-page *) {
+  unicode-bidi: plaintext;
 }

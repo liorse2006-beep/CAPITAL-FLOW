@@ -26,9 +26,9 @@ export default function MoneyFlow({
   onEnablePush,
 }) {
   useSeo({
-    title: 'Market Activity by Sector | Capital Flow',
+    title: 'פעילות בסקטורים | Capital Flow',
     description:
-      'Review price and volume movement across market sectors with Capital Flow. Market data may be delayed or incomplete; verify information independently.',
+      'השוואת תנועות מחיר ונפח בין סקטורי השוק. הנתונים עשויים להיות מעוכבים או חלקיים; כדאי לאמת באופן עצמאי.',
     path: '/flow',
   });
   const { user, getToken } = useAuth();
@@ -136,7 +136,7 @@ export default function MoneyFlow({
     <div className="page-content">
       <div className="flow-header">
         <div>
-          <h2 className="flow-title">Hot Sectors</h2>
+          <h2 className="flow-title">פעילות בסקטורים</h2>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button className="scan-btn" onClick={fetchFlow} disabled={loading}>
@@ -145,9 +145,9 @@ export default function MoneyFlow({
                   React.Fragment,
                   null,
                   React.createElement('div', { className: 'spinner' }),
-                  ' Fetching...'
+                  ' טוענים...'
                 )
-              : 'Refresh sectors'}
+              : 'רענון סקטורים'}
           </button>
           <ScheduleScan
             scanType="sectorMoving"
@@ -193,7 +193,7 @@ export default function MoneyFlow({
           React.createElement(
             'div',
             { className: 'error-bar-actions' },
-            React.createElement('button', { className: 'error-retry-btn', onClick: fetchFlow }, 'Try again'),
+            React.createElement('button', { className: 'error-retry-btn', onClick: fetchFlow }, 'ניסיון נוסף'),
             React.createElement(
               'button',
               {
@@ -202,7 +202,7 @@ export default function MoneyFlow({
                   setError(null);
                 },
               },
-              'Close'
+              'סגירה'
             )
           )
         )}
@@ -226,29 +226,29 @@ export default function MoneyFlow({
               </div>
               {user ? (
                 <>
-                  <span className="empty-rich-kicker">Sector overview</span>
-                  <h3>See what&#39;s happening across sectors.</h3>
-                  <p>Refresh the data to see price and volume moves across major sectors.</p>
+                  <span className="empty-rich-kicker">תמונת מצב בסקטורים</span>
+                  <h3>רואים מה קורה בכל הסקטורים.</h3>
+                  <p>מרעננים את הנתונים ורואים את תנועות המחיר והנפח בסקטורים המרכזיים.</p>
                   <button className="empty-rich-cta" onClick={fetchFlow}>
-                    Refresh Flow <span aria-hidden="true">→</span>
+                    רענון נתונים <span aria-hidden="true">←</span>
                   </button>
                 </>
               ) : (
                 <>
-                  <span className="empty-rich-kicker">Market activity by sector</span>
-                  <h3>See what&#39;s happening across sectors.</h3>
-                  <p>Sign in to see price and volume moves across major sectors.</p>
+                  <span className="empty-rich-kicker">פעילות השוק לפי סקטור</span>
+                  <h3>רואים מה קורה בכל הסקטורים.</h3>
+                  <p>מתחברים ורואים את תנועות המחיר והנפח בסקטורים המרכזיים.</p>
                   <div className="empty-rich-pills">
-                    <span className="empty-rich-pill">All Sectors</span>
-                    <span className="empty-rich-pill">Market data</span>
+                    <span className="empty-rich-pill">כל הסקטורים</span>
+                    <span className="empty-rich-pill">נתוני שוק</span>
                   </div>
                   <button className="empty-rich-cta" onClick={onCreateAccount || onSignIn}>
-                    Create account <span aria-hidden="true">→</span>
+                    פתיחת חשבון <span aria-hidden="true">←</span>
                   </button>
                   <div className="empty-rich-signin">
-                    <span>Already have an account?</span>{' '}
+                    <span>כבר יש לך חשבון?</span>{' '}
                     <button type="button" onClick={onSignIn}>
-                      Sign in
+                      התחברות
                     </button>
                   </div>
                 </>
@@ -260,12 +260,12 @@ export default function MoneyFlow({
 
       {loading && (
         <ScanLoader
-          label="Market activity by sector"
+          label="פעילות השוק לפי סקטור"
           statusMessages={[
-            'Loading market data…',
-            'Checking price and volume changes…',
-            'Summarizing sector activity…',
-            'Preparing sector results…',
+            'טוענים נתוני שוק…',
+            'בודקים שינויי מחיר ונפח…',
+            'מסכמים את הפעילות בסקטורים…',
+            'מכינים את התוצאות…',
           ]}
         />
       )}
@@ -324,19 +324,18 @@ export default function MoneyFlow({
             <div className="table-card">
               <div className="table-bar">
                 <div>
-                  <h2>All Sectors</h2>
+                  <h2>כל הסקטורים</h2>
                   <span className="table-bar-sub">
-                    {inflows.length} Positive activity · {outflows.length} Negative activity · {neutrals.length} No
-                    notable change
+                    {inflows.length} פעילות חיובית · {outflows.length} פעילות שלילית · {neutrals.length} ללא שינוי בולט
                   </span>
                 </div>
                 <div className="table-bar-right">
-                  <span className="table-bar-count">{flowData.length} Sectors</span>
+                  <span className="table-bar-count">{flowData.length} סקטורים</span>
                   {user && sorted.length > 0 && (
                     <ShareScanResults
                       report={{
                         type: 'sectorMoving',
-                        title: 'Hot Sectors scan results',
+                        title: 'תוצאות פעילות בסקטורים',
                         rows: sorted,
                         dataStatus: flowDataStatus,
                         ...flowTimestamps,
@@ -347,12 +346,12 @@ export default function MoneyFlow({
               </div>
               <MobileResultSort
                 options={[
-                  { value: 'symbol', label: 'Ticker' },
-                  { value: 'sector', label: 'Sector' },
-                  { value: 'price', label: 'Price' },
-                  { value: 'change', label: 'Change' },
-                  { value: 'volRatio', label: 'Volume ratio' },
-                  { value: 'flow', label: 'Activity' },
+                  { value: 'symbol', label: 'סימול' },
+                  { value: 'sector', label: 'סקטור' },
+                  { value: 'price', label: 'מחיר' },
+                  { value: 'change', label: 'שינוי' },
+                  { value: 'volRatio', label: 'יחס נפח' },
+                  { value: 'flow', label: 'פעילות' },
                 ]}
                 value={flowSort}
                 direction={flowSortDir}
@@ -363,13 +362,13 @@ export default function MoneyFlow({
                   <thead>
                     <tr>
                       <th style={{ width: 36 }}>#</th>
-                      <FTH label="Ticker" field="symbol" />
-                      <FTH label="Sector" field="sector" />
-                      <FTH label="Price" field="price" />
-                      <FTH label="Change (%)" field="change" />
-                      <FTH label="Volume ratio" field="volRatio" />
-                      <th>Volume</th>
-                      <FTH label="Activity" field="flow" />
+                      <FTH label="סימול" field="symbol" />
+                      <FTH label="סקטור" field="sector" />
+                      <FTH label="מחיר" field="price" />
+                      <FTH label="שינוי (%)" field="change" />
+                      <FTH label="יחס נפח" field="volRatio" />
+                      <th>נפח</th>
+                      <FTH label="פעילות" field="flow" />
                       <th style={{ width: 120 }}></th>
                     </tr>
                   </thead>
@@ -447,8 +446,8 @@ export default function MoneyFlow({
                                   href: 'https://www.tradingview.com/chart/?symbol=' + d.symbol,
                                   target: '_blank',
                                   rel: 'noopener noreferrer',
-                                  title: 'Open in TradingView',
-                                  'aria-label': 'Open in TradingView',
+                                  title: 'פתיחה ב-TradingView',
+                                  'aria-label': 'פתיחה ב-TradingView',
                                 },
                                 React.createElement(
                                   'svg',
@@ -474,8 +473,8 @@ export default function MoneyFlow({
                                   onClick: () => promptCreateAlert(d.symbol),
                                   title:
                                     alertLevels && alertLevels[d.symbol]
-                                      ? 'Alert set at ' + alertLevels[d.symbol] + 'x — click to edit'
-                                      : 'Create volume alert',
+                                      ? 'התראה מוגדרת ב-' + alertLevels[d.symbol] + 'x — לחיצה לעריכה'
+                                      : 'יצירת התראת נפח',
                                 },
                                 React.createElement(
                                   'svg',
@@ -508,7 +507,7 @@ export default function MoneyFlow({
                               React.createElement(
                                 'div',
                                 { className: 'holdings-inline' },
-                                React.createElement('span', { className: 'holdings-title' }, 'Top holdings'),
+                                React.createElement('span', { className: 'holdings-title' }, 'האחזקות הגדולות'),
                                 React.createElement(
                                   'div',
                                   { className: 'holdings-chips' },
@@ -550,8 +549,8 @@ export default function MoneyFlow({
                             href={'https://www.tradingview.com/chart/?symbol=' + d.symbol}
                             target="_blank"
                             rel="noopener noreferrer"
-                            title="Open in TradingView"
-                            aria-label={'Open ' + d.symbol + ' on TradingView'}
+                            title="פתיחה ב-TradingView"
+                            aria-label={'פתיחת ' + d.symbol + ' ב-TradingView'}
                           >
                             <svg
                               viewBox="0 0 24 24"
@@ -572,10 +571,10 @@ export default function MoneyFlow({
                             onClick={() => promptCreateAlert(d.symbol)}
                             title={
                               alertLevels && alertLevels[d.symbol]
-                                ? 'Alert set at ' + alertLevels[d.symbol] + 'x — click to edit'
-                                : 'Create volume alert'
+                                ? 'התראה מוגדרת ב-' + alertLevels[d.symbol] + 'x — לחיצה לעריכה'
+                                : 'יצירת התראת נפח'
                             }
-                            aria-label={'Create volume alert for ' + d.symbol}
+                            aria-label={'יצירת התראת נפח ל-' + d.symbol}
                           >
                             <svg
                               viewBox="0 0 24 24"
@@ -595,13 +594,13 @@ export default function MoneyFlow({
                       </div>
                       <div className="mobile-result-card-quote">
                         <div className="mobile-result-card-quote-item">
-                          <span className="mobile-result-card-label">Price</span>
+                          <span className="mobile-result-card-label">מחיר</span>
                           <span className="mobile-card-price">
                             <bdi dir="ltr">{formatPrice(d.price)}</bdi>
                           </span>
                         </div>
                         <div className="mobile-result-card-quote-item mobile-result-card-quote-item-end">
-                          <span className="mobile-result-card-label">Change</span>
+                          <span className="mobile-result-card-label">שינוי</span>
                           <span
                             className={'mobile-card-change ' + (d.change == null ? '' : d.change >= 0 ? 'pos' : 'neg')}
                           >
@@ -611,7 +610,7 @@ export default function MoneyFlow({
                       </div>
                       <div className="mobile-result-card-grid">
                         <div className="mobile-result-card-stat">
-                          <span className="mobile-result-card-label">Volume ratio</span>
+                          <span className="mobile-result-card-label">יחס נפח</span>
                           <span
                             className={
                               'ratio-pill ' +
@@ -628,17 +627,17 @@ export default function MoneyFlow({
                           </span>
                         </div>
                         <div className="mobile-result-card-stat">
-                          <span className="mobile-result-card-label">VOL</span>
+                          <span className="mobile-result-card-label">נפח</span>
                           <span className="mobile-result-card-value">
                             <bdi dir="ltr">{fmt(d.volume)}</bdi>
                           </span>
                         </div>
                         <div className="mobile-result-card-stat">
-                          <span className="mobile-result-card-label">Activity</span>
+                          <span className="mobile-result-card-label">פעילות</span>
                           <span className={'flow-badge ' + d.flow}>{flowLabel(d.flow)}</span>
                         </div>
                         <div className="mobile-result-card-stat mobile-result-card-stat-wide">
-                          <span className="mobile-result-card-label">Sector</span>
+                          <span className="mobile-result-card-label">סקטור</span>
                           <span className="mobile-result-card-sector-name">
                             {sectorName(d.sector) || (etf && etf.name) || d.symbol}
                           </span>
@@ -651,11 +650,11 @@ export default function MoneyFlow({
                             onClick={() => setExpandedETF(open ? null : d.symbol)}
                             aria-expanded={open}
                           >
-                            {open ? 'Hide top holdings' : 'Show top holdings'}
+                            {open ? 'הסתרת האחזקות הגדולות' : 'הצגת האחזקות הגדולות'}
                             <span aria-hidden="true">{open ? '−' : '+'}</span>
                           </button>
                           {open && (
-                            <div className="flow-mobile-holdings" aria-label="Top holdings">
+                            <div className="flow-mobile-holdings" aria-label="האחזקות הגדולות">
                               {etf.holdings.map(function (h) {
                                 return (
                                   <div key={h.sym} className="flow-mobile-holding">

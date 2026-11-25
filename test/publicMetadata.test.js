@@ -35,16 +35,15 @@ test('Docker runtime image includes the route content required by server-side re
 
 test('server-rendered route metadata replaces the SPA defaults without trusting the URL as content', () => {
   const rendered = renderPublicMetadata(SHELL, '/fundamentals');
-  assert.match(rendered, /<title>Fundamental Stock Analysis \| Capital Flow<\/title>/);
-  assert.match(rendered, /name="description" content="Review available P\/E/);
+  assert.match(rendered, /<title>נתונים פיננסיים למניות \| Capital Flow<\/title>/);
+  assert.match(rendered, /name="description" content="מכפיל רווח/);
   assert.match(rendered, /property="og:url" content="https:\/\/capitalflow\.vip\/fundamentals"/);
   assert.match(rendered, /rel="canonical" href="https:\/\/capitalflow\.vip\/fundamentals"/);
-  assert.doesNotMatch(rendered, /seo-route-content|Stock Fundamentals Research/);
-  assert.match(rendered, /hreflang="en" href="https:\/\/capitalflow\.vip\/fundamentals"/);
+  assert.doesNotMatch(rendered, /seo-route-content/);
+  assert.match(rendered, /hreflang="he" href="https:\/\/capitalflow\.vip\/fundamentals"/);
   assert.match(rendered, /hreflang="x-default" href="https:\/\/capitalflow\.vip\/fundamentals"/);
-  assert.match(rendered, /property="og:locale" content="en_US"/);
-  assert.doesNotMatch(rendered, /hreflang="he"/);
-  assert.match(rendered, /<html[^>]*lang="en"[^>]*dir="ltr"/);
+  assert.doesNotMatch(rendered, /hreflang="en"/);
+  assert.match(rendered, /<html[^>]*lang="he"[^>]*dir="ltr"/);
   assert.equal(renderPublicMetadata(SHELL, '/not-a-route'), SHELL);
 });
 
@@ -74,13 +73,13 @@ test('scanner metadata describes available screening tools without claiming live
   const movingAverage = getPublicMetadata('/ma');
   const sectorFlow = getPublicMetadata('/flow');
 
-  assert.match(scanner.title, /Unusual Volume Stock Scanner/);
-  assert.match(scanner.description, /may be delayed or incomplete/);
-  assert.doesNotMatch(scanner.description, /real[- ]time|entire market|breakout potential/i);
-  assert.match(movingAverage.title, /Moving Average Stock Scanner/);
-  assert.match(movingAverage.description, /9, 20, 50 and 150/);
-  assert.match(sectorFlow.title, /Stock Sector Performance/);
-  assert.match(sectorFlow.description, /may be delayed or incomplete/);
+  assert.match(scanner.title, /סורק נפח מסחר חריג/);
+  assert.match(scanner.description, /עשויים להיות מעוכבים/);
+  assert.doesNotMatch(scanner.description, /זמן אמת|כל השוק/);
+  assert.match(movingAverage.title, /סורק ממוצעים נעים/);
+  assert.match(movingAverage.description, /9, 20, 50 או 150/);
+  assert.match(sectorFlow.title, /פעילות בסקטורים/);
+  assert.match(sectorFlow.description, /עשויים להיות מעוכבים/);
 });
 
 test('the home page ships its full Hebrew copy, FAQ and links in the initial HTML', () => {

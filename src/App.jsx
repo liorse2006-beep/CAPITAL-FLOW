@@ -103,7 +103,14 @@ function App() {
     [location.pathname]
   );
   const [results, setResults] = useState(null);
-  const { running: scanning, progress, liveResults, error, start, dismissError } = useResumableScan({
+  const {
+    running: scanning,
+    progress,
+    liveResults,
+    error,
+    start,
+    dismissError,
+  } = useResumableScan({
     ownerId: user?.id,
     getToken,
     progressPath: '/api/progress',
@@ -153,8 +160,8 @@ function App() {
       if (prev.length >= limit) {
         showToast(
           isPremium
-            ? 'Premium lets you scan up to ' + MAX_PREMIUM_SECTORS + ' sectors at a time. Elite has no limit.'
-            : 'Free lets you scan up to ' + MAX_FREE_SECTORS + ' sectors at a time. Upgrade to select more sectors.'
+            ? 'ב-Premium אפשר לסרוק עד ' + MAX_PREMIUM_SECTORS + ' סקטורים בכל פעם. ב-Elite אין הגבלה.'
+            : 'במסלול החינמי אפשר לסרוק עד ' + MAX_FREE_SECTORS + ' סקטורים בכל פעם. אפשר לשדרג כדי לבחור עוד.'
         );
         return prev;
       }
@@ -541,7 +548,7 @@ function App() {
       const data = await response.json().catch(function () {
         return {};
       });
-      if (!response.ok) throw new Error(data.error || 'Could not save alert');
+      if (!response.ok) throw new Error(data.error || 'לא הצלחנו לשמור את ההתראה');
 
       // Store only the server-confirmed representation. In particular, never
       // let the local polling path use a client-side startingSide that was
@@ -557,7 +564,7 @@ function App() {
       } else if (data.type === 'volume' && Number.isFinite(Number(data.minRatio)) && Number(data.minRatio) > 0) {
         savedAlert = { type: 'volume', minRatio: Number(data.minRatio) };
       } else {
-        throw new Error('The alert could not be verified. Please try again.');
+        throw new Error('לא הצלחנו לאמת את ההתראה. אפשר לנסות שוב.');
       }
       setAlertLevels(function (prev) {
         const updated = Object.assign({}, prev, { [symbol]: savedAlert });
@@ -566,7 +573,7 @@ function App() {
       });
       return true;
     } catch (error) {
-      showToast("We couldn't save your alert. Please try again.");
+      showToast('לא הצלחנו לשמור את ההתראה. אפשר לנסות שוב.');
       return false;
     }
   }
@@ -581,11 +588,11 @@ function App() {
       const data = await response.json().catch(function () {
         return {};
       });
-      if (!response.ok) throw new Error(data.error || 'Could not remove alert');
+      if (!response.ok) throw new Error(data.error || 'לא הצלחנו להסיר את ההתראה');
       clearAlertLevelLocal(symbol);
       return true;
     } catch (error) {
-      showToast("We couldn't remove your alert. Please try again.");
+      showToast('לא הצלחנו להסיר את ההתראה. אפשר לנסות שוב.');
       return false;
     }
   }
@@ -698,7 +705,7 @@ function App() {
         var wasGoogleAuth = sessionStorage.getItem('google_auth_pending');
         if (wasGoogleAuth) {
           sessionStorage.removeItem('google_auth_pending');
-          showToast('Signed in as ' + user.email);
+          showToast('התחברת בתור ' + user.email);
         }
       }
       prevUserRef.current = user;
@@ -712,10 +719,10 @@ function App() {
   useEffect(
     function () {
       if (authError === 'session_replaced') {
-        showToast('Your account was signed in on another device. Please sign in again.');
+        showToast('החשבון שלך התחבר במכשיר אחר. יש להתחבר שוב.');
         clearAuthError();
       } else if (authError) {
-        showToast('Google sign-in was unsuccessful. Please try again.');
+        showToast('ההתחברות עם Google לא הצליחה. אפשר לנסות שוב.');
         clearAuthError();
       }
     },
@@ -776,7 +783,7 @@ function App() {
         // this browser. Otherwise a later, unrelated success callback could
         // open the wrong welcome screen.
         localStorage.removeItem('vs_pending_tier');
-        showToast('Checkout was not completed. Please try again.');
+        showToast('התשלום לא הושלם. אפשר לנסות שוב.');
         return;
       }
       if (handledStatusRef.current) return;
@@ -790,7 +797,7 @@ function App() {
         // checkout was completed in another tab. Refresh once, but do not
         // start a long tier-specific polling loop when there is no tier to
         // verify.
-        showToast('Payment received. Updating your access…');
+        showToast('התשלום התקבל. מעדכנים את הגישה שלך…');
         refreshUser().catch(() => {});
         return;
       }
@@ -1419,10 +1426,11 @@ function App() {
           <footer className="site-footer">
             <div className="site-footer-col">
               <button className="site-footer-link" onClick={() => setPage('policy')}>
-                Privacy Policy
+                תנאי שימוש ופרטיות
               </button>
               <p className="site-footer-disclaimer">
-                Info & Education Only. Not intended as investment advice. Market data may be delayed or estimated.
+                התוכן לצורכי לימוד בלבד ואינו המלצה לפעולה. הנתונים עשויים להיות מעוכבים או לא מדויקים, ואין התחייבות
+                לנכונותם.
               </p>
             </div>
           </footer>
@@ -1478,7 +1486,7 @@ function App() {
           <button
             className="live-alert-close"
             type="button"
-            aria-label="Dismiss notification"
+            aria-label="סגירת ההתראה"
             onClick={() => setLiveAlert(null)}
           >
             ✕

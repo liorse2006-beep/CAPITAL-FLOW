@@ -19,7 +19,7 @@ export default function ShareScanResults({ report }) {
       if (preparation.current === request && dialog.current?.open) setFile(createScanResultsPdf(report));
     } catch {
       if (preparation.current === request && dialog.current?.open)
-        setError("Couldn't prepare your PDF. Close and try again.");
+        setError('לא הצלחנו להכין את קובץ ה-PDF. אפשר לסגור ולנסות שוב.');
     }
   }
 
@@ -39,8 +39,7 @@ export default function ShareScanResults({ report }) {
     try {
       await navigator.share({ files: [file] });
     } catch (reason) {
-      if (reason.name !== 'AbortError')
-        setError("Couldn't share the file from this device. You can save the PDF below.");
+      if (reason.name !== 'AbortError') setError('לא הצלחנו לשתף את הקובץ מהמכשיר הזה. אפשר לשמור את ה-PDF למטה.');
     }
   }
 
@@ -65,7 +64,7 @@ export default function ShareScanResults({ report }) {
         >
           <path d="M12 15V3m-4 4 4-4 4 4M7 11H5v9h14v-9h-2" />
         </svg>
-        <span>Share Results</span>
+        <span>שיתוף תוצאות</span>
       </button>
       <dialog
         ref={dialog}
@@ -76,9 +75,9 @@ export default function ShareScanResults({ report }) {
         }}
       >
         <div className="share-results-heading">
-          <h2 id={headingId}>Share results</h2>
+          <h2 id={headingId}>שיתוף תוצאות</h2>
           <form method="dialog">
-            <button type="submit" aria-label="Close share dialog">
+            <button type="submit" aria-label="סגירת חלון השיתוף">
               ×
             </button>
           </form>
@@ -86,21 +85,21 @@ export default function ShareScanResults({ report }) {
         <p>
           {file
             ? canShare
-              ? 'Choose an app from your device’s share menu, or save the PDF.'
-              : 'Save the PDF to attach it from an app that accepts PDF files.'
+              ? 'בוחרים אפליקציה מתפריט השיתוף של המכשיר, או שומרים את ה-PDF.'
+              : 'שומרים את ה-PDF ומצרפים אותו מאפליקציה שמקבלת קבצי PDF.'
             : error
               ? null
-              : 'Preparing your PDF…'}
+              : 'מכינים את קובץ ה-PDF…'}
         </p>
         {error && <p role="alert">{error}</p>}
         <div className="share-results-actions">
           {canShare && (
             <button type="button" className="scan-btn" onClick={share}>
-              Share PDF
+              שיתוף PDF
             </button>
           )}
           <button type="button" className="share-results-trigger" disabled={!file} onClick={download}>
-            Save PDF
+            שמירת PDF
           </button>
         </div>
       </dialog>

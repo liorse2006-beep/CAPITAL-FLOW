@@ -97,17 +97,17 @@ describe('useSeo', () => {
       expect(document.getElementById('root')).not.toBeNull();
     }
   );
-  it('uses English locale and alternates for the application without inventing a Hebrew app route', () => {
+  it('uses the Hebrew locale and alternates for the application', () => {
     const { unmount } = renderHook(() => useSeo({ title: 'Scanner', path: '/scanner' }));
-    expect(document.querySelector('meta[property="og:locale"]')).toHaveAttribute('content', 'en_US');
+    expect(document.querySelector('meta[property="og:locale"]')).toHaveAttribute('content', 'he_IL');
     expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'index, follow');
-    for (const language of ['en', 'x-default']) {
+    for (const language of ['he', 'x-default']) {
       expect(document.querySelector(`link[rel="alternate"][hreflang="${language}"]`)).toHaveAttribute(
         'href',
         'https://capitalflow.vip/scanner'
       );
     }
-    expect(document.querySelector('link[hreflang="he"]')).toBeNull();
+    expect(document.querySelector('link[hreflang="en"]')).toBeNull();
     unmount();
     expect(document.querySelector('meta[property="og:locale"]')).toBeNull();
     expect(document.querySelector('meta[name="robots"]')).toBeNull();

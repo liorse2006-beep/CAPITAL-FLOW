@@ -138,11 +138,11 @@ export default function AlertThresholdModal({
     setValue(String(v));
   }
 
-  let buttonLabel = current ? 'Update alert' : 'Set alert';
+  let buttonLabel = current ? 'עדכן התראה' : 'קבע התראה';
   let buttonDisabled = false;
   if (trimmed === '') {
     if (editingSameType) {
-      buttonLabel = submitting ? 'Removing…' : 'Remove alert';
+      buttonLabel = submitting ? 'מסיר…' : 'הסר התראה';
     } else {
       buttonDisabled = true;
     }
@@ -150,7 +150,7 @@ export default function AlertThresholdModal({
     buttonDisabled = true;
   }
   if (submitting) {
-    buttonLabel = trimmed === '' ? 'Removing…' : 'Saving…';
+    buttonLabel = trimmed === '' ? 'מסיר…' : 'שומר…';
     buttonDisabled = true;
   }
 
@@ -167,65 +167,65 @@ export default function AlertThresholdModal({
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        lang="en"
-        dir="ltr"
-        aria-label={'Alert for ' + symbol}
+        lang="he"
+        dir="rtl"
+        aria-label={'התראה עבור ' + symbol}
       >
-        <button className="upgrade-close" onClick={onClose} aria-label="Dismiss notification">
+        <button className="upgrade-close" onClick={onClose} aria-label="סגירת ההתראה">
           ×
         </button>
 
         <div className="alert-modal-header">
           <span className="alert-modal-dot" />
           <h2 className="alert-modal-title">
-            Alert · <bdi dir="ltr">{symbol}</bdi>
+            התראה · <bdi dir="ltr">{symbol}</bdi>
           </h2>
         </div>
 
         {step === 'type' ? (
           <>
-            <p className="alert-modal-desc">What would you like to track?</p>
+            <p className="alert-modal-desc">איזו התראה תרצה להגדיר?</p>
             <div className="alert-type-grid">
               <button type="button" className="alert-type-card" onClick={() => chooseType('volume')}>
                 <span className="alert-type-icon">
                   <VolumeIcon />
                 </span>
-                <span className="alert-type-name">VOL</span>
-                <span className="alert-type-desc">Volume above its average</span>
+                <span className="alert-type-name">נפח</span>
+                <span className="alert-type-desc">חריגת נפח ביחס לממוצע</span>
               </button>
               <button type="button" className="alert-type-card" onClick={() => chooseType('price')}>
                 <span className="alert-type-icon">
                   <PriceIcon />
                 </span>
-                <span className="alert-type-name">Price</span>
-                <span className="alert-type-desc">Price crossing a target</span>
+                <span className="alert-type-name">מחיר</span>
+                <span className="alert-type-desc">חציית מחיר יעד</span>
               </button>
             </div>
           </>
         ) : (
           <form onSubmit={submit}>
             <button type="button" className="alert-modal-back" onClick={() => setStep('type')}>
-              Back to alert types
+              חזרה לבחירת סוג ההתראה
             </button>
 
             {step === 'volume' ? (
               <>
                 <p className="alert-modal-desc">
-                  Notify me when the volume of{' '}
+                  שלחו לי התראה כאשר נפח המסחר של{' '}
                   <bdi className="alert-symbol" dir="ltr">
                     {symbol}
                   </bdi>{' '}
-                  exceeds the<bdi dir="ltr">RVOL</bdi> threshold I set.
+                  יעבור את סף ה־<bdi dir="ltr">RVOL</bdi> שאקבע.
                 </p>
 
                 <div className="alert-readout">
                   <div className="alert-readout-val" dir="ltr">
                     {(trimmed === '' ? '—' : parseFloat(trimmed) || '—') + '×'}
                   </div>
-                  <div className="alert-readout-lbl">RVOL THRESHOLD</div>
+                  <div className="alert-readout-lbl">סף נפח יחסי</div>
                 </div>
 
-                <p className="alert-modal-sublabel">Choose a quick threshold</p>
+                <p className="alert-modal-sublabel">בחרו סף מהיר</p>
                 <div className="alert-preset-row">
                   {PRESETS.map((v) => (
                     <button
@@ -240,7 +240,7 @@ export default function AlertThresholdModal({
                 </div>
 
                 <label className="alert-modal-sublabel" htmlFor="alert-threshold-input">
-                  Or enter a value
+                  או הזינו ערך ידנית
                 </label>
                 <div className="alert-input-wrap" dir="ltr">
                   <input
@@ -249,7 +249,7 @@ export default function AlertThresholdModal({
                     type="number"
                     step="0.5"
                     min="0.5"
-                    placeholder="e.g. 3"
+                    placeholder="לדוגמה: 3"
                     dir="ltr"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
@@ -263,28 +263,28 @@ export default function AlertThresholdModal({
             ) : (
               <>
                 <p className="alert-modal-desc">
-                  Notify me when the price of{' '}
+                  שלחו לי התראה כאשר המחיר של{' '}
                   <bdi className="alert-symbol" dir="ltr">
                     {symbol}
                   </bdi>{' '}
-                  crosses my target price.
+                  יחצה את מחיר היעד שאקבע.
                 </p>
 
                 <div className="alert-readout">
                   <div className="alert-readout-val" dir="ltr">
                     {trimmed === '' ? '—' : '$' + (parseFloat(trimmed) || '—')}
                   </div>
-                  <div className="alert-readout-lbl">Target price</div>
+                  <div className="alert-readout-lbl">מחיר יעד</div>
                 </div>
 
                 {formatPrice(currentPrice) !== '—' && (
                   <p className="alert-modal-current-price">
-                    <span>Current price:</span> <bdi dir="ltr">{formatPrice(currentPrice)}</bdi>
+                    <span>מחיר נוכחי:</span> <bdi dir="ltr">{formatPrice(currentPrice)}</bdi>
                   </p>
                 )}
 
                 <label className="alert-modal-sublabel" htmlFor="alert-price-input">
-                  Target price
+                  מחיר יעד
                 </label>
                 <div className="alert-input-wrap" dir="ltr">
                   <input
@@ -293,7 +293,7 @@ export default function AlertThresholdModal({
                     type="number"
                     step="0.01"
                     min="0.01"
-                    placeholder="e.g. 185.00"
+                    placeholder="לדוגמה: 185.00"
                     dir="ltr"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
@@ -321,13 +321,13 @@ export default function AlertThresholdModal({
             onEnable={enablePushAndSaveAlert}
             onContinue={saveWithoutPush}
             onCancel={() => setPendingAlert(null)}
-            title="Notifications aren't enabled"
-            supportedDescription="Enable push notifications to receive alerts when the app is closed? Otherwise, your alert will be saved and shown in the app."
-            unsupportedDescription="Push isn't available in this browser. On iPhone, add Capital Flow to your Home Screen, open its icon and allow notifications."
-            enableLabel="Yes, enable notifications"
-            continueLabel="Continue without push"
-            cancelLabel="Back"
-            dir="ltr"
+            title="ההתראות אינן מופעלות"
+            supportedDescription="כדי לקבל את ההתראה גם כשהאפליקציה סגורה, האם להפעיל עכשיו התראות Push? אם לא, ההתראה תישמר ותופיע בתוך האפליקציה."
+            unsupportedDescription="התראות Push אינן זמינות בדפדפן הזה. באייפון: הוסיפו את Capital Flow למסך הבית, פתחו מהאייקון ואשרו התראות."
+            enableLabel="כן, הפעילו התראות"
+            continueLabel="המשך בלי Push"
+            cancelLabel="חזרה"
+            dir="rtl"
           />
         )}
       </div>

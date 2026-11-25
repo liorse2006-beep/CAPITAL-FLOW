@@ -26,16 +26,16 @@ describe('ScheduledScanResultsModal', () => {
           onClose={vi.fn()}
         />
       );
-      expect(screen.getByRole('dialog', { name: 'Hot Sectors results' })).toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: 'פעילות בסקטורים — תוצאות' })).toBeInTheDocument();
       expect(screen.getByText('Technology')).toBeInTheDocument();
       expect(screen.getByText('Energy')).toBeInTheDocument();
-      expect(screen.getByText('Positive activity')).toBeInTheDocument();
-      expect(screen.getByText('Negative activity')).toBeInTheDocument();
+      expect(screen.getByText('פעילות חיובית')).toBeInTheDocument();
+      expect(screen.getByText('פעילות שלילית')).toBeInTheDocument();
       expect(screen.getByText('$42.00')).toBeInTheDocument();
       expect(screen.getByText('1.80x')).toBeInTheDocument();
       expect(screen.getByText('2.10x')).toBeInTheDocument();
-      expect(screen.queryByText('Market cap')).not.toBeInTheDocument();
-      expect(screen.getByText('New market signal detected. Open Capital Flow to view it.')).toBeInTheDocument();
+      expect(screen.queryByText('שווי שוק')).not.toBeInTheDocument();
+      expect(screen.getByText('זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.')).toBeInTheDocument();
       expect(fetchSpy).not.toHaveBeenCalled();
     } finally {
       fetchSpy.mockRestore();
@@ -61,7 +61,7 @@ describe('ScheduledScanResultsModal', () => {
     expect(screen.queryByText('$42.00')).not.toBeInTheDocument();
     expect(screen.queryByText('Energy')).not.toBeInTheDocument();
     expect(screen.getByText('$51.00')).toBeInTheDocument();
-    expect(screen.getByText('No notable change')).toBeInTheDocument();
+    expect(screen.getByText('ללא שינוי בולט')).toBeInTheDocument();
   });
 
   it('does not mislabel old stock-only alerts as sector results or silently fetch a new scan', () => {
@@ -75,8 +75,11 @@ describe('ScheduledScanResultsModal', () => {
       />
     );
     expect(screen.queryByText('CZR')).not.toBeInTheDocument();
-    expect(screen.getByText("This older alert doesn't include a saved sector scan.")).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Hot Sectors to run a new scan' })).toHaveAttribute('href', '/flow');
+    expect(screen.getByText('ההתראה הישנה הזו לא כוללת סריקת סקטורים שמורה.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'לפתיחת פעילות בסקטורים והרצת סריקה חדשה' })).toHaveAttribute(
+      'href',
+      '/flow'
+    );
   });
 
   it('keeps an empty sector run empty and preserves the MA-specific result display', () => {
@@ -86,7 +89,7 @@ describe('ScheduledScanResultsModal', () => {
         onClose={vi.fn()}
       />
     );
-    expect(screen.getAllByText("We couldn't verify a market signal this time.")).toHaveLength(2);
+    expect(screen.getAllByText('הפעם לא הצלחנו לאמת אות בשוק.')).toHaveLength(2);
     view.rerender(
       <ScheduledScanResultsModal
         notification={{
@@ -96,8 +99,8 @@ describe('ScheduledScanResultsModal', () => {
         onClose={vi.fn()}
       />
     );
-    expect(screen.getByText('+1.20% from MA')).toBeInTheDocument();
-    expect(screen.getByText('Market cap')).toBeInTheDocument();
+    expect(screen.getByText('+1.20% מהממוצע')).toBeInTheDocument();
+    expect(screen.getByText('שווי שוק')).toBeInTheDocument();
   });
 
   it('closes on Escape using the current close handler', () => {
@@ -128,8 +131,8 @@ describe('ScheduledScanResultsModal', () => {
         />
       );
       const dialog = screen.getByRole('dialog');
-      const share = screen.getByRole('button', { name: 'Share Results' });
-      const lastLink = screen.getByRole('link', { name: 'Open ONE on TradingView' });
+      const share = screen.getByRole('button', { name: 'שיתוף תוצאות' });
+      const lastLink = screen.getByRole('link', { name: 'פתיחת ONE ב-TradingView' });
       expect(dialog).toContainElement(share);
       expect(share).toHaveFocus();
       expect(document.body.style.overflow).toBe('hidden');
@@ -219,7 +222,7 @@ describe('ScheduledScanResultsModal', () => {
       <ScheduledScanResultsModal
         notification={{
           ...notificationWithResults([{ symbol: 'ONE', price: 12, maDistance: null }]),
-          body: "We couldn't verify a market signal this time.",
+          body: 'הפעם לא הצלחנו לאמת אות בשוק.',
           dataStatus: 'partial',
           dataAsOf: new Date(Date.now() - 30000).toISOString(),
         }}
@@ -227,11 +230,11 @@ describe('ScheduledScanResultsModal', () => {
       />
     );
     expect(screen.getByText('ONE')).toBeInTheDocument();
-    expect(screen.getByText('New market signal detected. Open Capital Flow to view it.')).toBeInTheDocument();
-    expect(screen.getByText('Showing available results. Some market data was unavailable.')).toBeInTheDocument();
-    expect(screen.getByText(/Market data as of/)).toBeInTheDocument();
+    expect(screen.getByText('זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.')).toBeInTheDocument();
+    expect(screen.getByText('מוצגות התוצאות הזמינות. חלק מנתוני השוק לא היו זמינים.')).toBeInTheDocument();
+    expect(screen.getByText(/נתוני שוק נכון ל-/)).toBeInTheDocument();
     expect(screen.queryByText(/couldn't verify/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/% from MA/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/% מהממוצע/)).not.toBeInTheDocument();
   });
 
   it.each([null, '', 'invalid', new Date(Date.now() + 300000).toISOString()])(
@@ -247,8 +250,8 @@ describe('ScheduledScanResultsModal', () => {
           onClose={vi.fn()}
         />
       );
-      expect(screen.getByText('Market data time is unavailable.')).toBeInTheDocument();
-      expect(screen.queryByText(/% from MA/)).not.toBeInTheDocument();
+      expect(screen.getByText('זמן נתוני השוק אינו זמין.')).toBeInTheDocument();
+      expect(screen.queryByText(/% מהממוצע/)).not.toBeInTheDocument();
     }
   );
 
@@ -259,7 +262,7 @@ describe('ScheduledScanResultsModal', () => {
         onClose={vi.fn()}
       />
     );
-    expect(screen.getAllByText("We couldn't verify a market signal this time.")).toHaveLength(2);
+    expect(screen.getAllByText('הפעם לא הצלחנו לאמת אות בשוק.')).toHaveLength(2);
     expect(screen.queryByText(/New market signal/)).not.toBeInTheDocument();
   });
 });

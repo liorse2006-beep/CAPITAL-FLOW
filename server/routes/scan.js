@@ -89,7 +89,10 @@ function joinSharedScan(universeKey, tickers, state, opts) {
           });
         },
       })
-      .then(async (raw) => ({ raw, snapshot: universeKey === 'all' ? await recordFullMarketScan(raw, startedAt) : null }))
+      .then(async (raw) => ({
+        raw,
+        snapshot: universeKey === 'all' ? await recordFullMarketScan(raw, startedAt) : null,
+      }))
       .finally(() => inFlightScans.delete(universeKey));
     inFlightScans.set(universeKey, entry);
   }

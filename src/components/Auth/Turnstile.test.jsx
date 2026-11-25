@@ -31,8 +31,8 @@ describe('verification lifecycle', () => {
     const firstScript = document.getElementById('cf-turnstile-script');
     expect(firstScript.src).toContain('?render=explicit');
     fireEvent.error(firstScript);
-    expect(screen.getByRole('alert')).toHaveTextContent('could not connect');
-    fireEvent.click(screen.getByRole('button', { name: 'Retry verification' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('לא הצליח להתחבר');
+    fireEvent.click(screen.getByRole('button', { name: 'ניסיון אימות נוסף' }));
     const replacement = document.getElementById('cf-turnstile-script');
     expect(replacement).not.toBe(firstScript);
     const turnstile = sdk();
@@ -48,7 +48,7 @@ describe('verification lifecycle', () => {
     document.head.appendChild(script);
     render(<Turnstile siteKey={siteKey} onVerify={vi.fn()} onExpire={vi.fn()} />);
     act(() => vi.advanceTimersByTime(TURNSTILE_LOAD_TIMEOUT_MS));
-    expect(screen.getByRole('alert')).toHaveTextContent('could not connect');
+    expect(screen.getByRole('alert')).toHaveTextContent('לא הצליח להתחבר');
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -60,7 +60,7 @@ describe('verification lifecycle', () => {
     act(() => options['expired-callback']());
     rerender(<Turnstile siteKey={siteKey} onVerify={vi.fn()} onExpire={onExpire} />);
     expect(turnstile.render).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('alert')).toHaveTextContent('expired');
+    expect(screen.getByRole('alert')).toHaveTextContent('תוקף האימות פג');
     act(() => options.callback('refreshed-token'));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     unmount();
@@ -78,7 +78,7 @@ describe('verification lifecycle', () => {
     expect(onExpire).toHaveBeenCalledOnce();
     expect(screen.getByRole('alert')).not.toHaveTextContent('200500');
     act(() => options['timeout-callback']());
-    expect(screen.getByRole('alert')).toHaveTextContent('expired');
+    expect(screen.getByRole('alert')).toHaveTextContent('תוקף האימות פג');
   });
 
   it('uses compact verification for the smallest mobile screens', () => {
@@ -96,7 +96,7 @@ describe('verification lifecycle', () => {
     const turnstile = sdk();
     render(<Turnstile onVerify={vi.fn()} onExpire={vi.fn()} />);
     expect(turnstile.render).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('temporarily unavailable');
+    expect(screen.getByRole('alert')).toHaveTextContent('אינה זמינה כרגע');
     vi.stubEnv('VITE_TURNSTILE_SITE_KEY', ' real-public-key\n');
     expect(getTurnstileSiteKey()).toBe('real-public-key');
   });

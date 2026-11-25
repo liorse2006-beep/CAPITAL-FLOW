@@ -53,24 +53,24 @@ describe('ScheduleScan', () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     renderScheduler({ initiallyOpen: true, hideTrigger: true, onClose });
-    expect(screen.getByRole('dialog', { name: 'Schedule scan' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'תזמון סריקה' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Schedule automatic scan' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('button', { name: 'סגירה' }));
     expect(onClose).toHaveBeenCalledOnce();
-    expect(screen.queryByRole('dialog', { name: 'Schedule scan' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'תזמון סריקה' })).not.toBeInTheDocument();
   });
 
   it('saves a schedule on a browser without push support', async () => {
     const user = userEvent.setup();
     renderScheduler();
 
-    await user.click(screen.getByRole('button', { name: 'Schedule automatic scan' }));
+    await user.click(screen.getByRole('button', { name: 'תזמון סריקה אוטומטית' }));
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '+ Add' }));
-    expect(screen.getByRole('dialog', { name: "Notifications aren't enabled" })).toBeInTheDocument();
-    expect(screen.getByText(/add Capital Flow to your Home Screen/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Continue without push' }));
+    await user.click(screen.getByRole('button', { name: '+ הוספה' }));
+    expect(screen.getByRole('dialog', { name: 'ההתראות אינן מופעלות' })).toBeInTheDocument();
+    expect(screen.getByText(/באייפון: שיתוף ← הוספה למסך הבית/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'המשך בלי התראות למכשיר' }));
 
     await waitFor(() =>
       expect(mocks.addSchedule).toHaveBeenCalledWith('09:30', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/))
@@ -82,11 +82,11 @@ describe('ScheduleScan', () => {
     const onEnablePush = vi.fn().mockResolvedValue(undefined);
     renderScheduler({ pushSupported: true, onEnablePush });
 
-    await user.click(screen.getByRole('button', { name: 'Schedule automatic scan' }));
+    await user.click(screen.getByRole('button', { name: 'תזמון סריקה אוטומטית' }));
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '+ Add' }));
-    expect(screen.getByRole('dialog', { name: "Notifications aren't enabled" })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Enable notifications' }));
+    await user.click(screen.getByRole('button', { name: '+ הוספה' }));
+    expect(screen.getByRole('dialog', { name: 'ההתראות אינן מופעלות' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'הפעלת התראות' }));
 
     await waitFor(() => expect(mocks.addSchedule).toHaveBeenCalledTimes(1));
     expect(onEnablePush).toHaveBeenCalledTimes(1);
@@ -99,14 +99,14 @@ describe('ScheduleScan', () => {
       return false;
     });
     renderScheduler({ initiallyOpen: true });
-    await user.click(screen.getByRole('button', { name: '+ Add' }));
-    await user.click(screen.getByRole('button', { name: 'Continue without push' }));
+    await user.click(screen.getByRole('button', { name: '+ הוספה' }));
+    await user.click(screen.getByRole('button', { name: 'המשך בלי התראות למכשיר' }));
 
-    const choice = within(screen.getByRole('dialog', { name: "Notifications aren't enabled" }));
+    const choice = within(screen.getByRole('dialog', { name: 'ההתראות אינן מופעלות' }));
     await waitFor(() =>
-      expect(choice.getByRole('alert')).toHaveTextContent("We couldn't save your schedule. Please try again.")
+      expect(choice.getByRole('alert')).toHaveTextContent('לא הצלחנו לשמור את התזמון. אפשר לנסות שוב.')
     );
-    expect(choice.getByRole('button', { name: 'Continue without push' })).toBeEnabled();
-    expect(screen.getByRole('dialog', { name: 'Schedule scan' })).toBeInTheDocument();
+    expect(choice.getByRole('button', { name: 'המשך בלי התראות למכשיר' })).toBeEnabled();
+    expect(screen.getByRole('dialog', { name: 'תזמון סריקה' })).toBeInTheDocument();
   });
 });

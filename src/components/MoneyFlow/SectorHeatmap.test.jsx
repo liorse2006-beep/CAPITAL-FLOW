@@ -7,12 +7,12 @@ describe('SectorHeatmap data freshness', () => {
 
   it('describes a prior-session fallback without claiming the market is currently closed', () => {
     render(<SectorHeatmap flowData={[{ ...sector, lastSession: true }]} />);
-    expect(screen.getByText('Showing last available session data')).toBeInTheDocument();
+    expect(screen.getByText('מוצגים נתוני יום המסחר האחרון הזמין')).toBeInTheDocument();
     expect(screen.queryByText(/MARKET CLOSED/i)).not.toBeInTheDocument();
   });
 
   it('does not show the fallback notice for current-session rows', () => {
     render(<SectorHeatmap flowData={[{ ...sector, lastSession: false }]} />);
-    expect(screen.queryByText('Showing last available session data')).not.toBeInTheDocument();
+    expect(screen.queryByText('מוצגים נתוני יום המסחר האחרון הזמין')).not.toBeInTheDocument();
   });
 });

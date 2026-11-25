@@ -1,26 +1,26 @@
 export const AUTH_REQUEST_TIMEOUT_MS = 30000;
 
 const SAFE_ERRORS = new Map([
-  ['Invalid email or password', 'Incorrect email or password. Please try again.'],
-  ['An account with this email already exists', 'This email is already registered. Please log in.'],
-  ['Please enter a valid email address', 'Please enter a valid email address.'],
-  ['Invalid email address', 'Please enter a valid email address.'],
-  ['Password must be at least 8 characters', 'Use a password with at least 8 characters.'],
-  ['Password must be at least 15 characters', 'Use a password with at least 15 characters.'],
-  ['Password must be at most 72 UTF-8 bytes', 'Please use a shorter password.'],
-  ['Choose a less common password', 'Choose a less common password, such as a unique passphrase.'],
-  ['Invalid or expired code', 'This code is invalid or expired. Request a new code.'],
-  ['Invalid code', 'This code is invalid. Please try again.'],
-  ['Code expired', 'This code has expired. Request a new code.'],
-  ['No code found', 'This code has expired. Request a new code.'],
-  ['Code already used', 'This code has already been used. Request a new code.'],
+  ['Invalid email or password', 'כתובת האימייל או הסיסמה שגויה. אפשר לנסות שוב.'],
+  ['An account with this email already exists', 'כתובת האימייל כבר רשומה. אפשר להתחבר.'],
+  ['Please enter a valid email address', 'יש להזין כתובת אימייל תקינה.'],
+  ['Invalid email address', 'יש להזין כתובת אימייל תקינה.'],
+  ['Password must be at least 8 characters', 'יש לבחור סיסמה באורך 15 תווים לפחות.'],
+  ['Password must be at least 15 characters', 'יש לבחור סיסמה באורך 15 תווים לפחות.'],
+  ['Password must be at most 72 UTF-8 bytes', 'הסיסמה ארוכה מדי. יש לבחור סיסמה קצרה יותר.'],
+  ['Choose a less common password', 'יש לבחור סיסמה פחות נפוצה, למשל משפט ייחודי.'],
+  ['Invalid or expired code', 'הקוד שגוי או שפג תוקפו. אפשר לבקש קוד חדש.'],
+  ['Invalid code', 'הקוד שגוי. אפשר לנסות שוב.'],
+  ['Code expired', 'פג תוקף הקוד. אפשר לבקש קוד חדש.'],
+  ['No code found', 'פג תוקף הקוד. אפשר לבקש קוד חדש.'],
+  ['Code already used', 'הקוד כבר שימש לאימות. יש לבקש קוד חדש.'],
   [
     'Too many code attempts. Request a new code and try again later.',
-    'Too many attempts. Request a new code and try again later.',
+    'בוצעו ניסיונות רבים מדי. יש להמתין ולבקש קוד חדש.',
   ],
-  ['CAPTCHA verification failed', 'Verification expired or failed. Please verify again.'],
+  ['CAPTCHA verification failed', 'האימות נכשל או שפג תוקפו. יש לבצע אימות מחדש.'],
 ]);
-const REQUEST_FAILED = "We couldn't complete your request. Please try again.";
+const REQUEST_FAILED = 'לא הצלחנו להשלים את הבקשה. אפשר לנסות שוב.';
 function userError(message) {
   return Object.assign(new Error(message), { isAuthUserError: true });
 }
@@ -40,7 +40,7 @@ export async function authRequest(path, body) {
     if (!response.ok || !data || typeof data !== 'object') {
       const message =
         response.status === 429
-          ? 'Too many attempts. Please wait a few minutes and try again.'
+          ? 'בוצעו ניסיונות רבים מדי. יש להמתין כמה דקות ולנסות שוב.'
           : SAFE_ERRORS.get(data?.error) || REQUEST_FAILED;
       const error = userError(message);
       error.needsVerification = response.status === 403 && data?.needsVerification === true;
@@ -48,9 +48,9 @@ export async function authRequest(path, body) {
     }
     return data;
   } catch (error) {
-    if (controller.signal.aborted) throw userError('Your request took too long. Please try again.');
+    if (controller.signal.aborted) throw userError('הבקשה נמשכה זמן רב מדי. אפשר לנסות שוב.');
     if (error?.isAuthUserError) throw error;
-    throw userError("We couldn't connect. Check your connection and try again.");
+    throw userError('לא הצלחנו להתחבר. יש לבדוק את החיבור ולנסות שוב.');
   } finally {
     clearTimeout(timeout);
   }

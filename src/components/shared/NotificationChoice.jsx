@@ -16,11 +16,11 @@ export default function NotificationChoice({
   onCancel,
   actionBusy = false,
   actionError = null,
-  title = "Notifications aren't enabled",
-  supportedDescription = 'Would you like to enable push notifications so you receive this result even when the app is closed? If not, it will still be saved in Notifications.',
-  unsupportedDescription = 'Push notifications are not available in this browser. On iPhone: add Capital Flow to your Home Screen, open it from the new icon, and allow notifications.',
-  enableLabel = 'Enable notifications',
-  continueLabel = 'Continue without push',
+  title = 'ההתראות אינן מופעלות',
+  supportedDescription = 'להפעיל התראות גם כשהאפליקציה סגורה? אפשר להמשיך בלי — התוצאה תישמר באפליקציה.',
+  unsupportedDescription = 'באייפון: שיתוף ← הוספה למסך הבית. פותחים משם ומפעילים התראות. בינתיים התוצאה תישמר באפליקציה.',
+  enableLabel = 'הפעלת התראות',
+  continueLabel = 'המשך בלי התראות למכשיר',
   cancelLabel = 'Back',
   dir = 'ltr',
 }) {
@@ -29,7 +29,7 @@ export default function NotificationChoice({
 
   async function handleEnable() {
     if (typeof onEnable !== 'function') {
-      setEnableError('Notifications could not be enabled here. You can continue without push.');
+      setEnableError('לא הצלחנו להפעיל כאן התראות. אפשר להמשיך בלי התראות למכשיר.');
       return;
     }
     setEnableError(null);

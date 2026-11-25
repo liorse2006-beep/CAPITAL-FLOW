@@ -8,9 +8,11 @@ const MAX_SCHEDULES = 3;
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 function refreshSchedulerCache() {
-  require('../services/scheduledScanRunner').refreshScheduledScanCache({ force: true }).catch((err) => {
-    reportError(err, '[scheduled-scans cache refresh]');
-  });
+  require('../services/scheduledScanRunner')
+    .refreshScheduledScanCache({ force: true })
+    .catch((err) => {
+      reportError(err, '[scheduled-scans cache refresh]');
+    });
 }
 
 function isValidIsoDate(value) {

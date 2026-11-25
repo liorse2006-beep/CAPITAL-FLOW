@@ -115,18 +115,12 @@ export default function Turnstile({ onVerify, onExpire, resetKey = 0, siteKey = 
     <div className="auth-verification">
       <div ref={containerRef} />
       {status === 'loading' && <p role="status">Loading verification…</p>}
-      {status === 'unconfigured' && (
-        <p role="alert">Email sign-up is temporarily unavailable. Please try again later.</p>
-      )}
+      {status === 'unconfigured' && <p role="alert">ההרשמה במייל אינה זמינה כרגע. אפשר לנסות שוב מאוחר יותר.</p>}
       {failed && (
         <div role="alert">
-          <p>
-            {status === 'expired'
-              ? 'Verification expired. Please try again.'
-              : 'Verification could not connect. Please try again.'}
-          </p>
+          <p>{status === 'expired' ? 'תוקף האימות פג. אפשר לנסות שוב.' : 'האימות לא הצליח להתחבר. אפשר לנסות שוב.'}</p>
           <button type="button" className="auth-link-btn" onClick={() => setAttempt((value) => value + 1)}>
-            Retry verification
+            ניסיון אימות נוסף
           </button>
         </div>
       )}

@@ -59,26 +59,26 @@ test('digest schedule matching catches up later on the same day but never runs a
 test('buildDigestPayload uses the signal copy whenever at least one result exists', () => {
   const results = [{ symbol: 'AAA', volumeRatio: 1, quoteDataStatus: 'stale' }];
   const payload = buildDigestPayload(results);
-  assert.strictEqual(payload.title, 'Market Signal Detected');
-  assert.strictEqual(payload.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.strictEqual(payload.title, 'זוהה אות בשוק');
+  assert.strictEqual(payload.body, 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.');
 });
 
 test('buildDigestPayload uses the unverified copy only when the result list is empty', () => {
   const payload = buildDigestPayload([]);
   assert.strictEqual(payload.title, 'Capital Flow');
-  assert.strictEqual(payload.body, "We couldn't verify a market signal this time.");
+  assert.strictEqual(payload.body, 'הפעם לא הצלחנו לאמת אות בשוק.');
 });
 
 test('buildDigestPayload does not let partial status or unusable fields hide an existing row', () => {
   const payload = buildDigestPayload([{ symbol: 'AAA', volumeRatio: 'not-a-number', dataStatus: 'partial' }]);
-  assert.strictEqual(payload.title, 'Market Signal Detected');
-  assert.strictEqual(payload.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.strictEqual(payload.title, 'זוהה אות בשוק');
+  assert.strictEqual(payload.body, 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.');
 });
 
 test('buildDigestPayload treats a missing result list as empty', () => {
   const payload = buildDigestPayload(null);
   assert.strictEqual(payload.title, 'Capital Flow');
-  assert.strictEqual(payload.body, "We couldn't verify a market signal this time.");
+  assert.strictEqual(payload.body, 'הפעם לא הצלחנו לאמת אות בשוק.');
 });
 
 test('runDigestTick persists the matching scan rows and deep-links the push to them', async (t) => {
@@ -105,8 +105,8 @@ test('runDigestTick persists the matching scan rows and deep-links the push to t
     )
     .get(u);
   assert.ok(notification);
-  assert.strictEqual(notification.title, 'Market Signal Detected');
-  assert.strictEqual(notification.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.strictEqual(notification.title, 'זוהה אות בשוק');
+  assert.strictEqual(notification.body, 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.');
   assert.strictEqual(notification.scan_type, 'capitalFlow');
   assert.deepStrictEqual(JSON.parse(notification.results_json), results);
   assert.strictEqual(pushMock.mock.callCount(), 1);

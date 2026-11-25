@@ -33,7 +33,7 @@ afterEach(() => {
   window.history.replaceState(null, '', '/');
 });
 
-describe('application / landing language boundary', () => {
+describe('Hebrew application chrome', () => {
   it.each([
     ['en', false, 'Add Capital Flow to your home screen'],
     ['en', true, 'Add Capital Flow to your Home Screen for notifications'],
@@ -55,32 +55,15 @@ describe('application / landing language boundary', () => {
     else expect(screen.getByRole('button', { name: 'סגירה' })).toBeInTheDocument();
   });
 
-  it.each([
-    ['/scanner', 'en', 'ltr', "We couldn't display this screen", 'Reload'],
-    ['/', 'he', 'rtl', 'לא הצלחנו להציג את המסך', 'טעינה מחדש'],
-  ])('preserves the language of the outer error fallback on %s', (path, language, direction, heading, button) => {
+  it.each(['/scanner', '/'])('shows the outer error fallback in Hebrew on %s', (path) => {
     window.history.replaceState(null, '', path);
     const boundary = new ErrorBoundary({});
     boundary.state = { hasError: true };
     const view = render(boundary.render());
-    expect(view.container.firstChild).toHaveAttribute('lang', language);
-    expect(view.container.firstChild).toHaveAttribute('dir', direction);
-    expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: button })).toBeInTheDocument();
-  });
-
-  it('renders application pricing, privacy and accessibility in English and LTR', () => {
-    const view = renderChrome('en');
-    expect(screen.getByRole('button', { name: 'Get Premium' })).toBeInTheDocument();
-    expect(screen.getAllByText('Full market scans')).toHaveLength(2);
-    expect(screen.getByRole('dialog', { name: 'Privacy preferences' })).toHaveAttribute('dir', 'ltr');
-    expect(view.container.querySelector('.tier-matrix-scroll')).toHaveAttribute('lang', 'en');
-    fireEvent.click(screen.getByRole('button', { name: 'Open accessibility menu' }));
-    expect(screen.getByRole('dialog', { name: 'Accessibility' })).toHaveAttribute('dir', 'ltr');
-    fireEvent.click(screen.getByRole('button', { name: 'High contrast' }));
-    expect(screen.getByRole('button', { name: 'High contrast' })).toHaveTextContent('Active');
-    expect(document.documentElement.classList.contains('a11y-high-contrast')).toBe(true);
-    expect(view.container.textContent).not.toMatch(/[\u0590-\u05ff]/);
+    expect(view.container.firstChild).toHaveAttribute('lang', 'he');
+    expect(view.container.firstChild).toHaveAttribute('dir', 'rtl');
+    expect(screen.getByRole('heading', { name: 'לא הצלחנו להציג את המסך' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'טעינה מחדש' })).toBeInTheDocument();
   });
 
   it('preserves the existing Hebrew landing pricing, privacy and accessibility', () => {
@@ -95,10 +78,10 @@ describe('application / landing language boundary', () => {
     expect(screen.getByRole('button', { name: 'ניגודיות גבוהה' })).toBeInTheDocument();
   });
 
-  it('uses English billing-country names with unchanged ISO codes', () => {
-    expect(BILLING_COUNTRIES.find((country) => country.code === 'US')?.name).toBe('United States');
-    expect(BILLING_COUNTRIES.find((country) => country.code === 'IL')?.name).toBe('Israel');
+  it('uses Hebrew billing-country names with unchanged ISO codes', () => {
+    expect(BILLING_COUNTRIES.find((country) => country.code === 'US')?.name).toBe('ארצות הברית');
+    expect(BILLING_COUNTRIES.find((country) => country.code === 'IL')?.name).toBe('ישראל');
     expect(BILLING_COUNTRIES).toHaveLength(249);
-    expect(BILLING_COUNTRIES.some((country) => /[\u0590-\u05ff]/.test(country.name))).toBe(false);
+    expect(BILLING_COUNTRIES.every((country) => /^[A-Z]{2}$/.test(country.code))).toBe(true);
   });
 });

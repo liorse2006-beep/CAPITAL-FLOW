@@ -8,23 +8,23 @@ import { friendlyError } from '../../utils/format';
 function accessLabel(user) {
   if (user && user.tier === 'elite') return 'Elite';
   if (user && user.tier === 'premium') return 'Premium';
-  if (user && user.elite_access) return '7-day trial';
-  return 'Free';
+  if (user && user.elite_access) return 'ניסיון של שבעה ימים';
+  return 'חינמי';
 }
 
 function formatDate(value) {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  return date.toLocaleDateString('he-IL', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 function formatDateTime(value) {
-  if (!value) return 'Not yet run';
+  if (!value) return 'טרם בוצע';
   const numeric = typeof value === 'number' || /^\d+$/.test(String(value));
   const date = new Date(numeric ? Number(value) * 1000 : value);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+  return date.toLocaleString('he-IL', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 function number(value) {
@@ -33,21 +33,21 @@ function number(value) {
 
 const SCHEDULE_SCAN_LABELS = {
   capitalFlow: 'Capital Flow',
-  maScanner: 'MA Scanner',
-  sectorMoving: 'Hot Sectors',
+  maScanner: 'סורק ממוצעים נעים',
+  sectorMoving: 'פעילות בסקטורים',
 };
 
 function formatScheduleDate(value) {
   if (!value) return '';
   const date = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  return date.toLocaleDateString('he-IL', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
 
 function scheduleTiming(schedule) {
   const time = schedule.scan_time || '—';
   if (schedule.scan_date) return `${formatScheduleDate(schedule.scan_date)} · ${time}`;
-  return `${time} · Every day`;
+  return `${time} · כל יום`;
 }
 
 function Stat({ label, value, detail }) {
@@ -80,24 +80,24 @@ function SubsectionHeader({ eyebrow, title }) {
 const ACCOUNT_SECTIONS = [
   {
     id: 'account',
-    label: 'Account and activity',
-    eyebrow: 'ACCOUNT',
-    title: 'Account and activity',
-    description: 'Your account details, plan and activity.',
+    label: 'חשבון ופעילות',
+    eyebrow: 'חשבון',
+    title: 'חשבון ופעילות',
+    description: 'פרטי החשבון, המסלול והפעילות שלך.',
   },
   {
     id: 'automation',
-    label: 'Schedules and alerts',
-    eyebrow: 'Schedules',
-    title: 'Schedules and alerts',
-    description: 'Manage scheduled scans and device notifications.',
+    label: 'תזמונים והתראות',
+    eyebrow: 'תזמונים',
+    title: 'תזמונים והתראות',
+    description: 'ניהול סריקות מתוזמנות והתראות למכשירים שלך.',
   },
   {
     id: 'security',
-    label: 'Security and privacy',
-    eyebrow: 'Security',
-    title: 'Security and privacy',
-    description: 'Protect your account and manage your data.',
+    label: 'אבטחה ופרטיות',
+    eyebrow: 'אבטחה',
+    title: 'אבטחה ופרטיות',
+    description: 'הגנה על החשבון וניהול הנתונים שלך.',
   },
 ];
 
@@ -168,7 +168,7 @@ export default function ProfileModal({
     })
       .then(async (response) => {
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error('Could not load profile data');
+        if (!response.ok) throw new Error('לא הצלחנו לטעון את פרטי החשבון');
         return data;
       })
       .then((data) => {
@@ -179,7 +179,7 @@ export default function ProfileModal({
       .catch(() => {
         if (cancelled || !operation.isCurrent()) return;
         setSummaryState('error');
-        setSummaryError('Could not load profile data. Try again.');
+        setSummaryError('לא הצלחנו לטעון את פרטי החשבון. אפשר לנסות שוב.');
       })
       .finally(operation.finish);
     return () => {
@@ -201,13 +201,13 @@ export default function ProfileModal({
       });
       const data = await response.json().catch(() => ({}));
       if (!operation.canCommit()) return;
-      if (!response.ok) throw new Error('Could not load scheduled scans');
+      if (!response.ok) throw new Error('לא הצלחנו לטעון את הסריקות המתוזמנות');
       setScheduledScans(Array.isArray(data.schedules) ? data.schedules : []);
       setScheduledScansState('ready');
     } catch {
       if (!operation.isCurrent()) return;
       setScheduledScansState('error');
-      setScheduledScansError("We couldn't load your scheduled scans. Please try again.");
+      setScheduledScansError('לא הצלחנו לטעון את הסריקות המתוזמנות. אפשר לנסות שוב.');
     } finally {
       operation.finish();
     }
@@ -236,15 +236,15 @@ export default function ProfileModal({
   async function submitPassword(event) {
     event.preventDefault();
     if (!password.current || !password.next || !password.confirm) {
-      setPasswordState({ status: 'error', message: 'Complete all password fields.' });
+      setPasswordState({ status: 'error', message: 'יש למלא את כל שדות הסיסמה.' });
       return;
     }
     if ([...password.next].length < 15) {
-      setPasswordState({ status: 'error', message: 'Your new password must have at least 15 characters.' });
+      setPasswordState({ status: 'error', message: 'הסיסמה החדשה צריכה להיות באורך 15 תווים לפחות.' });
       return;
     }
     if (password.next !== password.confirm) {
-      setPasswordState({ status: 'error', message: 'Your new passwords do not match.' });
+      setPasswordState({ status: 'error', message: 'הסיסמאות החדשות אינן זהות.' });
       return;
     }
     const operation = beginOperation('password');
@@ -259,22 +259,19 @@ export default function ProfileModal({
       });
       const data = await response.json().catch(() => ({}));
       if (!operation.canCommit()) return;
-      if (!response.ok) throw new Error('Could not update password');
+      if (!response.ok) throw new Error('לא הצלחנו לעדכן את הסיסמה');
       if (typeof data.token !== 'string' || !data.token || String(data.user?.id) !== String(user?.id)) {
-        throw new Error('Could not confirm password update');
+        throw new Error('לא הצלחנו לאשר את עדכון הסיסמה');
       }
       onPasswordChanged?.(data.token, data.user);
       setPassword({ current: '', next: '', confirm: '' });
-      setPasswordState({ status: 'success', message: 'Password updated. Other sessions were signed out.' });
+      setPasswordState({ status: 'success', message: 'הסיסמה עודכנה. שאר המכשירים נותקו מהחשבון.' });
       setSummary((previous) =>
         previous ? { ...previous, security: { ...previous.security, activeSessionCount: 1 } } : previous
       );
     } catch {
       if (!operation.isCurrent()) return;
-      setPasswordState({
-        status: 'error',
-        message: "We couldn't confirm the password update. Sign in again to check.",
-      });
+      setPasswordState({ status: 'error', message: 'לא הצלחנו לאשר את עדכון הסיסמה. יש להתחבר מחדש ולבדוק.' });
     } finally {
       operation.finish();
     }
@@ -308,7 +305,7 @@ export default function ProfileModal({
         });
         if (!operation.canCommit()) return;
         if (!response.ok) {
-          throw new Error('Could not sign out other sessions');
+          throw new Error('לא הצלחנו לנתק את המכשירים האחרים');
         }
         onClose();
         window.location.reload();
@@ -316,7 +313,7 @@ export default function ProfileModal({
       }
       if (operation.canCommit()) setConfirmAction(null);
     } catch {
-      if (operation.isCurrent()) setActionError("We couldn't confirm the change. Check your settings and try again.");
+      if (operation.isCurrent()) setActionError('לא הצלחנו לאשר את הפעולה. יש לבדוק את ההגדרות ולנסות שוב.');
     } finally {
       operation.finish();
     }
@@ -332,7 +329,7 @@ export default function ProfileModal({
         headers: { Authorization: 'Bearer ' + operation.token },
         signal: operation.signal,
       });
-      if (!response.ok) throw new Error('Could not prepare your data export');
+      if (!response.ok) throw new Error('לא הצלחנו להכין את ייצוא הנתונים');
       const blob = await response.blob();
       if (!operation.canCommit()) return;
       const url = URL.createObjectURL(blob);
@@ -353,28 +350,28 @@ export default function ProfileModal({
 
   const notificationBlocked = notificationPermission === 'denied';
   const notificationUnavailable = !notificationApiSupported || !pushSupported;
-  let notificationLabel = pushEnabled ? 'Disable notifications' : 'Enable notifications';
+  let notificationLabel = pushEnabled ? 'כיבוי התראות' : 'הפעלת התראות';
   let notificationDescription = pushEnabled
-    ? 'Notifications are enabled on this device.'
-    : 'Receive watchlist alerts and scheduled scan results even when the app is closed.';
+    ? 'ההתראות מופעלות במכשיר הזה.'
+    : 'קבלת התראות מעקב וסריקות מתוזמנות גם כשהאפליקציה סגורה.';
   if (!canNotify) {
-    notificationLabel = 'Upgrade to enable notifications';
-    notificationDescription = 'Device notifications are included with Elite and during your active trial.';
+    notificationLabel = 'שדרוג להפעלת התראות';
+    notificationDescription = 'התראות למכשיר כלולות ב־Elite ובתקופת הניסיון הפעילה.';
   } else if (notificationBlocked) {
-    notificationLabel = 'Blocked in browser settings';
-    notificationDescription = 'Allow notifications for this site in your browser settings, then return here.';
+    notificationLabel = 'חסום בהגדרות הדפדפן';
+    notificationDescription = 'יש לאפשר התראות לאתר בהגדרות הדפדפן ולחזור לכאן.';
   } else if (notificationUnavailable) {
-    notificationLabel = 'Unavailable on this device';
+    notificationLabel = 'אינו זמין במכשיר הזה';
     notificationDescription =
-      'On iPhone: Share → Add to Home Screen. Open the app there and enable notifications. In other browsers, check notification support.';
+      'באייפון: שיתוף ← הוספה למסך הבית. יש לפתוח משם ולהפעיל התראות. בדפדפנים אחרים יש לבדוק תמיכה בהתראות.';
   }
 
   const quota = usage.quota || {};
   let scanDetail = '—';
-  if (quota.tier === 'elite') scanDetail = 'Unlimited';
-  else if (quota.tier === 'premium' && quota.premium) scanDetail = `${quota.premium.left}/${quota.premium.limit} left`;
-  else if (quota.free?.trialActive) scanDetail = 'Unlimited during your trial';
-  else if (quota.free) scanDetail = 'Trial ended';
+  if (quota.tier === 'elite') scanDetail = 'ללא הגבלה';
+  else if (quota.tier === 'premium' && quota.premium) scanDetail = `${quota.premium.left}/${quota.premium.limit} נותרו`;
+  else if (quota.free?.trialActive) scanDetail = 'ללא הגבלה בתקופת הניסיון';
+  else if (quota.free) scanDetail = 'תקופת הניסיון הסתיימה';
 
   return (
     <>
@@ -396,22 +393,22 @@ export default function ProfileModal({
             <div className="account-center-identity">
               <UserAvatar user={account} className="profile-modal-avatar" />
               <div className="account-center-identity-copy">
-                <div className="profile-modal-kicker">CAPITAL FLOW ACCOUNT</div>
-                <h2 id="profile-modal-title">Account center</h2>
+                <div className="profile-modal-kicker">חשבון Capital Flow</div>
+                <h2 id="profile-modal-title">מרכז החשבון</h2>
                 <p>{account.email || '—'}</p>
               </div>
             </div>
             <div className="account-center-header-actions">
               <span className="account-center-tier">{accessLabel(account).toUpperCase()}</span>
-              <button className="upgrade-close" onClick={onClose} aria-label="Close profile" type="button">
+              <button className="upgrade-close" onClick={onClose} aria-label="סגירת פרטי החשבון" type="button">
                 ×
               </button>
             </div>
           </header>
 
           <div className={'account-center-layout' + (mobileNavOpen ? ' account-center-layout--mobile-nav' : '')}>
-            <aside className="account-center-sidebar" aria-label="Account sections">
-              <div className="account-center-nav-label">Account center</div>
+            <aside className="account-center-sidebar" aria-label="נושאי החשבון">
+              <div className="account-center-nav-label">מרכז החשבון</div>
               {ACCOUNT_SECTIONS.map((section) => (
                 <button
                   className={'account-center-nav-item' + (activeSection === section.id ? ' is-active' : '')}
@@ -428,8 +425,8 @@ export default function ProfileModal({
               ))}
             </aside>
 
-            <nav className="account-center-mobile-nav" aria-label="Account sections">
-              <div className="account-center-nav-label">Account center</div>
+            <nav className="account-center-mobile-nav" aria-label="נושאי החשבון">
+              <div className="account-center-nav-label">מרכז החשבון</div>
               {ACCOUNT_SECTIONS.map((section) => (
                 <button
                   className="account-center-mobile-nav-item"
@@ -451,9 +448,9 @@ export default function ProfileModal({
                 className="account-center-mobile-back"
                 type="button"
                 onClick={() => setMobileNavOpen(true)}
-                aria-label="Back to account sections"
+                aria-label="חזרה לנושאי החשבון"
               >
-                ← All account sections
+                ← כל נושאי החשבון
               </button>
               <div className="account-center-content-head">
                 <span className="profile-modal-section-eyebrow">{activeSectionMeta.eyebrow}</span>
@@ -465,57 +462,57 @@ export default function ProfileModal({
                 {activeSection === 'account' && (
                   <div className="account-center-group">
                     <div className="account-center-subsection">
-                      <SubsectionHeader eyebrow="Account overview" title="Account overview" />
+                      <SubsectionHeader eyebrow="פרטי החשבון" title="פרטי החשבון" />
                       <Section id="profile-section-overview">
                         <div className="profile-stat-grid profile-stat-grid--four">
                           <Stat
-                            label="Access"
+                            label="גישה"
                             value={accessLabel(account)}
                             detail={
                               plan.access === 'Full access'
-                                ? 'Full access'
+                                ? 'גישה מלאה'
                                 : plan.access === 'Limited access'
-                                  ? 'Limited access'
+                                  ? 'גישה מוגבלת'
                                   : '—'
                             }
                           />
                           <Stat
-                            label="Verification"
-                            value={account.is_verified ? 'Verified' : 'Pending verification'}
-                            detail="Email verification status"
+                            label="אימות"
+                            value={account.is_verified ? 'מאומת' : 'ממתין לאימות'}
+                            detail="מצב אימות המייל"
                           />
                           <Stat
-                            label="Log In"
+                            label="התחברות"
                             value={
                               provider === 'Email and password'
-                                ? 'Email and password'
+                                ? 'מייל וסיסמה'
                                 : provider === 'Google'
                                   ? 'Google'
-                                  : 'Unavailable'
+                                  : 'לא זמין'
                             }
-                            detail="Sign-in method"
+                            detail="אופן התחברות"
                           />
-                          <Stat label="Joined" value={formatDate(account.created_at)} />
+                          <Stat label="הצטרפות" value={formatDate(account.created_at)} />
                         </div>
                       </Section>
                     </div>
 
                     <div className="account-center-subsection">
-                      <SubsectionHeader eyebrow="Access" title="Plan & access" />
+                      <SubsectionHeader eyebrow="גישה" title="מסלול וגישה" />
                       <Section id="profile-section-plan">
                         <div className="profile-modal-detail-list">
                           <div className="profile-modal-detail">
-                            <span className="profile-modal-label">Current plan</span>
+                            <span className="profile-modal-label">המסלול הנוכחי</span>
                             <strong className="profile-modal-value">{accessLabel(account)}</strong>
                           </div>
                           <div className="profile-modal-detail">
-                            <span className="profile-modal-label">Trial status</span>
+                            <span className="profile-modal-label">מצב תקופת הניסיון</span>
                             <span className="profile-modal-value">
                               {plan.trialActive
                                 ? `Active · ends ${formatDate(plan.trialEndsAt)}`
                                 : account.tier === 'free'
-                                  ? 'Inactive'
-                                  : 'Not applicable'}
+                                  ? 'לא פעילה'
+                                  : 'לא רלוונטי'}
                             </span>
                           </div>
                         </div>
@@ -525,43 +522,39 @@ export default function ProfileModal({
                             type="button"
                             onClick={onUpgrade}
                           >
-                            View upgrade options
+                            הצגת אפשרויות שדרוג
                           </button>
                         )}
                       </Section>
                     </div>
 
                     <div className="account-center-subsection">
-                      <SubsectionHeader eyebrow="Activity" title="Workspace usage" />
+                      <SubsectionHeader eyebrow="פעילות" title="הפעילות שלך" />
                       <Section id="profile-section-usage">
                         {summaryState === 'loading' ? (
-                          <div className="profile-modal-loading">Loading current usage…</div>
+                          <div className="profile-modal-loading">טוענים את נתוני הפעילות…</div>
                         ) : summaryState === 'error' ? (
                           <div className="profile-modal-inline-error">{summaryError}</div>
                         ) : (
                           <div className="profile-stat-grid profile-stat-grid--four">
-                            <Stat label="Scans" value={scanDetail} detail="Current allowance" />
-                            <Stat label="Watchlist" value={number(usage.watchlistCount)} detail="Saved stocks" />
-                            <Stat label="Notifications" value={number(usage.alertCount)} detail="Active conditions" />
+                            <Stat label="סריקות" value={scanDetail} detail="המכסה הנוכחית" />
+                            <Stat label="רשימת מעקב" value={number(usage.watchlistCount)} detail="מניות שמורות" />
+                            <Stat label="התראות" value={number(usage.alertCount)} detail="תנאים פעילים" />
                             <Stat
-                              label="Radar"
+                              label="רדאר"
                               value={number(usage.activeRadarCount)}
-                              detail={`${number(usage.radarCount)} total rules`}
+                              detail={`${number(usage.radarCount)} כללים בסך הכול`}
                             />
                             <Stat
-                              label="Schedules"
+                              label="תזמונים"
                               value={number(usage.activeScheduleCount)}
                               detail={`${number(usage.scheduleCount)} total`}
                             />
+                            <Stat label="מכשירים" value={number(usage.pushDeviceCount)} detail="מכשירים עם התראות" />
                             <Stat
-                              label="Devices"
-                              value={number(usage.pushDeviceCount)}
-                              detail="Devices with notifications"
-                            />
-                            <Stat
-                              label="Sessions"
+                              label="חיבורים"
                               value={number(security.activeSessionCount)}
-                              detail="Signed-in devices"
+                              detail="מכשירים מחוברים"
                             />
                           </div>
                         )}
@@ -573,11 +566,11 @@ export default function ProfileModal({
                 {activeSection === 'automation' && (
                   <div className="account-center-group">
                     <div className="account-center-subsection">
-                      <SubsectionHeader eyebrow="Preferences" title="Notifications" />
+                      <SubsectionHeader eyebrow="העדפות" title="התראות" />
                       <Section id="profile-section-notifications">
                         <div className="account-center-action-card">
                           <div>
-                            <strong>Notification access</strong>
+                            <strong>גישה להתראות</strong>
                             <span>{notificationDescription}</span>
                             {pushError && (
                               <small className="profile-modal-form-message error">{friendlyError(pushError)}</small>
@@ -589,27 +582,27 @@ export default function ProfileModal({
                             onClick={requestNotificationsChange}
                             disabled={pushBusy || (canNotify && (notificationBlocked || notificationUnavailable))}
                           >
-                            {pushBusy ? 'Working…' : notificationLabel}
+                            {pushBusy ? 'מבצעים…' : notificationLabel}
                           </button>
                         </div>
                       </Section>
                     </div>
 
                     <div className="account-center-subsection">
-                      <SubsectionHeader eyebrow="Activity" title="Schedule scans" />
+                      <SubsectionHeader eyebrow="פעילות" title="תזמון סריקות" />
                       <Section id="profile-section-scheduling">
                         {scheduledScansState === 'loading' && (
                           <div className="account-center-schedule-state" role="status">
-                            Loading your scheduled scans…
+                            טוענים את הסריקות המתוזמנות שלך…
                           </div>
                         )}
 
                         {scheduledScansState === 'error' && (
                           <div className="account-center-schedule-state account-center-schedule-state--error">
-                            <strong>Scheduled scans are currently unavailable.</strong>
+                            <strong>הסריקות המתוזמנות אינן זמינות כרגע.</strong>
                             <span>{scheduledScansError}</span>
                             <button className="profile-secondary-btn" type="button" onClick={loadScheduledScans}>
-                              Try again
+                              ניסיון נוסף
                             </button>
                           </div>
                         )}
@@ -619,38 +612,38 @@ export default function ProfileModal({
                             <div className="account-center-schedule-empty-icon" aria-hidden="true">
                               ◷
                             </div>
-                            <strong>No scheduled scans yet.</strong>
-                            <span>Choose a time and we&#39;ll run your scan automatically.</span>
+                            <strong>אין כרגע סריקות מתוזמנות.</strong>
+                            <span>בחר שעה, והסריקה תתבצע עבורך באופן אוטומטי.</span>
                             <button className="profile-primary-btn" type="button" onClick={onOpenScheduling}>
-                              Schedule scans
+                              תזמון סריקות
                             </button>
                           </div>
                         )}
 
                         {scheduledScansState === 'ready' && scheduledScans.length > 0 && (
                           <>
-                            <div className="account-center-schedule-list" aria-label="Your scheduled scans">
+                            <div className="account-center-schedule-list" aria-label="הסריקות המתוזמנות שלך">
                               {scheduledScans.map((schedule) => {
                                 const active = Boolean(schedule.active);
                                 return (
                                   <article className="account-center-schedule-item" key={schedule.id}>
                                     <div className="account-center-schedule-item-copy">
                                       <div className="account-center-schedule-item-heading">
-                                        <strong>{SCHEDULE_SCAN_LABELS[schedule.scan_type] || 'Scheduled scan'}</strong>
+                                        <strong>{SCHEDULE_SCAN_LABELS[schedule.scan_type] || 'סריקה מתוזמנת'}</strong>
                                         <span
                                           className={'account-center-schedule-status' + (active ? ' is-active' : '')}
                                         >
-                                          {active ? 'Active' : 'Paused'}
+                                          {active ? 'פעיל' : 'מושהה'}
                                         </span>
                                       </div>
                                       <span className="account-center-schedule-item-time">
                                         {scheduleTiming(schedule)}
                                       </span>
                                       <small>
-                                        {schedule.scan_date ? 'One-time scan' : 'Repeats daily'} · Jerusalem time
+                                        {schedule.scan_date ? 'סריקה חד־פעמית' : 'חוזר בכל יום'} · שעון ירושלים
                                         {schedule.last_run_at
-                                          ? ` · Last run ${formatDateTime(schedule.last_run_at)}`
-                                          : ' · Not yet run'}
+                                          ? ` · הרצה אחרונה ${formatDateTime(schedule.last_run_at)}`
+                                          : ' · טרם הופעל'}
                                       </small>
                                     </div>
                                   </article>
@@ -662,7 +655,7 @@ export default function ProfileModal({
                               type="button"
                               onClick={onOpenScheduling}
                             >
-                              Schedule another scan
+                              תזמון סריקה נוספת
                             </button>
                           </>
                         )}
@@ -674,49 +667,49 @@ export default function ProfileModal({
                 {activeSection === 'security' && (
                   <div className="account-center-group">
                     <div className="account-center-subsection">
-                      <SubsectionHeader eyebrow="Security" title="Security & sign-in" />
+                      <SubsectionHeader eyebrow="אבטחה" title="אבטחה והתחברות" />
                       <Section id="profile-section-security">
                         <div className="profile-modal-detail-list">
                           <div className="profile-modal-detail">
-                            <span className="profile-modal-label">Last sign-in</span>
+                            <span className="profile-modal-label">התחברות אחרונה</span>
                             <span className="profile-modal-value">{formatDateTime(account.last_login_at)}</span>
                           </div>
                           <div className="profile-modal-detail">
-                            <span className="profile-modal-label">Active sessions</span>
+                            <span className="profile-modal-label">חיבורים פעילים</span>
                             <span className="profile-modal-value">{number(security.activeSessionCount || 0)}</span>
                           </div>
                         </div>
 
                         {canChangePassword ? (
                           <form className="profile-password-form" onSubmit={submitPassword}>
-                            <div className="profile-form-heading">Change password</div>
+                            <div className="profile-form-heading">שינוי סיסמה</div>
                             <input
                               className="auth-input profile-password-input"
                               type="password"
-                              placeholder="Current password"
+                              placeholder="סיסמה נוכחית"
                               autoComplete="current-password"
                               value={password.current}
                               onChange={(event) => updatePasswordField('current', event.target.value)}
-                              aria-label="Current password"
+                              aria-label="סיסמה נוכחית"
                             />
                             <input
                               className="auth-input profile-password-input"
                               type="password"
-                              placeholder="New password · at least 15 characters"
+                              placeholder="סיסמה חדשה · לפחות 15 תווים"
                               minLength={15}
                               autoComplete="new-password"
                               value={password.next}
                               onChange={(event) => updatePasswordField('next', event.target.value)}
-                              aria-label="New password"
+                              aria-label="סיסמה חדשה"
                             />
                             <input
                               className="auth-input profile-password-input"
                               type="password"
-                              placeholder="Confirm new password"
+                              placeholder="אימות הסיסמה החדשה"
                               autoComplete="new-password"
                               value={password.confirm}
                               onChange={(event) => updatePasswordField('confirm', event.target.value)}
-                              aria-label="Confirm new password"
+                              aria-label="אימות הסיסמה החדשה"
                             />
                             {passwordState.message && (
                               <p
@@ -733,13 +726,13 @@ export default function ProfileModal({
                               type="submit"
                               disabled={passwordState.status === 'saving'}
                             >
-                              {passwordState.status === 'saving' ? 'Updating…' : 'Update password'}
+                              {passwordState.status === 'saving' ? 'מעדכנים…' : 'עדכון סיסמה'}
                             </button>
                           </form>
                         ) : (
                           <div className="profile-modal-info-box">
-                            <strong>Your password is managed by Google</strong>
-                            <span>You can change it in your Google account&#39;s security settings.</span>
+                            <strong>הסיסמה מנוהלת בחשבון Google</strong>
+                            <span>ניתן לשנות אותה בהגדרות האבטחה של חשבון Google.</span>
                           </div>
                         )}
 
@@ -748,13 +741,13 @@ export default function ProfileModal({
                           type="button"
                           onClick={() => setConfirmAction('logout-all')}
                         >
-                          Sign out all devices
+                          ניתוק כל המכשירים
                         </button>
                       </Section>
                     </div>
 
                     <div className="account-center-subsection">
-                      <SubsectionHeader eyebrow="Privacy" title="Privacy & data" />
+                      <SubsectionHeader eyebrow="פרטיות" title="פרטיות ונתונים" />
                       <Section id="profile-section-privacy">
                         <div className="profile-privacy-actions">
                           <button
@@ -763,17 +756,17 @@ export default function ProfileModal({
                             onClick={downloadData}
                             disabled={downloadState === 'loading'}
                           >
-                            {downloadState === 'loading' ? 'Preparing…' : 'Download my data'}
+                            {downloadState === 'loading' ? 'מכינים…' : 'הורדת הנתונים שלי'}
                           </button>
                           <button className="profile-danger-btn" type="button" onClick={() => setShowDelete(true)}>
-                            Delete account
+                            מחיקת חשבון
                           </button>
                         </div>
                         {downloadState === 'success' && (
-                          <p className="profile-modal-form-message success">Your data download has started.</p>
+                          <p className="profile-modal-form-message success">הורדת הנתונים החלה.</p>
                         )}
                         {downloadState === 'error' && (
-                          <p className="profile-modal-form-message error">Could not prepare the download. Try again.</p>
+                          <p className="profile-modal-form-message error">לא הצלחנו להכין את ההורדה. אפשר לנסות שוב.</p>
                         )}
                       </Section>
                     </div>
@@ -791,28 +784,28 @@ export default function ProfileModal({
                 aria-modal="true"
                 aria-labelledby="profile-confirm-title"
               >
-                <span className="profile-modal-section-eyebrow">CONFIRM ACTION</span>
+                <span className="profile-modal-section-eyebrow">אישור פעולה</span>
                 <h3 id="profile-confirm-title">
                   {confirmAction === 'enable-notifications'
-                    ? 'Allow notifications on this device?'
+                    ? 'הפעלת התראות במכשיר הזה?'
                     : confirmAction === 'disable-notifications'
-                      ? 'Disable notifications on this device?'
-                      : 'Sign out all devices?'}
+                      ? 'כיבוי התראות במכשיר הזה?'
+                      : 'ניתוק כל המכשירים?'}
                 </h3>
                 <p>
                   {confirmAction === 'enable-notifications'
-                    ? 'Capital Flow will be able to send alerts and scan results to this device.'
+                    ? 'Capital Flow יוכל לשלוח התראות ותוצאות סריקות למכשיר הזה.'
                     : confirmAction === 'disable-notifications'
-                      ? "This device will stop receiving notifications. Your account's alerts and schedules will remain saved."
-                      : "This browser will also be signed out. You'll need to sign in again on every device."}
+                      ? 'המכשיר הזה יפסיק לקבל התראות. ההתראות והתזמונים בחשבון יישארו שמורים.'
+                      : 'גם הדפדפן הנוכחי ינותק. יהיה צורך להתחבר מחדש בכל המכשירים.'}
                 </p>
                 {actionError && <div className="profile-modal-form-message error">{actionError}</div>}
                 <div className="profile-confirm-actions">
                   <button className="profile-secondary-btn" type="button" onClick={() => setConfirmAction(null)}>
-                    Cancel
+                    ביטול
                   </button>
                   <button className="profile-primary-btn" type="button" onClick={confirmSensitiveAction}>
-                    Confirm
+                    אישור
                   </button>
                 </div>
               </div>

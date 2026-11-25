@@ -41,7 +41,7 @@ test('scheduled volume notification stays safe when the leading ratio is unavail
     dataStatus: 'complete',
   });
 
-  assert.strictEqual(payload.title, 'Market Signal Detected');
+  assert.strictEqual(payload.title, 'זוהה אות בשוק');
   assert.doesNotMatch(payload.title, /NaN|undefined/);
 });
 
@@ -96,7 +96,7 @@ test('scheduled Capital Flow uses the visible default volume threshold and not a
   const notification = await db
     .prepare('SELECT body, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
     .get(userId);
-  assert.strictEqual(notification.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.strictEqual(notification.body, 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.');
   assert.deepStrictEqual(JSON.parse(notification.results_json), [row]);
 });
 
@@ -188,8 +188,8 @@ test('a scheduled scan persists an in-app notification, so it is visible even wi
   // No single symbol on the notification itself — it's a digest of however
   // many results the run found, not an alert about one specific ticker.
   assert.strictEqual(notif.symbol, null);
-  assert.strictEqual(notif.title, 'Market Signal Detected');
-  assert.strictEqual(notif.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.strictEqual(notif.title, 'זוהה אות בשוק');
+  assert.strictEqual(notif.body, 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.');
 
   // The notification must carry the scan's own results and type, so tapping
   // it can show exactly what that run found — not just "something happened".
@@ -233,7 +233,7 @@ test('a completed scheduled scan with no matches still notifies the user', async
   assert.strictEqual(notif.scan_type, 'capitalFlow');
   assert.strictEqual(notif.results_json, null);
   assert.match(notif.title, /Capital Flow/);
-  assert.strictEqual(notif.body, "We couldn't verify a market signal this time.");
+  assert.strictEqual(notif.body, 'הפעם לא הצלחנו לאמת אות בשוק.');
   assert.strictEqual(pushMock.mock.callCount(), 1, 'the completed empty scan must also send push');
   assert.strictEqual(pushMock.mock.calls[0].arguments[1].data.resultCount, 0);
 });
@@ -260,7 +260,7 @@ test('a provider failure sends a concise unverified-data notification', async (t
   assert.ok(notif, 'provider failures still need a clear customer status notification');
   assert.strictEqual(notif.results_json, null);
   assert.strictEqual(notif.title, 'Capital Flow');
-  assert.strictEqual(notif.body, "We couldn't verify a market signal this time.");
+  assert.strictEqual(notif.body, 'הפעם לא הצלחנו לאמת אות בשוק.');
   assert.strictEqual(pushMock.mock.callCount(), 1);
   assert.strictEqual(pushMock.mock.calls[0].arguments[1].body, notif.body);
 
@@ -297,7 +297,7 @@ test('a partial empty scan sends a concise unverified-data notification', async 
   assert.ok(notif);
   assert.strictEqual(notif.results_json, null);
   assert.strictEqual(notif.title, 'Capital Flow');
-  assert.strictEqual(notif.body, "We couldn't verify a market signal this time.");
+  assert.strictEqual(notif.body, 'הפעם לא הצלחנו לאמת אות בשוק.');
   assert.strictEqual(pushMock.mock.callCount(), 1);
 });
 
@@ -327,8 +327,8 @@ test('a partial scan with returned rows sends the concise signal notification', 
   assert.ok(notif, 'available verified rows must create a notification');
   assert.strictEqual(pushMock.mock.callCount(), 1);
   const stored = await db.prepare('SELECT title, body, results_json FROM notifications WHERE id = ?').get(notif.id);
-  assert.strictEqual(stored.title, 'Market Signal Detected');
-  assert.strictEqual(stored.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.strictEqual(stored.title, 'זוהה אות בשוק');
+  assert.strictEqual(stored.body, 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.');
   assert.doesNotMatch(stored.title, /Partial data/i);
   assert.deepStrictEqual(JSON.parse(stored.results_json), [
     { symbol: 'AAPL', volumeRatio: 3.2, quoteDataStatus: 'complete' },
@@ -359,8 +359,8 @@ test('a partial scan with any returned row sends the normal signal notification'
     .prepare('SELECT title, body, results_json FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
     .get(userId);
   assert.ok(notif);
-  assert.strictEqual(notif.title, 'Market Signal Detected');
-  assert.strictEqual(notif.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.strictEqual(notif.title, 'זוהה אות בשוק');
+  assert.strictEqual(notif.body, 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.');
   assert.deepStrictEqual(JSON.parse(notif.results_json), [
     { symbol: 'AAPL', volumeRatio: 3.2, quoteDataStatus: 'stale' },
   ]);

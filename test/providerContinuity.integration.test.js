@@ -63,8 +63,8 @@ test('three actual local scan/persistence cycles preserve outage, partial and re
     assert.equal(
       saved.body,
       result.results.length
-        ? 'New market signal detected. Open Capital Flow to view it.'
-        : "We couldn't verify a market signal this time."
+        ? 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.'
+        : 'הפעם לא הצלחנו לאמת אות בשוק.'
     );
     assert.equal(await notifications.getNotificationDetail(userId + 100000, notificationId), undefined);
     report.push({

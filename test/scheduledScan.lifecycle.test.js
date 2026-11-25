@@ -149,6 +149,6 @@ test('partial metadata and source timestamp survive persistence and detail retri
   assert.equal(detail.dataStatus, 'partial');
   assert.equal(detail.dataAsOf, data.dataAsOf);
   assert.equal(detail.results.length, 1);
-  assert.equal(detail.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.equal(detail.body, 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.');
   assert.equal(await notifications.getNotificationDetail(row.userId + 100000, notification.id), undefined);
 });

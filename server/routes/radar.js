@@ -38,9 +38,11 @@ function sendValidationError(res, error) {
 }
 
 function refreshSchedulerCache() {
-  require('../services/scheduledScanRunner').refreshScheduledScanCache({ force: true }).catch((error) => {
-    reportError(error, '[radars scheduler cache refresh]');
-  });
+  require('../services/scheduledScanRunner')
+    .refreshScheduledScanCache({ force: true })
+    .catch((error) => {
+      reportError(error, '[radars scheduler cache refresh]');
+    });
 }
 
 // GET /api/radars — only the authenticated owner's recipes and sanitized

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fmt, formatRatio, formatSignedPercent } from '../../utils/format';
+import { flowLabel } from '../../utils/marketCopy';
 
 export default function SectorHeatmap(props) {
   var flowData = props.flowData || [];
@@ -94,7 +95,7 @@ export default function SectorHeatmap(props) {
           letterSpacing: '0.05em',
         },
       },
-      'NO SECTOR DATA — RUN A SCAN TO POPULATE THE HEATMAP'
+      'אין נתוני סקטורים — יש להריץ סריקה כדי למלא את המפה'
     );
   }
 
@@ -303,7 +304,7 @@ export default function SectorHeatmap(props) {
                 letterSpacing: '0.04em',
               },
             },
-            'VOL ' + fmt(cell.volume)
+            'נפח ' + fmt(cell.volume)
           ),
 
           React.createElement(
@@ -320,7 +321,7 @@ export default function SectorHeatmap(props) {
               },
             },
             React.createElement('span', { style: { fontSize: 8 } }, flowIcon),
-            React.createElement('span', {}, cell.flow.toUpperCase())
+            React.createElement('span', {}, flowLabel(cell.flow))
           )
         )
       )
@@ -394,7 +395,7 @@ export default function SectorHeatmap(props) {
               fontFamily: 'var(--mono)',
             },
           },
-          'SECTOR FLOW HEATMAP'
+          'מפת פעילות הסקטורים'
         ),
         React.createElement(
           'span',
@@ -406,7 +407,7 @@ export default function SectorHeatmap(props) {
               letterSpacing: '0.06em',
             },
           },
-          cells.length + ' Sectors'
+          cells.length + ' סקטורים'
         )
       ),
 
@@ -420,7 +421,7 @@ export default function SectorHeatmap(props) {
           React.createElement(
             'span',
             { style: { fontSize: 9, color: 'var(--text-2)', fontFamily: 'var(--mono)', letterSpacing: '0.06em' } },
-            'AVG CHG'
+            'שינוי ממוצע'
           ),
           React.createElement(
             'span',
@@ -445,7 +446,7 @@ export default function SectorHeatmap(props) {
           React.createElement(
             'span',
             { style: { fontSize: 10, color: 'var(--text-1)', fontFamily: 'var(--mono)' } },
-            totalInflow + ' IN'
+            totalInflow + ' חיובי'
           )
         ),
         React.createElement(
@@ -457,13 +458,13 @@ export default function SectorHeatmap(props) {
           React.createElement(
             'span',
             { style: { fontSize: 10, color: 'var(--text-1)', fontFamily: 'var(--mono)' } },
-            totalOutflow + ' OUT'
+            totalOutflow + ' שלילי'
           )
         ),
         React.createElement(
           'div',
           { style: { fontSize: 9, color: 'var(--text-3)', fontFamily: 'var(--mono)', letterSpacing: '0.04em' } },
-          'CELL SIZE = VOLUME'
+          'גודל משבצת = נפח'
         )
       )
     ),
@@ -485,8 +486,8 @@ export default function SectorHeatmap(props) {
           },
         },
         dataStatus === 'unavailable'
-          ? 'Sector data is currently unavailable. Please try again later.'
-          : 'Sector data is partial — some values could not be verified.'
+          ? 'נתוני הסקטורים אינם זמינים כרגע. אפשר לנסות שוב מאוחר יותר.'
+          : 'נתוני הסקטורים חלקיים — חלק מהערכים לא אומתו.'
       ),
 
     // Last-session fallback can also occur while the market is open.
@@ -508,7 +509,7 @@ export default function SectorHeatmap(props) {
           },
         },
         React.createElement('span', { style: { fontSize: 12 } }, '🕐'),
-        'Showing last available session data'
+        'מוצגים נתוני יום המסחר האחרון הזמין'
       ),
 
     // Grid

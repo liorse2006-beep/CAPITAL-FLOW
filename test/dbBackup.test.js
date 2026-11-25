@@ -51,7 +51,11 @@ test('weekly backup gate checks Sundays and retries only a genuinely overdue bac
   assert.equal(shouldRunScheduledBackup(now, now - 5 * day, true), false, 'never sends twice within six days');
   assert.equal(shouldRunScheduledBackup(now, now - 6 * day, true), true, 'normal weekly Sunday run remains eligible');
   assert.equal(shouldRunScheduledBackup(now, now - 6 * day, false), false, 'not overdue before a week off-Sunday');
-  assert.equal(shouldRunScheduledBackup(now, now - 7 * day, false), true, 'a missed Sunday backup retries after a week');
+  assert.equal(
+    shouldRunScheduledBackup(now, now - 7 * day, false),
+    true,
+    'a missed Sunday backup retries after a week'
+  );
 });
 
 test('dumpTables includes every user-facing and operational table, not just the original short list', async () => {

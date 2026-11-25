@@ -26,54 +26,55 @@ export function alertLevelLabel(level) {
 }
 
 const USER_ERROR_COPY = Object.freeze({
-  'Prices are temporarily unavailable. Please try again.': 'Prices are temporarily unavailable. Please try again.',
+  'Prices are temporarily unavailable. Please try again.': 'המחירים אינם זמינים כרגע. אפשר לנסות שוב.',
   "We couldn't save your watchlist change. Please try again.":
-    "We couldn't save your watchlist change. Please try again.",
-  "We couldn't load your saved watchlist. Please try again.": "We couldn't load your watchlist. Please try again.",
+    'לא הצלחנו לשמור את השינוי ברשימת המעקב. אפשר לנסות שוב.',
+  "We couldn't load your saved watchlist. Please try again.": 'לא הצלחנו לטעון את רשימת המעקב. אפשר לנסות שוב.',
   'Your watchlist is full. Remove a ticker before adding another.':
-    'Your watchlist is full. Remove a stock before adding another.',
-  'Could not load scheduled scans': "We couldn't load your scheduled scans. Please try again.",
-  'Failed to create schedule': "We couldn't save your schedule. Please try again.",
-  'That date and time have already passed': 'Choose a future date and time.',
-  'Failed to update schedule': "We couldn't update your schedule. Please try again.",
-  'Failed to remove schedule': "We couldn't remove your schedule. Please try again.",
+    'רשימת המעקב מלאה. יש להסיר מניה לפני הוספת מניה נוספת.',
+  'Could not load scheduled scans': 'לא הצלחנו לטעון את הסריקות המתוזמנות. אפשר לנסות שוב.',
+  'Failed to create schedule': 'לא הצלחנו לשמור את התזמון. אפשר לנסות שוב.',
+  'That date and time have already passed': 'יש לבחור תאריך ושעה עתידיים.',
+  'Failed to update schedule': 'לא הצלחנו לעדכן את התזמון. אפשר לנסות שוב.',
+  'Failed to remove schedule': 'לא הצלחנו להסיר את התזמון. אפשר לנסות שוב.',
   'Push notifications are not supported in this browser.':
-    "Push isn't available in this browser. On iPhone, add the site to your Home Screen and open its icon.",
-  'Allow notifications in your browser settings to enable push.': 'Allow notifications in your browser settings.',
-  'Push notifications are temporarily unavailable.': 'Notifications are temporarily unavailable. Please try again.',
-  'Could not save notification access. Please try again.':
-    "We couldn't save your notification setting. Please try again.",
-  'Could not enable notifications. Please try again.': 'Could not enable notifications. Please try again.',
-  'Could not disable notifications. Please try again.': "We couldn't disable notifications. Please try again.",
+    'התראות למכשיר אינן זמינות בדפדפן הזה. באייפון מוסיפים את האתר למסך הבית ופותחים מהאייקון.',
+  'Allow notifications in your browser settings to enable push.': 'יש לאפשר התראות בהגדרות הדפדפן.',
+  'Push notifications are temporarily unavailable.': 'ההתראות אינן זמינות כרגע. אפשר לנסות שוב.',
+  'Could not save notification access. Please try again.': 'לא הצלחנו לשמור את הגדרת ההתראות. אפשר לנסות שוב.',
+  'Could not enable notifications. Please try again.': 'לא הצלחנו להפעיל התראות. אפשר לנסות שוב.',
+  'Could not disable notifications. Please try again.': 'לא הצלחנו לכבות התראות. אפשר לנסות שוב.',
+  "We couldn't load scan results. Please try again.": 'לא הצלחנו לקבל תוצאות לסריקה. אפשר לנסות שוב.',
+  'Your scan is taking longer than expected. Please try again.': 'הסריקה מתעכבת. אפשר לנסות שוב.',
+  'Notification setup was interrupted. Please try again.': 'הגדרת ההתראות נקטעה. אפשר לנסות שוב.',
 });
 
+const GENERIC_ERROR = 'לא הצלחנו להשלים את הפעולה. אפשר לנסות שוב.';
+const HEBREW = /[\u0590-\u05FF]/;
+
 /* Turns a raw fetch-rejection message into something a user can act on.
-   Special-cases the known "a scan is already running" message so it isn't
-   misclassified as a network failure. */
+   Known server and client messages map to Hebrew copy; Hebrew messages are
+   already our own trusted copy and pass through unchanged. */
 export function friendlyError(message) {
-  if (typeof message !== 'string') return 'Something went wrong. Please try again.';
+  if (typeof message !== 'string') return GENERIC_ERROR;
   if (Object.hasOwn(USER_ERROR_COPY, message)) return USER_ERROR_COPY[message];
+  if (HEBREW.test(message) && message.length <= 300 && !/[<>]/.test(message)) return message;
   if (message === 'Scan already in progress') {
-    return 'A scan is already running. Please wait for it to finish.';
+    return 'סריקה כבר מתבצעת. יש להמתין לסיום שלה.';
   }
-  if (
-    message === "We couldn't load scan results. Please try again." ||
-    message === 'Your scan is taking longer than expected. Please try again.'
-  )
-    return message;
   var m = message.toLowerCase();
   if (m.includes('fetch') || m.includes('network')) {
-    return "We couldn't connect. Check your connection and try again.";
+    return 'לא הצלחנו להתחבר. יש לבדוק את החיבור ולנסות שוב.';
   }
-  if (m.includes('sign in') || m === 'unauthorized') return 'Please sign in to continue.';
+  if (m.includes('sign in') || m === 'unauthorized') return 'יש להתחבר לחשבון כדי להמשיך.';
   if (m.includes('too many') || m.includes('rate limit'))
-    return 'Too many attempts. Please try again in a few minutes.';
+    return 'בוצעו יותר מדי ניסיונות. אפשר לנסות שוב בעוד כמה דקות.';
   if (m.includes('notification') && (m.includes('denied') || m.includes('blocked'))) {
-    return 'Notifications are blocked. Allow them in your browser settings.';
+    return 'ההתראות חסומות. יש לאפשר אותן בהגדרות הדפדפן.';
   }
   // Never return an arbitrary API/provider error, HTML, identifier or stack
   // trace. Components can render their own trusted, localized instructions.
-  return 'Something went wrong. Please try again.';
+  return GENERIC_ERROR;
 }
 
 // Financial values can be unavailable (null) independently from being zero.

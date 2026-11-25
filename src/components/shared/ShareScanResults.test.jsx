@@ -39,8 +39,8 @@ it('passes a generated PDF File to the device share menu', async () => {
     canShare: ({ files }) => files[0].type === 'application/pdf',
   });
   render(<ShareScanResults report={report} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Share Results', exact: true }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Share PDF' }));
+  fireEvent.click(screen.getByRole('button', { name: 'שיתוף תוצאות', exact: true }));
+  fireEvent.click(await screen.findByRole('button', { name: 'שיתוף PDF' }));
   const [{ files }] = share.mock.calls[0];
   expect(files).toHaveLength(1);
   expect(files[0]).toBeInstanceOf(File);
@@ -56,10 +56,10 @@ it('offers a downloadable PDF when native file sharing is unavailable', async ()
     expect(this.download).toBe('capital-flow-scan-2026-11-03.pdf');
   });
   render(<ShareScanResults report={report} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Share Results', exact: true }));
-  const save = screen.getByRole('button', { name: 'Save PDF' });
+  fireEvent.click(screen.getByRole('button', { name: 'שיתוף תוצאות', exact: true }));
+  const save = screen.getByRole('button', { name: 'שמירת PDF' });
   await waitFor(() => expect(save).toBeEnabled());
-  expect(screen.queryByRole('button', { name: 'Share PDF' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'שיתוף PDF' })).not.toBeInTheDocument();
   fireEvent.click(save);
   expect(createObjectURL.mock.calls[0][0].type).toBe('application/pdf');
   expect(download).toHaveBeenCalledOnce();

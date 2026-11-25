@@ -84,7 +84,10 @@ function filterCachedResults(cached, opts) {
 
 function getFullMarketDisplay() {
   const retained = marketContinuity?.rawResults === backgroundCache.results ? marketContinuity.retained : [];
-  return displayFullMarketScan({ results: backgroundCache.results || [], dataStatus: backgroundCache.dataStatus }, retained);
+  return displayFullMarketScan(
+    { results: backgroundCache.results || [], dataStatus: backgroundCache.dataStatus },
+    retained
+  );
 }
 
 async function recordFullMarketScan(scan, startedAt) {
@@ -95,7 +98,11 @@ async function recordFullMarketScan(scan, startedAt) {
     startedAt
   );
   const scanTime = new Date().toISOString();
-  if (marketContinuity && marketContinuity.rawResults === backgroundCache.results && startedAt < marketContinuity.startedAt) {
+  if (
+    marketContinuity &&
+    marketContinuity.rawResults === backgroundCache.results &&
+    startedAt < marketContinuity.startedAt
+  ) {
     return {
       ...getFullMarketDisplay(),
       rawDataStatus: backgroundCache.dataStatus,
@@ -419,9 +426,7 @@ async function runBackgroundScan(options = {}) {
   try {
     broadcast('scan-status', { running: true });
 
-    const scanPromise = Promise.resolve().then(() =>
-      scanner.scanTickers(ALL_TICKERS, FULL_MARKET_FLOOR)
-    );
+    const scanPromise = Promise.resolve().then(() => scanner.scanTickers(ALL_TICKERS, FULL_MARKET_FLOOR));
     backgroundCache.inFlight = scanPromise;
     scanPromise.then(
       () => {

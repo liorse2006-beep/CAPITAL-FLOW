@@ -25,7 +25,7 @@ const child = String.raw`
       await sender.saveSubscription(owner, { endpoint: 'https://push.example/first', keys });
       await sender.saveSubscription(owner, { endpoint: 'https://push.example/second', keys });
       const id = await notifications.addNotification(owner, {
-        title: 'Market Signal Detected', body: 'New market signal detected. Open Capital Flow to view it.',
+        title: 'זוהה אות בשוק', body: 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.',
         scanType: 'capitalFlow', results: [{ symbol: 'TEST', price: 1 }], pushPayload: { data: { url: '/scanner' } }
       });
       console.log(JSON.stringify({ stage: step, notificationId: id }));

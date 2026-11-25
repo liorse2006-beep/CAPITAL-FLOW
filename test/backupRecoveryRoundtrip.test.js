@@ -93,8 +93,8 @@ test('real encrypted backup and restore CLI preserve all allowlisted tables and 
       {
         id: 400,
         user_id: 100,
-        title: 'Market Signal Detected',
-        body: 'New market signal detected. Open Capital Flow to view it.',
+        title: 'זוהה אות בשוק',
+        body: 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.',
         scan_type: 'capitalFlow',
         results_json: '[{"symbol":"FIX","price":12}]',
         data_status: 'partial',

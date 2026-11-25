@@ -218,8 +218,8 @@ test('checkWatchlistAlerts uses the concise alert copy when the quote has no cha
     );
     assert.strictEqual((await getWatchlistAlerts(userId)).AMD, undefined, 'the alert is consumed once it is persisted');
     const notifications = await getNotifications(userId, 10);
-    assert.strictEqual(notifications[0].title, 'Market Signal Detected');
-    assert.strictEqual(notifications[0].body, 'New market signal detected. Open Capital Flow to view it.');
+    assert.strictEqual(notifications[0].title, 'זוהה אות בשוק');
+    assert.strictEqual(notifications[0].body, 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.');
   } finally {
     webPush.sendPushToUser = originalSend;
   }
@@ -412,8 +412,8 @@ test('checkWatchlistAlerts sends the same concise alert copy for a verified row 
       { scanDataStatus: 'partial' }
     );
     assert.strictEqual(pushCalls.length, 1);
-    assert.strictEqual(pushCalls[0].payload.title, 'Market Signal Detected');
-    assert.strictEqual(pushCalls[0].payload.body, 'New market signal detected. Open Capital Flow to view it.');
+    assert.strictEqual(pushCalls[0].payload.title, 'זוהה אות בשוק');
+    assert.strictEqual(pushCalls[0].payload.body, 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.');
     assert.doesNotMatch(pushCalls[0].payload.title, /Partial data/i);
     assert.strictEqual((await getWatchlistAlerts(userId)).AAPL, undefined);
   } finally {

@@ -9,8 +9,8 @@ const SECTOR_BY_TICKER = Object.fromEntries(SECTOR_ETFS.map((sector) => [sector.
 
 var SCAN_LABEL = {
   capitalFlow: 'Capital Flow',
-  maScanner: 'MA Scanner',
-  sectorMoving: 'Hot Sectors',
+  maScanner: 'ממוצעים נעים',
+  sectorMoving: 'פעילות בסקטורים',
   capitalFlowRadar: 'Capital Flow Radar',
 };
 
@@ -55,7 +55,7 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
     results.some(
       (row) => !SECTOR_BY_TICKER[row?.symbol] || !['inflow', 'outflow', 'neutral', 'unavailable'].includes(row?.flow)
     );
-  var label = SCAN_LABEL[notification.scanType] || 'Scheduled scan';
+  var label = SCAN_LABEL[notification.scanType] || 'סריקה מתוזמנת';
   var reportType = isSectorScan
     ? 'sectorMoving'
     : notification.scanType === 'maScanner'
@@ -64,11 +64,11 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
   var observedAt = dataTime(notification.dataAsOf);
   var qualityNotice =
     notification.dataStatus === 'partial'
-      ? 'Showing available results. Some market data was unavailable.'
+      ? 'מוצגות התוצאות הזמינות. חלק מנתוני השוק לא היו זמינים.'
       : notification.dataStatus === 'stale'
-        ? 'Saved results are based on delayed data.'
+        ? 'התוצאות השמורות מבוססות על נתונים מעוכבים.'
         : notification.dataStatus !== 'complete'
-          ? 'These saved results could not be fully verified.'
+          ? 'לא הצלחנו לאמת את התוצאות השמורות במלואן.'
           : '';
 
   return (
@@ -80,7 +80,7 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={label + ' results'}
+        aria-label={label + ' — תוצאות'}
       >
         <div className="scheduled-results-header">
           <div>
@@ -89,15 +89,15 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
             </h2>
             <p className="scheduled-results-sub">
               {legacySectorScan
-                ? "This older alert doesn't include a saved sector scan."
+                ? 'ההתראה הישנה הזו לא כוללת סריקת סקטורים שמורה.'
                 : results.length > 0
-                  ? 'New market signal detected. Open Capital Flow to view it.'
-                  : "We couldn't verify a market signal this time."}
+                  ? 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.'
+                  : 'הפעם לא הצלחנו לאמת אות בשוק.'}
             </p>
             {results.length > 0 && !legacySectorScan && (
               <div className="scheduled-results-quality" role="note">
                 {qualityNotice && <p>{qualityNotice}</p>}
-                <p>{observedAt ? 'Market data as of ' + observedAt + '.' : 'Market data time is unavailable.'}</p>
+                <p>{observedAt ? 'נתוני שוק נכון ל-' + observedAt + '.' : 'זמן נתוני השוק אינו זמין.'}</p>
               </div>
             )}
           </div>
@@ -115,7 +115,7 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
                 }}
               />
             )}
-            <button className="scheduled-results-close" onClick={onClose} aria-label="Close">
+            <button className="scheduled-results-close" onClick={onClose} aria-label="סגירה">
               &times;
             </button>
           </div>
@@ -124,19 +124,19 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
         {legacySectorScan ? (
           <div className="scheduled-results-empty">
             <a className="btn-secondary" href="/flow" onClick={onClose}>
-              Open Hot Sectors to run a new scan
+              לפתיחת פעילות בסקטורים והרצת סריקה חדשה
             </a>
           </div>
         ) : results.length === 0 ? (
-          <div className="scheduled-results-empty">{"We couldn't verify a market signal this time."}</div>
+          <div className="scheduled-results-empty">{'הפעם לא הצלחנו לאמת אות בשוק.'}</div>
         ) : (
           <div className="scheduled-results-list">
             <div className="scheduled-results-col-header">
-              <span>{isSectorScan ? 'Sector' : 'Symbol'}</span>
-              <span>{isSectorScan ? 'Activity' : 'Market cap'}</span>
-              <span>Price</span>
-              <span>Change</span>
-              <span>{isSectorScan ? 'Volume ratio' : 'Signal'}</span>
+              <span>{isSectorScan ? 'סקטור' : 'סימול'}</span>
+              <span>{isSectorScan ? 'פעילות' : 'שווי שוק'}</span>
+              <span>מחיר</span>
+              <span>שינוי</span>
+              <span>{isSectorScan ? 'יחס נפח' : 'אות'}</span>
               <span></span>
             </div>
             {results.map(function (r) {
@@ -150,7 +150,7 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
                     <span className="scheduled-results-symbol">{sector ? sector.name : r.symbol}</span>
                     {(sector || r.name) && <span className="scheduled-results-name">{sector ? r.symbol : r.name}</span>}
                   </div>
-                  <span className="scheduled-results-cap" data-label={isSectorScan ? 'Activity' : 'Market cap'}>
+                  <span className="scheduled-results-cap" data-label={isSectorScan ? 'פעילות' : 'שווי שוק'}>
                     {isSectorScan ? (
                       <span className={'flow-badge ' + r.flow}>{flowLabel(r.flow)}</span>
                     ) : r.marketCap > 0 ? (
@@ -159,18 +159,18 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
                       '—'
                     )}
                   </span>
-                  <span className="scheduled-results-price" data-label="Price">
+                  <span className="scheduled-results-price" data-label="מחיר">
                     <bdi dir="ltr">{formatPrice(r.price)}</bdi>
                   </span>
                   <span
                     className={
                       'scheduled-results-change ' + (r.change == null ? '' : r.change >= 0 ? 'col-pos' : 'col-neg')
                     }
-                    data-label="Change"
+                    data-label="שינוי"
                   >
                     <bdi dir="ltr">{formatSignedPercent(r.change)}</bdi>
                   </span>
-                  <span className="scheduled-results-signal" data-label={isSectorScan ? 'Volume ratio' : 'Signal'}>
+                  <span className="scheduled-results-signal" data-label={isSectorScan ? 'יחס נפח' : 'אות'}>
                     {hasRatio ? (
                       <span
                         className={
@@ -186,7 +186,7 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
                       </span>
                     ) : !isSectorScan && hasMaDistance ? (
                       <span className="scheduled-results-ma">
-                        {(r.direction === 'above' ? '+' : '') + Number(r.maDistance).toFixed(2) + '% from MA'}
+                        {(r.direction === 'above' ? '+' : '') + Number(r.maDistance).toFixed(2) + '% מהממוצע'}
                       </span>
                     ) : isSectorScan ? (
                       '—'
@@ -198,8 +198,8 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
                       href={'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(r.symbol)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      title="Open in TradingView"
-                      aria-label={'Open ' + r.symbol + ' on TradingView'}
+                      title="פתיחה ב-TradingView"
+                      aria-label={'פתיחת ' + r.symbol + ' ב-TradingView'}
                     >
                       <svg
                         viewBox="0 0 24 24"
@@ -219,9 +219,9 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
                       <button
                         className={'star-btn-remove' + (isInWatchlist && isInWatchlist(r.symbol) ? ' active' : '')}
                         onClick={() => toggleWatchlistTicker(r.symbol)}
-                        title={isInWatchlist && isInWatchlist(r.symbol) ? 'Remove from watchlist' : 'Add to watchlist'}
+                        title={isInWatchlist && isInWatchlist(r.symbol) ? 'הסרה מרשימת המעקב' : 'הוספה לרשימת המעקב'}
                         aria-label={
-                          (isInWatchlist && isInWatchlist(r.symbol) ? 'Remove ' : 'Add ') + r.symbol + ' In watchlist'
+                          (isInWatchlist && isInWatchlist(r.symbol) ? 'הסרת ' : 'הוספת ') + r.symbol + ' לרשימת המעקב'
                         }
                       >
                         <svg

@@ -16,8 +16,8 @@ async function pending(name) {
   const userId = Number(user.lastInsertRowid);
   const id = Number(
     await notifications.addNotification(userId, {
-      title: 'Market Signal Detected',
-      body: 'New market signal detected. Open Capital Flow to view it.',
+      title: 'זוהה אות בשוק',
+      body: 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.',
       scanType: 'capitalFlow',
       results: [{ symbol: 'TEST', price: 10 }],
       pushPayload: { data: { url: '/scanner' } },

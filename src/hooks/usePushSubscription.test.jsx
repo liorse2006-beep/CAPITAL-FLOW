@@ -164,7 +164,7 @@ describe('device push registration is verified for the current account', () => {
     Notification.requestPermission.mockRejectedValue(new Error('Internal provider token synthetic-sensitive-value'));
     const { result } = renderHook(() => usePushSubscription());
     await act(async () => {
-      await expect(result.current.enablePush()).rejects.toThrow('Could not enable notifications. Please try again.');
+      await expect(result.current.enablePush()).rejects.toThrow('לא הצלחנו להפעיל התראות. אפשר לנסות שוב.');
     });
     expect(result.current.pushError).not.toContain('synthetic-sensitive-value');
     expect(result.current.pushBusy).toBe(false);

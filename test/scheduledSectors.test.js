@@ -73,7 +73,7 @@ test('scheduled Hot Sectors shares the sector engine, saves the exact run and de
     .prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
     .get(first.id);
   assert.equal(stored.scan_type, 'sectorMoving');
-  assert.equal(stored.body, 'New market signal detected. Open Capital Flow to view it.');
+  assert.equal(stored.body, 'זוהה אות חדש בשוק. אפשר לפתוח את Capital Flow כדי לראות אותו.');
   assert.equal(stored.data_status, 'partial');
   assert.equal(stored.data_as_of, sector.dataAsOf);
   assert.deepEqual(JSON.parse(stored.results_json), [sector]);
@@ -126,7 +126,7 @@ test('unavailable sector placeholders do not create a false signal and still pro
   const stored = await db
     .prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1')
     .get(user.id);
-  assert.equal(stored.body, "We couldn't verify a market signal this time.");
+  assert.equal(stored.body, 'הפעם לא הצלחנו לאמת אות בשוק.');
   assert.equal(stored.results_json, null);
   assert.equal(stored.data_status, 'unavailable');
   const schedule = await db.prepare('SELECT last_result_count FROM scheduled_scans WHERE user_id = ?').get(user.id);

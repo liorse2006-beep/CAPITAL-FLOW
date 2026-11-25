@@ -3,18 +3,18 @@ import useSeo from '../hooks/useSeo';
 
 export default function NotFoundPage() {
   useSeo({
-    title: 'Page not found | Capital Flow',
-    description: 'This link is unavailable. You can return to the homepage.',
+    title: 'העמוד לא נמצא | Capital Flow',
+    description: 'הקישור אינו זמין. אפשר לחזור לעמוד הבית.',
     noIndex: true,
   });
   return (
-    <section className="page-content policy-page" lang="en" dir="ltr" aria-labelledby="not-found-title">
+    <section className="page-content policy-page" lang="he" dir="rtl" aria-labelledby="not-found-title">
       <h2 id="not-found-title" className="flow-title">
-        Page not found
+        העמוד לא נמצא
       </h2>
-      <p className="policy-paragraph">This link is unavailable. Return to the homepage to continue.</p>
+      <p className="policy-paragraph">הקישור אינו זמין. אפשר לחזור לעמוד הבית ולהמשיך משם.</p>
       <Link className="upgrade-cta" to="/">
-        Back to home
+        חזרה לעמוד הבית
       </Link>
     </section>
   );

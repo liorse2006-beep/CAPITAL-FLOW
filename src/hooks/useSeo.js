@@ -45,7 +45,7 @@ function managedTag(selector, tag, attributes) {
 export default function useSeo({ title, description, path, ogImage, noIndex = false }) {
   useEffect(() => {
     const url = SITE_URL + (path || '/');
-    const language = path === '/' ? 'he' : 'en';
+    const language = 'he';
     const seoContentMount = document.querySelector('#seo-route-content');
     if (seoContentMount) {
       if (path === '/') {

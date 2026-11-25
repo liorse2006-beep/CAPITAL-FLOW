@@ -13,38 +13,36 @@ const ROUTE_METADATA = Object.freeze({
       'כלי חינוכי לסריקת מניות לפי נפח מסחר חריג, ממוצעים נעים ופעילות בסקטורים. נתוני שוק עשויים להיות מעוכבים או חלקיים ויש לאמת מידע באופן עצמאי.',
   },
   '/scanner': {
-    title: 'Unusual Volume Stock Scanner | Capital Flow',
+    title: 'סורק נפח מסחר חריג | Capital Flow',
     description:
-      'Screen selected stock universes for unusual trading volume with volume-ratio, market-cap and volume filters. Market data may be delayed or incomplete; educational use only.',
+      'סריקת מניות S&P 500 ונאסד"ק 100 לפי נפח מסחר חריג, עם סינון לפי יחס נפח, שווי שוק ונפח מינימלי. הנתונים עשויים להיות מעוכבים; לצורכי לימוד בלבד.',
   },
   '/ma': {
-    title: 'Moving Average Stock Scanner | Capital Flow',
+    title: 'סורק ממוצעים נעים | Capital Flow',
     description:
-      'Scan selected U.S. stock universes for proximity to 9, 20, 50 and 150 simple moving averages on daily or weekly timeframes. Market data may be delayed or incomplete.',
+      'איתור מניות שקרובות לממוצע הנע של 9, 20, 50 או 150 ימים, בגרף יומי או שבועי. הנתונים עשויים להיות מעוכבים או חלקיים.',
   },
   '/flow': {
-    title: 'Stock Sector Performance | Capital Flow',
+    title: 'פעילות בסקטורים | Capital Flow',
     description:
-      'Review price and volume movement across market sectors with Capital Flow. Market data may be delayed or incomplete; verify information independently.',
+      'השוואת תנועות מחיר ונפח בין סקטורי השוק. הנתונים עשויים להיות מעוכבים או חלקיים; כדאי לאמת באופן עצמאי.',
   },
   '/fundamentals': {
-    title: 'Fundamental Stock Analysis | Capital Flow',
+    title: 'נתונים פיננסיים למניות | Capital Flow',
     description:
-      'Review available P/E, forward P/E, PEG, debt-to-equity, growth, float, short interest, and earnings data. Availability varies by symbol; data may be delayed or incomplete.',
+      'מכפיל רווח, מכפיל עתידי, PEG, חוב להון, צמיחה, Float, Short Interest ומועד דוחות לכל מניה. הזמינות משתנה בין מניות.',
   },
   '/watchlist': {
-    title: 'Stock Watchlist & Alerts | Capital Flow',
-    description:
-      'Track selected stock symbols, review available quote information, and manage supported price or volume alerts. Market data may be delayed or incomplete.',
+    title: 'רשימת מעקב והתראות | Capital Flow',
+    description: 'מעקב אחרי מניות שבחרת, מחירים זמינים והתראות מחיר או נפח. הנתונים עשויים להיות מעוכבים.',
   },
   '/policy': {
-    title: 'Terms of Use and Privacy Policy | Capital Flow',
-    description: "Capital Flow's terms of use, privacy, payments, refunds and contact information.",
+    title: 'תנאי שימוש ומדיניות פרטיות | Capital Flow',
+    description: 'תנאי השימוש, מדיניות הפרטיות, התשלומים, ההחזרים ופרטי הקשר של Capital Flow.',
   },
   '/accessibility': {
-    title: 'Accessibility Statement | Capital Flow',
-    description:
-      "Read Capital Flow's accessibility statement, available features, known limitations, and contact details.",
+    title: 'הצהרת נגישות | Capital Flow',
+    description: 'הצהרת הנגישות של Capital Flow: התאמות זמינות, מגבלות ידועות ופרטי קשר.',
   },
 });
 
@@ -109,8 +107,10 @@ function renderPublicMetadata(html, pathname) {
   if (!metadata) return html;
 
   const canonical = SITE_URL + normalizePath(pathname);
-  const language = normalizePath(pathname) === '/' ? 'he' : 'en';
-  let rendered = language === 'he' ? html : englishDocument(html, metadata.description);
+  // The whole product is Hebrew. App routes keep a left-to-right layout for
+  // their tables; only the landing page document is right-to-left.
+  const language = 'he';
+  let rendered = normalizePath(pathname) === '/' ? html : appDocument(html, metadata.description);
   rendered = rendered.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(metadata.title)}</title>`);
   rendered = replaceContentAttribute(rendered, `meta\\s+name=["']description["']`, metadata.description);
   rendered = replaceContentAttribute(rendered, `meta\\s+property=["']og:title["']`, metadata.title);
@@ -140,24 +140,22 @@ function removeAppExplanation(html) {
   return html.replace(/<section\s+id=["']seo-route-content["'][^>]*>[\s\S]*?<\/section>/gi, '');
 }
 
-function englishDocument(
+function appDocument(
   html,
-  description = 'Capital Flow stock research and scanning tools. Market data may be delayed or partial.'
+  description = 'כלי מחקר וסריקת מניות של Capital Flow. נתוני השוק עשויים להיות מעוכבים או חלקיים.'
 ) {
   return html
     .replace(
       /<html\b([^>]*)>/i,
-      (_tag, attrs) => `<html${attrs.replace(/\s+(?:lang|dir)=["'][^"']*["']/gi, '')} lang="en" dir="ltr">`
+      (_tag, attrs) => `<html${attrs.replace(/\s+(?:lang|dir)=["'][^"']*["']/gi, '')} lang="he" dir="ltr">`
     )
-    .replace(/hreflang=["']he["']/gi, 'hreflang="en"')
-    .replace(/he_IL/g, 'en_US')
     .replace(
       /(<script\b[^>]*type=["']application\/ld\+json["'][^>]*>)([\s\S]*?)(<\/script>)/gi,
       (all, open, json, close) => {
         try {
           const value = JSON.parse(json);
           if (value['@type'] === 'SoftwareApplication') {
-            value.inLanguage = 'en';
+            value.inLanguage = 'he';
             value.description = description;
           }
           return open + JSON.stringify(value) + close;
@@ -165,8 +163,7 @@ function englishDocument(
           return all;
         }
       }
-    )
-    .replace(/aria-label=["']מידע על Capital Flow["']/g, 'aria-label="About Capital Flow"');
+    );
 }
 
 function servePublicApp(req, res, serveDir) {
@@ -177,8 +174,8 @@ function servePublicApp(req, res, serveDir) {
     if (error) return res.status(isKnownRoute ? 200 : 404).sendFile(indexPath);
     if (!isKnownRoute) {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-      const notFoundHtml = englishDocument(removeAppExplanation(html))
-        .replace(/<title>[\s\S]*?<\/title>/i, '<title>Page not found | Capital Flow</title>')
+      const notFoundHtml = appDocument(removeAppExplanation(html))
+        .replace(/<title>[\s\S]*?<\/title>/i, '<title>העמוד לא נמצא | Capital Flow</title>')
         .replace(/<link\s+[^>]*rel=["']canonical["'][^>]*>/gi, '')
         .replace(/<link\s+[^>]*rel=["']alternate["'][^>]*>/gi, '')
         .replace(/(<meta\s+name=["']robots["'][^>]*content=["'])[^"']*/i, '$1noindex, nofollow');

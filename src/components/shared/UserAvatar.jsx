@@ -11,7 +11,7 @@ function handleAvatarError(event) {
 
 export default function UserAvatar({ user, className = '' }) {
   const email = String((user && user.email) || '').trim();
-  const alt = email ? `${email} profile picture` : 'Profile picture';
+  const alt = email ? `תמונת הפרופיל של ${email}` : 'תמונת פרופיל';
 
   return (
     <img
