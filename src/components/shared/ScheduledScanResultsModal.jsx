@@ -8,7 +8,7 @@ import ShareScanResults from './ShareScanResults';
 const SECTOR_BY_TICKER = Object.fromEntries(SECTOR_ETFS.map((sector) => [sector.ticker, sector]));
 
 var SCAN_LABEL = {
-  capitalFlow: 'Capital Flow',
+  capitalFlow: 'נפח חריג',
   maScanner: 'ממוצעים נעים',
   sectorMoving: 'פעילות בסקטורים',
   capitalFlowRadar: 'Capital Flow Radar',

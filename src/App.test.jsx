@@ -118,7 +118,7 @@ describe('App routing', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'תזמונים והתראות' }));
     fireEvent.click(await screen.findByRole('button', { name: 'תזמון סריקות' }));
     expect(await screen.findByRole('dialog', { name: 'תזמון סריקה' })).toBeInTheDocument();
-    expect(screen.getByText('Schedule Capital Flow')).toBeInTheDocument();
+    expect(screen.getByText('תזמון סריקת נפח חריג')).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Account center' })).not.toBeInTheDocument();
   });
 
@@ -163,12 +163,10 @@ describe('App routing', () => {
       </AuthProvider>
     );
     fireEvent.click(screen.getByRole('button', { name: 'Test sign in' }));
-    expect(await screen.findByRole('dialog', { name: 'Capital Flow — תוצאות' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'נפח חריג — תוצאות' })).toBeInTheDocument();
     expect(screen.getByText('PRIVATEFIX')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Test other account' }));
-    await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'Capital Flow — תוצאות' })).not.toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'נפח חריג — תוצאות' })).not.toBeInTheDocument());
     expect(screen.queryByText('PRIVATEFIX')).not.toBeInTheDocument();
     await waitFor(() => expect(streams).toHaveLength(2));
   });
@@ -244,10 +242,10 @@ describe('App routing', () => {
   it('keeps Capital Flow inside the app when navigating from another app route', async () => {
     renderAt('/watchlist');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Capital Flow' }));
+    fireEvent.click(screen.getByRole('button', { name: 'נפח חריג' }));
 
     await waitFor(() => expect(screen.getByText('סריקה מלאה')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: 'Capital Flow' }).className).toMatch(/active/);
+    expect(screen.getByRole('button', { name: 'נפח חריג' }).className).toMatch(/active/);
   });
 
   it('processes a second checkout success in the same mounted App instance', async () => {

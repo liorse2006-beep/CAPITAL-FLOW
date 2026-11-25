@@ -32,7 +32,7 @@ function number(value) {
 }
 
 const SCHEDULE_SCAN_LABELS = {
-  capitalFlow: 'Capital Flow',
+  capitalFlow: 'נפח חריג',
   maScanner: 'סורק ממוצעים נעים',
   sectorMoving: 'פעילות בסקטורים',
 };

@@ -5,7 +5,7 @@ import { friendlyError } from '../../utils/format';
 import useModalA11y from '../../hooks/useModalA11y';
 
 const SCAN_LABELS = {
-  capitalFlow: 'Capital Flow',
+  capitalFlow: 'נפח חריג',
   maScanner: 'ממוצעים נעים',
   sectorMoving: 'פעילות בסקטורים',
 };
@@ -168,7 +168,7 @@ export default function ScheduleScan({
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
-                <span>Schedule {SCAN_LABELS[scanType]}</span>
+                <span>תזמון סריקת {SCAN_LABELS[scanType]}</span>
               </div>
               <button className="schedule-scan-close" onClick={closeSchedule} aria-label="סגירה">
                 ✕

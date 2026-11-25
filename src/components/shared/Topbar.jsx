@@ -310,7 +310,7 @@ export default function Topbar({
 
       <nav className="nav-tabs">
         <button className={'nav-tab ' + (page === 'scanner' ? 'active' : '')} onClick={() => setPage('scanner')}>
-          Capital Flow
+          נפח חריג
         </button>
         <button className={'nav-tab ' + (page === 'flow' ? 'active' : '')} onClick={() => setPage('flow')}>
           פעילות בסקטורים
