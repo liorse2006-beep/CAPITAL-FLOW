@@ -35,7 +35,7 @@ test('Docker runtime image includes the route content required by server-side re
 
 test('server-rendered route metadata replaces the SPA defaults without trusting the URL as content', () => {
   const rendered = renderPublicMetadata(SHELL, '/fundamentals');
-  assert.match(rendered, /<title>נתונים פיננסיים למניות \| Capital Flow<\/title>/);
+  assert.match(rendered, /<title>ניתוח פנדמנטלי למניות \| Capital Flow<\/title>/);
   assert.match(rendered, /name="description" content="מכפיל רווח/);
   assert.match(rendered, /property="og:url" content="https:\/\/capitalflow\.vip\/fundamentals"/);
   assert.match(rendered, /rel="canonical" href="https:\/\/capitalflow\.vip\/fundamentals"/);
@@ -53,7 +53,7 @@ test('the homepage has Hebrew crawlable content and links to the main research t
   assert.match(rendered, /סורק מניות וכלי מחקר לשוק ההון/);
   assert.match(rendered, /משווה את הנפח של כל מניה לממוצע שלה/);
   assert.match(rendered, /href="\/scanner">סורק נפח מסחר חריג<\/a>/);
-  assert.match(rendered, /href="\/fundamentals">נתונים פיננסיים<\/a>/);
+  assert.match(rendered, /href="\/fundamentals">ניתוח פנדמנטלי<\/a>/);
   assert.match(rendered, /אינו המלצה לפעולה/);
 });
 

@@ -15944,3 +15944,33 @@ html.a11y-highlight-links a {
   ):not(.cf-landing-page *) {
   unicode-bidi: plaintext;
 }
+
+/* Result tables, right-to-left: every header sits exactly above its values.
+   Identity columns (rank, ticker, name) align to the start (right); numeric
+   and badge columns are centered for both the header and the value, so a
+   left-to-right number never drifts away from its Hebrew header. */
+.results-table th,
+.results-table td {
+  text-align: center;
+}
+.results-table :is(th, td):is(.col-rank, .result-rank-col, .col-ticker, .col-name),
+.scanner-results-table :is(th, td):nth-child(-n + 3),
+.ma-results-table :is(th, td):nth-child(-n + 3) {
+  text-align: start;
+}
+.results-table td > :is(div, span):not(.ticker-cell) {
+  margin-inline: auto;
+}
+.results-table td .ticker-cell {
+  justify-content: flex-start;
+}
+.results-table th .sort-icon {
+  margin-inline-start: 4px;
+}
+/* English company names resolve their own direction (punctuation), so pin
+   the name column to the right edge explicitly, under its Hebrew header. */
+.results-table :is(th, td).col-name,
+.scanner-results-table :is(th, td):nth-child(3),
+.ma-results-table :is(th, td):nth-child(3) {
+  text-align: right;
+}

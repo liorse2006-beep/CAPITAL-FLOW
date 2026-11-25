@@ -3,7 +3,7 @@
 const COPY = {
   'Full market scans': 'סריקות שוק',
   'Sector scan breadth': 'סריקת סקטורים',
-  'Fundamentals lookups': 'נתונים פיננסיים',
+  'Fundamentals lookups': 'ניתוח פנדמנטלי',
   'Advanced filters & sorting': 'סינון ומיון מתקדם',
   'Price charts': 'גרפי מחיר',
   'Watchlist tracking & quotes': 'רשימת מעקב ומחירים',

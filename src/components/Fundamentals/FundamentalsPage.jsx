@@ -235,7 +235,7 @@ function removeRecentTicker(userId, symbol) {
 
 export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount }) {
   useSeo({
-    title: 'נתונים פיננסיים למניות | Capital Flow',
+    title: 'ניתוח פנדמנטלי למניות | Capital Flow',
     description:
       'מכפיל רווח, מכפיל עתידי, PEG, חוב להון, צמיחה, Float, Short Interest ומועד דוחות לכל מניה. הזמינות משתנה בין מניות.',
     path: '/fundamentals',
@@ -393,7 +393,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
   return (
     <div className="page-content fund-page">
       <header className="fund-workspace-head">
-        <h1>נתונים פיננסיים</h1>
+        <h1>ניתוח פנדמנטלי</h1>
         <p>תמונת החברה לפני המשך המחקר.</p>
       </header>
       <div className="fund-panel">

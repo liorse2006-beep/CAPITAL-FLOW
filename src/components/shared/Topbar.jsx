@@ -322,7 +322,7 @@ export default function Topbar({
           className={'nav-tab ' + (page === 'fundamentals' ? 'active' : '')}
           onClick={() => setPage('fundamentals')}
         >
-          נתונים פיננסיים
+          ניתוח פנדמנטלי
         </button>
         <button className={'nav-tab ' + (page === 'watchlist' ? 'active' : '')} onClick={() => setPage('watchlist')}>
           רשימת מעקב
