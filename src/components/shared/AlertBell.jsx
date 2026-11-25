@@ -3,7 +3,7 @@ import React from 'react';
 var SCAN_TYPE_LABEL = {
   capitalFlow: 'סריקת Capital Flow',
   maScanner: 'סורק ממוצעים נעים',
-  sectorMoving: 'פעילות בסקטורים',
+  sectorMoving: 'סקטורים חמים',
 };
 
 // A watchlist threshold alert is genuinely about one ticker, so its symbol

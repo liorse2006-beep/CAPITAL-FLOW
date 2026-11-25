@@ -313,7 +313,7 @@ export default function Topbar({
           נפח חריג
         </button>
         <button className={'nav-tab ' + (page === 'flow' ? 'active' : '')} onClick={() => setPage('flow')}>
-          פעילות בסקטורים
+          סקטורים חמים
         </button>
         <button className={'nav-tab ' + (page === 'ma' ? 'active' : '')} onClick={() => setPage('ma')}>
           ממוצעים נעים

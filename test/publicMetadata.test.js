@@ -78,7 +78,7 @@ test('scanner metadata describes available screening tools without claiming live
   assert.doesNotMatch(scanner.description, /זמן אמת|כל השוק/);
   assert.match(movingAverage.title, /סורק ממוצעים נעים/);
   assert.match(movingAverage.description, /9, 20, 50 או 150/);
-  assert.match(sectorFlow.title, /פעילות בסקטורים/);
+  assert.match(sectorFlow.title, /סקטורים חמים/);
   assert.match(sectorFlow.description, /עשויים להיות מעוכבים/);
 });
 

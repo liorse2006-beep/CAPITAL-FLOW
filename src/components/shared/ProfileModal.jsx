@@ -34,7 +34,7 @@ function number(value) {
 const SCHEDULE_SCAN_LABELS = {
   capitalFlow: 'נפח חריג',
   maScanner: 'סורק ממוצעים נעים',
-  sectorMoving: 'פעילות בסקטורים',
+  sectorMoving: 'סקטורים חמים',
 };
 
 function formatScheduleDate(value) {

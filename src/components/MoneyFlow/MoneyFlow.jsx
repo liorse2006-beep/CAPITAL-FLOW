@@ -26,7 +26,7 @@ export default function MoneyFlow({
   onEnablePush,
 }) {
   useSeo({
-    title: 'פעילות בסקטורים | Capital Flow',
+    title: 'סקטורים חמים | Capital Flow',
     description:
       'השוואת תנועות מחיר ונפח בין סקטורי השוק. הנתונים עשויים להיות מעוכבים או חלקיים; כדאי לאמת באופן עצמאי.',
     path: '/flow',
@@ -136,7 +136,7 @@ export default function MoneyFlow({
     <div className="page-content">
       <div className="flow-header">
         <div>
-          <h2 className="flow-title">פעילות בסקטורים</h2>
+          <h2 className="flow-title">סקטורים חמים</h2>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button className="scan-btn" onClick={fetchFlow} disabled={loading}>
@@ -335,7 +335,7 @@ export default function MoneyFlow({
                     <ShareScanResults
                       report={{
                         type: 'sectorMoving',
-                        title: 'תוצאות פעילות בסקטורים',
+                        title: 'תוצאות סקטורים חמים',
                         rows: sorted,
                         dataStatus: flowDataStatus,
                         ...flowTimestamps,

@@ -10,7 +10,7 @@ const SECTOR_BY_TICKER = Object.fromEntries(SECTOR_ETFS.map((sector) => [sector.
 var SCAN_LABEL = {
   capitalFlow: 'נפח חריג',
   maScanner: 'ממוצעים נעים',
-  sectorMoving: 'פעילות בסקטורים',
+  sectorMoving: 'סקטורים חמים',
   capitalFlowRadar: 'Capital Flow Radar',
 };
 
@@ -124,7 +124,7 @@ function ScheduledScanResultsPanel({ notification, onClose, isInWatchlist, toggl
         {legacySectorScan ? (
           <div className="scheduled-results-empty">
             <a className="btn-secondary" href="/flow" onClick={onClose}>
-              לפתיחת פעילות בסקטורים והרצת סריקה חדשה
+              לפתיחת סקטורים חמים והרצת סריקה חדשה
             </a>
           </div>
         ) : results.length === 0 ? (

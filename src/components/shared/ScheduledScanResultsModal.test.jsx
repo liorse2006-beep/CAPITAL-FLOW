@@ -26,7 +26,7 @@ describe('ScheduledScanResultsModal', () => {
           onClose={vi.fn()}
         />
       );
-      expect(screen.getByRole('dialog', { name: 'פעילות בסקטורים — תוצאות' })).toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: 'סקטורים חמים — תוצאות' })).toBeInTheDocument();
       expect(screen.getByText('Technology')).toBeInTheDocument();
       expect(screen.getByText('Energy')).toBeInTheDocument();
       expect(screen.getByText('פעילות חיובית')).toBeInTheDocument();
@@ -76,10 +76,7 @@ describe('ScheduledScanResultsModal', () => {
     );
     expect(screen.queryByText('CZR')).not.toBeInTheDocument();
     expect(screen.getByText('ההתראה הישנה הזו לא כוללת סריקת סקטורים שמורה.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'לפתיחת פעילות בסקטורים והרצת סריקה חדשה' })).toHaveAttribute(
-      'href',
-      '/flow'
-    );
+    expect(screen.getByRole('link', { name: 'לפתיחת סקטורים חמים והרצת סריקה חדשה' })).toHaveAttribute('href', '/flow');
   });
 
   it('keeps an empty sector run empty and preserves the MA-specific result display', () => {

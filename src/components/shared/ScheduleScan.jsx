@@ -7,7 +7,7 @@ import useModalA11y from '../../hooks/useModalA11y';
 const SCAN_LABELS = {
   capitalFlow: 'נפח חריג',
   maScanner: 'ממוצעים נעים',
-  sectorMoving: 'פעילות בסקטורים',
+  sectorMoving: 'סקטורים חמים',
 };
 
 function fmtTime(iso) {
