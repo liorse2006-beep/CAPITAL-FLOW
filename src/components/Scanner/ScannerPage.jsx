@@ -217,7 +217,7 @@ export default function ScannerPage({
   onEnablePush,
 }) {
   useSeo({
-    title: 'סורק נפח מסחר חריג | Capital Flow',
+    title: 'זיהוי נפח חריג | Capital Flow',
     description:
       'סריקת מניות S&P 500 ונאסד"ק 100 לפי נפח מסחר חריג, עם סינון לפי יחס נפח, שווי שוק ונפח מינימלי. הנתונים עשויים להיות מעוכבים; לצורכי לימוד בלבד.',
     path: '/scanner',

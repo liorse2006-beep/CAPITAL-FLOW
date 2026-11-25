@@ -73,7 +73,7 @@ test('scanner metadata describes available screening tools without claiming live
   const movingAverage = getPublicMetadata('/ma');
   const sectorFlow = getPublicMetadata('/flow');
 
-  assert.match(scanner.title, /סורק נפח מסחר חריג/);
+  assert.match(scanner.title, /זיהוי נפח חריג/);
   assert.match(scanner.description, /עשויים להיות מעוכבים/);
   assert.doesNotMatch(scanner.description, /זמן אמת|כל השוק/);
   assert.match(movingAverage.title, /סורק ממוצעים נעים/);
