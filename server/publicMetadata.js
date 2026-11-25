@@ -107,8 +107,7 @@ function renderPublicMetadata(html, pathname) {
   if (!metadata) return html;
 
   const canonical = SITE_URL + normalizePath(pathname);
-  // The whole product is Hebrew. App routes keep a left-to-right layout for
-  // their tables; only the landing page document is right-to-left.
+  // The whole product is Hebrew and right-to-left.
   const language = 'he';
   let rendered = normalizePath(pathname) === '/' ? html : appDocument(html, metadata.description);
   rendered = rendered.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(metadata.title)}</title>`);
@@ -147,7 +146,7 @@ function appDocument(
   return html
     .replace(
       /<html\b([^>]*)>/i,
-      (_tag, attrs) => `<html${attrs.replace(/\s+(?:lang|dir)=["'][^"']*["']/gi, '')} lang="he" dir="ltr">`
+      (_tag, attrs) => `<html${attrs.replace(/\s+(?:lang|dir)=["'][^"']*["']/gi, '')} lang="he" dir="rtl">`
     )
     .replace(
       /(<script\b[^>]*type=["']application\/ld\+json["'][^>]*>)([\s\S]*?)(<\/script>)/gi,

@@ -485,7 +485,7 @@ export default function ScannerPage({
                   className="scan-filter-input"
                   id="scan-min-vol"
                   type="text"
-                  placeholder="e.g. 1M"
+                  placeholder="1M"
                   value={minVol}
                   onChange={filtersUnlocked ? (e) => setMinVol(e.target.value) : undefined}
                   readOnly={!filtersUnlocked}
@@ -566,7 +566,7 @@ export default function ScannerPage({
                         </div>
                       )}
                       {mktOpen && (
-                        <div className="scan-mode-stat" style={{ marginLeft: 'auto' }}>
+                        <div className="scan-mode-stat" style={{ marginInlineStart: 'auto' }}>
                           <div className="scan-mode-live-dot" />
                           <span className="scan-mode-stat-val" style={{ color: 'var(--green)' }}>
                             LIVE
@@ -655,7 +655,7 @@ export default function ScannerPage({
             <label>נפח מינימלי</label>
             <input
               type="text"
-              placeholder="e.g. 1M"
+              placeholder="1M"
               value={minVol}
               onChange={filtersUnlocked ? (e) => setMinVol(e.target.value) : undefined}
               readOnly={!filtersUnlocked}
@@ -665,7 +665,7 @@ export default function ScannerPage({
           <button
             className={'filter-toggle' + (showPresetPanel ? ' active' : '')}
             onClick={filtersUnlocked ? () => setShowPresetPanel(!showPresetPanel) : goToUpgrade}
-            style={{ marginLeft: 'auto' }}
+            style={{ marginInlineStart: 'auto' }}
           >
             שמירת סינון
           </button>
@@ -715,7 +715,7 @@ export default function ScannerPage({
             המסחר סגור — מוצגים נתוני יום המסחר האחרון
             {scanTime &&
               ' · ' +
-                new Date(scanTime).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                new Date(scanTime).toLocaleDateString('he-IL', { weekday: 'short', month: 'short', day: 'numeric' })}
           </span>
         </div>
       )}

@@ -16,7 +16,7 @@ var SCAN_LABEL = {
 
 function formatWhen(unixSec) {
   if (typeof unixSec !== 'number' || !Number.isFinite(unixSec) || unixSec <= 0) return '';
-  return new Date(unixSec * 1000).toLocaleString('en-US', {
+  return new Date(unixSec * 1000).toLocaleString('he-IL', {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',

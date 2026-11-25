@@ -13,6 +13,12 @@ const SECTORS = {
   Utilities: 'תשתיות',
   'Communication Services': 'תקשורת',
   Semiconductors: 'שבבים',
+  // Provider (Yahoo) naming for the same sectors.
+  Healthcare: 'בריאות',
+  'Financial Services': 'פיננסים',
+  'Consumer Cyclical': 'צריכה מחזורית',
+  'Consumer Defensive': 'צריכה בסיסית',
+  'Basic Materials': 'חומרי גלם',
 };
 export function sectorName(value) {
   return SECTORS[value] || value || '—';

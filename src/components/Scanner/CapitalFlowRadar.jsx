@@ -237,7 +237,7 @@ function RadarSignalCard({ event, radar }) {
       </div>
 
       <span className="cfr-radar-signal-arrow" aria-hidden="true">
-        ›
+        ‹
       </span>
     </article>
   );
@@ -613,7 +613,7 @@ export default function CapitalFlowRadar({
               : 'התחבר כדי להפעיל רדאר ולסרוק גם כשאינך באפליקציה.'}
           </span>
           <button className="cfr-radar-cta" type="button" onClick={user ? onUpgrade : onSignIn}>
-            {user ? 'שדרוג ל־Elite' : 'התחברות להפעלה'} <span aria-hidden="true">→</span>
+            {user ? 'שדרוג ל־Elite' : 'התחברות להפעלה'} <span aria-hidden="true">←</span>
           </button>
         </div>
       ) : (
@@ -1056,7 +1056,7 @@ export default function CapitalFlowRadar({
                       loading || (currentRecipe.mode === 'sectors' && currentRecipe.selectedSectors.length === 0)
                     }
                   >
-                    הפעלת רדאר <span aria-hidden="true">→</span>
+                    הפעלת רדאר <span aria-hidden="true">←</span>
                   </button>
                   <button type="button" className="cfr-radar-cancel" onClick={closeSetup}>
                     ביטול

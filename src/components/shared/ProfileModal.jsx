@@ -419,7 +419,7 @@ export default function ProfileModal({
                 >
                   <span>{section.label}</span>
                   <span className="account-center-nav-arrow" aria-hidden="true">
-                    →
+                    ←
                   </span>
                 </button>
               ))}
@@ -438,7 +438,7 @@ export default function ProfileModal({
                     <strong>{section.label}</strong>
                     <small>{section.description}</small>
                   </span>
-                  <span aria-hidden="true">→</span>
+                  <span aria-hidden="true">←</span>
                 </button>
               ))}
             </nav>

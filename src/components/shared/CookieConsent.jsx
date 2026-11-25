@@ -13,13 +13,13 @@ const styles = `
   text-align: start;
   position: fixed;
   bottom: 24px;
-  left: 24px;
+  inset-inline-start: 24px;
   z-index: 9999;
   max-width: 380px;
   width: calc(100vw - 48px);
   background: #161616;
   border: 1px solid rgba(255,255,255,0.09);
-  border-left: 3px solid var(--accent, #f59e0b);
+  border-inline-start: 3px solid var(--accent, #f59e0b);
   border-radius: 10px;
   padding: 20px 22px 18px;
   box-shadow:

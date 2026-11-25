@@ -364,7 +364,7 @@ export default function FundamentalsPage({ onUpgrade, onSignIn, onCreateAccount 
               </div>
               <button className="empty-rich-cta" onClick={user ? onUpgrade : onCreateAccount || onSignIn}>
                 {user ? 'שדרוג ל־Premium' : 'יצירת חשבון'}
-                {!user && <span aria-hidden="true">→</span>}
+                {!user && <span aria-hidden="true">←</span>}
               </button>
               {!user && (
                 <div className="empty-rich-signin">

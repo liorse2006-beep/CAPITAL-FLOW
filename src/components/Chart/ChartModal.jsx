@@ -174,8 +174,8 @@ function drawChart(canvas, data, period) {
     const d = new Date(quotes[i].date);
     let label;
     if (period === '1D') label = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-    else if (period === '1W') label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    else label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    else if (period === '1W') label = d.toLocaleDateString('he-IL', { month: 'short', day: 'numeric' });
+    else label = d.toLocaleDateString('he-IL', { month: 'short', day: 'numeric' });
     ctx.fillText(label, px(i), H - PAD.bottom + 16);
   }
 

@@ -43,7 +43,7 @@ test('server-rendered route metadata replaces the SPA defaults without trusting 
   assert.match(rendered, /hreflang="he" href="https:\/\/capitalflow\.vip\/fundamentals"/);
   assert.match(rendered, /hreflang="x-default" href="https:\/\/capitalflow\.vip\/fundamentals"/);
   assert.doesNotMatch(rendered, /hreflang="en"/);
-  assert.match(rendered, /<html[^>]*lang="he"[^>]*dir="ltr"/);
+  assert.match(rendered, /<html[^>]*lang="he"[^>]*dir="rtl"/);
   assert.equal(renderPublicMetadata(SHELL, '/not-a-route'), SHELL);
 });
 

@@ -39,7 +39,7 @@ export default function PilotGate({ user, onAccept, onSignOut }) {
       style={{
         position: 'fixed',
         bottom: 10,
-        right: 12,
+        insetInlineEnd: 12,
         zIndex: 9999,
         fontSize: 10,
         fontFamily: 'var(--mono)',

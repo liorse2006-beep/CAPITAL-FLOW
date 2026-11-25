@@ -13,13 +13,13 @@ const SCAN_LABELS = {
 function fmtTime(iso) {
   if (!iso) return '—';
   const d = new Date(Number(iso) * 1000);
-  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 }
 
 function fmtDate(yyyyMmDd) {
   if (!yyyyMmDd) return '';
   const [y, m, d] = yyyyMmDd.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return new Date(y, m - 1, d).toLocaleDateString('he-IL', { month: 'short', day: 'numeric' });
 }
 
 function todayLocalDate() {

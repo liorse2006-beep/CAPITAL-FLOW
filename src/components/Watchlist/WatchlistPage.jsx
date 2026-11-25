@@ -254,7 +254,7 @@ export default function WatchlistPage({
                     <span className="empty-rich-pill">הוספה בלחיצה</span>
                   </div>
                   <button className="empty-rich-cta" onClick={onCreateAccount || onRequireAuth}>
-                    יצירת חשבון <span aria-hidden="true">→</span>
+                    יצירת חשבון <span aria-hidden="true">←</span>
                   </button>
                   <div className="empty-rich-signin">
                     <span>כבר יש לך חשבון?</span>{' '}

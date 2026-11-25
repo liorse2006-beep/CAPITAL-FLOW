@@ -104,15 +104,13 @@ function Root() {
 
 function SiteLanguageFrame() {
   const { pathname } = useLocation();
-  // The whole product speaks Hebrew. Only the marketing landing page is laid
-  // out right-to-left; the app keeps its left-to-right grid (tables, tickers
-  // and numbers) and components set rtl on Hebrew text blocks themselves.
+  // The whole product is Hebrew and laid out right-to-left. Tickers, prices
+  // and numbers keep their own left-to-right runs (dir="ltr" / <bdi>).
   const language = 'he';
-  const isLanding = pathname === '/';
   useEffect(() => {
     document.documentElement.lang = language;
-    document.documentElement.dir = isLanding ? 'rtl' : 'ltr';
-  }, [isLanding]);
+    document.documentElement.dir = 'rtl';
+  }, [pathname]);
   return (
     <UiLanguageContext.Provider value={language}>
       <Root />
