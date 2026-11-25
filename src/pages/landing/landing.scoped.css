@@ -1990,10 +1990,9 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-areas:
     'alerts fundamentals'
-    'volume ai'
-    'trend watchlist'
-    'sector .';
-  grid-template-rows: repeat(4, minmax(104px, auto));
+    'volume watchlist'
+    'trend sector';
+  grid-template-rows: repeat(3, minmax(104px, auto));
   max-width: 1080px;
 }
 .cf-landing-page .cf-feat-span2 {
@@ -2765,7 +2764,6 @@
       'trend'
       'sector'
       'fundamentals'
-      'ai'
       'watchlist';
   }
   .cf-landing-page .cf-feat-ai {

@@ -3,7 +3,6 @@ import ScanLoader from '../shared/ScanLoader';
 import ScheduleScan from '../shared/ScheduleScan';
 import ElectricBorder from '../shared/ElectricBorder';
 import SectorPickerModal from './SectorPickerModal';
-import CapitalFlowRadar from './CapitalFlowRadar';
 import useSmoothProgress from '../../hooks/useSmoothProgress';
 import MobileResultSort from '../shared/MobileResultSort';
 import ShareScanResults from '../shared/ShareScanResults';
@@ -207,12 +206,10 @@ export default function ScannerPage({
   maxPremiumSectors,
   sectorLimit,
   user,
-  getToken,
   onUpgrade,
   onSignIn,
   openChart,
   onCreateAccount,
-  radarEvent,
   pushSupported,
   pushEnabled,
   pushBusy,
@@ -278,21 +275,6 @@ export default function ScannerPage({
 
   return (
     <div className="page-content">
-      <CapitalFlowRadar
-        user={user}
-        getToken={getToken}
-        isElite={isElite}
-        trialActive={trialActive}
-        onUpgrade={onUpgrade}
-        onSignIn={onSignIn}
-        scanMode={scanMode}
-        selectedSectors={selectedSectors}
-        minRatio={minRatio}
-        minCap={minCap}
-        minVol={minVol}
-        radarEvent={radarEvent}
-      />
-
       {/* Scanning: Radar + תוצאות הסריקה Feed */}
       {scanning && progress && (
         <div className="scan-live-wrap">

@@ -24,16 +24,11 @@ describe('tier entitlement matrix', () => {
 
   it('retains explicit excluded values for the post-purchase checklist', () => {
     const premium = tierFeatureChecklist('premium');
-    expect(premium.find((row) => row.label === 'Capital Flow Radar')).toMatchObject({ included: false });
+    expect(premium.find((row) => row.label === 'Push notifications')).toMatchObject({ included: false });
     expect(premium.some((row) => /news|ai summaries/i.test(row.label))).toBe(false);
   });
 
-  it('keeps Capital Flow Radar limited to the trial and Elite', () => {
-    expect(TIER_ROWS.find((row) => row.label === 'Capital Flow Radar')).toEqual({
-      label: 'Capital Flow Radar',
-      free: '7-day trial',
-      premium: false,
-      elite: 'Included',
-    });
+  it('no longer lists the retired Radar feature', () => {
+    expect(TIER_ROWS.some((row) => /radar/i.test(row.label))).toBe(false);
   });
 });

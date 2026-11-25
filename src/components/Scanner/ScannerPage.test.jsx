@@ -225,7 +225,7 @@ describe('ScannerPage restored-last-scan label', () => {
 });
 
 describe('ScannerPage Radar placement', () => {
-  it('keeps one compact Radar surface after results are available', () => {
+  it('does not show the Radar on the scanner screen', () => {
     render(
       <ScannerPage
         {...baseProps({
@@ -236,7 +236,7 @@ describe('ScannerPage Radar placement', () => {
       />
     );
 
-    expect(screen.getAllByRole('heading', { name: /רדאר Capital Flow/i })).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: /רדאר/i })).not.toBeInTheDocument();
   });
 });
 

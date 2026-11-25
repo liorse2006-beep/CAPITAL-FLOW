@@ -541,11 +541,6 @@ export default function ProfileModal({
                             <Stat label="רשימת מעקב" value={number(usage.watchlistCount)} detail="מניות שמורות" />
                             <Stat label="התראות" value={number(usage.alertCount)} detail="תנאים פעילים" />
                             <Stat
-                              label="רדאר"
-                              value={number(usage.activeRadarCount)}
-                              detail={`${number(usage.radarCount)} כללים בסך הכול`}
-                            />
-                            <Stat
                               label="תזמונים"
                               value={number(usage.activeScheduleCount)}
                               detail={`${number(usage.scheduleCount)} total`}

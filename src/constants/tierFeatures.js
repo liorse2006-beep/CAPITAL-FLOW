@@ -35,7 +35,6 @@ export const TIER_ROWS = [
   { label: 'Real-time alert stream', free: '7-day trial', premium: false, elite: 'Included' },
   { label: 'Daily scheduled scan', free: '7-day trial', premium: false, elite: 'Included' },
   { label: 'Custom watchlist alerts', free: '7-day trial', premium: false, elite: 'Included' },
-  { label: 'Capital Flow Radar', free: '7-day trial', premium: false, elite: 'Included' },
 ];
 
 // Header data belongs next to the plan data so price copy cannot drift between
