@@ -52,10 +52,10 @@ test('the homepage has Hebrew crawlable content and links to the main research t
   const rendered = renderPublicMetadata(SHELL, '/');
 
   assert.match(rendered, /סורק מניות וכלי מחקר לשוק ההון/);
-  assert.match(rendered, /סורק הנפח משווה בין נפח המסחר המדווח/);
+  assert.match(rendered, /משווה את הנפח של כל מניה לממוצע שלה/);
   assert.match(rendered, /href="\/scanner">סורק נפח מסחר חריג<\/a>/);
   assert.match(rendered, /href="\/fundamentals">נתונים פיננסיים<\/a>/);
-  assert.match(rendered, /אינו ייעוץ השקעות/);
+  assert.match(rendered, /אינו המלצה לפעולה/);
 });
 
 test('application HTML omits the complete explanation section on every route', () => {
@@ -81,4 +81,20 @@ test('scanner metadata describes available screening tools without claiming live
   assert.match(movingAverage.description, /9, 20, 50 and 150/);
   assert.match(sectorFlow.title, /Stock Sector Performance/);
   assert.match(sectorFlow.description, /may be delayed or incomplete/);
+});
+
+test('the home page ships its full Hebrew copy, FAQ and links in the initial HTML', () => {
+  const { renderPublicMetadata } = require('../server/publicMetadata');
+  const shell =
+    '<html lang="he"><head><title>x</title></head><body><div id="root"></div><section id="seo-route-content" class="seo-discovery-content"></section></body></html>';
+  const html = renderPublicMetadata(shell, '/');
+  assert.match(html, /<h1>Capital Flow — סורק מניות/);
+  assert.match(html, /האם אפשר להתחיל בחינם\?/);
+  for (const href of ['/scanner', '/learn', '/stocks', '/etfs']) assert.ok(html.includes(`href="${href}"`), href);
+  assert.ok(html.includes('התוכן לצורכי לימוד בלבד ואינו המלצה לפעולה.'));
+});
+
+test('the static handler never answers "/" before the metadata renderer', () => {
+  const source = require('fs').readFileSync(require('path').join(__dirname, '../server/index.js'), 'utf8');
+  assert.match(source, /express\.static\(serveDir, \{[\s\S]{0,200}index: false/);
 });

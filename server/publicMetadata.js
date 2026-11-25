@@ -94,9 +94,14 @@ function renderSeoContent(content, language = 'en') {
     })
     .join('');
 
+  const faq = (content.faq || []).map(([q, a]) => `<h3>${escapeHtml(q)}</h3><p>${escapeHtml(a)}</p>`).join('');
+  const heading = content.h1
+    ? `<h1>${escapeHtml(content.h1)}</h1><h2 id="${escapeHtml(content.id)}-title">${escapeHtml(content.title)}</h2>`
+    : `<h2 id="${escapeHtml(content.id)}-title">${escapeHtml(content.title)}</h2>`;
+  const faqBlock = faq ? `<section class="seo-discovery-faq">${faq}</section>` : '';
   const label = language === 'he' ? 'כלי מחקר נוספים' : 'Explore Capital Flow tools';
   const caption = language === 'he' ? 'כלים נוספים' : 'Explore other tools';
-  return `<h2 id="${escapeHtml(content.id)}-title">${escapeHtml(content.title)}</h2><p class="seo-discovery-intro">${escapeHtml(content.intro)}</p><div class="seo-discovery-sections">${sections}</div><p class="seo-discovery-disclaimer">${escapeHtml(content.disclaimer)}</p><nav class="seo-discovery-links" aria-label="${label}"><span>${caption}</span>${links}</nav>`;
+  return `${heading}<p class="seo-discovery-intro">${escapeHtml(content.intro)}</p><div class="seo-discovery-sections">${sections}</div>${faqBlock}<p class="seo-discovery-disclaimer">${escapeHtml(content.disclaimer)}</p><nav class="seo-discovery-links" aria-label="${label}"><span>${caption}</span>${links}</nav>`;
 }
 
 function renderPublicMetadata(html, pathname) {

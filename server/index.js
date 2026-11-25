@@ -252,6 +252,9 @@ const publicDir = path.join(__dirname, '../public');
 app.use(function (req, res, next) {
   const serveDir = fs.existsSync(distDir) ? distDir : publicDir;
   express.static(serveDir, {
+    // "/" must reach servePublicApp below, which adds the crawlable home copy
+    // and route metadata; letting static answer it sent an empty shell.
+    index: false,
     setHeaders: function (res, filePath) {
       // Vite fingerprints every file under assets/ with a content hash in the
       // name (index-Ab12Cd34.js) — the filename itself changes whenever the
